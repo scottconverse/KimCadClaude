@@ -1,0 +1,167 @@
+import json
+from types import SimpleNamespace
+
+from kimcad.config import LLMBackend, Material, Printer
+from kimcad.ir import DesignPlan
+from kimcad.llm_provider import (
+    LLMProvider,
+    build_constraints_block,
+    build_library_manifest,
+)
+
+BAMBU = Printer(
+    key="bambu_p2s",
+    name="Bambu Lab P2S",
+    build_volume=(256, 256, 256),
+    nozzle_diameter=0.4,
+)
+PLA = Material(
+    key="pla", name="PLA", nozzle_temp=210, bed_temp=55, wall_multiplier=2.0, shrinkage=0.002
+)
+BACKEND = LLMBackend(
+    key="test",
+    provider="openai",
+    base_url="http://localhost:0/v1",
+    model_name="test-model",
+    api_key_env=None,
+    temperature=0.2,
+    max_tokens=4096,
+    supports_structured_output=True,
+)
+
+
+class FakeChatClient:
+    """Records the kwargs passed to create() and returns a canned response."""
+
+    def __init__(self, content: str):
+        self._content = content
+        self.calls: list[dict] = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        message = SimpleNamespace(content=self._content)
+        choice = SimpleNamespace(message=message)
+        return SimpleNamespace(choices=[choice])
+
+
+def test_constraints_block_mentions_printer_and_min_wall():
+    block = build_constraints_block(BAMBU, PLA)
+    assert "Bambu Lab P2S" in block
+    assert "256 × 256 × 256" in block
+    assert "0.40 mm" in block  # nozzle
+    assert "0.8 mm" in block  # min wall = 2.0 * 0.4
+
+
+def test_library_manifest_lists_modules_and_signatures():
+    manifest = build_library_manifest()
+    assert "use <library/box.scad>;" in manifest
+    assert "box(width, depth, height" in manifest
+    assert "l_bracket(" in manifest
+
+
+def test_generate_design_plan_parses_json_through_fences():
+    plan_json = {
+        "object_type": "bracket",
+        "summary": "A simple L bracket.",
+        "dimensions": {"arm": 40.0, "wall": 4.0},
+        "bounding_box_mm": [40.0, 30.0, 40.0],
+        "features": [],
+        "tolerances": {"clearance_mm": 0.2},
+        "printer": "bambu_p2s",
+        "material": "pla",
+        "assumptions": [],
+        "open_questions": [],
+    }
+    fenced = "```json\n" + json.dumps(plan_json) + "\n```"
+    client = FakeChatClient(fenced)
+    provider = LLMProvider(BACKEND, client=client)
+
+    plan = provider.generate_design_plan("an L bracket", BAMBU, PLA)
+
+    assert isinstance(plan, DesignPlan)
+    assert plan.object_type == "bracket"
+    assert plan.bounding_box_mm == [40.0, 30.0, 40.0]
+
+    # json_mode + supports_structured_output -> response_format requested
+    call = client.calls[0]
+    assert call["response_format"] == {"type": "json_object"}
+    assert call["model"] == "test-model"
+    # system prompt carries the constraints block
+    assert call["messages"][0]["role"] == "system"
+    assert "Bambu Lab P2S" in call["messages"][0]["content"]
+    assert call["messages"][-1] == {"role": "user", "content": "an L bracket"}
+
+
+def test_generate_openscad_strips_fences_and_sends_plan():
+    plan = DesignPlan(
+        object_type="cube",
+        summary="A 20mm cube.",
+        dimensions={"size": 20.0},
+        bounding_box_mm=[20.0, 20.0, 20.0],
+        printer="bambu_p2s",
+        material="pla",
+    )
+    scad = "```openscad\ncube(20);\n```"
+    client = FakeChatClient(scad)
+    provider = LLMProvider(BACKEND, client=client)
+
+    out = provider.generate_openscad(plan, BAMBU, PLA)
+
+    assert out == "cube(20);"
+    call = client.calls[0]
+    # codegen is not JSON mode
+    assert "response_format" not in call
+    assert "library/box.scad" in call["messages"][0]["content"]
+    assert "Design plan:" in call["messages"][-1]["content"]
+
+
+def test_history_is_threaded_between_system_and_user():
+    client = FakeChatClient("```\ncube(1);\n```")
+    provider = LLMProvider(BACKEND, client=client)
+    plan = DesignPlan(
+        object_type="cube",
+        summary="x",
+        dimensions={"size": 1.0},
+        bounding_box_mm=[1.0, 1.0, 1.0],
+        printer="bambu_p2s",
+        material="pla",
+    )
+    history = [
+        {"role": "user", "content": "earlier turn"},
+        {"role": "assistant", "content": "earlier reply"},
+    ]
+    provider.generate_openscad(plan, BAMBU, PLA, history=history)
+
+    msgs = client.calls[0]["messages"]
+    assert msgs[0]["role"] == "system"
+    assert msgs[1] == {"role": "user", "content": "earlier turn"}
+    assert msgs[2] == {"role": "assistant", "content": "earlier reply"}
+    assert msgs[-1]["role"] == "user"
+
+
+def test_structured_output_suppressed_when_backend_lacks_support():
+    backend = LLMBackend(
+        key="local",
+        provider="ollama",
+        base_url="http://localhost:11434/v1",
+        model_name="qwen3:8b",
+        api_key_env=None,
+        temperature=0.2,
+        max_tokens=4096,
+        supports_structured_output=False,
+    )
+    plan_json = {
+        "object_type": "cube",
+        "summary": "x",
+        "dimensions": {"size": 1.0},
+        "bounding_box_mm": [1.0, 1.0, 1.0],
+        "printer": "bambu_p2s",
+        "material": "pla",
+    }
+    client = FakeChatClient(json.dumps(plan_json))
+    provider = LLMProvider(backend, client=client)
+
+    provider.generate_design_plan("a cube", BAMBU, PLA)
+
+    assert "response_format" not in client.calls[0]

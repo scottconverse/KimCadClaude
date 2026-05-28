@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kimcad"
+version = "0.1.0"
+description = "AI-assisted parametric design for functional 3D prints"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Scott Converse" }]
+dependencies = [
+    "openai>=1.40",
+    "pydantic>=2.8",
+    "pyyaml>=6.0",
+    "trimesh>=4.4",
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "networkx>=3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+kimcad = "kimcad.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]

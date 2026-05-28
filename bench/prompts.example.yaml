@@ -1,0 +1,17 @@
+# Phase-1 benchmark prompt set (schema example).
+#
+# The REAL prompt set is Appendix B of the KimCad Unified Spec. Copy this file to
+# `bench/prompts.yaml` and replace the cases below with the 10 Appendix B prompts.
+# `expect_object_type` and `max_bbox_mm` are optional grading hints.
+#
+# The done-gate threshold (success rate) comes from spec §4.2.
+
+cases:
+  - id: b01
+    prompt: "EXAMPLE — replace with Appendix B prompt 1"
+    expect_object_type: bracket
+    max_bbox_mm: [120, 80, 40]
+    notes: "schema demo only"
+
+  - id: b02
+    prompt: "EXAMPLE — replace with Appendix B prompt 2"

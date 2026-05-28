@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# KimCad — bundled binaries are fetched, never committed
+/tools/
+# Runtime render/slice artifacts
+/output/
+*.gcode
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Local config overrides + secrets
+config/local.yaml
+.env
+*.key

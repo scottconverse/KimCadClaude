@@ -1,0 +1,35 @@
+# Seed OpenSCAD module library manifest (spec §8).
+# This is injected into the codegen system prompt so the model composes from proven
+# modules via `use <library/NAME.scad>;` rather than reinventing geometry.
+
+modules:
+  - file: box.scad
+    summary: Parameterized box with walls, floor, and optional closed top.
+    signatures:
+      - "box(width, depth, height, wall=2.0, floor=2.0, open_top=true)"
+
+  - file: bracket.scad
+    summary: L bracket (two 90° arms) with mounting holes through both arms.
+    signatures:
+      - "l_bracket(arm=40, width=30, thick=4, screw=4, inset=8)"
+
+  - file: fasteners.scad
+    summary: Metric screw/nut/heat-set helpers (M2–M8). Cut tools for difference().
+    signatures:
+      - "screw_clearance_hole(size=3, depth=10, fn=32)"
+      - "counterbore(size=3, head_d=6.0, head_h=3.0, depth=12, fn=32)"
+      - "nut_trap(size=3, depth=3, fn=6)"
+      - "heatset_hole(size=3, depth=6, fn=32)"
+
+  - file: fillets.scad
+    summary: Cheap rounding (2D hull/offset, never minkowski).
+    signatures:
+      - "rounded_rect(width, depth, r=3, fn=32)"
+      - "rounded_box(width, depth, height, r=3, fn=32)"
+      - "rounded_plate(width, depth, height, r=3, fn=32)"
+
+  - file: mounts.scad
+    summary: Hole-grid and VESA mounting patterns (cut tools).
+    signatures:
+      - "hole_grid(cols=2, rows=2, dx=20, dy=20, size=4, depth=12, fn=32)"
+      - "vesa(pattern=100, size=4, depth=12, fn=32)"

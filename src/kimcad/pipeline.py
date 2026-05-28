@@ -1,0 +1,286 @@
+"""Pipeline orchestrator + print report (spec §6, §5.2).
+
+Wires the deterministic spine end to end:
+
+    prompt → design plan → [clarify?] → OpenSCAD → render → validate →
+    Printability Gate → auto-orient → [confirm + slice?] → print report
+
+The LLM provider, the renderer, and the slicer are all injected so the whole
+orchestration — including the render-retry loop and the Gate escape hatch — is
+testable offline against real Trimesh geometry, with no binary or network.
+
+Two safety behaviors from the threat model (§12) live here, not in the leaf stages:
+- un-renderable / blocked codegen is fed back to the model and retried, then fails
+  closed rather than looping forever;
+- G-code is only produced after explicit printer confirmation (``confirm_print``).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+from kimcad.config import Config, Material, Printer
+from kimcad.ir import DesignPlan, first_clarification
+from kimcad.llm_provider import LLMProvider
+from kimcad.openscad_runner import (
+    BlockedCodeError,
+    RenderError,
+    RenderResult,
+    render_scad,
+)
+from kimcad.orientation import Orientation, auto_orient
+from kimcad.printability import GateResult, Level, run_gate
+from kimcad.validation import MeshReport, load_mesh, validate_mesh
+
+Renderer = Callable[[str, Path, str], RenderResult]
+Slicer = Callable[[Path, Path, str], Any]
+
+
+class PipelineStatus(str, Enum):
+    clarification_needed = "clarification_needed"
+    render_failed = "render_failed"
+    gate_failed = "gate_failed"
+    completed = "completed"
+
+
+@dataclass
+class PrintReport:
+    object_type: str
+    summary: str
+    printer: str
+    material: str
+    gate_status: str
+    headline: str
+    target_bbox_mm: list[float] | None
+    actual_bbox_mm: tuple[float, float, float]
+    findings: list[tuple[str, str, str]]
+    watertight: bool
+    repaired: bool
+    repairs: list[str]
+    n_bodies: int
+    volume_mm3: float
+    orientation: str
+    orientation_stability: float
+    sanitizer_removed: list[str]
+
+    def to_text(self) -> str:
+        ax, ay, az = self.actual_bbox_mm
+        lines = [
+            f"{self.object_type} — {self.summary}",
+            f"Printer: {self.printer}   Material: {self.material}",
+            f"Gate: {self.gate_status.upper()}",
+            f"Headline: {self.headline}" if self.headline else "",
+            f"Size: {ax:.1f} × {ay:.1f} × {az:.1f} mm"
+            + (
+                f" (target {self.target_bbox_mm[0]:.1f} × "
+                f"{self.target_bbox_mm[1]:.1f} × {self.target_bbox_mm[2]:.1f})"
+                if self.target_bbox_mm
+                else ""
+            ),
+            f"Mesh: {'watertight' if self.watertight else 'NOT watertight'}, "
+            f"{self.n_bodies} body(ies), volume {self.volume_mm3:.0f} mm³"
+            + (f" (repaired: {'; '.join(self.repairs)})" if self.repaired else ""),
+            f"Orientation: {self.orientation} (stability {self.orientation_stability:.2f})",
+        ]
+        for level, code, message in self.findings:
+            lines.append(f"  [{level}] {code}: {message}")
+        if self.sanitizer_removed:
+            lines.append("Sanitizer removed:")
+            lines.extend(f"  - {r}" for r in self.sanitizer_removed)
+        return "\n".join(ln for ln in lines if ln)
+
+
+@dataclass
+class PipelineResult:
+    status: PipelineStatus
+    prompt: str
+    plan: DesignPlan | None = None
+    clarification: str | None = None
+    scad: str | None = None
+    render: RenderResult | None = None
+    mesh_report: MeshReport | None = None
+    gate: GateResult | None = None
+    orientation: Orientation | None = None
+    mesh_path: Path | None = None
+    report: PrintReport | None = None
+    slice_result: Any = None
+    error: str | None = None
+    render_attempts: int = 0
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+class Pipeline:
+    def __init__(
+        self,
+        config: Config,
+        printer: Printer,
+        material: Material,
+        provider: LLMProvider,
+        *,
+        renderer: Renderer | None = None,
+        slicer: Slicer | None = None,
+        max_render_retries: int = 2,
+    ):
+        self.config = config
+        self.printer = printer
+        self.material = material
+        self.provider = provider
+        self.renderer = renderer or self._default_renderer
+        self.slicer = slicer
+        self.max_render_retries = max_render_retries
+
+    def _default_renderer(self, scad: str, out_dir: Path, basename: str) -> RenderResult:
+        return render_scad(
+            scad,
+            binary=self.config.binary_path("openscad"),
+            out_dir=out_dir,
+            basename=basename,
+            output_format=self.config.default_output_format(),
+            timeout_s=self.config.limit("openscad_timeout_simple_s"),
+            max_output_bytes=self.config.limit("max_output_bytes"),
+        )
+
+    def run(
+        self,
+        prompt: str,
+        out_dir: Path,
+        *,
+        history: list[dict[str, str]] | None = None,
+        proceed_anyway: bool = False,
+        confirm_print: bool = False,
+        basename: str = "part",
+    ) -> PipelineResult:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        plan = self.provider.generate_design_plan(
+            prompt, self.printer, self.material, history=history
+        )
+        clarification = first_clarification(plan)
+        if clarification is not None:
+            return PipelineResult(
+                status=PipelineStatus.clarification_needed,
+                prompt=prompt,
+                plan=plan,
+                clarification=clarification,
+            )
+
+        render, scad, attempts, error = self._render_with_retry(plan, out_dir, basename)
+        if render is None:
+            return PipelineResult(
+                status=PipelineStatus.render_failed,
+                prompt=prompt,
+                plan=plan,
+                scad=scad,
+                render_attempts=attempts,
+                error=error,
+            )
+
+        mesh = load_mesh(render.output_path)
+        mesh, mesh_report = validate_mesh(mesh)
+        gate = run_gate(mesh_report, plan, self.printer, self.material)
+
+        oriented, orientation = auto_orient(mesh)
+        mesh_path = out_dir / f"{basename}.oriented.stl"
+        oriented.export(str(mesh_path))
+
+        report = self._build_report(plan, render, mesh_report, gate, orientation)
+
+        if gate.status is Level.FAIL and not proceed_anyway:
+            return PipelineResult(
+                status=PipelineStatus.gate_failed,
+                prompt=prompt,
+                plan=plan,
+                scad=scad,
+                render=render,
+                mesh_report=mesh_report,
+                gate=gate,
+                orientation=orientation,
+                mesh_path=mesh_path,
+                report=report,
+                render_attempts=attempts,
+            )
+
+        slice_result = None
+        if confirm_print and self.slicer is not None:
+            slice_result = self.slicer(mesh_path, out_dir, basename)
+
+        return PipelineResult(
+            status=PipelineStatus.completed,
+            prompt=prompt,
+            plan=plan,
+            scad=scad,
+            render=render,
+            mesh_report=mesh_report,
+            gate=gate,
+            orientation=orientation,
+            mesh_path=mesh_path,
+            report=report,
+            slice_result=slice_result,
+            render_attempts=attempts,
+        )
+
+    def _render_with_retry(
+        self, plan: DesignPlan, out_dir: Path, basename: str
+    ) -> tuple[RenderResult | None, str | None, int, str | None]:
+        """Generate OpenSCAD and render, feeding render errors back to the model.
+
+        Returns (render_result | None, last_scad, attempts, error_message).
+        """
+        thread: list[dict[str, str]] = []
+        scad = self.provider.generate_openscad(plan, self.printer, self.material, history=thread)
+        last_error: str | None = None
+        for attempt in range(1, self.max_render_retries + 2):
+            try:
+                return self.renderer(scad, out_dir, basename), scad, attempt, None
+            except (RenderError, BlockedCodeError) as e:
+                last_error = str(e)
+                if attempt > self.max_render_retries:
+                    break
+                thread.append({"role": "assistant", "content": scad})
+                thread.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "The previous OpenSCAD failed to render with this error:\n"
+                            f"{last_error}\n"
+                            "Return corrected OpenSCAD only — no prose, no code fences."
+                        ),
+                    }
+                )
+                scad = self.provider.generate_openscad(
+                    plan, self.printer, self.material, history=thread
+                )
+        return None, scad, self.max_render_retries + 1, last_error
+
+    def _build_report(
+        self,
+        plan: DesignPlan,
+        render: RenderResult,
+        mesh_report: MeshReport,
+        gate: GateResult,
+        orientation: Orientation,
+    ) -> PrintReport:
+        headline = next((f.message for f in gate.findings if f.code.startswith("dim.")), "")
+        return PrintReport(
+            object_type=plan.object_type,
+            summary=plan.summary,
+            printer=self.printer.name,
+            material=self.material.name,
+            gate_status=str(gate.status),
+            headline=headline,
+            target_bbox_mm=plan.bounding_box_mm,
+            actual_bbox_mm=mesh_report.bounding_box_mm,
+            findings=[(str(f.level), f.code, f.message) for f in gate.findings],
+            watertight=mesh_report.watertight,
+            repaired=mesh_report.repaired,
+            repairs=mesh_report.repairs,
+            n_bodies=mesh_report.n_bodies,
+            volume_mm3=mesh_report.volume_mm3,
+            orientation=orientation.description,
+            orientation_stability=orientation.stability,
+            sanitizer_removed=render.sanitize.removed,
+        )

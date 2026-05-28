@@ -1,0 +1,78 @@
+# KimCad default configuration.
+# Copy to config/local.yaml (gitignored) to override on a given machine.
+# VERIFY markers: re-check per spec §7.5 before relying on the value.
+
+binaries:
+  # Paths are relative to the project root unless absolute.
+  # Populated by the tools/ fetch step; override here for a system install.
+  openscad: tools/openscad/openscad.exe
+  orcaslicer: tools/orcaslicer/orca-slicer.exe
+
+llm:
+  # Active backend: one of the keys under `backends`.
+  active: cloud_deepseek
+
+  backends:
+    cloud_deepseek:
+      provider: deepseek
+      base_url: https://api.deepseek.com/v1
+      model_name: deepseek-v4-flash   # VERIFY §7.1 — exact tag + pricing move weekly
+      api_key_env: DEEPSEEK_API_KEY
+      temperature: 0.2
+      max_tokens: 8192
+      supports_structured_output: true
+
+    local:
+      provider: openai_compatible
+      base_url: http://localhost:11434/v1   # Ollama default; LM Studio uses :1234
+      model_name: qwen3:8b                  # VERIFY §7.2 — loop-latency local default
+      api_key_env: null
+      temperature: 0.2
+      max_tokens: 8192
+      supports_structured_output: false     # confirm per runtime/model
+
+    custom_openrouter:
+      provider: openai_compatible
+      base_url: https://openrouter.ai/api/v1
+      model_name: ""                         # user supplies
+      api_key_env: OPENROUTER_API_KEY
+      temperature: 0.2
+      max_tokens: 8192
+      supports_structured_output: true
+
+defaults:
+  printer: bambu_p2s
+  material: pla
+  output_format: "3mf"   # falls back to "stl" if OpenSCAD lacks lib3mf
+
+# Build volume = [x, y, z] in mm. nozzle_diameter in mm.
+printers:
+  bambu_p2s:
+    name: "Bambu Lab P2S"
+    build_volume: [256, 256, 256]   # VERIFY exact P2S envelope (P-series standard assumed)
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab P2S 0.4 nozzle"   # VERIFY profile name in shipped OrcaSlicer
+    reference_hardware: true          # Scott has this unit — real-print validated
+  elegoo_neptune_4_max:
+    name: "Elegoo Neptune 4 Max"
+    build_volume: [420, 420, 480]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Elegoo Neptune 4 Max 0.4 nozzle"   # VERIFY
+    reference_hardware: true          # Scott has this unit — real-print validated
+
+# Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
+# unless a material overrides it. Temps are nozzle/bed in °C.
+materials:
+  pla:   { name: "PLA",     nozzle_temp: 210, bed_temp: 55,  wall_multiplier: 2.0, shrinkage: 0.002 }
+  petg:  { name: "PETG",    nozzle_temp: 240, bed_temp: 75,  wall_multiplier: 2.5, shrinkage: 0.004 }
+  tpu:   { name: "TPU",     nozzle_temp: 225, bed_temp: 45,  wall_multiplier: 3.0, shrinkage: 0.008 }
+  abs:   { name: "ABS/ASA", nozzle_temp: 250, bed_temp: 100, wall_multiplier: 2.5, shrinkage: 0.006 }
+
+limits:
+  openscad_timeout_simple_s: 30
+  openscad_timeout_complex_s: 120
+  max_output_bytes: 209715200   # 200 MB render guard
+
+server:
+  host: "127.0.0.1"   # localhost-only per threat model §12
+  port: 8080
