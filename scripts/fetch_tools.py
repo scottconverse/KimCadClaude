@@ -12,7 +12,6 @@ Usage:
     python scripts/fetch_tools.py                 # fetch everything for this OS
     python scripts/fetch_tools.py --only openscad # just OpenSCAD
     python scripts/fetch_tools.py --force         # re-download even if present
-    python scripts/fetch_tools.py --check-upgrade # report a stable newer than the pin
 
 Only the stdlib is used (no ``requests``) so the fetch step has no dependency of
 its own. Version pins are the ``PINS`` table below; re-check them against spec
@@ -23,14 +22,10 @@ its own. Version pins are the ``PINS`` table below; re-check them against spec
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import hashlib
-import json
-import re
 import shutil
 import sys
 import tempfile
-import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -50,8 +45,6 @@ class ToolPin:
     dest_subdir: str  # under tools/ — must match config/default.yaml binary paths
     verified: bool  # True only for URLs confirmed reachable during development
     sha256: str | None = None  # pinned digest of the archive; None = print-and-record
-    github_repo: str | None = None  # "owner/repo" — enables --check-upgrade for this pin
-    asset_glob: str | None = None  # fnmatch pattern for this platform's asset in a release
 
 
 # VERIFY §7.5: pins below. Windows OpenSCAD is the only entry exercised live so
@@ -100,8 +93,6 @@ PINS: dict[str, dict[str, ToolPin]] = {
             dest_subdir="orcaslicer",
             verified=True,
             sha256="35d2e20a82ab9cbad8d3721802441bc07296974bede2d24a7fd0c52a0c4b72e0",
-            github_repo="OrcaSlicer/OrcaSlicer",
-            asset_glob="OrcaSlicer_Windows_*_portable.zip",
         ),
     },
 }
@@ -180,17 +171,12 @@ def _install_zip(pin: ToolPin, archive_path: Path) -> Path:
     return dest_dir / pin.exe_name
 
 
-def _resolve_pin(name: str) -> ToolPin | None:
-    """The pin for ``name`` on the current platform, or None if none is defined."""
+def fetch_tool(name: str, *, force: bool) -> Path:
+    plat = _platform_key()
     by_platform = PINS.get(name)
     if not by_platform:
         raise SystemExit(f"Unknown tool {name!r}. Known: {', '.join(PINS)}")
-    return by_platform.get(_platform_key())
-
-
-def fetch_tool(name: str, *, force: bool) -> Path:
-    plat = _platform_key()
-    pin = _resolve_pin(name)
+    pin = by_platform.get(plat)
     if pin is None:
         raise SystemExit(f"No pin for {name!r} on platform {plat!r}.")
 
@@ -225,116 +211,13 @@ def fetch_tool(name: str, *, force: bool) -> Path:
     return installed
 
 
-def _parse_version(tag: str) -> tuple[int, int, int] | None:
-    """Extract ``(major, minor, patch)`` from a tag like ``v2.4.0`` or ``2.4.0-alpha``.
-
-    The prerelease suffix is ignored for the numeric compare; whether a release
-    counts as stable is read from the API's ``prerelease`` flag, not the tag text.
-    """
-    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", tag)
-    if not m:
-        return None
-    major, minor, patch = (int(g) for g in m.groups())
-    return major, minor, patch
-
-
-def _pinned_tag(pin: ToolPin) -> str | None:
-    """The release tag a GitHub-hosted pin points at (.../releases/download/<tag>/...)."""
-    marker = "/releases/download/"
-    if marker not in pin.url:
-        return None
-    return pin.url.split(marker, 1)[1].split("/", 1)[0]
-
-
-def _github_releases(repo: str) -> list[dict]:
-    url = f"https://api.github.com/repos/{repo}/releases?per_page=100"
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "kimcad-fetch/0.1", "Accept": "application/vnd.github+json"},
-    )
-    with urllib.request.urlopen(req) as resp:  # noqa: S310 (pinned host)
-        return json.load(resp)
-
-
-def check_upgrade(name: str, pin: ToolPin) -> None:
-    """Report whether a stable release at least as new as the pin exists — notify only.
-
-    This never downloads or rewrites the pin. The point of pinning is a vetted,
-    checksummed build; adopting a new stable stays a reviewed commit (new URL +
-    new sha256 + one smoke slice). This just removes the "remember to look" toil
-    and deliberately refuses to chase prereleases — which is how the broken 2.3.2
-    "stable" got caught in the first place.
-    """
-    if not pin.github_repo or not pin.asset_glob:
-        print(f"{name}: no upgrade check configured (not a GitHub-release pin).")
-        return
-
-    pinned_tag = _pinned_tag(pin)
-    pinned_base = _parse_version(pinned_tag or "")
-    if pinned_base is None:
-        print(f"{name}: can't parse the pinned version from {pin.url!r}; skipping.")
-        return
-
-    try:
-        releases = _github_releases(pin.github_repo)
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        print(f"{name}: upgrade check failed ({exc}); the pinned build is unaffected.")
-        return
-
-    best: tuple[tuple[int, int, int], str, str] | None = None  # (version, tag, asset_url)
-    for rel in releases:
-        if rel.get("prerelease") or rel.get("draft"):
-            continue
-        base = _parse_version(rel.get("tag_name", ""))
-        if base is None or base < pinned_base:
-            continue
-        asset = next(
-            (a for a in rel.get("assets", []) if fnmatch.fnmatch(a.get("name", ""), pin.asset_glob)),
-            None,
-        )
-        if asset is None:
-            continue  # a stable with no matching platform asset is no use to us
-        if best is None or base > best[0]:
-            best = (base, rel["tag_name"], asset["browser_download_url"])
-
-    pinned_str = ".".join(map(str, pinned_base))
-    if best is None:
-        print(
-            f"{name}: pinned at {pinned_tag} - no stable release >= {pinned_str} "
-            "with a matching asset yet. Staying on the pin."
-        )
-        return
-
-    _, tag, asset_url = best
-    print(
-        f"{name}: STABLE AVAILABLE -- {tag} (currently pinned at {pinned_tag}).\n"
-        f"  asset: {asset_url}\n"
-        "  To adopt it: download, record its sha256 in PINS, update the URL, and run\n"
-        "  one smoke slice on the P2S before committing the bump."
-    )
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fetch KimCad's external CAD/slicer binaries.")
-    parser.add_argument("--only", choices=sorted(PINS), help="Limit to just this tool.")
+    parser.add_argument("--only", choices=sorted(PINS), help="Fetch just this tool.")
     parser.add_argument("--force", action="store_true", help="Re-download even if present.")
-    parser.add_argument(
-        "--check-upgrade",
-        action="store_true",
-        help="Report if a stable release newer than the pin exists; fetch nothing.",
-    )
     args = parser.parse_args(argv)
 
     tools = [args.only] if args.only else list(PINS)
-    if args.check_upgrade:
-        for name in tools:
-            pin = _resolve_pin(name)
-            if pin is None:
-                print(f"{name}: no pin for platform {_platform_key()!r}.")
-                continue
-            check_upgrade(name, pin)
-        return 0
-
     for name in tools:
         fetch_tool(name, force=args.force)
     return 0

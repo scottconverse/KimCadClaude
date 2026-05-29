@@ -32,10 +32,6 @@ All notable changes to KimCad are documented here. Format follows
 - Verified, checksum-pinned Windows OrcaSlicer build (v2.4.0-alpha) with end-to-end
   slice proof: a real generated part slices to a valid G-code-bearing 3MF on the
   Bambu P2S profile.
-- `fetch_tools.py --check-upgrade`: notify-only check against the GitHub releases
-  API that reports when a *stable* OrcaSlicer at or above the pinned version ships
-  (ignores prereleases). It never auto-downloads — adopting a new build stays a
-  reviewed, re-checksummed commit so the verified-pin guarantee holds.
 
 ### Fixed
 - Code generation no longer misuses the walled-container `box()` module as a solid
