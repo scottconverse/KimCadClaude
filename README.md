@@ -44,8 +44,19 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Then fetch the CAD/slicer binaries (script lands with Task #2) and pull the local
-model. KimCad defaults to [Ollama](https://ollama.com/) on `localhost:11434`:
+Then fetch the CAD/slicer binaries into `tools/` (standard library only — no extra
+dependency):
+
+```
+python scripts/fetch_tools.py
+```
+
+OpenSCAD installs automatically on Windows. The macOS/Linux OpenSCAD builds and the
+OrcaSlicer pin are still being verified (spec §7.5); until then, install those
+manually and point `config/local.yaml` at them.
+
+Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
+`localhost:11434`:
 
 ```
 ollama pull gemma3:12b
@@ -55,6 +66,32 @@ That is all the LLM setup required — no API key, no network. To point at a dif
 local model or a cloud fallback (DeepSeek / any OpenAI-compatible endpoint), set the
 active backend and its key in `config/local.yaml`; see `config/default.yaml` for the
 shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends.
+
+## Usage
+
+A bare prompt is treated as the `design` verb:
+
+```
+kimcad "a wall hook with two M4 screw holes 30 mm apart and a 35 mm arm"
+```
+
+KimCad asks at most one clarifying question, then writes OpenSCAD, renders and
+validates the mesh, runs the Printability Gate against your printer/material, orients
+the part, slices it, and writes a print job plus a plain-text report under `output/`.
+Override defaults with `--printer`, `--material`, or `--backend` (keys come from
+`config/default.yaml`).
+
+### The done-gate
+
+Phase 1 is judged by a fixed benchmark — the ten Appendix B prompts in
+`bench/prompts.yaml`. The gate passes at 8 / 10 dimensionally-correct, sliceable
+results:
+
+```
+kimcad bench --min-success-rate 0.8
+```
+
+It exits non-zero when the batch misses the threshold, so it doubles as a CI check.
 
 ## Platform notes
 
