@@ -1,0 +1,77 @@
+# Phase-1 benchmark prompt set — the done-gate (spec §4.1, Appendix B).
+#
+# These are the 10 canonical Appendix B prompts. Appendix B states each topic and,
+# for some, exact dimensions; where it left the envelope open, a concrete, sensible
+# dimension is supplied here so the UNATTENDED batch is fair (an under-specified
+# prompt makes the planner stop to ask a clarification question, which scores as a
+# non-pass). The walkthrough's try-prompts are used verbatim where they match.
+#
+# Done-gate threshold (spec §4.2): a first-time user reaches a dimensionally-correct,
+# sliceable result on >= 8 / 10 of these. Run the batch with `--min-success-rate 0.8`.
+#
+# `expect_object_type` and `max_bbox_mm` are grading hints (build-volume ceiling and
+# the spec's "matches-request" axis). The current harness scores on pipeline
+# completion through the Printability Gate; the hints document expected geometry and
+# feed richer per-axis grading (slices-clean / matches-request / correct-dimensions)
+# when that is wired.
+
+cases:
+  - id: b01
+    prompt: "A wall hook: a 60 mm tall by 25 mm wide back plate, 4 mm thick, with two 4 mm screw holes 30 mm apart vertically, and a hook arm projecting 35 mm forward and curving 20 mm upward at the end."
+    expect_object_type: hook
+    max_bbox_mm: [40, 25, 65]
+    notes: "Appendix B #1 — wall hook."
+
+  - id: b02
+    prompt: "An L-bracket with two 40 mm arms, 30 mm wide and 4 mm thick, with one 4 mm mounting hole centered in each arm."
+    expect_object_type: bracket
+    max_bbox_mm: [50, 50, 35]
+    notes: "Appendix B #2 — L-bracket with two M4 mounting holes. Exercises l_bracket()."
+
+  - id: b03
+    prompt: "A box with a snap-fit lid, 80 mm wide, 60 mm deep, and 40 mm tall, with 2 mm walls."
+    expect_object_type: box
+    max_bbox_mm: [85, 65, 50]
+    notes: "Appendix B #3 — box with snap-fit lid. Exercises box()."
+
+  - id: b04
+    prompt: "A pegboard hook for headphones, sized for standard 6 mm pegboard holes spaced 25.4 mm apart, with a 45 mm hook arm."
+    expect_object_type: hook
+    max_bbox_mm: [40, 30, 90]
+    notes: "Appendix B #4 — pegboard hook."
+
+  - id: b05
+    prompt: "A cable clip for a 6 mm diameter cable, 20 mm wide, with a single 4 mm screw hole for mounting."
+    expect_object_type: clip
+    max_bbox_mm: [25, 20, 18]
+    notes: "Appendix B #5 — cable clip."
+
+  - id: b06
+    prompt: "A cylindrical spacer with an 8 mm inner diameter, a 16 mm outer diameter, and a height of 12 mm."
+    expect_object_type: spacer
+    max_bbox_mm: [16, 16, 12]
+    notes: "Appendix B #6 — spacer (specified ID/OD/height). Built-in cylinder ring."
+
+  - id: b07
+    prompt: "A simple two-part enclosure with an internal volume of 80 by 50 by 30 mm and 2.5 mm walls."
+    expect_object_type: enclosure
+    max_bbox_mm: [90, 60, 40]
+    notes: "Appendix B #7 — simple enclosure (specified internal volume)."
+
+  - id: b08
+    prompt: "A wall-mounted holder for a spool of filament, mounted with M4 screws, for a spool up to 200 mm in outer diameter and 70 mm wide."
+    expect_object_type: holder
+    max_bbox_mm: [120, 90, 210]
+    notes: "Appendix B #8 — wall-mounted spool holder."
+
+  - id: b09
+    prompt: "A plate 50 mm by 50 mm and 10 mm thick, with a 5 mm hole through the center."
+    expect_object_type: plate
+    max_bbox_mm: [50, 50, 10]
+    notes: "Appendix B #9 — plate (50x50x10 mm) with a centered 5 mm hole. Built-in cube + cylinder."
+
+  - id: b10
+    prompt: "A drawer divider 150 mm long, 80 mm deep, and 50 mm tall, made of 2 mm panels, with two cross walls splitting it into three equal compartments."
+    expect_object_type: divider
+    max_bbox_mm: [155, 85, 55]
+    notes: "Appendix B #10 — drawer divider."
