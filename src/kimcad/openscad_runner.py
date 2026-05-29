@@ -27,6 +27,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from kimcad.config import PROJECT_ROOT
 
 LIBRARY_DIR = PROJECT_ROOT / "library"
@@ -76,6 +78,7 @@ class SanitizeResult:
     code: str
     removed: list[str] = field(default_factory=list)
     blocked: list[str] = field(default_factory=list)
+    added: list[str] = field(default_factory=list)
 
     @property
     def safe(self) -> bool:
@@ -104,6 +107,88 @@ def _approved_library_path(path: str) -> bool:
     if re.match(r"^[A-Za-z]:", p):
         return False
     return True
+
+
+def _library_module_map(library_dir: Path = LIBRARY_DIR) -> dict[str, str]:
+    """Map each library module name to its ``.scad`` file, parsed from the manifest.
+
+    Derived from the same manifest the codegen prompt advertises, so the runner and
+    the prompt can never drift on which modules exist.
+    """
+    try:
+        data = yaml.safe_load((library_dir / "manifest.yaml").read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    mapping: dict[str, str] = {}
+    for mod in data.get("modules", []):
+        file = mod.get("file")
+        if not file:
+            continue
+        for sig in mod.get("signatures", []):
+            m = re.match(r"\s*(\w+)\s*\(", sig)
+            if m:
+                mapping[m.group(1)] = file
+    return mapping
+
+
+def inject_library_uses(
+    code: str, module_map: dict[str, str] | None = None
+) -> tuple[str, list[str]]:
+    """Prepend the ``use <library/FILE.scad>;`` for any library module the code calls
+    but forgot to include.
+
+    The model regularly calls a real helper (``rounded_box``, ``l_bracket``) without
+    its ``use`` line; OpenSCAD then treats it as an unknown module and silently renders
+    nothing — a failure that surfaces as a confusing empty/garbage mesh rather than a
+    clear error. Fixing it deterministically here is far more reliable than asking a
+    flaky model to remember boilerplate. Modules the code defines itself are skipped so
+    a user-supplied definition is never shadowed by a library import.
+    """
+    module_map = module_map if module_map is not None else _library_module_map()
+    if not module_map:
+        return code, []
+    already_used = {
+        m.group(2).rsplit("/", 1)[-1]
+        for m in _USE_INCLUDE_RE.finditer(code)
+        if m.group(2).startswith(_APPROVED_PREFIX)
+    }
+    defined_locally = set(re.findall(r"\bmodule\s+(\w+)", code))
+    needed: list[str] = []
+    for name, file in module_map.items():
+        if name in defined_locally or file in already_used or file in needed:
+            continue
+        if re.search(rf"\b{re.escape(name)}\s*\(", code):
+            needed.append(file)
+    if not needed:
+        return code, []
+    added = [f"use <library/{f}>;" for f in needed]
+    return "\n".join(added) + "\n" + code, added
+
+
+def ensure_terminated(code: str) -> tuple[str, bool]:
+    """Append a missing ``;`` when the code ends with an unterminated call.
+
+    A small model frequently emits a valid trailing module call like ``wall_hook(...)``
+    but drops the statement terminator, which OpenSCAD rejects as a parser error — and
+    the render-retry rarely recovers from a single missing ``;``. Appending it is safe:
+    code whose last statement ends in ``)`` without a terminator is always a syntax
+    error, so adding ``;`` can only fix it. A trailing line comment is preserved.
+    """
+    body = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
+    if not re.sub(r"//[^\n]*", "", body).rstrip().endswith(")"):
+        return code, False
+    lines = code.rstrip("\n").split("\n")
+    for i in range(len(lines) - 1, -1, -1):
+        cidx = lines[i].find("//")
+        codepart = (lines[i] if cidx < 0 else lines[i][:cidx]).rstrip()
+        if not codepart:
+            continue  # comment-only / blank line; keep scanning upward
+        if codepart.endswith(")"):
+            comment = "" if cidx < 0 else "  " + lines[i][cidx:]
+            lines[i] = codepart + ";" + comment
+            return "\n".join(lines) + "\n", True
+        return code, False
+    return code, False
 
 
 def sanitize_scad(code: str) -> SanitizeResult:
@@ -172,7 +257,10 @@ def render_scad(
     or :class:`OversizeOutput`. On success returns a :class:`RenderResult` pointing
     at the written mesh.
     """
-    sanitized = sanitize_scad(code)
+    injected, added = inject_library_uses(code)
+    injected, terminated = ensure_terminated(injected)
+    sanitized = sanitize_scad(injected)
+    sanitized.added = added + (["appended ';' to terminate a trailing call"] if terminated else [])
     if not sanitized.safe:
         raise BlockedCodeError(sanitized.blocked)
 

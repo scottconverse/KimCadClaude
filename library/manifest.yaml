@@ -36,3 +36,38 @@ modules:
     signatures:
       - "hole_grid(cols=2, rows=2, dx=20, dy=20, size=4, depth=12, fn=32)"
       - "vesa(pattern=100, size=4, depth=12, fn=32)"
+
+  - file: hooks.scad
+    summary: >-
+      Wall and pegboard hooks: a back plate (wall at the -Y face) with a hook that
+      projects out +Y. Use these for any "hook" rather than building plates and arms
+      by hand. Each prints flat with no supports.
+    signatures:
+      - "wall_hook(plate_w=25, plate_h=60, plate_t=4, screw_d=4, screw_spacing=30, arm_proj=35, arm_rise=20)  // bbox = [plate_w, plate_t+arm_proj, plate_h]"
+      - "pegboard_hook(hole_d=6, hole_spacing=25.4, arm_length=45, plate_w=30, plate_t=5, peg_len=12)  // bbox = [plate_w, peg_len+plate_t+arm_length, hole_spacing+2*6+16]"
+
+  - file: clips.scad
+    summary: Screw-down cable/cord saddle clip (cable runs along X). Prints flat.
+    signatures:
+      - "cable_clip(cable_d=6, width=20, screw_d=4, wall=3)  // bbox = [width, cable_d+5*wall+screw_d, cable_d/2+2*wall]"
+
+  - file: containers.scad
+    summary: >-
+      Closed boxes, two-part enclosures (sized from INTERNAL volume), and tubes/spacers.
+      snap_box is sized to its OUTER envelope; enclosure adds walls around the interior.
+    signatures:
+      - "snap_box(width=80, depth=60, height=40, wall=2)  // bbox = [width, depth, height]"
+      - "enclosure(inner_w=80, inner_d=50, inner_h=30, wall=2.5)  // bbox = inner + 2*wall each axis"
+      - "tube(id=8, od=16, height=12)  // ring / spacer; bbox = [od, od, height]"
+
+  - file: holders.scad
+    summary: >-
+      Wall-mounted spool holder: a screwed-on back plate with a horizontal arm the
+      spool slides onto, plus an end stop. Sized from the spool's width and diameter.
+    signatures:
+      - "spool_holder(spool_od=200, spool_width=70, screw_d=4, plate_w=60, plate_t=8, plate_h=120)  // bbox = [plate_w, plate_t+spool_width+15, plate_h]"
+
+  - file: organizers.scad
+    summary: Drawer divider — a frame split into equal compartments by cross walls.
+    signatures:
+      - "drawer_divider(length=150, depth=80, height=50, panel_t=2, compartments=3)  // bbox = [length, depth, height]"

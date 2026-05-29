@@ -85,6 +85,28 @@ the part, slices it, and writes a print job plus a plain-text report under `outp
 Override defaults with `--printer`, `--material`, or `--backend` (keys come from
 `config/default.yaml`).
 
+### Web UI (Phase 2, early)
+
+For a browser experience instead of the CLI:
+
+```
+kimcad web
+```
+
+This serves a local page at `http://127.0.0.1:8765` where you describe a part and get
+back the design plan, the printability verdict, the target-vs-actual dimensions, and a
+3D preview of the rendered model — the same pipeline as the CLI, driven from the
+browser. Use `--demo` to serve a fixed sample part instantly with no model call (handy
+for trying the interface), and `--port` to change the port.
+
+The server binds to `127.0.0.1` (your machine only) by default. `--host` can bind it
+elsewhere, but do **not** expose it on a public interface without putting your own
+authentication/proxy in front — it runs the pipeline for anyone who can reach it.
+
+Slicing to G-code is intentionally not triggered from the UI yet: the validated 3MF/STL
+model is produced now, and G-code generation (which requires explicit per-print
+confirmation) lands in a later slice.
+
 ### The done-gate
 
 Phase 1 is judged by a fixed benchmark — the ten Appendix B prompts in
@@ -96,6 +118,19 @@ kimcad bench --min-success-rate 0.8
 ```
 
 It exits non-zero when the batch misses the threshold, so it doubles as a CI check.
+
+### Local development checks
+
+Lint and tests run locally as a pre-push gate (handy when GitHub-hosted CI minutes
+aren't available). Enable the hook once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+After that, every `git push` runs `scripts/ci.sh` (ruff + pytest) and blocks the push
+if anything fails. The same checks are defined for hosted CI in
+`.github/workflows/ci.yml` for when Actions minutes are available.
 
 ## Platform notes
 

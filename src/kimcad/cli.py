@@ -21,7 +21,7 @@ from typing import Any
 
 from kimcad.config import Config
 
-_SUBCOMMANDS = {"design", "bench"}
+_SUBCOMMANDS = {"design", "bench", "web"}
 
 
 def _force_utf8_output(stream: Any) -> None:
@@ -58,6 +58,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--proceed-anyway",
         action="store_true",
         help="Continue past a failing Printability Gate (advanced).",
+    )
+
+    w = sub.add_parser("web", help="Launch the local web UI (Phase 2).")
+    w.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1).")
+    w.add_argument("--port", type=int, default=8765, help="Bind port (default: 8765).")
+    w.add_argument("--backend", default=None, help="LLM backend key (default from config).")
+    w.add_argument(
+        "--demo",
+        action="store_true",
+        help="Serve a fixed sample part with no LLM call (fast UI demo).",
     )
 
     b = sub.add_parser("bench", help="Run the Phase-1 benchmark (the done-gate).")
@@ -139,6 +149,13 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_web(args: argparse.Namespace) -> int:
+    from kimcad.webapp import serve
+
+    serve(host=args.host, port=args.port, demo=args.demo, backend=args.backend)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_output(sys.stdout)
     _force_utf8_output(sys.stderr)
@@ -152,6 +169,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_design(config, args)
         if args.command == "bench":
             return _cmd_bench(config, args)
+        if args.command == "web":
+            return _cmd_web(args)
     except RuntimeError as e:
         # e.g. a configured backend whose API key env var is unset.
         print(f"Error: {e}", file=sys.stderr)

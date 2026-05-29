@@ -92,6 +92,25 @@ def test_gate_warns_on_multiple_shells():
     assert any(f.code == "shells.multiple" for f in res.findings)
 
 
+def test_gate_fails_when_not_watertight():
+    # A non-manifold / leaky mesh is unprintable, even if its dimensions match.
+    plan = DesignPlan(object_type="plate", summary="s", bounding_box_mm=[50, 50, 10])
+    res = run_gate(_report((50, 50, 10), watertight=False), plan, BAMBU, PLA)
+    assert res.failed
+    assert any(f.code == "mesh.not_watertight" for f in res.findings)
+
+
+def test_gate_warns_when_mesh_was_repaired():
+    # Watertight only after repair: allowed, but surfaced — it had a real defect.
+    plan = DesignPlan(object_type="plate", summary="s", bounding_box_mm=[50, 50, 10])
+    rep = _report((50, 50, 10))
+    rep.repaired = True
+    rep.repairs = ["filled holes (was 2 open boundary loops)"]
+    res = run_gate(rep, plan, BAMBU, PLA)
+    assert res.status is Level.WARN
+    assert any(f.code == "mesh.repaired" for f in res.findings)
+
+
 # --- orientation --------------------------------------------------------------
 
 

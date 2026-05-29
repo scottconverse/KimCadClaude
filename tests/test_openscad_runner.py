@@ -9,9 +9,76 @@ from kimcad.openscad_runner import (
     OversizeOutput,
     RenderFailed,
     RenderTimeout,
+    ensure_terminated,
+    inject_library_uses,
     render_scad,
     sanitize_scad,
 )
+
+
+def test_ensure_terminated_appends_missing_semicolon():
+    code = "use <library/hooks.scad>;\nwall_hook(plate_w = 25, plate_h = 60)"
+    out, did = ensure_terminated(code)
+    assert did
+    assert out.rstrip().endswith(");")
+
+
+def test_ensure_terminated_preserves_trailing_comment():
+    code = "wall_hook(plate_w = 25)  // the hook"
+    out, did = ensure_terminated(code)
+    assert did
+    assert ");" in out and out.rstrip().endswith("// the hook")
+
+
+def test_ensure_terminated_noop_when_already_terminated():
+    code = "wall_hook(plate_w = 25);\n"
+    out, did = ensure_terminated(code)
+    assert not did and out == code
+
+
+def test_ensure_terminated_noop_on_block_close():
+    code = "difference() {\n  cube(10);\n}\n"
+    out, did = ensure_terminated(code)
+    assert not did and out == code
+
+_MAP = {"rounded_box": "fillets.scad", "rounded_rect": "fillets.scad", "box": "box.scad"}
+
+
+def test_inject_adds_missing_library_use():
+    # The model called a real helper but forgot its `use` line.
+    code = "rounded_box(80, 60, 40, r = 3);"
+    out, added = inject_library_uses(code, _MAP)
+    assert "use <library/fillets.scad>;" in out
+    assert added == ["use <library/fillets.scad>;"]
+
+
+def test_inject_is_noop_when_use_present():
+    code = "use <library/fillets.scad>;\nrounded_box(80, 60, 40);"
+    out, added = inject_library_uses(code, _MAP)
+    assert added == []
+    assert out == code
+
+
+def test_inject_dedupes_one_use_per_file():
+    # Two helpers from the same file -> a single `use` line.
+    code = "rounded_box(10, 10, 10);\nrounded_rect(10, 10);"
+    out, added = inject_library_uses(code, _MAP)
+    assert added == ["use <library/fillets.scad>;"]
+    assert out.count("use <library/fillets.scad>;") == 1
+
+
+def test_inject_skips_locally_defined_module():
+    # A user-supplied definition must not be shadowed by a library import.
+    code = "module rounded_box(w, d, h) { cube([w, d, h]); }\nrounded_box(10, 10, 10);"
+    _out, added = inject_library_uses(code, _MAP)
+    assert added == []
+
+
+def test_inject_ignores_substring_false_positive():
+    # `box(` must not trigger on `rounded_box(`.
+    code = "rounded_box(10, 10, 10);"
+    _out, added = inject_library_uses(code, _MAP)
+    assert added == ["use <library/fillets.scad>;"]  # fillets, not box.scad
 
 
 def test_sanitize_keeps_approved_library_use():

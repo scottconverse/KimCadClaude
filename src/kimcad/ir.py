@@ -95,24 +95,83 @@ def parse_design_plan(data: dict) -> DesignPlan:
     return DesignPlan.model_validate(data)
 
 
+_VALID_FEATURE_TYPES = frozenset(t.value for t in FeatureType)
+
+
+def normalize_plan_dict(data: dict) -> dict:
+    """Salvage *almost-valid* LLM JSON before strict validation.
+
+    The planner occasionally emits values that are close but not schema-valid: a
+    feature ``type`` outside the enum (e.g. ``"arm"``), a 2-element ``position``, or
+    a degenerate ``bounding_box_mm`` like ``[0, 0, 60]``. Rather than fail the whole
+    part on a recoverable slip, coerce what we safely can and let
+    :func:`parse_design_plan` enforce everything else. Returns a new dict; the input
+    is not mutated.
+    """
+    if not isinstance(data, dict):
+        return data
+    data = dict(data)
+
+    features = data.get("features")
+    if isinstance(features, list):
+        data["features"] = [_normalize_feature(f) for f in features]
+
+    if "bounding_box_mm" in data and not _is_positive_xyz(data["bounding_box_mm"]):
+        # Unusable as an envelope; drop it so the part is sized from dimensions or a
+        # clarification instead of crashing validation.
+        data["bounding_box_mm"] = None
+
+    return data
+
+
+def _normalize_feature(feature: object) -> object:
+    if not isinstance(feature, dict):
+        return feature
+    feature = dict(feature)
+
+    ftype = feature.get("type")
+    if isinstance(ftype, str) and ftype not in _VALID_FEATURE_TYPES:
+        original = f"(model called this a '{ftype}')"
+        notes = feature.get("notes")
+        feature["notes"] = f"{original} {notes}".strip() if notes else original
+        feature["type"] = FeatureType.other.value
+
+    position = feature.get("position")
+    if position is not None and not (isinstance(position, list) and len(position) == 3):
+        feature["position"] = None
+
+    return feature
+
+
+def _is_positive_xyz(v: object) -> bool:
+    return (
+        isinstance(v, list)
+        and len(v) == 3
+        and all(isinstance(d, (int, float)) and not isinstance(d, bool) and d > 0 for d in v)
+    )
+
+
 def design_plan_schema() -> dict:
     """JSON schema for structured-output / function-calling mode (§6.1)."""
     return DesignPlan.model_json_schema()
 
 
 def first_clarification(plan: DesignPlan) -> str | None:
-    """Minimal Phase-1 clarification policy (§5.2): ask exactly one question.
+    """Minimal Phase-1 clarification policy (§5.2): ask at most one question, and
+    only when the part cannot be sized.
 
-    The model surfaces the critical missing dimension in ``open_questions``; we ask
-    the first one. A short clarification beats a confident wrong guess. If the
-    model committed to no envelope and no dimensions at all, we ask a generic
-    sizing question rather than guessing a size.
+    A plan that commits to an overall envelope (``bounding_box_mm``) or to named
+    ``dimensions`` is buildable, so we proceed and treat any ``open_questions`` as
+    non-blocking refinements rather than stalling the pipeline on them. We ask only
+    when the model committed to no size at all — then its own question is preferred,
+    falling back to a generic sizing prompt. A confident wrong guess on overall size
+    is the one thing worth interrupting the user for.
     """
+    if plan.bounding_box_mm is not None or plan.dimensions:
+        return None
     if plan.open_questions:
         return plan.open_questions[0]
-    if plan.bounding_box_mm is None and not plan.dimensions:
-        return (
-            f"What overall size should the {plan.object_type} be? "
-            "Give me the key dimensions in mm (e.g. width × height × depth)."
-        )
-    return None
+    return (
+        f"What overall size should the {plan.object_type} be? "
+        "Give me the key dimensions in mm (e.g. width × height × depth)."
+    )

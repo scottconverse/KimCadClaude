@@ -22,7 +22,7 @@ from typing import Any, Protocol
 import yaml
 
 from kimcad.config import LLMBackend, Material, Printer
-from kimcad.ir import DesignPlan, design_plan_schema, parse_design_plan
+from kimcad.ir import DesignPlan, design_plan_schema, normalize_plan_dict, parse_design_plan
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
@@ -119,7 +119,7 @@ class LLMProvider:
         messages.extend(history or [])
         messages.append({"role": "user", "content": prompt})
         raw = self._complete(messages, json_mode=True)
-        return parse_design_plan(json.loads(_strip_fences(raw)))
+        return parse_design_plan(normalize_plan_dict(json.loads(_strip_fences(raw))))
 
     def generate_openscad(
         self,

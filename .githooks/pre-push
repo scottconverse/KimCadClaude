@@ -1,0 +1,4 @@
+#!/bin/sh
+# Local CI gate: block the push if lint or tests fail.
+# Activated with: git config core.hooksPath .githooks
+exec sh "$(git rev-parse --show-toplevel)/scripts/ci.sh"

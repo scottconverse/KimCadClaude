@@ -34,6 +34,32 @@ manifold, **3D-printable** solid.
     exact signature. For example `box(...)` has **no** `center` argument; built-in
     `cube([x,y,z], center=true)` does. Inventing a parameter silently produces wrong
     geometry that still renders.
+13. **Match the plan's dimensions exactly.** The finished part's overall bounding box
+    must equal the plan's `bounding_box_mm` on every axis (X, Y, Z) within a fraction
+    of a millimeter. Map each named dimension to the **correct axis** — e.g. a
+    "50 × 50 × 10 plate" is `cube([50, 50, 10])`, not `cube([50, 10, 1])`. Never
+    collapse an axis or hardcode a thickness that contradicts the plan. A through-hole
+    must pass fully through the part's thickness on its axis (make the cutting cylinder
+    longer than that thickness and center it through the solid).
+14. **Build one connected solid — leave no stray geometry.** Everything must combine
+    into a single `union()`/`difference()` result. Never leave a loose top-level object
+    (a lone cylinder, a leftover "placeholder" cube): it becomes a disconnected shell
+    and silently inflates the bounding box past the plan. If you cannot fully model a
+    feature, omit it rather than leaving a fragment behind.
+15. **A library module already includes the features its summary names.** `l_bracket`
+    drills its own mounting holes; `box` already has its walls and floor. Call the
+    module once with the right parameters — do **not** bolt on a second, redundant copy
+    of a feature it already provides. That duplication is a common source of stray,
+    envelope-breaking geometry.
+16. **If a library module matches the part family, USE it — do not hand-build the
+    part from primitives.** A hook → `wall_hook` / `pegboard_hook`; a cable clip →
+    `cable_clip`; a box or enclosure → `snap_box` / `enclosure`; a spool holder →
+    `spool_holder`; a drawer divider → `drawer_divider`; an L-bracket → `l_bracket`;
+    a ring / spacer / standoff → `tube`. Map the plan's dimensions onto the module's
+    parameters. Each module's comment in the manifest gives its **bounding box formula**
+    — set the parameters so that formula equals the plan's `bounding_box_mm`. Reserve
+    hand-written primitives for genuinely simple one-off solids (a plain plate, a plain
+    cube with a hole) that no module covers.
 
 ## Printer & material constraints
 

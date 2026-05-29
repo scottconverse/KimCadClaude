@@ -33,11 +33,66 @@ from kimcad.openscad_runner import (
     render_scad,
 )
 from kimcad.orientation import Orientation, auto_orient
-from kimcad.printability import GateResult, Level, run_gate
+from kimcad.printability import Finding, GateResult, Level, dim_tolerance, run_gate
 from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
 Slicer = Callable[[Path, Path, str], Any]
+
+# Gate failures the model can plausibly fix by regenerating geometry. A thin wall or
+# stray-shell WARN doesn't FAIL the gate; these two are the only FAIL codes, and both
+# are codegen mistakes (wrong size, doesn't fit) rather than dead ends.
+_RETRY_GATE_CODES = frozenset({"dim.mismatch", "volume.exceeds", "mesh.not_watertight"})
+
+
+def _fixable_gate_failures(gate: GateResult) -> list[Finding]:
+    return [f for f in gate.findings if f.level is Level.FAIL and f.code in _RETRY_GATE_CODES]
+
+
+def _render_feedback(error: str) -> str:
+    return (
+        "The previous OpenSCAD failed to render with this error:\n"
+        f"{error}\n"
+        "Return corrected OpenSCAD only — no prose, no code fences."
+    )
+
+
+def _axis_breakdown(plan: DesignPlan, report: MeshReport | None) -> str:
+    """Per-axis target-vs-built table so the model sees every wrong axis at once.
+
+    The gate's finding message only names the single worst axis; a part with two
+    wrong axes would otherwise learn about them one retry at a time and run out of
+    budget before converging. Spelling out all three axes makes the fix one-shot.
+    """
+    if plan.bounding_box_mm is None or report is None:
+        return ""
+    exp = plan.bounding_box_mm
+    got = report.bounding_box_mm
+    lines = []
+    for axis, e, g in zip("XYZ", exp, got):
+        if abs(g - e) <= dim_tolerance(e):
+            lines.append(f"  {axis}: {g:.1f} mm — ok")
+        elif g > e:
+            lines.append(f"  {axis}: {g:.1f} mm — too big, target {e:.1f} mm")
+        else:
+            lines.append(f"  {axis}: {g:.1f} mm — too small, target {e:.1f} mm")
+    return (
+        f"Target envelope: {exp[0]:.1f} x {exp[1]:.1f} x {exp[2]:.1f} mm.\n"
+        f"You built: {got[0]:.1f} x {got[1]:.1f} x {got[2]:.1f} mm.\n" + "\n".join(lines) + "\n"
+    )
+
+
+def _gate_feedback(findings: list[Finding], plan: DesignPlan, report: MeshReport | None) -> str:
+    issues = "\n".join(f"- {f.message}" for f in findings)
+    return (
+        "The previous OpenSCAD rendered, but the part failed the printability gate:\n"
+        f"{issues}\n"
+        f"{_axis_breakdown(plan, report)}"
+        "Fix the geometry so the finished part's overall size matches the design "
+        "plan's bounding box on every axis (X, Y, Z) — map each named dimension to "
+        "the correct axis and cut through-holes fully through the part. Return "
+        "corrected OpenSCAD only — no prose, no code fences."
+    )
 
 
 class PipelineStatus(str, Enum):
@@ -168,7 +223,9 @@ class Pipeline:
                 clarification=clarification,
             )
 
-        render, scad, attempts, error = self._render_with_retry(plan, out_dir, basename)
+        render, scad, mesh, mesh_report, gate, attempts, error = self._build_geometry(
+            plan, out_dir, basename, gate_retry=not proceed_anyway
+        )
         if render is None:
             return PipelineResult(
                 status=PipelineStatus.render_failed,
@@ -178,10 +235,6 @@ class Pipeline:
                 render_attempts=attempts,
                 error=error,
             )
-
-        mesh = load_mesh(render.output_path)
-        mesh, mesh_report = validate_mesh(mesh)
-        gate = run_gate(mesh_report, plan, self.printer, self.material)
 
         oriented, orientation = auto_orient(mesh)
         mesh_path = out_dir / f"{basename}.oriented.stl"
@@ -223,38 +276,75 @@ class Pipeline:
             render_attempts=attempts,
         )
 
-    def _render_with_retry(
-        self, plan: DesignPlan, out_dir: Path, basename: str
-    ) -> tuple[RenderResult | None, str | None, int, str | None]:
-        """Generate OpenSCAD and render, feeding render errors back to the model.
+    def _build_geometry(
+        self,
+        plan: DesignPlan,
+        out_dir: Path,
+        basename: str,
+        *,
+        gate_retry: bool = True,
+    ) -> tuple[
+        RenderResult | None,
+        str | None,
+        Any,
+        MeshReport | None,
+        GateResult | None,
+        int,
+        str | None,
+    ]:
+        """Generate OpenSCAD, render, and run the Gate in one feedback loop.
 
-        Returns (render_result | None, last_scad, attempts, error_message).
+        Two classes of failure are fed back to the model and retried within a single
+        attempt budget, then the loop fails closed:
+        - render / blocked-code errors (the code produced no geometry);
+        - fixable Gate failures (it rendered, but the size is wrong or it doesn't fit
+          the build volume) — only when ``gate_retry`` is set, since ``proceed_anyway``
+          means the caller has already chosen to accept the gate result.
+
+        Returns (render, scad, mesh, mesh_report, gate, attempts, error). ``render`` is
+        None only when geometry never rendered (caller maps that to render_failed).
         """
         thread: list[dict[str, str]] = []
         scad = self.provider.generate_openscad(plan, self.printer, self.material, history=thread)
         last_error: str | None = None
+        render: RenderResult | None = None
+        mesh: Any = None
+        mesh_report: MeshReport | None = None
+        gate: GateResult | None = None
+
         for attempt in range(1, self.max_render_retries + 2):
             try:
-                return self.renderer(scad, out_dir, basename), scad, attempt, None
+                render = self.renderer(scad, out_dir, basename)
             except (RenderError, BlockedCodeError) as e:
                 last_error = str(e)
                 if attempt > self.max_render_retries:
-                    break
-                thread.append({"role": "assistant", "content": scad})
-                thread.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "The previous OpenSCAD failed to render with this error:\n"
-                            f"{last_error}\n"
-                            "Return corrected OpenSCAD only — no prose, no code fences."
-                        ),
-                    }
-                )
+                    return None, scad, None, None, None, attempt, last_error
+                self._feed_back(thread, scad, _render_feedback(last_error))
                 scad = self.provider.generate_openscad(
                     plan, self.printer, self.material, history=thread
                 )
-        return None, scad, self.max_render_retries + 1, last_error
+                continue
+
+            mesh = load_mesh(render.output_path)
+            mesh, mesh_report = validate_mesh(mesh)
+            gate = run_gate(mesh_report, plan, self.printer, self.material)
+
+            fixable = _fixable_gate_failures(gate) if gate_retry else []
+            if fixable and attempt <= self.max_render_retries:
+                self._feed_back(thread, scad, _gate_feedback(fixable, plan, mesh_report))
+                scad = self.provider.generate_openscad(
+                    plan, self.printer, self.material, history=thread
+                )
+                continue
+
+            return render, scad, mesh, mesh_report, gate, attempt, None
+
+        return render, scad, mesh, mesh_report, gate, self.max_render_retries + 1, None
+
+    @staticmethod
+    def _feed_back(thread: list[dict[str, str]], scad: str, message: str) -> None:
+        thread.append({"role": "assistant", "content": scad})
+        thread.append({"role": "user", "content": message})
 
     def _build_report(
         self,

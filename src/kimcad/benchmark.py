@@ -153,6 +153,30 @@ def run_benchmark(
     return summary
 
 
+def _persist_case_artifacts(out_dir: Path, result: Any) -> None:
+    """Best-effort dump of the plan, report, and outcome for offline diagnosis.
+
+    The pipeline already writes the SCAD and mesh; without the plan envelope and the
+    gate findings a failing case can't be debugged without re-running the model (which
+    is minutes of CPU per prompt). Diagnosis aid only — never fail a run over a write.
+    """
+    try:
+        plan = getattr(result, "plan", None)
+        if plan is not None:
+            (out_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+        report = getattr(result, "report", None)
+        if report is not None:
+            (out_dir / "report.txt").write_text(report.to_text(), encoding="utf-8")
+        lines = [f"status: {result.status.value}"]
+        if getattr(result, "clarification", None):
+            lines.append(f"clarification: {result.clarification}")
+        if getattr(result, "error", None):
+            lines.append(f"error: {result.error}")
+        (out_dir / "outcome.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
 def make_case_runner(pipeline: Any, out_root: Path) -> Callable[[BenchCase], CaseOutcome]:
     """Bind a Pipeline into a ``run_one`` that times a single case.
 
@@ -167,6 +191,7 @@ def make_case_runner(pipeline: Any, out_root: Path) -> Callable[[BenchCase], Cas
         started = time.monotonic()
         result = pipeline.run(case.prompt, out_dir)
         duration = time.monotonic() - started
+        _persist_case_artifacts(out_dir, result)
         gate_status = str(result.gate.status) if getattr(result, "gate", None) else None
         return CaseOutcome(
             id=case.id,

@@ -23,6 +23,21 @@ from kimcad.validation import MeshReport
 # Keys in DesignPlan.dimensions that we treat as a wall thickness.
 _WALL_KEYS = ("wall", "wall_thickness", "wall_mm", "thickness")
 
+# Dimensional-fidelity tolerance for the rendered envelope vs the plan. Single source
+# of truth so the gate and the retry feedback can never disagree. The mesh is exact,
+# deterministic geometry (print-time shrinkage is not in play here), so a correctly
+# built part should match its stated envelope to well under a millimetre. The bar is a
+# flat 0.5 mm — enough to absorb a fillet/chamfer or mesh-export noise, but no relative
+# term: a percentage would let large parts drift (2% of 200 mm = 4 mm) and "pass" a part
+# that won't fit. (Decision: Scott, 2026-05-29 — accuracy over leniency.)
+DIM_TOL_MM = 0.5
+DIM_TOL_FRAC = 0.0
+
+
+def dim_tolerance(expected_mm: float) -> float:
+    """Allowed deviation on one axis: a flat floor (no relative term — see above)."""
+    return max(DIM_TOL_MM, expected_mm * DIM_TOL_FRAC)
+
 
 class Level(IntEnum):
     PASS = 0
@@ -66,11 +81,12 @@ def run_gate(
     printer: Printer,
     material: Material,
     *,
-    dim_tol_mm: float = 0.5,
-    dim_tol_frac: float = 0.02,
+    dim_tol_mm: float = DIM_TOL_MM,
+    dim_tol_frac: float = DIM_TOL_FRAC,
 ) -> GateResult:
     result = GateResult()
 
+    _check_integrity(result, report)
     _check_dimensions(result, report, plan, dim_tol_mm, dim_tol_frac)
     _check_build_volume(result, report, printer)
     _check_wall_thickness(result, plan, printer, material)
@@ -79,6 +95,34 @@ def run_gate(
     if not result.findings:
         result.add(Level.PASS, "ok", "All Phase-1 printability checks passed.")
     return result
+
+
+def _check_integrity(result: GateResult, report: MeshReport) -> None:
+    """A part that isn't a closed, watertight solid is not printable — full stop.
+
+    The mesh validator already detects this; the gate must act on it, or a leaky /
+    non-manifold mesh that happens to match its dimensions would pass as a valid print
+    job. A mesh that needed repair to become watertight had a real defect, so it is
+    surfaced as a warning even when the repair succeeded.
+    """
+    if not report.watertight:
+        detail = f" ({'; '.join(report.errors)})" if report.errors else ""
+        result.add(
+            Level.FAIL,
+            "mesh.not_watertight",
+            "Mesh is not a closed, watertight solid — it cannot be printed reliably"
+            f"{detail}. Rebuild the geometry as a single manifold solid (overlap unions, "
+            "cut tools through the surface).",
+        )
+    elif report.repaired:
+        result.add(
+            Level.WARN,
+            "mesh.repaired",
+            f"Mesh was not watertight as generated and had to be repaired "
+            f"({'; '.join(report.repairs)}); prefer geometry that is manifold without repair.",
+        )
+    else:
+        result.add(Level.PASS, "mesh.solid", "Closed, watertight solid.")
 
 
 def _check_dimensions(
