@@ -55,9 +55,12 @@ On Windows this fetches both OpenSCAD and OrcaSlicer as verified, checksum-pinne
 portable builds. The OrcaSlicer pin is **v2.4.0-alpha** on purpose: the 2.3.2
 "stable" build is the only stable that carries the Bambu P2S profile, but it
 crashes on every CLI slice on a GPU-less machine (upstream issue #12906), whereas
-2.4.0-alpha handles that case and ships the same P2S profile. The macOS/Linux
-builds are not yet verified (spec §7.5); install those manually and point
-`config/local.yaml` at them.
+2.4.0-alpha handles that case and ships the same P2S profile. To find out when a
+stable build supersedes the alpha, run `python scripts/fetch_tools.py
+--check-upgrade`; it reports a stable release at or above the pin (prereleases are
+ignored) but never auto-upgrades — bumping the pin stays a reviewed, re-checksummed
+step. The macOS/Linux builds are not yet verified (spec §7.5); install those
+manually and point `config/local.yaml` at them.
 
 Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
 `localhost:11434`:
