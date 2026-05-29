@@ -27,8 +27,10 @@ lumpy neural meshes.
 - Python 3.11+
 - OpenSCAD 2021.01+ (built with `lib3mf` for 3MF export; STL is the fallback)
 - OrcaSlicer (CLI)
-- An LLM backend: a cloud API key (DeepSeek recommended) **or** a local runtime
-  (Ollama / LM Studio) for offline use.
+- An LLM backend. KimCad is **local-first**: out of the box it talks to a local
+  runtime ([Ollama](https://ollama.com/) or LM Studio), so no API key and no network
+  are required. A cloud API (DeepSeek or any OpenAI-compatible endpoint) is an
+  optional fallback you can opt into via `config/local.yaml`.
 
 OpenSCAD and OrcaSlicer are fetched as pinned portable builds into `tools/` by the
 setup step (see below); a system install can be pointed to via `config/local.yaml`.
@@ -42,12 +44,17 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Then fetch the CAD/slicer binaries (script lands with Task #2) and set your API key:
+Then fetch the CAD/slicer binaries (script lands with Task #2) and pull the local
+model. KimCad defaults to [Ollama](https://ollama.com/) on `localhost:11434`:
 
 ```
-# Windows (PowerShell):  $env:DEEPSEEK_API_KEY = "sk-..."
-# macOS/Linux:  export DEEPSEEK_API_KEY="sk-..."
+ollama pull gemma3:12b
 ```
+
+That is all the LLM setup required — no API key, no network. To point at a different
+local model or a cloud fallback (DeepSeek / any OpenAI-compatible endpoint), set the
+active backend and its key in `config/local.yaml`; see `config/default.yaml` for the
+shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends.
 
 ## Platform notes
 

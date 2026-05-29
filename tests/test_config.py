@@ -17,9 +17,18 @@ def test_material_min_wall():
     assert abs(pla.min_wall_mm(0.4) - 0.8) < 1e-9
 
 
-def test_llm_backend_default():
+def test_llm_backend_default_is_local():
+    # KimCad is local-first: the default backend needs no API key and no network.
     cfg = Config.load()
     b = cfg.llm_backend()
+    assert b.key == "local"
+    assert b.api_key_env is None
+    assert b.base_url.startswith("http://localhost")
+
+
+def test_cloud_backend_remains_available_as_fallback():
+    cfg = Config.load()
+    b = cfg.llm_backend("cloud_deepseek")
     assert b.provider == "deepseek"
     assert b.base_url.startswith("https://")
 
