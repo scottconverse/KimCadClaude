@@ -17,10 +17,28 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 from kimcad.config import Config
 
 _SUBCOMMANDS = {"design", "bench"}
+
+
+def _force_utf8_output(stream: Any) -> None:
+    """Make a text stream emit UTF-8 so report glyphs (×, ³, °, >=) never crash.
+
+    Windows consoles default to cp1252, which cannot encode the characters the
+    print report and benchmark verdict use; without this, output raises
+    UnicodeEncodeError after the work is already done. ``reconfigure`` is absent
+    on some wrapped streams (e.g. pytest's capture), so the call is best-effort.
+    """
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(encoding="utf-8")
+    except (ValueError, OSError):
+        pass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -108,14 +126,22 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
 
     pipeline = _build_pipeline(config, args)
     cases = load_cases(prompts_path)
-    summary = run_benchmark(cases, make_case_runner(pipeline, Path(args.out)))
-    print(summary.to_text(min_success_rate=args.min_success_rate))
+    out_dir = Path(args.out)
+    summary = run_benchmark(cases, make_case_runner(pipeline, out_dir))
+    text = summary.to_text(min_success_rate=args.min_success_rate)
+    # Persist the verdict before printing: a batch is minutes of CPU, and a
+    # console-encoding error at print time must never discard the result.
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "summary.txt").write_text(text, encoding="utf-8")
+    print(text)
     if args.min_success_rate is not None and not summary.meets(args.min_success_rate):
         return 1
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_output(sys.stdout)
+    _force_utf8_output(sys.stderr)
     argv = _normalize_argv(list(sys.argv[1:] if argv is None else argv))
     parser = build_parser()
     args = parser.parse_args(argv)

@@ -87,7 +87,7 @@ class BenchSummary:
         ]
         if min_success_rate is not None:
             verdict = "PASS" if self.meets(min_success_rate) else "FAIL"
-            lines.append(f"Done-gate (≥ {min_success_rate * 100:.0f}%): {verdict}")
+            lines.append(f"Done-gate (>= {min_success_rate * 100:.0f}%): {verdict}")
         for o in self.outcomes:
             mark = "ok " if o.passed else "XX "
             extra = f" — {o.error}" if o.error else ""

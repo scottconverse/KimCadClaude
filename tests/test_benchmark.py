@@ -82,6 +82,19 @@ def test_to_text_includes_verdict():
     assert "PASS" in text
 
 
+def test_to_text_is_console_safe():
+    # The verdict line must encode on a Windows cp1252 console; the >= glyph
+    # (formerly the ≥ character) once crashed `kimcad bench` at print time,
+    # after a full batch had run.
+    summary = run_benchmark(
+        [BenchCase(id="b0", prompt="x")],
+        lambda c: _outcome("b0", "completed"),
+    )
+    text = summary.to_text(min_success_rate=0.8)
+    text.encode("cp1252")  # must not raise UnicodeEncodeError
+    assert ">=" in text
+
+
 def test_make_case_runner_times_and_maps(tmp_path):
     @dataclass
     class FakeResult:
