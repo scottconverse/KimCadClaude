@@ -22,6 +22,7 @@ its own. Version pins are the ``PINS`` table below; re-check them against spec
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 import sys
 import tempfile
@@ -43,6 +44,7 @@ class ToolPin:
     exe_name: str  # the executable to locate inside the archive
     dest_subdir: str  # under tools/ — must match config/default.yaml binary paths
     verified: bool  # True only for URLs confirmed reachable during development
+    sha256: str | None = None  # pinned digest of the archive; None = print-and-record
 
 
 # VERIFY §7.5: pins below. Windows OpenSCAD is the only entry exercised live so
@@ -72,13 +74,25 @@ PINS: dict[str, dict[str, ToolPin]] = {
         ),
     },
     "orcaslicer": {
-        # VERIFY: confirm the exact release tag + asset name before relying on it.
+        # Pinned to v2.4.0-alpha (2026-05-25). NOT the 2.3.2 "stable" release:
+        # 2.3.2 has an upstream Windows CLI slicing crash (OrcaSlicer issue #12906
+        # and duplicates) that segfaults in DynamicPrintConfig config-apply on
+        # every slice on a GPU-less box — reproduced here on a plain cube and on
+        # every BBL printer profile. 2.4.0-alpha fixes it (it degrades gracefully
+        # when no OpenGL context is available, skipping only the thumbnail) and
+        # still ships the Bambu Lab P2S profiles. It is the only build that both
+        # slices on this platform and carries the P2S reference profile, so we pin
+        # it until a 2.4.x stable with the same fix is released.
         "win": ToolPin(
-            url="https://github.com/SoftFever/OrcaSlicer/releases/latest",
+            url=(
+                "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/"
+                "v2.4.0-alpha/OrcaSlicer_Windows_V2.4.0-alpha_portable.zip"
+            ),
             archive="zip",
             exe_name="orca-slicer.exe",
             dest_subdir="orcaslicer",
-            verified=False,
+            verified=True,
+            sha256="35d2e20a82ab9cbad8d3721802441bc07296974bede2d24a7fd0c52a0c4b72e0",
         ),
     },
 }
@@ -98,6 +112,33 @@ def _download(url: str, dest: Path) -> None:
     with urllib.request.urlopen(req) as resp, dest.open("wb") as out:  # noqa: S310 (pinned host)
         shutil.copyfileobj(resp, out)
     print(f"  saved {dest.stat().st_size / 1_048_576:.1f} MB")
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _verify_checksum(name: str, pin: ToolPin, archive_path: Path) -> None:
+    """Verify the download against the pinned digest, or print it to be recorded.
+
+    A pin with ``sha256=None`` is "trust on first fetch": we print the computed
+    digest so it can be pasted back into PINS, turning later fetches into a
+    tamper check. Once pinned, a mismatch aborts before anything is installed.
+    """
+    digest = _sha256(archive_path)
+    if pin.sha256 is None:
+        print(f"  sha256 {digest}  <- record this in PINS[{name!r}] to pin it")
+        return
+    if digest.lower() != pin.sha256.lower():
+        raise SystemExit(
+            f"{name}: checksum mismatch.\n  expected {pin.sha256}\n  got      {digest}\n"
+            "The download is corrupt or the pinned release was re-published. Do not install."
+        )
+    print(f"  sha256 ok ({digest[:12]}...)")
 
 
 def _find_exe_root(extract_root: Path, exe_name: str) -> Path:
@@ -162,6 +203,7 @@ def fetch_tool(name: str, *, force: bool) -> Path:
         archive_path = Path(tmp.name)
     try:
         _download(pin.url, archive_path)
+        _verify_checksum(name, pin, archive_path)
         installed = _install_zip(pin, archive_path)
     finally:
         archive_path.unlink(missing_ok=True)

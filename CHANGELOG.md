@@ -27,9 +27,19 @@ All notable changes to KimCad are documented here. Format follows
   slice) and a `kimcad` CLI with `design` and `bench` verbs.
 - Phase-1 benchmark harness — the ten Appendix B done-gate prompts
   (`bench/prompts.yaml`) scored against the §4.2 0.8 threshold.
-- Cross-platform tools-fetch script (`scripts/fetch_tools.py`, standard library only).
+- Cross-platform tools-fetch script (`scripts/fetch_tools.py`, standard library only),
+  now with SHA-256 checksum verification (trust-on-first-fetch, then tamper-checked).
+- Verified, checksum-pinned Windows OrcaSlicer build (v2.4.0-alpha) with end-to-end
+  slice proof: a real generated part slices to a valid G-code-bearing 3MF on the
+  Bambu P2S profile.
 
 ### Fixed
 - Code generation no longer misuses the walled-container `box()` module as a solid
   primitive; the system prompt and library manifest now steer plain solids to
   OpenSCAD built-ins, guarded by regression tests.
+
+### Notes
+- The OrcaSlicer pin is v2.4.0-alpha, not 2.3.2 "stable": 2.3.2 is the only stable
+  release carrying the Bambu P2S profile, but it segfaults on every CLI slice on a
+  GPU-less machine (upstream issue #12906). 2.4.0-alpha fixes that and ships the same
+  P2S profile, so it is pinned until a 2.4.x stable with the fix is released.

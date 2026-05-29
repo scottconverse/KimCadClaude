@@ -6,7 +6,7 @@ Describe a functional or mechanical part in plain English; KimCad turns it into 
 printer-ready file through a conversation. An LLM writes parametric
 [OpenSCAD](https://openscad.org/) code, OpenSCAD renders manifold geometry, a
 validation-and-printability pipeline checks it against your printer and material,
-and [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) produces the output. No
+and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output. No
 CAD skills required, and the core path runs CPU-only — no discrete GPU.
 
 > Status: **early development (Phase 1).** CLI-first; the web UI lands in Phase 2.
@@ -51,9 +51,13 @@ dependency):
 python scripts/fetch_tools.py
 ```
 
-OpenSCAD installs automatically on Windows. The macOS/Linux OpenSCAD builds and the
-OrcaSlicer pin are still being verified (spec §7.5); until then, install those
-manually and point `config/local.yaml` at them.
+On Windows this fetches both OpenSCAD and OrcaSlicer as verified, checksum-pinned
+portable builds. The OrcaSlicer pin is **v2.4.0-alpha** on purpose: the 2.3.2
+"stable" build is the only stable that carries the Bambu P2S profile, but it
+crashes on every CLI slice on a GPU-less machine (upstream issue #12906), whereas
+2.4.0-alpha handles that case and ships the same P2S profile. The macOS/Linux
+builds are not yet verified (spec §7.5); install those manually and point
+`config/local.yaml` at them.
 
 Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
 `localhost:11434`:
