@@ -33,6 +33,20 @@ def test_cloud_backend_remains_available_as_fallback():
     assert b.base_url.startswith("https://")
 
 
+def test_llm_backend_has_generous_default_timeout():
+    # A CPU-only local model can take many minutes per call; the client timeout must be
+    # well above the OpenAI default so slow generations don't error out mid-run.
+    b = Config.load().llm_backend()
+    assert b.timeout_s >= 1200.0
+
+
+def test_llm_backend_timeout_is_overridable():
+    cfg = Config({"llm": {"active": "x", "backends": {"x": {
+        "provider": "openai_compatible", "base_url": "http://localhost:11434/v1",
+        "model_name": "m", "timeout_s": 300}}}})
+    assert cfg.llm_backend().timeout_s == 300.0
+
+
 def test_binary_path_resolves_to_project_root():
     cfg = Config.load()
     p = cfg.binary_path("openscad")

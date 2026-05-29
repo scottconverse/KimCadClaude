@@ -52,6 +52,9 @@ class LLMBackend:
     temperature: float
     max_tokens: int
     supports_structured_output: bool
+    # Per-request timeout. A local CPU model can take many minutes for one generation,
+    # well past the OpenAI client's 10-minute default, so this defaults generously.
+    timeout_s: float = 1200.0
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -126,6 +129,7 @@ class Config:
             temperature=float(b.get("temperature", 0.2)),
             max_tokens=int(b.get("max_tokens", 8192)),
             supports_structured_output=bool(b.get("supports_structured_output", False)),
+            timeout_s=float(b.get("timeout_s", 1200.0)),
         )
 
     # --- limits / misc ------------------------------------------------------

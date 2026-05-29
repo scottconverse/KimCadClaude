@@ -60,6 +60,11 @@ manifold, **3D-printable** solid.
     — set the parameters so that formula equals the plan's `bounding_box_mm`. Reserve
     hand-written primitives for genuinely simple one-off solids (a plain plate, a plain
     cube with a hole) that no module covers.
+17. **Set only the module parameters the plan specifies; let the rest default.** Do
+    **not** invent values for parameters the plan didn't give (e.g. a peg length, a
+    plate width, a wall thickness). The plan's `bounding_box_mm` is computed assuming the
+    module's defaults, so overriding a default silently changes the part's size and
+    breaks the dimensional match.
 
 ## Printer & material constraints
 

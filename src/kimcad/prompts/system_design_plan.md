@@ -54,6 +54,19 @@ dimension says an arm is 40 mm long, the envelope cannot be 20 mm on that arm's 
 - **Divider / frame / tray** — outer length × depth × height, e.g. `[150, 80, 50]`.
   Interior cross walls split the space but do not change the outer envelope.
 
+Some parts have **no user-stated overall size** — a hook, a clip, a holder is sized by
+its construction, not by the request. For these the envelope follows the library
+module's fixed proportions, so compute it from these formulas (they assume the module's
+default wall/plate/peg sizes — do not invent your own):
+
+- **Pegboard hook** — `[30, hook_arm_length + 17, hole_spacing + 28]` mm. E.g. a 45 mm
+  arm at 25.4 mm hole spacing → `[30, 62, 53.4]`.
+- **Cable clip** — `[width, cable_diameter + screw_diameter + 15, cable_diameter/2 + 6]`
+  mm. E.g. a 6 mm cable, 20 mm wide, 4 mm screw → `[20, 25, 9]`.
+- **Spool holder** — `[60, spool_width + 23, 120]` mm. E.g. a 70 mm-wide spool →
+  `[60, 93, 120]`.
+- **Ring / spacer / tube** — `[outer_diameter, outer_diameter, height]` mm.
+
 ## Printer & material constraints
 
 {constraints}

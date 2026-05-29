@@ -140,6 +140,53 @@ def test_history_is_threaded_between_system_and_user():
     assert msgs[-1]["role"] == "user"
 
 
+def test_complete_retries_then_succeeds_on_connection_error():
+    # A transient Ollama drop (APIConnectionError) should be retried, not fail the call.
+    import httpx
+    from openai import APIConnectionError
+
+    class FlakyClient:
+        def __init__(self, fail_n: int):
+            self.calls = 0
+            self._fail_n = fail_n
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+        def _create(self, **kwargs):
+            self.calls += 1
+            if self.calls <= self._fail_n:
+                raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))])
+
+    client = FlakyClient(fail_n=2)
+    provider = LLMProvider(BACKEND, client=client, retry_wait_s=0)
+    out = provider._complete([{"role": "user", "content": "x"}], json_mode=False)
+    assert out == "ok"
+    assert client.calls == 3  # failed twice, succeeded on the third
+
+
+def test_complete_raises_after_exhausting_retries():
+    import httpx
+    from openai import APIConnectionError
+
+    class DeadClient:
+        def __init__(self):
+            self.calls = 0
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+        def _create(self, **kwargs):
+            self.calls += 1
+            raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
+
+    client = DeadClient()
+    provider = LLMProvider(BACKEND, client=client, max_attempts=3, retry_wait_s=0)
+    try:
+        provider._complete([{"role": "user", "content": "x"}], json_mode=False)
+        raise AssertionError("expected APIConnectionError")
+    except APIConnectionError:
+        pass
+    assert client.calls == 3
+
+
 def test_structured_output_suppressed_when_backend_lacks_support():
     backend = LLMBackend(
         key="local",

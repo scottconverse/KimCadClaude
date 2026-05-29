@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -73,9 +74,21 @@ def build_library_manifest(library_dir: Path = LIBRARY_DIR) -> str:
 
 
 class LLMProvider:
-    def __init__(self, backend: LLMBackend, client: ChatClient | None = None):
+    def __init__(
+        self,
+        backend: LLMBackend,
+        client: ChatClient | None = None,
+        *,
+        max_attempts: int = 6,
+        retry_wait_s: float = 30.0,
+    ):
         self.backend = backend
         self.client = client if client is not None else self._build_client(backend)
+        # A local CPU model server (Ollama) can briefly drop or restart mid-batch; retry
+        # connection/timeout errors with a wait long enough to bridge a server restart
+        # plus an 8 GB model reload, so one hiccup doesn't fail the case.
+        self.max_attempts = max_attempts
+        self.retry_wait_s = retry_wait_s
 
     @staticmethod
     def _build_client(backend: LLMBackend) -> ChatClient:
@@ -89,7 +102,7 @@ class LLMProvider:
                     f"Environment variable {backend.api_key_env} is not set; "
                     f"the {backend.key} backend needs an API key."
                 )
-        return OpenAI(base_url=backend.base_url, api_key=api_key)
+        return OpenAI(base_url=backend.base_url, api_key=api_key, timeout=backend.timeout_s)
 
     def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
         kwargs: dict[str, Any] = {
@@ -100,8 +113,19 @@ class LLMProvider:
         }
         if json_mode and self.backend.supports_structured_output:
             kwargs["response_format"] = {"type": "json_object"}
-        resp = self.client.chat.completions.create(**kwargs)
-        return resp.choices[0].message.content or ""
+
+        from openai import APIConnectionError, APITimeoutError
+
+        last_err: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                resp = self.client.chat.completions.create(**kwargs)
+                return resp.choices[0].message.content or ""
+            except (APIConnectionError, APITimeoutError) as e:
+                last_err = e
+                if attempt < self.max_attempts:
+                    time.sleep(self.retry_wait_s)
+        raise last_err if last_err is not None else RuntimeError("LLM call failed")
 
     def generate_design_plan(
         self,
