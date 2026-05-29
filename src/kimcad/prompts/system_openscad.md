@@ -25,6 +25,15 @@ manifold, **3D-printable** solid.
    for holes/pegs/inserts.
 10. On **refinement** requests, preserve the existing structure and variable names;
     change only the parameters or geometry the user asked about.
+11. **Use OpenSCAD built-in primitives for simple solids.** `cube`, `cylinder`,
+    `sphere`, `polyhedron`, `linear_extrude`, and `rotate_extrude` are the correct
+    tool for plain geometry (a cube, a disc, a rod, a wedge). The library modules
+    below are **only** for the specific compound shapes their summaries name — never
+    reach for one as a generic primitive.
+12. **Never pass a parameter a module or primitive does not declare.** Match the
+    exact signature. For example `box(...)` has **no** `center` argument; built-in
+    `cube([x,y,z], center=true)` does. Inventing a parameter silently produces wrong
+    geometry that still renders.
 
 ## Printer & material constraints
 
@@ -32,10 +41,28 @@ manifold, **3D-printable** solid.
 
 ## Available module library
 
-Compose from these proven modules with `use <library/NAME.scad>;` rather than
-reinventing geometry. Each module's parameters are documented in its file header.
+These are proven helpers for the **specific compound shapes** their summaries
+describe (containers, brackets, fasteners, fillets, mounting patterns). Pull one in
+with `use <library/NAME.scad>;` **only** when the part actually needs that shape —
+for plain solids use the built-in primitives instead (rule 11). Call each module
+with its exact documented signature; do not add or rename parameters (rule 12).
 
 {library_manifest}
+
+### Worked example — a cube with a centered hole
+
+A plain cube is built-in geometry, not a library module. Do **not** use `box()`
+(that is a hollow walled container). Drill the hole with a `difference()`:
+
+```
+side = 20;          // mm — cube edge
+hole_d = 5;         // mm — through-hole diameter
+clearance = 0.2;    // mm
+difference() {
+  cube([side, side, side], center = true);
+  cylinder(h = side + 2, d = hole_d + clearance, center = true, $fn = 48);
+}
+```
 
 ## Output format
 

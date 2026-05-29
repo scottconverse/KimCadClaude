@@ -4,7 +4,10 @@
 
 modules:
   - file: box.scad
-    summary: Parameterized box with walls, floor, and optional closed top.
+    summary: >-
+      HOLLOW walled container (outer shell with floor + side walls, optional open
+      top) — NOT a solid cube. For a solid cube use the built-in cube(). Has no
+      'center' parameter.
     signatures:
       - "box(width, depth, height, wall=2.0, floor=2.0, open_top=true)"
 
