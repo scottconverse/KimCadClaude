@@ -18,6 +18,7 @@ dependencies = [
     "numpy>=2.0",
     "scipy>=1.13",
     "networkx>=3.3",
+    "lxml>=5.0",  # trimesh's 3MF reader (default output format) requires it
 ]
 
 [project.optional-dependencies]

@@ -176,6 +176,9 @@ def render_scad(
     if not sanitized.safe:
         raise BlockedCodeError(sanitized.blocked)
 
+    # Resolve to absolute: the binary runs with cwd=out_dir (sandbox isolation), so
+    # a relative out_dir would make the -o/scad paths resolve under themselves.
+    out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     scad_path = out_dir / f"{basename}.scad"
     scad_path.write_text(sanitized.code, encoding="utf-8")

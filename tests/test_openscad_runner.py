@@ -131,6 +131,36 @@ def test_render_oversize_guard(tmp_path, monkeypatch):
         )
 
 
+def test_render_resolves_relative_out_dir(tmp_path, monkeypatch):
+    # Regression: the binary runs with cwd=out_dir, so a relative out_dir would make
+    # the -o/scad paths resolve under themselves (out_dir/out_dir/part.3mf) and the
+    # real renderer fails with "not a directory". render_scad must resolve to absolute.
+    monkeypatch.chdir(tmp_path)
+    captured: dict = {}
+
+    def _run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["cwd"] = kwargs.get("cwd")
+        Path(cmd[2]).write_bytes(b"mesh")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(osr.subprocess, "run", _run)
+    result = render_scad(
+        "cube(5);",
+        binary=Path("openscad"),
+        out_dir=Path("rel/out"),
+        output_format="3mf",
+    )
+
+    out_arg = Path(captured["cmd"][2])
+    scad_arg = Path(captured["cmd"][3])
+    assert out_arg.is_absolute()
+    assert scad_arg.is_absolute()
+    assert Path(captured["cwd"]).is_absolute()
+    assert out_arg == (tmp_path / "rel" / "out" / "part.3mf").resolve()
+    assert result.output_path.is_absolute()
+
+
 def test_render_timeout(tmp_path, monkeypatch):
     def _run(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 1))
