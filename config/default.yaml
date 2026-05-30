@@ -26,8 +26,9 @@ llm:
     local:
       provider: openai_compatible
       base_url: http://localhost:11434/v1   # Ollama default; LM Studio uses :1234
-      model_name: gemma3:12b                # smallest local model that reliably emits
-                                            # valid plan JSON + correct OpenSCAD on CPU;
+      model_name: gemma4:e4b                # on-device model (~4B effective) sized for the
+                                            # 32 GB / 780M-iGPU target — fast + stable there.
+                                            # gemma3:12b is too big/slow for the target;
                                             # override in local.yaml per machine
       api_key_env: null
       temperature: 0.2

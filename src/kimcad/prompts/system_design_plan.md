@@ -45,8 +45,10 @@ dimension says an arm is 40 mm long, the envelope cannot be 20 mm on that arm's 
   (30). Do **not** add the arm lengths together (it is not 80, nor 60), and never
   make an axis shorter than the arm reaching along it.
 - **Wall hook** — a back plate 25 wide × 60 tall × 4 thick, hook projecting 35 forward
-  and curving 20 up → `[25, 39, 60]`. Width and height are the plate's; the projection
-  axis is plate-thickness + projection (4 + 35 = 39); the 20 mm rise stays **within**
+  and curving 20 up → `[25, 39, 60]`, i.e. **X = width (25), Y = thickness + forward
+  projection (4 + 35 = 39), Z = height (60)**. The order is fixed: height is **always**
+  the third (Z) axis and the forward projection is **always** the second (Y) axis — do
+  not swap them (it is `[25, 39, 60]`, never `[25, 60, 39]`). The 20 mm rise stays within
   the 60 mm height, so it does not add a fourth number.
 - **Closed box / container** stated by its OUTER size 80 × 60 × 40 → `[80, 60, 40]`.
   An **enclosure** stated by its INTERNAL volume 80 × 50 × 30 with 2.5 mm walls adds a
