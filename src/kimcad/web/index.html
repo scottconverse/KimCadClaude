@@ -226,6 +226,10 @@ function tickStatus() {
 }
 
 async function design(prompt) {
+  // UX-201: a new design supersedes any in-flight slice — abort it and clear its UI so a
+  // late slice result can't land in (or attach the old download link to) the new part.
+  if (sliceController) sliceController.abort();
+  resetPrintUI();
   hide("clarify"); hide("result"); hide("error");
   controller = new AbortController();
   startBusy();
@@ -339,7 +343,7 @@ function parseRid(url) { const m = (url || "").match(/\/api\/mesh\/(\d+)/); retu
 function resetPrintUI() {
   stopSliceTimer();
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
-  hide("materialNote"); hide("printUnavailable"); hide("downloadRow");
+  hide("materialNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
   $("printResult").textContent = "";
 }
 
@@ -402,9 +406,10 @@ function stopSliceTimer() {
   if (sliceTimer !== null) { clearInterval(sliceTimer); sliceTimer = null; }
 }
 function setSliceControlsBusy(busy) {
-  // Don't let the user fire a second overlapping slice while one is in flight.
+  // Don't let the user fire a second overlapping slice while one is in flight (UX-104).
   $("printerSel").disabled = busy;
   $("materialSel").disabled = busy;
+  $("go").disabled = busy;  // UX-201: also block a new design from racing the slice
   if (busy) { $("prepare").disabled = true; show("sliceCancel"); }
   else { hide("sliceCancel"); updatePrintableHint(); }  // restores prepare's correct state
 }
@@ -597,8 +602,10 @@ $("prepare").addEventListener("click", () => {
     `This produces a print job you can download.`;
   show("confirmPrint");
   focusCard("confirmPrint");
-  // UX-103: make sure the confirm step is in view for mouse users, not just focused.
-  $("confirmPrint").scrollIntoView({ block: "center", behavior: "smooth" });
+  // UX-103: make sure the confirm step is in view for mouse users, not just focused —
+  // honoring prefers-reduced-motion (no smooth scroll for users who opted out).
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $("confirmPrint").scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
 });
 // UX-108: returning from the confirm step restores focus to its trigger.
 $("confirmPrintNo").addEventListener("click", () => { hide("confirmPrint"); $("prepare").focus(); });

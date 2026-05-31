@@ -534,3 +534,94 @@ def test_evicted_design_dir_is_removed_from_disk(tmp_path, monkeypatch):
                 ), timeout=30)
     assert not (tmp_path / "1").exists()  # evicted dir cleaned up
     assert (tmp_path / "3").exists()      # newest survives
+
+
+def _design_rid(base):
+    import json
+    import urllib.request
+
+    ddata = json.load(urllib.request.urlopen(
+        urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a box"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+    return ddata["mesh_url"].rsplit("/", 1)[-1]
+
+
+def test_slice_is_idempotent_one_real_slice_per_key(tmp_path, monkeypatch):
+    """NEW-1 (ENG-003 proof): an identical (rid, printer, material) re-confirm must hit
+    the cache, NOT re-run the slicer. Driven by a counting fake so a cache miss is
+    observable (the prior live test couldn't distinguish a hit from a second slice)."""
+    import json
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    calls = {"n": 0}
+
+    def counting_slice(config, mesh_path, printer, material):
+        calls["n"] += 1
+        gp = mesh_path.parent / f"{mesh_path.name.split('.')[0]}_{printer}_{material}.gcode.3mf"
+        gp.write_bytes(b"PKfake")
+        return (
+            {"sliced": True, "printer": printer, "material": material, "gcode_lines": 5,
+             "estimate": "", "profiles": {"machine": "m", "process": "p", "filament": "f"}},
+            gp,
+        )
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", counting_slice)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+
+        def slice_once():
+            return json.load(urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/api/slice/{rid}",
+                    data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                ), timeout=30))
+
+        d1 = slice_once()
+        d2 = slice_once()
+    assert calls["n"] == 1  # the second identical request was served from cache
+    assert d1["gcode_url"] == d2["gcode_url"]
+
+
+def test_slice_unexpected_error_is_clean_500(tmp_path, monkeypatch):
+    """NEW-4: the slice-side except-Exception guard returns a clean 500 (no traceback)."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("slice boom")
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 500")
+        except urllib.error.HTTPError as e:
+            assert e.code == 500
+            body = e.read()
+            assert b"RuntimeError: slice boom" in body
+            assert b"Traceback" not in body
+
+
+def test_handler_has_read_timeout(tmp_path):
+    """NEW-2: the handler sets a socket read timeout (QA-002 slowloris guard)."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    handler_cls = make_handler(pipe, tmp_path)
+    assert handler_cls.timeout == 30

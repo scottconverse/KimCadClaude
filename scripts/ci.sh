@@ -30,4 +30,11 @@ else
     echo "[ci] WARNING: OrcaSlicer binary absent — live slice tests SKIPPED; the real"
     echo "[ci]          slicer CLI contract was NOT proven this run. Do not cut a release"
     echo "[ci]          tag from this run; fetch tools/ and re-run."
+    # Hard gate for releases: set KIMCAD_RELEASE=1 to FAIL (not just warn) when the live
+    # slicer tests couldn't run, so a tag is never cut from an unproven run. Normal dev
+    # pushes (the binary is fetched separately) stay unblocked.
+    if [ "${KIMCAD_RELEASE:-}" = "1" ]; then
+        echo "[ci] RELEASE GATE: refusing — live slicer contract unproven."
+        exit 1
+    fi
 fi

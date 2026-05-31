@@ -229,13 +229,23 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
         # replaced byte can't forge a G0-3 match) and only risks cosmetic mangling of a
         # localized estimate string.
         for name in entries:
+            # Cheap pre-check on the zip-declared size, then a real bound on bytes actually
+            # read — the declared file_size is forgeable, so the streaming loop below is the
+            # authoritative cap against a crafted/zip-bomb member (RE-ENG-001).
             if zf.getinfo(name).file_size > _MAX_MEMBER_BYTES:
                 raise GcodeProofFailed(
                     f"{path.name} member {name!r} is too large to proof "
                     f"({zf.getinfo(name).file_size} bytes)"
                 )
+            member_chars = 0
             with zf.open(name) as raw:
                 for line in io.TextIOWrapper(raw, encoding="utf-8", errors="replace"):
+                    member_chars += len(line)
+                    if member_chars > _MAX_MEMBER_BYTES:
+                        raise GcodeProofFailed(
+                            f"{path.name} member {name!r} exceeds the {_MAX_MEMBER_BYTES}-byte "
+                            "proof cap (decompressed)"
+                        )
                     line_count += 1
                     if not has_motion and _MOTION_RE.match(line):
                         has_motion = True

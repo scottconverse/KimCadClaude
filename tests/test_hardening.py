@@ -40,6 +40,17 @@ def test_harden_hollow_box_keeps_genus_zero_solid():
 
 
 @pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
+def test_harden_torus_reports_genus_one():
+    # NEW-3: a real genus-1 solid (a torus) exercises the non-zero-genus path that the
+    # solid-box test never reaches.
+    torus = trimesh.creation.torus(major_radius=12.0, minor_radius=4.0)
+    out, rep = harden_mesh(torus)
+    assert rep.ok is True
+    assert rep.genus == 1
+    assert out.is_watertight
+
+
+@pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
 def test_harden_rejects_real_nonmanifold_mesh_keeps_original():
     # TEST-003: drive the real rejection branch — an open (non-manifold) mesh that
     # Manifold3D can't build into a clean manifold returns the original, ok=False.
