@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KimCad — v3.0 Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,400..800&family=Hanken+Grotesk:wght@300..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#f0ebe0; --surface:#faf6ee; --surface-2:#f4eee2; --ink:#272219; --muted:#6f6857;
+    --hair:rgba(39,34,25,.12); --accent:#c8623a;
+    --fd:"Bricolage Grotesque",system-ui,sans-serif;
+    --fb:"Hanken Grotesk",system-ui,sans-serif;
+    --fm:"JetBrains Mono",ui-monospace,monospace;
+  }
+  html,body{background:var(--bg);font-family:var(--fb);color:var(--ink);-webkit-font-smoothing:antialiased;}
+
+  .page{width:100%;min-height:100vh;display:flex;flex-direction:column;padding:32px 40px 24px;page-break-after:always;break-after:page;}
+  .page:last-child{page-break-after:auto;break-after:auto;}
+
+  .phead{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:16px;}
+  .pstep{display:flex;flex-direction:column;gap:5px;}
+  .peyebrow{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);}
+  .ptitle{font-family:var(--fd);font-size:25px;font-weight:700;letter-spacing:-.015em;line-height:1;}
+  .pdesc{font-size:13px;color:var(--muted);max-width:540px;text-align:right;line-height:1.5;text-wrap:pretty;}
+  .pnum{font-family:var(--fm);font-size:13px;font-weight:700;color:var(--accent);}
+
+  .shot-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;}
+  .shot{width:100%;max-height:100%;object-fit:contain;display:block;border:1px solid var(--hair);border-radius:13px;box-shadow:0 16px 44px -24px rgba(39,34,25,.5);}
+
+  /* cover */
+  .cover{justify-content:center;padding:0;}
+  .cover-inner{width:100%;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:60px 70px;}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:38px;}
+  .cube{width:46px;height:46px;border-radius:13px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;}
+  .wordmark{font-family:var(--fd);font-size:30px;font-weight:600;letter-spacing:-.015em;}
+  .wordmark b{font-weight:800;color:var(--accent);}
+  .badge{display:inline-flex;align-items:center;gap:9px;font-size:14px;font-weight:600;color:var(--muted);padding:9px 16px;border-radius:999px;border:1px solid var(--hair);background:var(--surface);margin-bottom:28px;width:fit-content;white-space:nowrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#2f9e6a;box-shadow:0 0 0 3px rgba(47,158,106,.22);}
+  .cover h1{font-family:var(--fd);font-size:56px;line-height:1.03;font-weight:700;letter-spacing:-.025em;max-width:16ch;margin-bottom:20px;}
+  .cover p{font-size:18px;line-height:1.55;color:var(--muted);max-width:52ch;}
+  .cover-meta{margin-top:38px;display:flex;flex-wrap:wrap;gap:10px;}
+  .chip{font-size:12.5px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:7px 13px;white-space:nowrap;}
+  .cover-foot{margin-top:34px;font-size:13px;color:var(--muted);line-height:1.5;max-width:60ch;}
+  .cover-foot b{color:var(--ink);}
+
+  @media print{
+    @page{size:landscape;margin:0.5cm;}
+    html,body{background:#fff;}
+    .page{min-height:auto;height:100vh;padding:2.2vh 2.6vw;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .cover-inner{min-height:auto;height:100vh;}
+    .shot{box-shadow:none;}
+    .shot-wrap{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+
+  <section class="page cover">
+    <div class="cover-inner">
+      <div class="brand">
+        <span class="cube"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5V21.5"/></svg></span>
+        <span class="wordmark">Kim<b>Cad</b></span>
+      </div>
+      <span class="badge"><span class="dot"></span> Unified Product Spec v3.0 · UI/UX walkthrough</span>
+      <h1>From plain words — or a photo — to a printed part.</h1>
+      <p>KimCad turns a description of a functional object into a validated, printer-ready file, and optionally sends it to a real printer — all through a conversation, with no CAD skills. This walkthrough follows the full v3.0 experience from setup to a started print.</p>
+      <div class="cover-meta">
+        <span class="chip">First-run wizard</span>
+        <span class="chip">Describe or photograph</span>
+        <span class="chip">Print-aware 3D preview</span>
+        <span class="chip">Live parameter sliders</span>
+        <span class="chip">Printability Gate</span>
+        <span class="chip">Smart Mesh readiness</span>
+        <span class="chip">Direct printer execution</span>
+      </div>
+      <div class="cover-foot">Part of the implementation handoff package. The accompanying <b>README.md</b> documents tokens, screens, interactions and data contracts; <b>prototype/</b> holds the working reference; <b>KimCad-Unified-Product-Spec-v3.0.md</b> is the controlling spec.</div>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Setup · Step 1</span><span class="ptitle">A safe, one-installer first run</span></div>
+      <p class="pdesc">The bundled Windows installer carries everything. The walkthrough explains the unsigned-app SmartScreen warning and exactly what to click, with GitHub provenance and a SHA-256 checksum.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/01-wizard-welcome.png" alt="Welcome & SmartScreen walkthrough" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Setup · Step 2</span><span class="ptitle">Choose a local model</span></div>
+      <p class="pdesc">Qwen2.5-Coder (fast default) or Gemma 4 E4B (proven non-China alternative) — both run fully offline. An OpenRouter key is optional; the local path always works.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/02-wizard-model.png" alt="Choose a model" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Setup · Step 3</span><span class="ptitle">Pick your printer</span></div>
+      <p class="pdesc">Tested profiles for the top-5 makers set the build volume and slicing profile so every printability check matches the user's actual hardware.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/03-wizard-printer.png" alt="Pick your printer" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Setup · Step 4</span><span class="ptitle">Connect for direct printing (optional)</span></div>
+      <p class="pdesc">Skip and just download files, or connect the printer — the form adapts per protocol (Bambu Developer Mode, OctoPrint/Moonraker, PrusaLink). KimCad never auto-starts a print.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/04-wizard-connect.png" alt="Connect for direct printing" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Setup · Step 5</span><span class="ptitle">Ready in under fifteen minutes</span></div>
+      <p class="pdesc">A recap of the chosen model, printer and connection. Everything is changeable later from the gear menu.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/05-wizard-ready.png" alt="Ready" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Describe</span><span class="ptitle">Say what you want — in plain words</span></div>
+      <p class="pdesc">No CAD, no jargon. Type a functional object or pick a starting point. A secondary "Start from a photo" path is there for broken or existing parts.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/06-landing.png" alt="Describe — landing" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Describe · Photo on-ramp</span><span class="ptitle">A photo becomes a confirmable plan</span></div>
+      <p class="pdesc">KimCad estimates dimensions and features from the image into a DesignPlan draft — with per-field confidence — which the user confirms or corrects before anything is built. The photo never becomes the delivered geometry.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/07-photo-designplan.png" alt="Photo to DesignPlan" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Clarify</span><span class="ptitle">One smart question, never a guess</span></div>
+      <p class="pdesc">When a load-bearing dimension is missing, KimCad asks a single question — here, the mounting screw size — rather than guessing.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/08-clarify.png" alt="Clarifying question" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Preview &amp; refine</span><span class="ptitle">A print-aware preview you can talk to or drag</span></div>
+      <p class="pdesc">Live X/Y/Z dimensions on the build plate, conversational refinement, click-to-point feature placement, and parameter sliders that re-render locally in under a second. The Printability Gate flags issues against the chosen printer and material.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/09-workspace.png" alt="Workspace — preview, parameters, printability" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Validate &amp; deliver</span><span class="ptitle">A readiness score, not just a file</span></div>
+      <p class="pdesc">Smart Mesh scores print-readiness from the geometry, profiles and accumulated history — with risks, recommendations, confidence and a comparison to similar past prints — above a full print report. Safe 3MF by default; STEP for CAD; G-code only after confirmation.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/10-smartmesh-report.png" alt="Smart Mesh readiness and print report" /></div>
+  </section>
+
+  <section class="page">
+    <div class="phead"><div class="pstep"><span class="peyebrow">Print</span><span class="ptitle">Confirmed, never automatic</span></div>
+      <p class="pdesc">Direct execution shows live printer status, then asks the user to confirm geometry, printer, material and profile. A final explicit click is required before any command leaves the app.</p></div>
+    <div class="shot-wrap"><img class="shot" src="screens/11-print-dialog.png" alt="Direct print dialog" /></div>
+  </section>
+
+<script>
+  (async () => {
+    try {
+      await Promise.all([...document.images].map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = img.onerror = r; })));
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    } catch (e) {}
+    setTimeout(() => window.print(), 600);
+  })();
+</script>
+</body>
+</html>
