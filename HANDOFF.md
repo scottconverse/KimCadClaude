@@ -1,18 +1,27 @@
-# KimCad — Handoff (2026-05-30)
+# KimCad — Handoff (2026-05-31)
 
-**Read this first.** Canonical resume doc for the next session. KimCad is now being placed
-under a **highly restrictive agent-pipeline skill that enforces the process below** — because
-the previous session repeatedly skipped the per-slice audit gate (see "The process" + "Why
-the harness").
+**Read this first.** Canonical resume doc for the next session.
+
+**Stage 2 (send-to-printer connector + MCP) is DONE** — software-complete + mock-tested,
+NO real hardware. Built solo this session following THE PROCESS correctly: per-slice
+independent audit-lite, then a full 5-role audit-team at the gate (found 0/1/8/16/11),
+every finding fixed regardless of severity, independent re-audit to **0/0/0/0/0**, merged +
+tagged. The two load-bearing safety properties were re-verified under LIVE MCP exercise
+(per-send `confirm is True` identity, never truthy; nothing sent that isn't a proven slice).
 
 ---
 
 ## Where things stand
 
-- **Repo:** `github.com/scottconverse/KimCadClaude` (private). Branch **`main`** @ `49ce379`.
-- **Tags:** `stage-0`, `stage-1` (both stages done, audited, merged, tagged).
-- **Tests:** `208 passed`, `ruff` clean. Local CI via pre-push hook (`.githooks/pre-push` →
+- **Repo:** `github.com/scottconverse/KimCadClaude` (private). Branch **`main`** @ `4edf6a7`.
+- **Tags:** `stage-0`, `stage-1`, **`stage-2`** (all done, audited to 0/0/0/0/0, merged, tagged).
+- **Tests:** `291 passed`, `ruff` clean. Local CI via pre-push hook (`.githooks/pre-push` →
   `scripts/ci.sh` = ruff + pytest). Enable per clone: `git config core.hooksPath .githooks`.
+  Fast inner loop: `pytest -m "not live"` skips the 4 real-OrcaSlicer tests.
+- **Next = Stage 3** (printer coverage + ready/not-ready UI, software-complete + mock-tested):
+  Klipper/Moonraker + Bambu + Prusa Connect + Creality connectors behind the same
+  `PrinterConnector` contract; per-printer capability/status; a ready/not-ready UI; per-printer
+  per-material filament profiles; build-volume verification. Stage 10 = the only hardware-gated stage.
   CI prints a loud warning (and hard-fails under `KIMCAD_RELEASE=1`) if the bundled OrcaSlicer
   is absent, so a green run without it can't be mistaken for one that proved the slicer.
 - **Project root:** `C:\Users\scott\dev\kimcad` — deliberately **OUTSIDE OneDrive** (venv +
