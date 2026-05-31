@@ -77,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CONNECTOR",
         help="Slice, then send the print job to a configured connector by name "
-        "(e.g. 'mock' or 'octoprint'). This is the explicit per-send confirmation.",
+        "(e.g. 'mock', 'octoprint', or 'moonraker'). This is the explicit per-send confirmation.",
     )
 
     w = sub.add_parser("web", help="Launch the local web UI (Phase 2).")

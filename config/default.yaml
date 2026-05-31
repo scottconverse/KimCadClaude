@@ -113,6 +113,13 @@ connectors:
     type: octoprint
     base_url: http://127.0.0.1:5000   # your OctoPrint instance
     api_key_env: OCTOPRINT_API_KEY    # set this env var to your OctoPrint API key
+  # Klipper printers (via Moonraker): Creality w/ Klipper, Voron, RatRig, Mainsail/Fluidd.
+  # Uncomment + point base_url at your printer. The API key is OPTIONAL (Moonraker often runs
+  # unauthenticated on a trusted LAN); set api_key_env only if your [authorization] requires it.
+  # moonraker:
+  #   type: moonraker
+  #   base_url: http://127.0.0.1:7125
+  #   api_key_env: MOONRAKER_API_KEY
 
 limits:
   openscad_timeout_simple_s: 30

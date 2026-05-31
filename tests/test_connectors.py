@@ -3,7 +3,8 @@
 import pytest
 
 from kimcad.config import Config
-from kimcad.connectors import build_connector
+from kimcad.connectors import build_connector, connector_is_simulated
+from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector
 
@@ -55,6 +56,33 @@ def test_build_octoprint_without_base_url_errors():
     cfg = _config({"octo": {"type": "octoprint", "api_key_env": "K"}})
     with pytest.raises(ConnectorError, match="base_url"):
         build_connector(cfg, "octo")
+
+
+def test_build_moonraker_connector_unauthenticated():
+    # Moonraker often needs no key (trusted LAN) -> a missing key is NOT an error.
+    cfg = _config({"klip": {"type": "moonraker", "base_url": "http://host:7125"}})
+    c = build_connector(cfg, "klip")
+    assert isinstance(c, MoonrakerConnector) and c.name == "klip"
+
+
+def test_build_moonraker_with_optional_key(monkeypatch):
+    monkeypatch.setenv("MOON_KEY", "secret")
+    cfg = _config(
+        {"klip": {"type": "moonraker", "base_url": "http://host:7125", "api_key_env": "MOON_KEY"}}
+    )
+    c = build_connector(cfg, "klip")
+    assert isinstance(c, MoonrakerConnector)
+
+
+def test_build_moonraker_without_base_url_errors():
+    cfg = _config({"klip": {"type": "moonraker"}})
+    with pytest.raises(ConnectorError, match="base_url"):
+        build_connector(cfg, "klip")
+
+
+def test_moonraker_is_not_simulated():
+    cfg = _config({"klip": {"type": "moonraker", "base_url": "http://host:7125"}})
+    assert connector_is_simulated(cfg.connector_config("klip")) is False
 
 
 def test_unknown_connector_name_errors():

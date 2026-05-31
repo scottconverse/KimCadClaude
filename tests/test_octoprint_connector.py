@@ -133,6 +133,15 @@ def test_offline_job_status_returns_error():
     assert job.state is JobState.error
 
 
+def test_job_status_http_error_is_error_not_unreachable():
+    # A 401/403 on job_status is reachable-but-rejected — reported as the HTTP code, NOT
+    # mislabeled "unreachable" (HTTPError must be caught before its URLError superclass).
+    with serve_mock_octoprint(api_key="the-real-key") as (base, _state):
+        job = _connector(base, key="wrong-key").job_status("x")
+    assert job.state is JobState.error
+    assert "HTTP 403" in job.detail and "unreachable" not in job.detail
+
+
 # --- the mock server's own negative paths -------------------------------------
 
 
@@ -230,11 +239,11 @@ def test_capabilities_single_profile_no_default_is_used(monkeypatch):
 
 
 def test_extract_gcode_refuses_oversize_member(tmp_path, monkeypatch):
-    # Shrink ONLY the connector's cap (not the proof gate's, which lives on slicer.*), so the
-    # file proves out as a real slice but the upload-side guard fires. _extract_gcode runs
-    # after ensure_sendable and before any network, so an offline URL is fine.
+    # Shrink ONLY the shared extractor's cap (not the proof gate's, which lives on slicer.*),
+    # so the file proves out as a real slice but the upload-side guard fires.
+    # extract_single_plate_gcode runs after ensure_sendable and before any network.
     g = _write_gcode_3mf(tmp_path / "big.gcode.3mf", gcode="G28\n" + "G1 X1 Y1 E1\n" * 50)
-    monkeypatch.setattr("kimcad.octoprint_connector.MAX_GCODE_MEMBER_BYTES", 10)
+    monkeypatch.setattr("kimcad.printer_connector.MAX_GCODE_MEMBER_BYTES", 10)
     with pytest.raises(ConnectorError, match="too large"):
         _connector("http://127.0.0.1:1").send(g, confirm=True)
 

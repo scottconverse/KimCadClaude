@@ -24,12 +24,13 @@ emulators on the dev box; no connector talks to physical hardware yet.
 from __future__ import annotations
 
 import threading
+import zipfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from kimcad.slicer import GcodeProofFailed, prove_gcode_3mf
+from kimcad.slicer import MAX_GCODE_MEMBER_BYTES, GcodeProofFailed, prove_gcode_3mf
 
 
 class ConnectorError(Exception):
@@ -77,6 +78,7 @@ class JobState(str, Enum):
     queued = "queued"
     uploading = "uploading"
     printing = "printing"
+    paused = "paused"
     done = "done"
     error = "error"
     cancelled = "cancelled"
@@ -182,6 +184,45 @@ def ensure_sendable(gcode_path: Path, *, confirm: bool) -> None:
         prove_gcode_3mf(gcode_path)
     except GcodeProofFailed as e:
         raise ConnectorError(f"refusing to send a file that isn't a printable slice: {e}") from e
+
+
+def extract_single_plate_gcode(gcode_3mf: Path) -> bytes:
+    """Read the embedded toolpath out of a proven ``*.gcode.3mf`` for upload to a printer.
+
+    Shared by every connector that uploads a flat ``.gcode`` (OctoPrint, Moonraker, …) so the
+    guards live in one place. Refuses a multi-plate archive (we'd otherwise upload only the
+    first plate while the proof validated all of them) and a member larger than the proof's
+    size cap. Only ever *reads* member bytes — never extracts to a path — so a malicious member
+    name (``../../etc/...``) is inert here.
+    """
+    with zipfile.ZipFile(gcode_3mf) as zf:
+        members = [n for n in zf.namelist() if n.lower().endswith(".gcode")]
+        if not members:
+            raise ConnectorError(f"{gcode_3mf.name} has no embedded .gcode to send")
+        if len(members) > 1:
+            raise ConnectorError(
+                f"{gcode_3mf.name} has {len(members)} plates; single-plate send only for now"
+            )
+        info = zf.getinfo(members[0])
+        if info.file_size > MAX_GCODE_MEMBER_BYTES:
+            raise ConnectorError(
+                f"{gcode_3mf.name} G-code is too large to send ({info.file_size} bytes)"
+            )
+        return zf.read(members[0])
+
+
+def read_error_body(e: Any, *, cap: int = 300) -> str:
+    """Best-effort, bounded read of an HTTP error response body as whitespace-collapsed text.
+
+    Shared by connectors so each can parse its own JSON error shape from the bytes without
+    duplicating the read. Never raises; never includes request headers (the API key is a
+    request header, not in the response body), and the result is capped.
+    """
+    try:
+        raw = e.read(cap + 1) or b""
+    except Exception:
+        return ""
+    return " ".join(raw[:cap].decode("utf-8", "replace").split())
 
 
 @dataclass
