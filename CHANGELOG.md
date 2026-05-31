@@ -75,6 +75,43 @@ All notable changes to KimCad are documented here. Format follows
   the note at the top of this section).
 - Bambu A1 printer profile added (one of Kim's printers).
 
+#### Stage 2 — send-to-printer connector + MCP (software-complete, hardware-deferred)
+- `PrinterConnector` abstraction (`printer_connector.py`): a `Protocol` covering
+  capabilities / status / send / job-status, with a frozen `PrinterCapabilities` /
+  `PrinterStatus` / `PrintJob` model and a shared `ensure_sendable()` gate. A built-in
+  thread-safe `LoopbackConnector` (the **`mock`** connector) drives the whole send path
+  in-memory, so every layer above can be tested with no hardware.
+- OctoPrint connector (`octoprint_connector.py`): a real REST connector over stdlib
+  `urllib` with an `X-Api-Key` header; the API key is read from an environment variable
+  only — never stored in config and never logged. A reachable-but-rejected printer
+  (401/403) surfaces as a distinct `AuthError`, not a generic "offline." Single-plate
+  G-code is extracted with a hard size cap.
+- Runnable mock OctoPrint server (`python -m kimcad.mock_printer`): a stdlib
+  `http.server` implementing the version / printerprofiles / printer / files / job
+  endpoints with API-key auth, so the OctoPrint connector is exercised end-to-end with
+  no real printer.
+- Capability reconciliation (`capability.py`): a printer's reported build volume /
+  nozzle / materials auto-fills a **blank** profile field, and any config-vs-printer
+  disagreement is flagged (config stays authoritative; the mismatch is surfaced, with the
+  actual numbers, never silently overridden). A blank build-volume field now skips the
+  build-plate-fit check with a `WARN` note (instead of failing); a blank nozzle skips the
+  wall-thickness check (nothing to warn against, so no note).
+- Connector config + factory: a `connectors:` block in `config/default.yaml`, a
+  `build_connector(config, name)` factory, and clear errors for an unknown connector name,
+  unknown type, or missing base-url / API-key env var (the factory names the missing env
+  var, never its value).
+- CLI `--send <connector>`: slices (the flag implies slicing) and sends behind the
+  explicit-confirmation gate; an offline/unreachable printer is reported and the proven
+  G-code is left on disk. A gate-failed part is never sent.
+- Web send-to-printer: after a successful slice, a connection selector + an explicit
+  confirm step (`GET /api/connectors`, `POST /api/send/<id>`); the result surfaces the
+  job + printer status, and the download stays as the fallback.
+- Printer MCP server (`python -m kimcad.mcp_server`): a dependency-free MCP server
+  (newline-delimited JSON-RPC 2.0 over stdio) exposing `list_connectors` /
+  `printer_status` / `printer_capabilities` / `send_print`, so an agent can drive the
+  printer. `send_print` passes the confirm value through to the same `confirm is True`
+  gate without coercion — a truthy-but-not-`True` value cannot send.
+
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable
   and fast there); `gemma3:12b` was too large for the target and is no longer used.
