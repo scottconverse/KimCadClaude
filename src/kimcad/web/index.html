@@ -409,7 +409,10 @@ function setSliceControlsBusy(busy) {
   // Don't let the user fire a second overlapping slice while one is in flight (UX-104).
   $("printerSel").disabled = busy;
   $("materialSel").disabled = busy;
-  $("go").disabled = busy;  // UX-201: also block a new design from racing the slice
+  // UX-201/UX-203: block a new design from racing the slice — but on release, only
+  // re-enable #go when no design is itself in flight (an aborted slice's finally must not
+  // re-enable #go underneath the new design that just aborted it; stopBusy owns it then).
+  $("go").disabled = busy || (controller !== null);
   if (busy) { $("prepare").disabled = true; show("sliceCancel"); }
   else { hide("sliceCancel"); updatePrintableHint(); }  // restores prepare's correct state
 }

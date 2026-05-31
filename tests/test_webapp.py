@@ -625,3 +625,56 @@ def test_handler_has_read_timeout(tmp_path):
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
     handler_cls = make_handler(pipe, tmp_path)
     assert handler_cls.timeout == 30
+
+
+def test_concurrent_identical_slices_run_once(tmp_path, monkeypatch):
+    """The slice_lock double-checked re-check: while one request is mid-slice (holding the
+    lock), a second identical request blocks, then on acquiring the lock finds the cache
+    already populated and reuses it — so the slicer runs exactly once. Exercises the
+    re-check branch that the sequential idempotency test can't reach."""
+    import json
+    import threading
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    in_slice = threading.Event()
+    release = threading.Event()
+    calls = {"n": 0}
+
+    def slow_slice(config, mesh_path, printer, material):
+        calls["n"] += 1
+        in_slice.set()
+        release.wait(timeout=10)  # hold slice_lock until the test releases
+        gp = mesh_path.parent / f"x_{printer}_{material}.gcode.3mf"
+        gp.write_bytes(b"PK")
+        return ({"sliced": True, "printer": printer, "material": material}, gp)
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", slow_slice)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+
+        def post_slice(out):
+            out.append(json.load(urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/api/slice/{rid}",
+                    data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                ), timeout=15)))
+
+        r1, r2 = [], []
+        t1 = threading.Thread(target=post_slice, args=(r1,))
+        t1.start()
+        assert in_slice.wait(timeout=10)  # t1 is inside the slice, holding slice_lock
+        t2 = threading.Thread(target=post_slice, args=(r2,))
+        t2.start()
+        # give t2 time to pass the pre-lock cache miss and block on slice_lock
+        import time
+        time.sleep(0.3)
+        release.set()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+    assert calls["n"] == 1  # t2 reused t1's cached slice via the re-check branch
+    assert r1 and r2 and r1[0]["gcode_url"] == r2[0]["gcode_url"]
