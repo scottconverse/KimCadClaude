@@ -191,7 +191,10 @@ class MoonrakerConnector:
         except (urllib.error.URLError, OSError) as e:
             return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
         print_stats = status.get("print_stats") or {}
-        state = _PRINT_STATE.get(str(print_stats.get("state") or "").lower(), PrinterState.operational)
+        raw = str(print_stats.get("state") or "").lower()
+        # Unknown beats wrong: an unrecognized non-empty Klipper state reports as `error`
+        # (needs attention), not silently as "ready". Empty/missing -> idle/operational.
+        state = _PRINT_STATE.get(raw, PrinterState.error if raw else PrinterState.operational)
         return PrinterStatus(
             online=True,
             state=state,

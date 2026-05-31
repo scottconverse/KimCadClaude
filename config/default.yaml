@@ -135,6 +135,13 @@ connectors:
   #   type: moonraker
   #   base_url: http://127.0.0.1:7125
   #   api_key_env: MOONRAKER_API_KEY
+  # Prusa printers (via PrusaLink): MK4 / MK3.9 / MINI / XL. The API key is in the printer's
+  # PrusaLink settings; set it in the named env var. base_url is the printer's IP.
+  # prusalink:
+  #   type: prusalink
+  #   base_url: http://192.168.0.50
+  #   api_key_env: PRUSALINK_API_KEY
+  #   storage: usb        # target storage; "usb" (MK4/XL default) or "local" (e.g. MINI/SD)
 
 limits:
   openscad_timeout_simple_s: 30

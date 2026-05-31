@@ -14,6 +14,7 @@ from typing import Any
 from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
+from kimcad.prusalink_connector import PrusaLinkConnector
 
 # Map a config ``type`` to its connector class. This is the SINGLE source of truth for
 # whether a connection drives real hardware: each class sets ``drives_hardware``, and
@@ -24,6 +25,7 @@ _CONNECTOR_CLASSES: dict[str, type] = {
     "loopback": LoopbackConnector,
     "octoprint": OctoPrintConnector,
     "moonraker": MoonrakerConnector,
+    "prusalink": PrusaLinkConnector,
 }
 
 
@@ -82,6 +84,23 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         # error here — it just sends no X-Api-Key. A key is used only when configured.
         api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
         return MoonrakerConnector(cc.base_url, api_key, name=name)
+
+    if cc.type == "prusalink":
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (prusalink) has no base_url configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address configured.",
+            )
+        api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
+        if not api_key:
+            raise ConnectorError(
+                f"set the {cc.api_key_env} environment variable to send to {name!r}",
+                reason="config",
+                user_message=f"The '{name}' printer needs an API key that isn't set up yet. "
+                "See the README's send-to-printer setup.",
+            )
+        return PrusaLinkConnector(cc.base_url, api_key, name=name, storage=cc.storage or "usb")
 
     raise ConnectorError(
         f"connector {name!r} has unknown type {cc.type!r}",
