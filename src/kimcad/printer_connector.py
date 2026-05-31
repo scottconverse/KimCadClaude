@@ -2,9 +2,10 @@
 
 KimCad never drives a printer directly from the pipeline. Instead a part that has been
 sliced to a G-code-bearing 3MF is handed to a **connector** — a thin, swappable adapter
-to one printer's control surface (OctoPrint, Moonraker/Klipper, an MCP bridge, …). This
-module is the abstraction every connector implements, plus an in-memory ``LoopbackConnector``
-that exercises the contract with no network and no hardware.
+to one printer's control surface (OctoPrint, Moonraker/Klipper, …). This module is the
+abstraction every connector implements, plus an in-memory ``LoopbackConnector`` that
+exercises the contract with no network and no hardware. (The MCP server in
+:mod:`kimcad.mcp_server` is a *consumer* of this abstraction, not a connector itself.)
 
 Two safety properties live here, not in the leaf connectors:
 
@@ -23,7 +24,7 @@ emulators on the dev box; no connector talks to physical hardware yet.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -32,20 +33,42 @@ from kimcad.slicer import GcodeProofFailed, prove_gcode_3mf
 
 
 class ConnectorError(Exception):
-    """Base class for send-to-printer failures."""
+    """Base class for send-to-printer failures.
+
+    Carries a machine-readable ``reason`` (so a caller can branch on *why* a send failed —
+    ``"auth"`` vs ``"offline"`` vs ``"config"`` — instead of string-matching the message)
+    and a ``user_message`` (plain, non-developer phrasing that is safe to show an end user).
+    ``str(self)`` stays the developer-facing detail, which may name an env var, a URL, etc.
+    """
+
+    reason = "error"
+
+    def __init__(
+        self, message: str, *, reason: str | None = None, user_message: str | None = None
+    ):
+        super().__init__(message)
+        if reason is not None:
+            self.reason = reason
+        self.user_message = user_message or message
 
 
 class NotConfirmed(ConnectorError):
     """A send was attempted without the explicit per-send confirmation."""
 
+    reason = "not_confirmed"
+
 
 class PrinterOffline(ConnectorError):
     """The printer could not be reached or is not ready to accept a job."""
+
+    reason = "offline"
 
 
 class AuthError(ConnectorError):
     """The printer was reachable but rejected our credentials (e.g. a bad API key) —
     distinct from :class:`PrinterOffline` (unreachable)."""
+
+    reason = "auth"
 
 
 class JobState(str, Enum):
@@ -77,13 +100,17 @@ class PrinterState(str, Enum):
 @dataclass(frozen=True)
 class PrinterCapabilities:
     """What a printer reports about itself — used to auto-fill blank profile fields and
-    to label honestly what a connector can do. Any field may be ``None`` if unknown."""
+    to label honestly what a connector can do. Any field may be ``None`` if unknown.
+
+    ``materials`` is ``None`` when the printer does not report its loaded materials (the
+    OctoPrint profile endpoint, for one, doesn't) — distinct from an empty tuple, which
+    would mean "reports it supports no materials." Don't treat unknown as none.
+    """
 
     name: str
     build_volume_mm: tuple[float, float, float] | None = None
     nozzle_diameter_mm: float | None = None
-    materials: tuple[str, ...] = ()
-    extra: dict[str, object] = field(default_factory=dict)
+    materials: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -117,9 +144,14 @@ class PrinterConnector(Protocol):
 
     THREAD SAFETY: connectors may be called concurrently (the web UI runs on a
     ``ThreadingHTTPServer``), so implementations must guard their mutable state.
+
+    ``drives_hardware`` tells callers whether a send reaches a *real* printer (True) or is a
+    simulation/loopback (False), so a UI/CLI can label honestly instead of narrating a mock
+    send as a real print.
     """
 
     name: str
+    drives_hardware: bool
 
     def capabilities(self) -> PrinterCapabilities: ...
 
@@ -173,6 +205,8 @@ class LoopbackConnector:
     ``polls_to_done`` is clamped to ≥ 2 so there is always at least one ``printing`` frame.
     Thread-safe: all job state is guarded by an internal lock.
     """
+
+    drives_hardware = False  # a simulation — no real printer is touched
 
     def __init__(
         self,

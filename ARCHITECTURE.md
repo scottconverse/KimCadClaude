@@ -124,10 +124,12 @@ slices the already-validated mesh (idempotent and serialized, so a re-confirm do
 re-run the model or the slicer) and `GET /api/gcode/<id>` downloads the proven 3MF;
 `GET /api/options` feeds the printer/material pickers. After a successful slice the page
 can also **send** the job to a printer connection: `GET /api/connectors` lists the
-configured connections and `POST /api/send/<id>` sends behind an explicit confirm step,
-returning the job + printer status. A send failure (offline/unreachable printer) is a
-soft result, not an error — the download stays as the fallback, and the validated model
-itself is always downloadable too.
+configured connections (each flagged `simulated` so the UI labels a no-hardware connection
+honestly rather than narrating a mock send as a real print) and `POST /api/send/<id>` sends
+behind an explicit confirm step, returning the job + printer status (and `simulated`). A send
+failure (offline/unreachable printer, bad key, misconfig) is a soft result, not an error — it
+carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
+download stays as the fallback, as does the validated model itself.
 
 ## Local-first and the injectable seam
 

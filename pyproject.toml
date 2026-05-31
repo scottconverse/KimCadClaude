@@ -42,6 +42,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    # Tests that invoke the real OrcaSlicer binary (live assembly). Run the fast inner loop
+    # with `pytest -m "not live"`; the full suite (CI) runs everything.
+    "live: exercises a real external tool (OrcaSlicer) — slower, needs the binary/profiles",
+]
 
 [tool.ruff]
 line-length = 100

@@ -244,7 +244,10 @@ def test_design_send_to_mock_connector(monkeypatch, capsys, tmp_path):
     out = capsys.readouterr().out
     assert code == 0
     assert "G-code produced" in out  # --send implied slicing
-    assert "Sent to mock: job mock-1 (queued)" in out
+    # 'mock' is a simulation, so the copy must NOT claim a real print (UX-001).
+    assert "Simulated send to mock" in out
+    assert "mock-1 (queued)" in out
+    assert "no real printer was used" in out.lower()
     assert "Printer:" in out
 
 
@@ -264,6 +267,22 @@ def test_gate_failed_part_is_never_sent(monkeypatch, capsys, tmp_path):
     assert code == 5
     assert sliced["n"] == 0
     assert "Sent to" not in out
+
+
+def test_gate_failed_part_not_sent_even_with_proceed_anyway(monkeypatch, capsys, tmp_path):
+    """ENG-201: --proceed-anyway lets a gate-FAILED part be sliced for export/inspection,
+    but a part the printability gate rejected is never dispatched to a printer."""
+    # plan claims 50mm, render is 20mm -> dim mismatch -> gate FAIL; the slicer still runs
+    # under --proceed-anyway so the part can be exported.
+    _patch_pipeline(monkeypatch, FakeProvider(make_plan([50, 50, 50])), slicer=_real_gcode_slicer())
+    code = main(
+        ["design", "a block", "--out", str(tmp_path), "--send", "mock", "--proceed-anyway"]
+    )
+    out = capsys.readouterr().out
+    assert code == 0  # the run completes (the part was exported), but...
+    assert "FAILED the printability gate" in out  # ...it is explicitly NOT sent
+    assert "Sent to" not in out
+    assert "Simulated send" not in out
 
 
 def test_send_with_no_gcode_says_nothing_to_send(monkeypatch, capsys, tmp_path):

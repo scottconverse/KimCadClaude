@@ -153,19 +153,24 @@ def _send_print_job(config: Config, connector_name: str, gcode_path: str) -> Non
     """Build the named connector and send the sliced G-code, then print the job + printer
     status. Any connector problem (unknown/offline/auth/refused) is shown plainly with the
     on-disk G-code as the fallback — never a traceback."""
-    from pathlib import Path as _Path
-
     from kimcad.connectors import build_connector
     from kimcad.printer_connector import ConnectorError
 
     try:
         connector = build_connector(config, connector_name)
-        job = connector.send(_Path(gcode_path), confirm=True)
+        job = connector.send(Path(gcode_path), confirm=True)
     except ConnectorError as e:
         print(f"\nNot sent to {connector_name}: {e}")
         print(f"Your G-code is still on disk: {gcode_path}")
         return
-    print(f"\nSent to {connector_name}: job {job.job_id} ({job.state.value}).")
+    if getattr(connector, "drives_hardware", True):
+        print(f"\nSent to {connector_name}: job {job.job_id} ({job.state.value}).")
+    else:
+        # Honest copy: a loopback/simulated connector touches no hardware (UX-001).
+        print(
+            f"\nSimulated send to {connector_name} (no real printer was used): job "
+            f"{job.job_id} ({job.state.value}). The real file is on disk: {gcode_path}"
+        )
     try:
         st = connector.status()
         detail = f" — {st.detail}" if st.detail else ""
@@ -207,10 +212,20 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
         print("\nPrintability Gate FAILED. Re-run with --proceed-anyway to override.")
         return 5
     if args.send:
-        if result.report is not None and result.report.sliced and result.report.gcode_path:
-            _send_print_job(config, args.send, result.report.gcode_path)
-        else:
+        report = result.report
+        if report is None or not (report.sliced and report.gcode_path):
             print(f"\nNothing to send to {args.send}: no G-code was produced.")
+        elif report.gate_status == "fail":
+            # ENG-201: --proceed-anyway lets a gate-FAILED part be sliced for export/inspection,
+            # but a part the printability gate rejected is never dispatched to a printer.
+            print(
+                f"\nNot sending to {args.send}: this part FAILED the printability gate. "
+                "--proceed-anyway lets you export it to inspect, but a gate-failed part is "
+                "never sent to a printer."
+            )
+            print(f"Your G-code is on disk: {report.gcode_path}")
+        else:
+            _send_print_job(config, args.send, report.gcode_path)
     print(f"\nMesh: {result.mesh_path}")
     return 0
 

@@ -25,11 +25,19 @@ dependencies, and an honest size. Where something genuinely can't be proven yet,
 P2S not P1S; code-signing dropped (unsigned beta); recruited usability study replaced by
 in-app telemetry + public beta feedback.
 
-## Current baseline (honest)
-Phase-1 pipeline built + unit-tested (119 tests). Web UI is a first slice only. The done-gate
-has **not** officially passed — and now it needs to pass **on `gemma4:e4b`**, which is the
-real test, not the gemma3:12b runs I'd been doing. Slicing proven on one part, not wired in.
-No installer, no printer connectivity, no image input, no real print.
+## Current baseline (honest, as of Stage 2)
+Phase-1 pipeline + the web UI are built and tested (276 tests, ruff clean). The done-gate has
+passed **on `gemma4:e4b`** (≥ 8/10). **Stage 1** wired slicing into the normal flow behind the
+confirm gate, with a proven G-code 3MF per run (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max all
+slice live). **Stage 2** built the send-to-printer path — connector abstraction, OctoPrint
+connector + mock server, capability reconciliation, CLI `--send`, web send, and an MCP server —
+all software-complete and mock-tested. Still ahead: a one-click installer, image input, and a
+**real print on physical hardware** (Stage 10, at Kim's — nothing here has driven real hardware
+yet).
+
+> Earlier snapshot (pre-Stage-1, kept for history): "Phase-1 pipeline built + unit-tested (119
+> tests); slicing proven on one part, not wired in; no printer connectivity; no real print."
+> Superseded by Stages 1–2 above.
 
 ---
 

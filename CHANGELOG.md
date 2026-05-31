@@ -102,10 +102,15 @@ All notable changes to KimCad are documented here. Format follows
   var, never its value).
 - CLI `--send <connector>`: slices (the flag implies slicing) and sends behind the
   explicit-confirmation gate; an offline/unreachable printer is reported and the proven
-  G-code is left on disk. A gate-failed part is never sent.
+  G-code is left on disk. A part that **failed** the printability gate is never sent — even
+  with `--proceed-anyway`, which only exports it for inspection. A simulated (loopback)
+  connection is labeled as such ("no real printer was used") rather than reported as a print.
 - Web send-to-printer: after a successful slice, a connection selector + an explicit
   confirm step (`GET /api/connectors`, `POST /api/send/<id>`); the result surfaces the
-  job + printer status, and the download stays as the fallback.
+  job + printer status, and the download stays as the fallback. Each connection is flagged
+  `simulated` so the UI labels a no-hardware connection honestly (the confirm + success copy
+  say plainly when a send is a simulation); a soft failure carries a typed `reason` plus a
+  user-facing note (never the raw developer detail).
 - Printer MCP server (`python -m kimcad.mcp_server`): a dependency-free MCP server
   (newline-delimited JSON-RPC 2.0 over stdio) exposing `list_connectors` /
   `printer_status` / `printer_capabilities` / `send_print`, so an agent can drive the

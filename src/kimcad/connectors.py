@@ -14,6 +14,18 @@ from typing import Any
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
 
+# Connector types that do NOT drive real hardware (a simulation/loopback). Must stay in
+# sync with each connector's ``drives_hardware`` class attribute; checked by
+# ``connector_is_simulated`` so a UI can be derived from config without building a connector
+# (and without needing an API key just to label a dropdown).
+_SIMULATED_TYPES = frozenset({"loopback"})
+
+
+def connector_is_simulated(cc: Any) -> bool:
+    """Whether a :class:`~kimcad.config.ConnectorConfig` names a simulated (no-hardware)
+    connector, derived from its ``type`` alone."""
+    return cc.type in _SIMULATED_TYPES
+
 
 def build_connector(config: Any, name: str) -> PrinterConnector:
     """Construct the connector named ``name`` from ``config``'s ``connectors:`` section.
@@ -24,7 +36,11 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
     """
     if name not in config.connectors():
         known = ", ".join(config.connectors()) or "(none configured)"
-        raise ConnectorError(f"unknown connector {name!r}; configured connectors: {known}")
+        raise ConnectorError(
+            f"unknown connector {name!r}; configured connectors: {known}",
+            reason="config",
+            user_message=f"There's no printer connection named '{name}'.",
+        )
     cc = config.connector_config(name)
 
     if cc.type == "loopback":
@@ -32,12 +48,23 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
 
     if cc.type == "octoprint":
         if not cc.base_url:
-            raise ConnectorError(f"connector {name!r} (octoprint) has no base_url configured")
+            raise ConnectorError(
+                f"connector {name!r} (octoprint) has no base_url configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address configured.",
+            )
         api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
         if not api_key:
             raise ConnectorError(
-                f"set the {cc.api_key_env} environment variable to send to {name!r}"
+                f"set the {cc.api_key_env} environment variable to send to {name!r}",
+                reason="config",
+                user_message=f"The '{name}' printer needs an API key that isn't set up yet. "
+                "See the README's send-to-printer setup.",
             )
         return OctoPrintConnector(cc.base_url, api_key, name=name)
 
-    raise ConnectorError(f"connector {name!r} has unknown type {cc.type!r}")
+    raise ConnectorError(
+        f"connector {name!r} has unknown type {cc.type!r}",
+        reason="config",
+        user_message=f"The '{name}' connection is misconfigured.",
+    )

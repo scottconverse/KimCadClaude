@@ -57,7 +57,9 @@ _TOOLS: list[dict[str, Any]] = [
         "description": (
             "Send an already-sliced G-code 3MF to a printer connection and start it. "
             "Requires confirm=true (explicit per-send confirmation); refuses any file that "
-            "isn't a proven, motion-bearing slice."
+            "isn't a proven, motion-bearing slice. Returns the ENQUEUED job (and "
+            "simulated=true when the connection is a no-hardware simulation, e.g. 'mock'); "
+            "poll printer_status / a follow-up for progress."
         ),
         "inputSchema": {
             "type": "object",
@@ -87,7 +89,8 @@ def _caps_dict(c: Any) -> dict[str, Any]:
         "name": c.name,
         "build_volume_mm": list(c.build_volume_mm) if c.build_volume_mm else None,
         "nozzle_diameter_mm": c.nozzle_diameter_mm,
-        "materials": list(c.materials),
+        # None = not reported (e.g. OctoPrint), distinct from [] = reports none.
+        "materials": list(c.materials) if c.materials is not None else None,
     }
 
 
@@ -117,6 +120,10 @@ class PrinterMCPServer:
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
         """Handle one JSON-RPC request. Returns the response, or None for a notification."""
+        if not isinstance(request, dict):
+            # A valid JSON value that isn't a Request object (e.g. a top-level array) is
+            # Invalid Request per JSON-RPC 2.0 — not Method-not-found (QA-002).
+            return self._error(None, -32600, "invalid request: expected a JSON object")
         method = request.get("method")
         req_id = request.get("id")
         if method == "initialize":
@@ -174,7 +181,13 @@ class PrinterMCPServer:
             # gate decides. (Do NOT bool()-coerce here: bool("no") is True, which would
             # let a stringy/truthy non-true value defeat the explicit-confirmation gate.)
             job = connector.send(Path(_require(args, "gcode_path")), confirm=args.get("confirm"))
-            return json.dumps({"sent": True, "job": _job_dict(job)})
+            return json.dumps(
+                {
+                    "sent": True,
+                    "simulated": not getattr(connector, "drives_hardware", True),
+                    "job": _job_dict(job),
+                }
+            )
         raise _ToolInputError(f"unknown tool: {name}")
 
 
@@ -201,7 +214,8 @@ def main() -> None:  # pragma: no cover - the stdio loop is exercised via handle
         except (ValueError, TypeError):
             continue
         try:
-            response = server.handle(request if isinstance(request, dict) else {})
+            # handle() itself maps a non-object request to -32600; pass it straight through.
+            response = server.handle(request)
         except Exception:  # a handler bug must not take down the whole stdio server
             response = None
         if response is not None:

@@ -159,3 +159,38 @@ def test_loopback_offline_send_raises(tmp_path):
 def test_loopback_unknown_job_raises():
     with pytest.raises(ConnectorError, match="unknown job"):
         LoopbackConnector().job_status("does-not-exist")
+
+
+# --- TEST-004: the lock the docstring promises actually holds under concurrency -----------
+
+
+def test_loopback_concurrent_sends_get_distinct_jobs(tmp_path):
+    import threading
+
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    c = LoopbackConnector()
+    ids: list[str] = []
+    ids_lock = threading.Lock()
+    barrier = threading.Barrier(12)
+
+    def one() -> None:
+        barrier.wait()  # maximize the chance of a real race on _counter/_jobs
+        job = c.send(g, confirm=True)
+        with ids_lock:
+            ids.append(job.job_id)
+
+    threads = [threading.Thread(target=one) for _ in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(ids) == 12
+    assert len(set(ids)) == 12  # no two sends collided on a job id
+    assert len(c._jobs) == 12  # and none was lost to a lost update
+
+
+# --- UX-001: connectors self-describe whether they drive real hardware --------------------
+
+
+def test_loopback_is_marked_simulated():
+    assert LoopbackConnector().drives_hardware is False

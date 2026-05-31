@@ -144,3 +144,34 @@ def test_non_dict_params_is_invalid_params_not_a_crash():
     assert r1["error"]["code"] == -32602
     r2 = s.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {}})
     assert r2["error"]["code"] == -32602  # missing tool name
+
+
+def test_non_object_request_is_invalid_request(tmp_path):
+    # QA-002: a valid JSON value that isn't a Request object (a top-level array, a scalar)
+    # is -32600 Invalid Request, not -32601 Method-not-found.
+    s = _server()
+    for bad in ([1, 2, 3], "ping", 5):
+        resp = s.handle(bad)
+        assert resp["error"]["code"] == -32600, bad
+
+
+def test_send_print_non_true_confirm_values_are_all_refused(tmp_path):
+    # ENG-209: cover the numeric and boolean-ish values, not just strings. NONE may send.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    for sneaky in (1, 1.0, 0, False, None, "true", "no", [True]):
+        res = _call(
+            _server(), "send_print",
+            {"connector": "mock", "gcode_path": str(g), "confirm": sneaky},
+        )
+        assert res["isError"] is True, sneaky
+        assert "confirmation" in _text(res), sneaky
+
+
+def test_send_print_reports_simulated_for_the_mock(tmp_path):
+    # UX-001/QA-003: a successful send to a no-hardware connector is flagged simulated so an
+    # agent doesn't treat it as a real print.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    res = _call(_server(), "send_print", {"connector": "mock", "gcode_path": str(g), "confirm": True})
+    assert res["isError"] is False
+    data = json.loads(_text(res))
+    assert data["sent"] is True and data["simulated"] is True

@@ -34,6 +34,33 @@ from kimcad.printer_connector import (
 )
 from kimcad.slicer import MAX_GCODE_MEMBER_BYTES
 
+_ERR_BODY_CAP = 300  # bound the server error reason we surface, in chars
+
+
+def _http_error_detail(e: urllib.error.HTTPError) -> str:
+    """Best-effort, bounded extraction of OctoPrint's error reason from an HTTPError body.
+
+    OctoPrint returns a JSON ``{"error": "..."}`` body on most rejections (busy, wrong file
+    type, not operational) — exactly the actionable detail a user needs. Returns a short
+    ``" — <reason>"`` suffix or ``""``. Never raises, never includes request headers (the
+    ``X-Api-Key`` is a request header, not part of the response body).
+    """
+    try:
+        raw = e.read(_ERR_BODY_CAP + 1) or b""
+    except Exception:
+        return ""
+    text = raw[:_ERR_BODY_CAP].decode("utf-8", "replace").strip()
+    if not text:
+        return ""
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict) and parsed.get("error"):
+            text = str(parsed["error"])
+    except ValueError:
+        pass
+    text = " ".join(text.split())
+    return f" — {text[:_ERR_BODY_CAP]}" if text else ""
+
 
 def _encode_multipart(
     fields: dict[str, str], files: dict[str, tuple[str, bytes]]
@@ -89,6 +116,8 @@ class OctoPrintConnector:
     instance can be shared across the threaded server's request handlers.
     """
 
+    drives_hardware = True  # a real send reaches a real printer
+
     def __init__(
         self, base_url: str, api_key: str, *, name: str = "octoprint", timeout_s: float = 15.0
     ):
@@ -117,13 +146,32 @@ class OctoPrintConnector:
         try:
             data = self._get_json("/api/printerprofiles")
         except urllib.error.HTTPError as e:
+            detail = _http_error_detail(e)
             if e.code in (401, 403):
-                raise AuthError(f"{self.name} rejected the API key (HTTP {e.code})") from e
-            raise ConnectorError(f"{self.name} capabilities query failed (HTTP {e.code})") from e
+                raise AuthError(
+                    f"{self.name} rejected the API key (HTTP {e.code}){detail}",
+                    user_message=f"The printer '{self.name}' rejected the API key — "
+                    "check that it's correct.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} capabilities query failed (HTTP {e.code}){detail}"
+            ) from e
         except (urllib.error.URLError, OSError) as e:
-            raise PrinterOffline(f"{self.name} unreachable: {e}") from e
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
+                "and connected?",
+            ) from e
         profiles = data.get("profiles") or {}
-        prof = profiles.get("_default") or next(iter(profiles.values()), {})
+        prof = profiles.get("_default")
+        if prof is None:
+            # No explicit default. Use the sole profile if there's exactly one; with several
+            # and no default, decline rather than guess which is active — unknown beats wrong
+            # (the Elegoo lesson). Reconciliation then keeps config authoritative.
+            if len(profiles) == 1:
+                prof = next(iter(profiles.values()))
+            else:
+                return PrinterCapabilities(name=self.name)
         vol = prof.get("volume") or {}
         build_volume = None
         if all(k in vol for k in ("width", "depth", "height")):
@@ -177,13 +225,27 @@ class OctoPrintConnector:
                 "POST", "/api/files/local", data=body, content_type=content_type
             )
         except urllib.error.HTTPError as e:
+            detail = _http_error_detail(e)
             if e.code in (401, 403):
-                raise AuthError(f"{self.name} rejected the API key (HTTP {e.code})") from e
-            raise ConnectorError(f"{self.name} rejected the upload (HTTP {e.code})") from e
+                raise AuthError(
+                    f"{self.name} rejected the API key (HTTP {e.code}){detail}",
+                    user_message=f"The printer '{self.name}' rejected the API key — "
+                    "check that it's correct.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} rejected the upload (HTTP {e.code}){detail}",
+                user_message=f"The printer '{self.name}' refused the job{detail}.",
+            ) from e
         except (urllib.error.URLError, OSError) as e:
-            raise PrinterOffline(f"{self.name} unreachable: {e}") from e
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
+                "and connected?",
+            ) from e
         if status not in (200, 201):
-            raise ConnectorError(f"{self.name} upload returned HTTP {status}")
+            body = _raw[:_ERR_BODY_CAP].decode("utf-8", "replace").strip() if _raw else ""
+            suffix = f" — {' '.join(body.split())}" if body else ""
+            raise ConnectorError(f"{self.name} upload returned HTTP {status}{suffix}")
         # OctoPrint runs one job at a time; the uploaded filename identifies it.
         return PrintJob(job_id=upload_name, state=JobState.printing, progress=0.0, detail="started")
 

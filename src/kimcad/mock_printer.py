@@ -20,6 +20,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 DEFAULT_API_KEY = "mock-key"
+# Mirror the production web layer's body guard: a runaway/oversized upload is rejected
+# before it's read into memory (ENG-205). The largest legitimate test upload is tiny G-code.
+MAX_BODY_BYTES = 64 * 1024 * 1024
 
 
 def _parse_upload(body: bytes, content_type: str) -> tuple[str | None, bool]:
@@ -145,6 +148,9 @@ def _make_handler(state: dict[str, Any], api_key: str) -> type[BaseHTTPRequestHa
             except (ValueError, TypeError):
                 self._json(400, {"error": "bad content-length"})
                 return
+            if length > MAX_BODY_BYTES:
+                self._json(413, {"error": "request body too large"})
+                return
             body = self.rfile.read(length) if length else b""
             if self.path == "/api/files/local":
                 fname, do_print = _parse_upload(body, self.headers.get("Content-Type", ""))
@@ -196,7 +202,9 @@ def main() -> None:  # pragma: no cover - manual dev convenience
     import argparse
 
     ap = argparse.ArgumentParser(description="Mock OctoPrint server (dev/test, no hardware).")
-    ap.add_argument("--port", type=int, default=5050)
+    # Default matches the shipped `octoprint` connector's base_url (127.0.0.1:5000), so a
+    # bare `python -m kimcad.mock_printer` lines up with `--send octoprint` (QA-001).
+    ap.add_argument("--port", type=int, default=5000)
     ap.add_argument("--api-key", default=DEFAULT_API_KEY)
     args = ap.parse_args()
     httpd = ThreadingHTTPServer(

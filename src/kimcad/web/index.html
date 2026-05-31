@@ -35,8 +35,9 @@
   label.field { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
   /* UX-109: links are distinguished by more than hue (underline) for low-vision users. */
   a { color: var(--accent-bright); text-decoration: underline; }
-  /* UX-103: the confirm step reads as "action required", not just another card. */
-  #confirmPrint { border-color: var(--accent-bright); }
+  /* UX-103 / UX-004: each confirm step reads as "action required", not just another card —
+     including the higher-stakes send confirm (previously quieter than the slice confirm). */
+  #confirmPrint, #confirmSend { border-color: var(--accent-bright); }
   /* UX-111: the not-sliceable hint reads as an inline advisory, distinct from a result. */
   #printableHint { border-left: 3px solid var(--warn); padding-left: 10px; }
   .row { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
@@ -155,7 +156,9 @@
         <label class="field" for="materialSel">Material</label>
         <select id="materialSel"></select>
       </div>
-      <button id="prepare" class="secondary">Send to printer (G-code)…</button>
+      <!-- UX-008: this prepares a local print file; it doesn't transmit anywhere. The
+           control that actually sends is the connection picker below. -->
+      <button id="prepare" class="secondary">Generate G-code…</button>
     </div>
     <!-- UX-110: be honest that non-PLA materials currently use a generic profile. -->
     <p id="materialNote" class="note hidden">Non-PLA materials use a generic filament profile for now.</p>
@@ -176,7 +179,11 @@
     <!-- UX-104: cancel an in-flight slice (parity with the design flow's Cancel). -->
     <button id="sliceCancel" class="secondary hidden">Cancel slicing</button>
 
-    <!-- Send to a printer connector (shown after a successful slice; explicit confirm). -->
+    <!-- Send to a printer connection (shown after a successful slice; explicit confirm).
+         UX-004: a heading + intro frame the section; UX-006: an empty state when none configured. -->
+    <h2 id="sendHeading" class="hidden" style="margin: 20px 0 2px; font-size: 16px;">Send to a printer</h2>
+    <p id="sendIntro" class="note hidden">Optional — upload this job to a configured printer connection. A “simulation” connection checks that the send path works but doesn't drive real hardware.</p>
+    <p id="sendEmpty" class="note hidden">No printer connections are set up. You can still download the G-code above; add a connection in config to send directly.</p>
     <div id="sendSection" class="row hidden" style="flex-wrap: wrap; align-items: flex-end;">
       <div>
         <label class="field" for="connectorSel">Printer connection</label>
@@ -363,6 +370,7 @@ function resetPrintUI() {
   stopSliceTimer();
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
   hide("materialNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
+  hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
   hide("sendSection"); hide("confirmSend"); hide("sendResult");
   sliceReady = false;
   $("printResult").textContent = "";
@@ -443,7 +451,9 @@ async function doSlice() {
   hide("confirmPrint");
   // N4: a (re-)slice supersedes any prior send-ability — clear the send section so a
   // stale "Sent to X" / send button from the previous slice can't act on the old job.
-  sliceReady = false; hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  sliceReady = false;
+  hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
+  hide("sendSection"); hide("confirmSend"); hide("sendResult");
   $("sendResult").textContent = "";
   if (lastRid === null) return;
   const printer = $("printerSel").value, material = $("materialSel").value;
@@ -493,10 +503,23 @@ async function doSlice() {
 }
 
 // --- send to a printer connection ---------------------------------------------
+function connectorEntries() { return (connectorsData && connectorsData.connectors) || []; }
+function isSimulated(name) {
+  const e = connectorEntries().find(c => c.name === name);
+  return !!(e && e.simulated);
+}
+
 function maybeShowSendSection() {
   // show only after a successful slice AND once the connector list has loaded (the two
   // are async, so re-check from both sides — UX-fix for the startup race).
-  if (sliceReady && connectorsData && (connectorsData.connectors || []).length) show("sendSection");
+  if (!sliceReady || !connectorsData) return;
+  if (connectorEntries().length) {
+    show("sendHeading"); show("sendIntro"); hide("sendEmpty"); show("sendSection");
+  } else {
+    // UX-006: a slice succeeded but no connections are configured — say so explicitly
+    // instead of silently never showing the feature.
+    show("sendHeading"); hide("sendIntro"); show("sendEmpty"); hide("sendSection");
+  }
 }
 
 async function loadConnectors() {
@@ -506,10 +529,12 @@ async function loadConnectors() {
     connectorsData = await res.json();
     const sel = $("connectorSel");
     sel.innerHTML = "";
-    for (const name of (connectorsData.connectors || [])) {
+    for (const c of connectorEntries()) {
       const o = document.createElement("option");
-      o.value = name; o.textContent = name;
-      if (name === connectorsData.default) o.selected = true;
+      o.value = c.name;
+      // UX-001: label a simulation honestly so the dropdown alone doesn't imply real hardware.
+      o.textContent = c.simulated ? `${c.name} — simulation (no real printer)` : c.name;
+      if (c.name === connectorsData.default) o.selected = true;
       sel.appendChild(o);
     }
     maybeShowSendSection();  // a slice may have finished before this resolved
@@ -522,7 +547,8 @@ async function doSend() {
   const connector = $("connectorSel").value;
   $("sendBtn").disabled = true;
   show("sendResult");
-  $("sendResult").textContent = "Sending to " + connector + "…";
+  $("sendResult").textContent =
+    (isSimulated(connector) ? "Simulating send to " : "Sending to ") + connector + "…";
   try {
     const res = await fetch(`/api/send/${lastRid}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -530,7 +556,14 @@ async function doSend() {
     });
     const data = await res.json();
     if (!res.ok) { $("sendResult").textContent = data.error || "Send failed."; return; }
-    if (data.sent) {
+    if (data.sent && data.simulated) {
+      // UX-001/UX-007: don't narrate a mock as a real print, and don't show a frozen
+      // printer state — say plainly that nothing physical happened.
+      $("sendResult").innerHTML =
+        `<strong>Simulated send to ${escapeHtml(data.connector || connector)} succeeded</strong> ` +
+        `(job ${escapeHtml(data.job_id || "")}). No real printer was used — download the G-code ` +
+        `above to print for real.`;
+    } else if (data.sent) {
       const printer = data.printer_state ? ` Printer: ${escapeHtml(data.printer_state)}.` : "";
       $("sendResult").innerHTML =
         `<strong>Sent to ${escapeHtml(data.connector || connector)}</strong> — ` +
@@ -540,6 +573,10 @@ async function doSend() {
         "Couldn't send: " + (data.note || "the printer didn't accept the job.") +
         " Your G-code download above still works.";
     }
+    // UX-005: bring the outcome into view (parity with the result/error cards), honoring
+    // reduced-motion. Focus stays put so the aria-live announcement isn't interrupted.
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    $("sendResult").scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
   } catch (e) {
     $("sendResult").textContent = "Could not reach the server: " + e.message;
   } finally {
@@ -705,8 +742,12 @@ $("sliceCancel").addEventListener("click", () => { if (sliceController) sliceCon
 $("sendBtn").addEventListener("click", () => {
   hide("sendResult"); $("sendResult").textContent = "";
   const connector = $("connectorSel").value;
-  $("confirmSendMsg").textContent =
-    `Send this print job to "${connector}"? It will be uploaded to that connection and queued to print.`;
+  // UX-002: the confirm must not promise a real print for a simulation.
+  $("confirmSendMsg").textContent = isSimulated(connector)
+    ? `Send this print job to the ${connector} connection? This is a simulation — it checks ` +
+      `that the send path works but does NOT upload to or start a real printer. Your G-code ` +
+      `download above is the real file.`
+    : `Send this print job to the ${connector} connection? It will be uploaded and queued to print.`;
   show("confirmSend");
   focusCard("confirmSend");
   const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;

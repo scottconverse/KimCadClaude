@@ -148,12 +148,14 @@ are `mock` and an `octoprint` whose API key is read from an env var, never store
   `python -m kimcad.mcp_server` exposes the printer as MCP tools (list connections, status,
   capabilities, and a confirmation-gated `send_print`) so an agent can drive it.
 
-To try the OctoPrint path with no hardware, line the mock up with the shipped `octoprint`
-connector (whose `base_url` is `http://127.0.0.1:5000`): run
-`python -m kimcad.mock_printer --port 5000` — it prints its `X-Api-Key` (default `mock-key`) —
-then set `OCTOPRINT_API_KEY=mock-key` and `kimcad design "a cable clip" --send octoprint`
-reaches it. (The mock otherwise defaults to port `5050`; `--port 5000` just matches the
-shipped config.)
+To try the OctoPrint path with no hardware (the mock defaults to port `5000`, matching the
+shipped `octoprint` connector's `base_url`):
+
+1. Run `python -m kimcad.mock_printer` — it starts on `127.0.0.1:5000` and prints its
+   `X-Api-Key` (default `mock-key`).
+2. Set `OCTOPRINT_API_KEY=mock-key` in your environment.
+3. `kimcad design "a cable clip" --send octoprint` — slices, then sends to the mock over the
+   real OctoPrint REST path.
 
 ### The done-gate
 

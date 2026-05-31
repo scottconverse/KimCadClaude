@@ -422,6 +422,7 @@ def _binary_and_profiles_present() -> bool:
         return False
 
 
+@pytest.mark.live  # TEST-008: invokes the real OrcaSlicer; `pytest -m "not live"` skips it
 @pytest.mark.skipif(
     not _binary_and_profiles_present(), reason="OrcaSlicer binary/profiles not present"
 )

@@ -304,10 +304,19 @@ def make_handler(
                 self._json(200, web_options(get_config()))
                 return
             if self.path == "/api/connectors":
-                names = list(get_config().connectors())
+                from kimcad.connectors import connector_is_simulated
+
+                cfg = get_config()
+                names = list(cfg.connectors())
+                # Each entry carries `simulated` (a loopback/no-hardware connection) so the UI
+                # can label honestly instead of narrating a mock send as a real print (UX-001).
+                conns = [
+                    {"name": n, "simulated": connector_is_simulated(cfg.connector_config(n))}
+                    for n in names
+                ]
                 # default = the first configured connector (config order); on a
                 # no-hardware box that's the built-in "mock" loopback, intentionally.
-                self._json(200, {"connectors": names, "default": names[0] if names else None})
+                self._json(200, {"connectors": conns, "default": names[0] if names else None})
                 return
             if self.path.startswith("/vendor/"):
                 self._serve_vendor(self.path[len("/vendor/") :])
@@ -428,9 +437,10 @@ def make_handler(
                 connector = build_connector(get_config(), connector_name)
                 job = connector.send(gcode_path, confirm=True)
             except ConnectorError as e:
-                # not-sent is a soft outcome (offline / auth / refused) — the G-code is
-                # still downloadable, so report it without a 5xx.
-                self._json(200, {"sent": False, "note": str(e)})
+                # not-sent is a soft outcome (offline / auth / refused / config) — the G-code
+                # is still downloadable, so report it without a 5xx. `reason` lets the UI give a
+                # typed next step; `note` is the user-facing message, not the developer detail.
+                self._json(200, {"sent": False, "reason": e.reason, "note": e.user_message})
                 return
             except Exception as e:  # never leak a traceback
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
@@ -438,6 +448,7 @@ def make_handler(
             info: dict[str, Any] = {
                 "sent": True,
                 "connector": connector_name,
+                "simulated": not getattr(connector, "drives_hardware", True),
                 "job_id": job.job_id,
                 "state": job.state.value,
             }
