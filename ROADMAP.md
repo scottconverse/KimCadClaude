@@ -44,18 +44,27 @@ No installer, no printer connectivity, no image input, no real print.
 **Exit:** `kimcad bench --min-success-rate 0.8` passes on `gemma4:e4b`, on the target hardware.
 **Needs:** the target box only. **Size:** ~2–4 days incl. prompt tuning.
 
-## Stage 1 — Gated export: a real, validated print file
+## Stage 1 — Gated export: a real, validated print file  ✅ DONE
 **Goal:** any validated part → confirmed → a verified G-code/3MF file. *(No printer needed.)*
-- Full printer/material/profile model; resolve profile **names → on-disk profile files** (the
-  known gap); explicit material/profile confirmation (CLI + web); OrcaSlicer wired into the
-  normal flow.
-- **G-code proof per run:** parse the slice output and verify it's real — actual G1 moves, a
-  sane layer count, a print-time + filament estimate; empty/garbage fails loudly.
-- **Manifold3D:** robust watertight check + *surfaced* (never silent) pre-slice repair; the
-  gate still hard-fails defects, repair only runs on knowing export and reports what changed.
-- Download/export is the delivery path. Tests; proven on several parts.
-**Exit:** confirm a part → verified non-empty G-code with an estimate, multiple part types.
+- ✅ Full printer/material/profile model; resolve profile **names → on-disk profile files**
+  (the known gap, now closed) with a generic-filament fallback; explicit material/profile
+  confirmation (CLI `--slice`, web printer/material select + confirm); OrcaSlicer wired into
+  the normal flow behind the confirmation gate.
+- ✅ **G-code proof per run:** the exported 3MF is opened and verified to carry real
+  motion-bearing toolpaths (G0/G1/G2/G3), and the slicer's own estimate — total time, layer
+  count, filament used (mm / cm³) — is parsed out and surfaced; empty/garbage fails loudly.
+- ✅ **Manifold3D:** pre-slice hardening round-trips the oriented mesh into a guaranteed
+  2-manifold and *surfaces* what it did (never silent); optional at runtime; the gate still
+  hard-fails defects upstream.
+- ✅ Download/export is the delivery path (web "Download 3D model" fallback + G-code 3MF
+  download). Tests incl. a live design→harden→slice→prove→download path on the real binary.
+**Exit:** ✅ confirm a part → verified non-empty G-code with an estimate, multiple part types.
 **Needs:** target box. **Size:** ~1 week.
+> **Known limitation (carried forward):** the shipped OrcaSlicer has a machine + filament
+> profile for the **Elegoo Neptune 4 Max** but no matching **process** profile, so it is
+> selectable but not yet sliceable — slicing for it reports the gap cleanly and the validated
+> model is still produced. Sourcing/authoring the Elegoo process profile is a Stage 3
+> (printer-coverage) task; it does not block the Bambu P2S / A1 path.
 
 ## Stage 2 — Send-to-printer connector + MCP (software-complete, hardware-deferred)
 **Goal:** the full send path exists and is tested — live printing waits for Kim's beta.

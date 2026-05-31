@@ -9,13 +9,16 @@ validation-and-printability pipeline checks it against your printer and material
 and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output. No
 CAD skills required, and the core path runs CPU-only — no discrete GPU.
 
-> Status: **early development (Phase 1).** CLI-first; the web UI lands in Phase 2.
+> Status: **early development.** The deterministic pipeline, the gated G-code export
+> (CLI `--slice` and the web UI), and Manifold3D mesh hardening are in. Real-hardware
+> print validation on Kim's printers is the final stage — see ROADMAP.
 
 ## What it does
 
 ```
 prompt → design plan (JSON) → OpenSCAD → render → mesh validation
-       → Printability Gate → auto-orient → slice → validated print job + report
+       → Printability Gate → auto-orient → harden (Manifold3D)
+       → [confirm] slice → validated print job + report
 ```
 
 The engine is deterministic where it counts. Parametric CSG produces closed,
@@ -83,9 +86,22 @@ kimcad "a wall hook with two M4 screw holes 30 mm apart and a 35 mm arm"
 
 KimCad asks at most one clarifying question, then writes OpenSCAD, renders and
 validates the mesh, runs the Printability Gate against your printer/material, orients
-the part, slices it, and writes a print job plus a plain-text report under `output/`.
-Override defaults with `--printer`, `--material`, or `--backend` (keys come from
-`config/default.yaml`).
+and hardens the part, and writes the validated model plus a plain-text report under
+`output/`. Override defaults with `--printer`, `--material`, or `--backend` (keys come
+from `config/default.yaml`).
+
+Add `--slice` to also turn a gate-passing part into a printable G-code 3MF — this is
+the explicit print confirmation, so nothing is sliced without it:
+
+```
+kimcad "a 40 mm cable clip" --printer bambu_a1 --material pla --slice
+```
+
+The report then names the exact OrcaSlicer machine/process/filament profiles used and
+the proven G-code line count. Kim's Bambu P2S and A1 are fully sliceable; the Elegoo
+Neptune 4 Max is selectable but not yet sliceable (the shipped OrcaSlicer has its
+machine + filament profiles but no matching process profile — see ROADMAP), so a slice
+for it reports that cleanly and the validated model is still produced.
 
 ### Web UI (Phase 2, early)
 
@@ -105,9 +121,11 @@ The server binds to `127.0.0.1` (your machine only) by default. `--host` can bin
 elsewhere, but do **not** expose it on a public interface without putting your own
 authentication/proxy in front — it runs the pipeline for anyone who can reach it.
 
-Slicing to G-code is intentionally not triggered from the UI yet: the validated 3MF/STL
-model is produced now, and G-code generation (which requires explicit per-print
-confirmation) lands in a later slice.
+Once a part passes the gate you can pick a printer + material and, after an explicit
+confirmation, generate a printable G-code 3MF and download it — slicing runs on the
+already-validated mesh, so confirming a print never re-runs the model. The validated
+3D model itself is always downloadable as the export fallback, including for printers
+that can't yet produce G-code.
 
 ### The done-gate
 

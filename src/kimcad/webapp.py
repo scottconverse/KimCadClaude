@@ -199,6 +199,7 @@ def slice_registered_mesh(
             "printer": printer.name,
             "material": material.name,
             "gcode_lines": result.gcode_proof.line_count if result.gcode_proof else None,
+            "estimate": result.gcode_proof.estimate_summary() if result.gcode_proof else "",
             "profiles": {
                 "machine": settings.machine.stem,
                 "process": settings.process.stem,

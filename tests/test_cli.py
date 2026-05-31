@@ -171,7 +171,8 @@ def test_design_slice_flag_confirms_and_reports(monkeypatch, capsys, tmp_path):
             stderr="",
             duration_s=0.1,
             gcode_proof=GcodeProof(
-                entries=("Metadata/plate_1.gcode",), line_count=18000, has_motion=True
+                entries=("Metadata/plate_1.gcode",), line_count=18000, has_motion=True,
+                estimated_time="14m 45s", layer_count=100, filament_cm3=6.21,
             ),
             settings=SliceSettings(
                 machine=Path("Bambu Lab P2S 0.4 nozzle.json"),

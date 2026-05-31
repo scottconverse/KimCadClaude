@@ -48,6 +48,26 @@ All notable changes to KimCad are documented here. Format follows
   retry on connection/timeout errors, and `scripts/ollama_watchdog.py`.
 - Local CI: a pre-push hook (`.githooks/pre-push` → `scripts/ci.sh`) runs ruff + pytest.
 
+#### Stage 1 — gated G-code export / print loop
+- OrcaSlicer profile resolution: a configured printer + material maps to the three
+  on-disk profile JSONs (machine / process / filament) under the shipped
+  `resources/profiles` tree, with a `Generic <MATERIAL>` filament fallback. Replaces the
+  former "known unknown" name→path placeholder.
+- Slicing wired into the pipeline behind explicit print confirmation. `slice_model`
+  now **proves** the exported 3MF carries real motion-bearing G-code (not just that a
+  file was written), streaming the embedded toolpath to stay within the memory budget.
+- CLI `--slice`: the explicit print confirmation. It announces the printer + material
+  and the exact profiles to be used, then the report shows the proven G-code line count
+  and the profiles actually used. Without `--slice`, nothing is sliced.
+- Web send-to-printer: printer/material selectors (each flagged sliceable), an explicit
+  confirmation step, `POST /api/slice/<id>` that slices the already-validated mesh (no
+  model re-run), and `GET /api/gcode/<id>` to download the proven 3MF. The validated 3D
+  model is always downloadable as the export fallback.
+- Manifold3D pre-slice mesh hardening: the oriented mesh is round-tripped into a
+  guaranteed 2-manifold before export/slice; optional at runtime (skipped, with a note,
+  if `manifold3d` is absent). Adds the `manifold3d` dependency.
+- Bambu A1 printer profile added (one of Kim's printers).
+
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable
   and fast there); `gemma3:12b` was too large for the target and is no longer used.
@@ -71,3 +91,8 @@ All notable changes to KimCad are documented here. Format follows
   release carrying the Bambu P2S profile, but it segfaults on every CLI slice on a
   GPU-less machine (upstream issue #12906). 2.4.0-alpha fixes that and ships the same
   P2S profile, so it is pinned until a 2.4.x stable with the fix is released.
+- Printer sliceability: the Bambu P2S and A1 are fully sliceable (machine + process +
+  filament profiles all ship). The Elegoo Neptune 4 Max ships a machine + filament
+  profile but **no process profile**, so it is selectable but not yet sliceable; slicing
+  for it reports the gap cleanly and the validated model is still produced. Sourcing the
+  Elegoo process profile is tracked in ROADMAP.

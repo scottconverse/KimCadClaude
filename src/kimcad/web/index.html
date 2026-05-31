@@ -369,9 +369,10 @@ async function doSlice() {
     if (data.sliced) {
       const prof = data.profiles || {};
       const lines = (data.gcode_lines != null) ? data.gcode_lines : "?";
+      const est = data.estimate ? `<br><span class="muted">Estimate: ${escapeHtml(data.estimate)}</span>` : "";
       $("printResult").innerHTML =
         `<strong>Print job ready</strong> (${lines} G-code lines) for ` +
-        `${escapeHtml(data.printer || "")} + ${escapeHtml(data.material || "")}.<br>` +
+        `${escapeHtml(data.printer || "")} + ${escapeHtml(data.material || "")}.` + est + `<br>` +
         `<span class="muted">machine: ${escapeHtml(prof.machine || "")} · ` +
         `process: ${escapeHtml(prof.process || "")} · filament: ${escapeHtml(prof.filament || "")}</span><br>` +
         `<a href="${escapeHtml(data.gcode_url || "#")}" download>Download print job (.gcode.3mf)</a>`;

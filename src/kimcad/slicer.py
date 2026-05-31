@@ -31,12 +31,20 @@ import time
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from kimcad.config import Material, Printer
 
 # A real motion line: G0/G1 (linear) or G2/G3 (arc), case-insensitive, with a word
 # boundary so G10/G28/G92 etc. are not mistaken for moves.
 _MOTION_RE = re.compile(r"^\s*G[0-3]\b", re.IGNORECASE)
+
+# Estimate comment lines OrcaSlicer writes into the embedded G-code header/footer.
+_EST_TIME_RE = re.compile(r"total estimated time:\s*(.+?)\s*$", re.IGNORECASE)
+_EST_TIME_FALLBACK_RE = re.compile(r"model printing time:\s*(.+?)\s*(?:;|$)", re.IGNORECASE)
+_FIL_MM_RE = re.compile(r"filament used \[mm\]\s*=\s*([0-9.]+)", re.IGNORECASE)
+_FIL_CM3_RE = re.compile(r"filament used \[cm3\]\s*=\s*([0-9.]+)", re.IGNORECASE)
+_LAYERS_RE = re.compile(r"total layer number:\s*([0-9]+)", re.IGNORECASE)
 
 
 class SliceError(Exception):
@@ -73,11 +81,29 @@ class SliceSettings:
 @dataclass(frozen=True)
 class GcodeProof:
     """Evidence that a sliced 3MF actually contains printable toolpaths, not just that
-    a file was written. ``entries`` are the in-archive ``.gcode`` member names."""
+    a file was written, plus the slicer's own print estimate. ``entries`` are the
+    in-archive ``.gcode`` member names."""
 
     entries: tuple[str, ...]
     line_count: int
     has_motion: bool
+    # Slicer estimate parsed from the G-code header (None if the slicer didn't emit it).
+    estimated_time: str | None = None
+    layer_count: int | None = None
+    filament_mm: float | None = None
+    filament_cm3: float | None = None
+
+    def estimate_summary(self) -> str:
+        parts = []
+        if self.estimated_time:
+            parts.append(f"~{self.estimated_time}")
+        if self.layer_count is not None:
+            parts.append(f"{self.layer_count} layers")
+        if self.filament_cm3 is not None:
+            parts.append(f"{self.filament_cm3:.2f} cm3 filament")
+        elif self.filament_mm is not None:
+            parts.append(f"{self.filament_mm:.0f} mm filament")
+        return ", ".join(parts)
 
 
 @dataclass
@@ -167,18 +193,52 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
             raise SliceFailed(0, f"{path.name} contains no .gcode toolpath member")
         line_count = 0
         has_motion = False
+        est: dict[str, Any] = {}
         # Stream each member line-by-line rather than reading whole G-code files into
         # memory — a real part's toolpath can be tens of MB, and the target box is
-        # memory-constrained (32 GB, shared with the local model).
+        # memory-constrained (32 GB, shared with the local model). Estimate fields are
+        # only scanned on comment lines, and only until found, so the hot motion path is
+        # untouched.
         for name in entries:
             with zf.open(name) as raw:
                 for line in io.TextIOWrapper(raw, encoding="utf-8", errors="replace"):
                     line_count += 1
                     if not has_motion and _MOTION_RE.match(line):
                         has_motion = True
+                    elif line.lstrip().startswith(";"):
+                        _scan_estimate(line, est)
     if not has_motion:
         raise SliceFailed(0, f"{path.name} G-code has no motion (G0/G1) commands")
-    return GcodeProof(entries=entries, line_count=line_count, has_motion=has_motion)
+    return GcodeProof(
+        entries=entries,
+        line_count=line_count,
+        has_motion=has_motion,
+        estimated_time=est.get("time"),
+        layer_count=est.get("layers"),
+        filament_mm=est.get("fil_mm"),
+        filament_cm3=est.get("fil_cm3"),
+    )
+
+
+def _scan_estimate(line: str, est: dict[str, Any]) -> None:
+    """Pull print-estimate fields from a G-code comment line into ``est`` (in place).
+    Each field is captured once; later duplicates are ignored."""
+    if "time" not in est:
+        m = _EST_TIME_RE.search(line) or _EST_TIME_FALLBACK_RE.search(line)
+        if m:
+            est["time"] = m.group(1).strip()
+    if "layers" not in est:
+        m = _LAYERS_RE.search(line)
+        if m:
+            est["layers"] = int(m.group(1))
+    if "fil_mm" not in est:
+        m = _FIL_MM_RE.search(line)
+        if m:
+            est["fil_mm"] = float(m.group(1))
+    if "fil_cm3" not in est:
+        m = _FIL_CM3_RE.search(line)
+        if m:
+            est["fil_cm3"] = float(m.group(1))
 
 
 # --- profile name -> on-disk JSON resolution ----------------------------------

@@ -130,6 +130,7 @@ class PrintReport:
     sliced: bool = False
     gcode_path: str | None = None
     gcode_lines: int | None = None
+    gcode_estimate: str | None = None  # slicer print estimate (time / layers / filament)
     slice_note: str | None = None
     # (machine, process, filament) profile names actually used for the slice.
     slice_profiles: tuple[str, str, str] | None = None
@@ -158,6 +159,8 @@ class PrintReport:
         if self.sliced:
             detail = f" ({self.gcode_lines} G-code lines)" if self.gcode_lines else ""
             lines.append(f"Slice: G-code produced{detail} -> {self.gcode_path}")
+            if self.gcode_estimate:
+                lines.append(f"  Estimate: {self.gcode_estimate}")
             if self.slice_profiles:
                 machine, process, filament = self.slice_profiles
                 lines.append(
@@ -344,6 +347,7 @@ class Pipeline:
             report.gcode_path = str(slice_result.gcode_path)
             if slice_result.gcode_proof is not None:
                 report.gcode_lines = slice_result.gcode_proof.line_count
+                report.gcode_estimate = slice_result.gcode_proof.estimate_summary() or None
             if slice_result.settings is not None:
                 s = slice_result.settings
                 report.slice_profiles = (s.machine.stem, s.process.stem, s.filament.stem)

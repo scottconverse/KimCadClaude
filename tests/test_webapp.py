@@ -387,6 +387,7 @@ def test_live_web_design_then_slice_then_download(tmp_path):
         sdata = json.load(urllib.request.urlopen(sreq, timeout=300))
         assert sdata["sliced"] is True
         assert sdata["gcode_lines"] > 100
+        assert sdata["estimate"]  # print estimate surfaced to the UI
         assert sdata["profiles"]["process"] == "0.20mm Standard @BBL P2S"
         gcode_url = sdata["gcode_url"]
 

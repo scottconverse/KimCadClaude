@@ -241,7 +241,8 @@ def test_successful_slice_recorded_in_report(tmp_path):
             stderr="",
             duration_s=1.0,
             gcode_proof=GcodeProof(
-                entries=("Metadata/plate_1.gcode",), line_count=42, has_motion=True
+                entries=("Metadata/plate_1.gcode",), line_count=42, has_motion=True,
+                estimated_time="14m 45s", layer_count=100, filament_cm3=6.21,
             ),
             settings=SliceSettings(
                 machine=Path("Bambu Lab P2S 0.4 nozzle.json"),
@@ -258,6 +259,7 @@ def test_successful_slice_recorded_in_report(tmp_path):
     assert r.status is PipelineStatus.completed
     assert r.report.sliced is True
     assert r.report.gcode_lines == 42
+    assert r.report.gcode_estimate and "14m 45s" in r.report.gcode_estimate
     assert r.report.gcode_path.endswith(".gcode.3mf")
     assert r.report.slice_profiles == (
         "Bambu Lab P2S 0.4 nozzle",
@@ -267,3 +269,4 @@ def test_successful_slice_recorded_in_report(tmp_path):
     text = r.report.to_text()
     assert "G-code produced" in text
     assert "0.20mm Standard @BBL P2S" in text  # resolved profile shown to the user
+    assert "Estimate:" in text and "14m 45s" in text  # print estimate surfaced
