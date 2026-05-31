@@ -29,6 +29,7 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from kimcad.printability import dim_tolerance
 
@@ -328,6 +329,12 @@ def make_handler(
                 # no-hardware box that's the built-in "mock" loopback, intentionally.
                 self._json(200, {"connectors": conns, "default": names[0] if names else None})
                 return
+            if self.path.startswith("/api/connector-status/"):
+                # Strip any query string and URL-decode so a name with a space / non-ASCII
+                # char (the client uses encodeURIComponent) matches the configured name.
+                name = unquote(urlsplit(self.path).path.rsplit("/", 1)[-1])
+                self._handle_connector_status(name)
+                return
             if self.path.startswith("/vendor/"):
                 self._serve_vendor(self.path[len("/vendor/") :])
                 return
@@ -419,6 +426,40 @@ def make_handler(
                 self._handle_send(self.path.rsplit("/", 1)[-1])
                 return
             self._json(404, {"error": "not found"})
+
+        def _handle_connector_status(self, name: str) -> None:
+            """Live readiness of one printer connection: reachable and idle (ready), busy,
+            offline, or not set up. Treats build/config problems (e.g. a missing API key) and
+            status-read failures as non-error STATUSES, never a 5xx — and an offline printer is
+            a normal status, not an error. Queried on demand by the UI (a slow real printer is
+            shown as "checking")."""
+            from kimcad.connectors import build_connector
+            from kimcad.printer_connector import ConnectorError
+
+            simulated = False
+            try:
+                connector = build_connector(get_config(), name)
+                simulated = not getattr(connector, "drives_hardware", True)
+                st = connector.status()
+            except ConnectorError as e:
+                self._json(
+                    200,
+                    {"name": name, "ready": False, "reason": e.reason, "note": e.user_message},
+                )
+                return
+            except Exception:  # malformed config / unexpected — a non-error status, never 5xx
+                self._json(
+                    200,
+                    {"name": name, "ready": False, "reason": "error", "simulated": simulated,
+                     "note": "couldn't check this connection"},
+                )
+                return
+            ready = bool(st.online) and st.state.value == "operational"
+            self._json(
+                200,
+                {"name": name, "ready": ready, "online": st.online, "state": st.state.value,
+                 "simulated": simulated},
+            )
 
         def _handle_send(self, raw_id: str) -> None:
             """Send an already-sliced part (by id) to a configured connector. The POST is

@@ -192,6 +192,8 @@
       </div>
       <button id="sendBtn" class="secondary">Send to printer…</button>
     </div>
+    <!-- Live ready/not-ready status of the selected connection (queried on demand). -->
+    <p id="connectorStatus" class="note hidden" aria-live="polite"></p>
     <div id="confirmSend" class="card hidden" tabindex="-1" style="margin-top: 14px;">
       <p id="confirmSendMsg"></p>
       <div class="row">
@@ -372,7 +374,7 @@ function resetPrintUI() {
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
   hide("materialNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
   hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
-  hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  hide("sendSection"); hide("confirmSend"); hide("sendResult"); hide("connectorStatus");
   sliceReady = false;
   $("printResult").textContent = "";
   $("sendResult").textContent = "";
@@ -475,7 +477,7 @@ async function doSlice() {
   // stale "Sent to X" / send button from the previous slice can't act on the old job.
   sliceReady = false;
   hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
-  hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  hide("sendSection"); hide("confirmSend"); hide("sendResult"); hide("connectorStatus");
   $("sendResult").textContent = "";
   if (lastRid === null) return;
   const printer = $("printerSel").value, material = $("materialSel").value;
@@ -537,10 +539,37 @@ function maybeShowSendSection() {
   if (!sliceReady || !connectorsData) return;
   if (connectorEntries().length) {
     show("sendHeading"); show("sendIntro"); hide("sendEmpty"); show("sendSection");
+    loadConnectorStatus();  // show the selected connection's live ready/not-ready status
   } else {
     // UX-006: a slice succeeded but no connections are configured — say so explicitly
     // instead of silently never showing the feature.
     show("sendHeading"); hide("sendIntro"); show("sendEmpty"); hide("sendSection");
+  }
+}
+
+// Live ready/not-ready status of the selected connection (Stage 3). Queried on demand so a
+// slow/unreachable real printer never blocks the page; a simulation is always ready.
+function connectorStatusText(d) {
+  if (d.simulated) return "● Simulation — always ready (no real printer is used).";
+  if (d.reason === "config") return "○ Needs setup — " + (d.note || "not configured.");
+  if (d.reason === "error") return "○ Status unavailable — " + (d.note || "couldn't check.");
+  if (!d.online) return "○ Offline — not reachable right now. You can still download the G-code.";
+  if (d.ready) return "● Ready — online and idle.";
+  return "◐ Online but busy" + (d.state ? ` (${d.state})` : "") + ".";
+}
+
+async function loadConnectorStatus() {
+  const name = $("connectorSel").value;
+  const el = $("connectorStatus");
+  if (!name) { hide("connectorStatus"); return; }
+  show("connectorStatus");
+  el.textContent = `Checking ${name}…`;
+  try {
+    const res = await fetch("/api/connector-status/" + encodeURIComponent(name));
+    const d = await res.json();
+    el.textContent = connectorStatusText(d);
+  } catch (_) {
+    el.textContent = `Couldn't check ${name} status.`;
   }
 }
 
@@ -775,6 +804,7 @@ $("sendBtn").addEventListener("click", () => {
   const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("confirmSend").scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
 });
+$("connectorSel").addEventListener("change", loadConnectorStatus);  // refresh status on switch
 $("confirmSendNo").addEventListener("click", () => { hide("confirmSend"); $("sendBtn").focus(); });
 $("confirmSendYes").addEventListener("click", doSend);
 

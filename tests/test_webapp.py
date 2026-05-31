@@ -556,6 +556,104 @@ def test_connectors_endpoint_lists_configured_connectors(tmp_path):
     assert data["default"] is not None
 
 
+def test_connector_status_mock_is_ready(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10))
+    assert d["ready"] is True and d["online"] is True
+    assert d["state"] == "operational" and d["simulated"] is True
+
+
+def test_connector_status_missing_key_is_needs_setup(tmp_path, monkeypatch):
+    # The shipped octoprint connector needs OCTOPRINT_API_KEY; unset -> a "needs setup"
+    # status (reason=config), never a 5xx.
+    import json
+    import urllib.request
+
+    monkeypatch.delenv("OCTOPRINT_API_KEY", raising=False)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/octoprint", timeout=10))
+    assert d["ready"] is False and d["reason"] == "config" and d["note"]
+
+
+def test_connector_status_offline_printer_is_not_ready(tmp_path, monkeypatch):
+    import json
+    import urllib.request
+
+    import kimcad.connectors as conn_mod
+    from kimcad.printer_connector import LoopbackConnector
+
+    # A reachable connector whose printer is offline -> ready False, state offline (not a 5xx).
+    monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: LoopbackConnector(online=False))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10))
+    assert d["ready"] is False and d["online"] is False and d["state"] == "offline"
+
+
+def test_connector_status_unknown_is_needs_setup(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/bogus", timeout=10))
+    assert d["ready"] is False and d["reason"] == "config"
+
+
+def test_connector_status_busy_is_online_but_not_ready(tmp_path, monkeypatch):
+    import json
+    import urllib.request
+
+    import kimcad.connectors as conn_mod
+    from kimcad.printer_connector import PrinterState, PrinterStatus
+
+    class _Busy:
+        name = "busy"
+        drives_hardware = True
+
+        def status(self):
+            return PrinterStatus(online=True, state=PrinterState.printing)
+
+    monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: _Busy())
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10))
+    # online + busy (printing) is NOT ready, but IS online — distinct states.
+    assert d["online"] is True and d["ready"] is False and d["state"] == "printing"
+
+
+def test_connector_status_unexpected_error_is_not_5xx(tmp_path, monkeypatch):
+    # A non-ConnectorError failure building/reading a connection is a graceful "error" status,
+    # never a 5xx/dropped connection — and the dev detail isn't leaked into the payload.
+    import json
+    import urllib.request
+
+    import kimcad.connectors as conn_mod
+
+    def _boom(c, n):
+        raise RuntimeError("kaboom-secret")
+
+    monkeypatch.setattr(conn_mod, "build_connector", _boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10)
+        assert resp.status == 200
+        d = json.load(resp)
+    assert d["ready"] is False and d["reason"] == "error"
+    assert "kaboom-secret" not in json.dumps(d)
+
+
 def test_send_before_slice_is_404(tmp_path):
     import json
     import urllib.error
