@@ -18,10 +18,23 @@ tagged. The two load-bearing safety properties were re-verified under LIVE MCP e
 - **Tests:** `291 passed`, `ruff` clean. Local CI via pre-push hook (`.githooks/pre-push` →
   `scripts/ci.sh` = ruff + pytest). Enable per clone: `git config core.hooksPath .githooks`.
   Fast inner loop: `pytest -m "not live"` skips the 4 real-OrcaSlicer tests.
-- **Next = Stage 3** (printer coverage + ready/not-ready UI, software-complete + mock-tested):
-  Klipper/Moonraker + Bambu + Prusa Connect + Creality connectors behind the same
-  `PrinterConnector` contract; per-printer capability/status; a ready/not-ready UI; per-printer
-  per-material filament profiles; build-volume verification. Stage 10 = the only hardware-gated stage.
+- **Stage 3 IN PROGRESS** on branch **`stage-3-printer-coverage`** (pushed; NOT yet merged).
+  - **Slice 1 DONE + audited 0/0/0/0/0:** the **Moonraker (Klipper) connector** (`moonraker_connector.py`
+    + `mock_moonraker.py` + tests) — covers Creality-w/-Klipper, Voron, RatRig, Mainsail/Fluidd.
+    Promoted shared `extract_single_plate_gcode` + `read_error_body` into `printer_connector.py`
+    (OctoPrint reuses them); added `JobState.paused`; `connector_is_simulated` now derives from
+    each connector class's `drives_hardware` (single source of truth). Fixed a `job_status`
+    subclass-ordering bug in BOTH Moonraker and OctoPrint (a 401 was mislabeled "unreachable").
+    **313 tests pass; ruff clean.**
+  - **Resume with the remaining slices:** (2) per-printer per-material filament profiles — the
+    printer configs only map `pla` today; petg/tpu/abs fall back to `Generic <MAT>`. Fill
+    `orca_filament_profiles` with the REAL shipped tree filenames per printer (Bambu P2S/A1,
+    Elegoo) and **verify each resolves + live-slices** — this is Elegoo-class name-matching, a
+    typo fails silently, so do it with a live slice per printer×material. (3) a ready/not-ready
+    status UI (honest per-connection live status, mock-tested). (4) optionally Prusa/PrusaLink
+    (real protocol, unverifiable without hardware) + Bambu (MQTT+FTPS → a new-dependency decision
+    for Scott). (5) docs + stage gate (audit-team → 0/0/0/0/0 → merge → tag `stage-3`).
+- Stage 10 (real prints at Kim's) = the only hardware-gated stage.
   CI prints a loud warning (and hard-fails under `KIMCAD_RELEASE=1`) if the bundled OrcaSlicer
   is absent, so a green run without it can't be mistaken for one that proved the slicer.
 - **Project root:** `C:\Users\scott\dev\kimcad` — deliberately **OUTSIDE OneDrive** (venv +
