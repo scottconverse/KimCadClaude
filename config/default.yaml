@@ -50,18 +50,41 @@ defaults:
   output_format: "3mf"   # falls back to "stl" if OpenSCAD lacks lib3mf
 
 # Build volume = [x, y, z] in mm. nozzle_diameter in mm.
+# OrcaSlicer profile names below are verified against the pinned shipped build
+# (v2.4.0-alpha resources/profiles/). A material with no entry in orca_filament_profiles
+# falls back to that material's "Generic <MATERIAL>" filament. Kim's printers are the
+# Bambu P2S + A1 (fully sliceable) and the Elegoo Neptune 4 Max.
 printers:
   bambu_p2s:
     name: "Bambu Lab P2S"
     build_volume: [256, 256, 256]   # VERIFY exact P2S envelope (P-series standard assumed)
     nozzle_diameter: 0.4
-    orca_machine_profile: "Bambu Lab P2S 0.4 nozzle"   # VERIFY profile name in shipped OrcaSlicer
+    orca_machine_profile: "Bambu Lab P2S 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL P2S"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL P2S"
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
+  bambu_a1:
+    name: "Bambu Lab A1"
+    build_volume: [256, 256, 256]   # VERIFY exact A1 envelope (nominal 256³; A1 is a
+                                    # different machine class than the P-series)
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab A1 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL A1"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL A1"
+    reference_hardware: true          # Kim's; validated in the final beta, not yet
   elegoo_neptune_4_max:
     name: "Elegoo Neptune 4 Max"
     build_volume: [420, 420, 480]
     nozzle_diameter: 0.4
-    orca_machine_profile: "Elegoo Neptune 4 Max 0.4 nozzle"   # VERIFY
+    orca_machine_profile: "Elegoo Neptune 4 Max (0.4 nozzle)"
+    # NOTE: the shipped OrcaSlicer build has a machine + filament for the Neptune 4 Max
+    # but no matching *process* profile, so slicing for this printer is not yet wired —
+    # its process profile must be sourced. Bambu P2S/A1 are the sliceable path for now.
+    orca_process_profile: null
+    orca_filament_profiles:
+      pla: "Generic PLA @Elegoo"
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
 
 # Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
@@ -76,3 +99,4 @@ limits:
   openscad_timeout_simple_s: 30
   openscad_timeout_complex_s: 120
   max_output_bytes: 209715200   # 200 MB render guard
+  slice_timeout_s: 600          # OrcaSlicer is CPU-bound on the 780M target; be generous

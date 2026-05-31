@@ -3,9 +3,12 @@
 Three subcommands:
 
     kimcad "a wall bracket for a 25mm pipe"     # design a part (default verb)
-    kimcad design "..." [--printer ... --material ...]
+    kimcad design "..." [--printer ... --material ...] [--slice]
     kimcad bench [--prompts bench/prompts.yaml] [--min-success-rate 0.7]
     kimcad web [--host ... --port ... --demo]   # local browser UI (Phase 2)
+
+``--slice`` is the explicit print confirmation: only with it does a passing part get
+sliced into a printable G-code 3MF for the chosen printer + material.
 
 The CLI only wires already-tested pieces together: it loads config, builds the
 configured LLM backend, runs the :class:`~kimcad.pipeline.Pipeline`, and prints the
@@ -62,6 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Continue past a failing Printability Gate (advanced).",
     )
+    d.add_argument(
+        "--slice",
+        dest="do_slice",
+        action="store_true",
+        help="After a passing gate, also slice the part into a printable G-code 3MF "
+        "for the chosen printer + material (explicit print confirmation).",
+    )
 
     w = sub.add_parser("web", help="Launch the local web UI (Phase 2).")
     w.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1).")
@@ -114,9 +124,34 @@ def _build_pipeline(config: Config, args: argparse.Namespace):
     return Pipeline(config, printer, material, provider)
 
 
+def _slice_intent(config: Config, printer: Any, material: Any) -> str:
+    """A plain-English line, shown before a ``--slice`` run, naming the printer +
+    material and the exact OrcaSlicer profiles the part will be sliced with — or a
+    clear note when the chosen printer can't be sliced (no process profile)."""
+    from kimcad.slicer import OrcaProfileError, resolve_slice_settings
+
+    try:
+        s = resolve_slice_settings(config.orca_profiles_root(), printer, material)
+    except OrcaProfileError as e:
+        return f"Note: cannot slice for {printer.name} + {material.name} — {e}"
+    return (
+        f"Will slice for {printer.name} + {material.name} using:\n"
+        f"  machine   = {s.machine.stem}\n"
+        f"  process   = {s.process.stem}\n"
+        f"  filament  = {s.filament.stem}"
+    )
+
+
 def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     pipeline = _build_pipeline(config, args)
-    result = pipeline.run(args.prompt, Path(args.out), proceed_anyway=args.proceed_anyway)
+    if args.do_slice:
+        print(_slice_intent(config, pipeline.printer, pipeline.material))
+    result = pipeline.run(
+        args.prompt,
+        Path(args.out),
+        proceed_anyway=args.proceed_anyway,
+        confirm_print=args.do_slice,
+    )
 
     from kimcad.pipeline import PipelineStatus
 

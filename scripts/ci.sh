@@ -18,5 +18,23 @@ fi
 echo "[ci] ruff check..."
 "$RUFF" check src tests
 echo "[ci] pytest..."
-"$PY" -m pytest -q
-echo "[ci] OK"
+# -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
+# mistaken for one that proved the real slicer contract (TEST-002).
+"$PY" -m pytest -q -ra
+# Warn loudly (don't fail — the binary is fetched separately) when the live slice/web tests
+# would skip: that run did NOT prove the real OrcaSlicer CLI contract end to end, so a
+# release tag should not be cut from it.
+if [ -x tools/orcaslicer/orca-slicer.exe ] || [ -x tools/orcaslicer/orca-slicer ]; then
+    echo "[ci] OK (live slicer tests ran — real CLI contract proven)"
+else
+    echo "[ci] WARNING: OrcaSlicer binary absent — live slice tests SKIPPED; the real"
+    echo "[ci]          slicer CLI contract was NOT proven this run. Do not cut a release"
+    echo "[ci]          tag from this run; fetch tools/ and re-run."
+    # Hard gate for releases: set KIMCAD_RELEASE=1 to FAIL (not just warn) when the live
+    # slicer tests couldn't run, so a tag is never cut from an unproven run. Normal dev
+    # pushes (the binary is fetched separately) stay unblocked.
+    if [ "${KIMCAD_RELEASE:-}" = "1" ]; then
+        echo "[ci] RELEASE GATE: refusing — live slicer contract unproven."
+        exit 1
+    fi
+fi

@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from kimcad.config import Config, Material, Printer
+from kimcad.hardening import HardenReport, harden_mesh
 from kimcad.ir import DesignPlan, first_clarification
 from kimcad.llm_provider import LLMProvider
 from kimcad.openscad_runner import (
@@ -34,6 +35,13 @@ from kimcad.openscad_runner import (
 )
 from kimcad.orientation import Orientation, auto_orient
 from kimcad.printability import Finding, GateResult, Level, dim_tolerance, run_gate
+from kimcad.slicer import (
+    OrcaProfileError,
+    SliceError,
+    SliceResult,
+    resolve_slice_settings,
+    slice_model,
+)
 from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
@@ -121,6 +129,17 @@ class PrintReport:
     orientation: str
     orientation_stability: float
     sanitizer_removed: list[str]
+    # Pre-slice mesh hardening (Manifold3D); the exported/sliced mesh is the hardened one.
+    hardened: bool = False
+    harden_summary: str = ""
+    # Slice outcome (populated only when a print was confirmed and sliced).
+    sliced: bool = False
+    gcode_path: str | None = None
+    gcode_lines: int | None = None
+    gcode_estimate: str | None = None  # slicer print estimate (time / layers / filament)
+    slice_note: str | None = None
+    # (machine, process, filament) profile names actually used for the slice.
+    slice_profiles: tuple[str, str, str] | None = None
 
     def to_text(self) -> str:
         ax, ay, az = self.actual_bbox_mm
@@ -141,6 +160,21 @@ class PrintReport:
             + (f" (repaired: {'; '.join(self.repairs)})" if self.repaired else ""),
             f"Orientation: {self.orientation} (stability {self.orientation_stability:.2f})",
         ]
+        if self.harden_summary:
+            lines.append(f"Hardening: {self.harden_summary}")
+        if self.sliced:
+            detail = f" ({self.gcode_lines} G-code lines)" if self.gcode_lines else ""
+            lines.append(f"Slice: G-code produced{detail} -> {self.gcode_path}")
+            if self.gcode_estimate:
+                lines.append(f"  Estimate: {self.gcode_estimate}")
+            if self.slice_profiles:
+                machine, process, filament = self.slice_profiles
+                lines.append(
+                    f"  Profiles: machine={machine} | process={process} | "
+                    f"filament={filament}"
+                )
+        elif self.slice_note:
+            lines.append(f"Slice: {self.slice_note}")
         for level, code, message in self.findings:
             lines.append(f"  [{level}] {code}: {message}")
         if self.sanitizer_removed:
@@ -163,6 +197,7 @@ class PipelineResult:
     mesh_path: Path | None = None
     report: PrintReport | None = None
     slice_result: Any = None
+    slice_error: str | None = None
     error: str | None = None
     render_attempts: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
@@ -185,7 +220,7 @@ class Pipeline:
         self.material = material
         self.provider = provider
         self.renderer = renderer or self._default_renderer
-        self.slicer = slicer
+        self.slicer = slicer or self._default_slicer
         self.max_render_retries = max_render_retries
 
     def _default_renderer(self, scad: str, out_dir: Path, basename: str) -> RenderResult:
@@ -197,6 +232,23 @@ class Pipeline:
             output_format=self.config.default_output_format(),
             timeout_s=self.config.limit("openscad_timeout_simple_s"),
             max_output_bytes=self.config.limit("max_output_bytes"),
+        )
+
+    def _default_slicer(self, mesh_path: Path, out_dir: Path, basename: str) -> SliceResult:
+        """Resolve the configured printer + material to on-disk OrcaSlicer profiles and
+        slice the oriented mesh into a G-code-bearing 3MF. Raises :class:`SliceError`
+        (e.g. when the printer has no process profile); ``run`` catches that and reports
+        slicing as unavailable rather than failing the whole job."""
+        settings = resolve_slice_settings(
+            self.config.orca_profiles_root(), self.printer, self.material
+        )
+        return slice_model(
+            mesh_path,
+            binary=self.config.binary_path("orcaslicer"),
+            out_dir=out_dir,
+            settings=settings,
+            basename=basename,
+            timeout_s=self.config.limit("slice_timeout_s"),
         )
 
     def run(
@@ -237,10 +289,23 @@ class Pipeline:
             )
 
         oriented, orientation = auto_orient(mesh)
+        # Harden the oriented mesh into a guaranteed manifold before it is exported and
+        # sliced; the exported .oriented.stl (also the download fallback) is the hardened
+        # mesh, so a clean part goes to the slicer and to the user.
+        hardened, harden_report = harden_mesh(oriented)
         mesh_path = out_dir / f"{basename}.oriented.stl"
-        oriented.export(str(mesh_path))
+        hardened.export(str(mesh_path))
 
-        report = self._build_report(plan, render, mesh_report, gate, orientation)
+        report = self._build_report(plan, render, mesh_report, gate, orientation, harden_report)
+
+        # ENG-001: the exported/sliced mesh is the hardened one. If hardening actually
+        # altered the geometry, re-derive the report's integrity facts from the hardened
+        # mesh so the report describes the artifact that ships, not the pre-harden input.
+        if harden_report.ok and harden_report.changed:
+            _, hardened_mr = validate_mesh(hardened)
+            report.watertight = hardened_mr.watertight
+            report.volume_mm3 = hardened_mr.volume_mm3
+            report.n_bodies = hardened_mr.n_bodies
 
         if gate.status is Level.FAIL and not proceed_anyway:
             return PipelineResult(
@@ -258,8 +323,17 @@ class Pipeline:
             )
 
         slice_result = None
-        if confirm_print and self.slicer is not None:
-            slice_result = self.slicer(mesh_path, out_dir, basename)
+        slice_error = None
+        if confirm_print:
+            try:
+                slice_result = self.slicer(mesh_path, out_dir, basename)
+            except OrcaProfileError as e:
+                # Capability gap (e.g. Elegoo has no process profile) — not an error.
+                slice_error = f"not yet sliceable for this printer: {e}"
+            except SliceError as e:
+                # An operational failure on a sliceable printer (bad slice / timeout).
+                slice_error = f"slicing failed: {e}"
+            self._record_slice(report, slice_result, slice_error)
 
         return PipelineResult(
             status=PipelineStatus.completed,
@@ -273,8 +347,29 @@ class Pipeline:
             mesh_path=mesh_path,
             report=report,
             slice_result=slice_result,
+            slice_error=slice_error,
             render_attempts=attempts,
         )
+
+    @staticmethod
+    def _record_slice(
+        report: PrintReport, slice_result: Any, slice_error: str | None
+    ) -> None:
+        """Fold the slice outcome into the print report. A refusal (no process profile,
+        etc.) is recorded as a note, not an exception — the validated mesh is still
+        exported, so the user can fall back to a plain mesh download."""
+        if slice_error is not None:
+            report.slice_note = slice_error  # already categorized by run()
+            return
+        if isinstance(slice_result, SliceResult):
+            report.sliced = True
+            report.gcode_path = str(slice_result.gcode_path)
+            if slice_result.gcode_proof is not None:
+                report.gcode_lines = slice_result.gcode_proof.line_count
+                report.gcode_estimate = slice_result.gcode_proof.estimate_summary() or None
+            if slice_result.settings is not None:
+                s = slice_result.settings
+                report.slice_profiles = (s.machine.stem, s.process.stem, s.filament.stem)
 
     def _build_geometry(
         self,
@@ -353,6 +448,7 @@ class Pipeline:
         mesh_report: MeshReport,
         gate: GateResult,
         orientation: Orientation,
+        harden_report: HardenReport | None = None,
     ) -> PrintReport:
         headline = next((f.message for f in gate.findings if f.code.startswith("dim.")), "")
         return PrintReport(
@@ -373,4 +469,6 @@ class Pipeline:
             orientation=orientation.description,
             orientation_stability=orientation.stability,
             sanitizer_removed=render.sanitize.removed,
+            hardened=bool(harden_report and harden_report.ok),
+            harden_summary=harden_report.summary() if harden_report else "",
         )

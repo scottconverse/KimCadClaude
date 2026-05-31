@@ -7,7 +7,7 @@ choice). Exposes typed accessors for the parts the pipeline needs.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,10 @@ class Printer:
     build_volume: tuple[float, float, float]
     nozzle_diameter: float
     orca_machine_profile: str | None = None
+    # OrcaSlicer process (print-settings) profile name, and a material-key -> filament
+    # profile name map. Names resolve to the shipped profile JSON files at slice time.
+    orca_process_profile: str | None = None
+    orca_filament_profiles: dict[str, str] = field(default_factory=dict)
     reference_hardware: bool = False
 
 
@@ -90,6 +94,11 @@ class Config:
         p = Path(raw)
         return p if p.is_absolute() else (PROJECT_ROOT / p)
 
+    def orca_profiles_root(self) -> Path:
+        """The shipped OrcaSlicer profile tree (``resources/profiles``) next to the
+        bundled binary. Profile names in ``printers`` resolve to JSON files here."""
+        return self.binary_path("orcaslicer").parent / "resources" / "profiles"
+
     # --- printers / materials ----------------------------------------------
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]
@@ -101,6 +110,8 @@ class Config:
             build_volume=(float(bv[0]), float(bv[1]), float(bv[2])),
             nozzle_diameter=float(p["nozzle_diameter"]),
             orca_machine_profile=p.get("orca_machine_profile"),
+            orca_process_profile=p.get("orca_process_profile"),
+            orca_filament_profiles=dict(p.get("orca_filament_profiles", {})),
             reference_hardware=bool(p.get("reference_hardware", False)),
         )
 

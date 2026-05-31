@@ -5,9 +5,17 @@ mapping from a PipelineResult to the JSON the page renders. Driven by a fake pro
 and a stub renderer, so no LLM, no binary, and no socket are involved.
 """
 
+import pytest
+
 from kimcad.config import Config
 from kimcad.pipeline import Pipeline
-from kimcad.webapp import DemoProvider, design_response, make_handler
+from kimcad.webapp import (
+    DemoProvider,
+    design_response,
+    make_handler,
+    slice_registered_mesh,
+    web_options,
+)
 
 # TEST-007: shared with test_pipeline.py — see tests/conftest.py.
 from conftest import BAMBU, PLA, FakeProvider
@@ -283,3 +291,390 @@ def test_serves_vendored_threejs_and_rejects_traversal(tmp_path):
                 raise AssertionError(f"expected 404 for {bad}")
             except urllib.error.HTTPError as e:
                 assert e.code == 404
+
+
+# --- Stage 1 Slice 3b: printer/material selection + slice-on-confirm -----------
+
+
+def test_web_options_lists_printers_with_sliceable_flag():
+    opts = web_options(Config.load())
+    by_key = {p["key"]: p for p in opts["printers"]}
+    assert by_key["bambu_p2s"]["sliceable"] is True
+    assert by_key["bambu_a1"]["sliceable"] is True
+    # The Elegoo ships a machine + filament but no process profile -> not yet sliceable.
+    assert by_key["elegoo_neptune_4_max"]["sliceable"] is False
+    assert any(m["key"] == "pla" for m in opts["materials"])
+    assert opts["default_printer"] == "bambu_p2s"
+    assert opts["default_material"] == "pla"
+
+
+def test_slice_registered_mesh_refuses_printer_without_process(tmp_path):
+    """Slicing for a printer with no process profile reports a note, not an exception,
+    and produces no G-code (the Elegoo case) — deterministic, no binary needed."""
+    mesh = tmp_path / "part.oriented.stl"
+    mesh.write_bytes(b"solid x\nendsolid x\n")  # never reached; resolution fails first
+    info, gcode_path = slice_registered_mesh(
+        Config.load(), mesh, "elegoo_neptune_4_max", "pla"
+    )
+    assert info["sliced"] is False
+    assert info["reason"] == "no_profile"  # ENG-008: capability gap, not a failure
+    assert "process profile" in info["note"]
+    assert gcode_path is None
+
+
+def test_http_options_endpoint_serves_choices(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        data = json.load(urllib.request.urlopen(f"http://{host}:{port}/api/options", timeout=10))
+    assert any(p["key"] == "bambu_p2s" for p in data["printers"])
+    assert data["default_material"] == "pla"
+
+
+def test_http_slice_before_design_is_404(tmp_path):
+    import json
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/slice/999",
+            data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("expected 404")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+
+
+def _binary_and_profiles_present() -> bool:
+    try:
+        cfg = Config.load()
+        return cfg.binary_path("orcaslicer").exists() and cfg.orca_profiles_root().exists()
+    except Exception:  # pragma: no cover
+        return False
+
+
+@pytest.mark.skipif(
+    not _binary_and_profiles_present(), reason="OrcaSlicer binary/profiles not present"
+)
+def test_live_web_design_then_slice_then_download(tmp_path):
+    """Full web path, live: design a part over HTTP, confirm a slice for P2S + PLA, and
+    download the proven G-code 3MF as an attachment."""
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        dreq = urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a 20mm block"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        ddata = json.load(urllib.request.urlopen(dreq, timeout=30))
+        rid = ddata["mesh_url"].rsplit("/", 1)[-1]
+
+        sreq = urllib.request.Request(
+            base + f"/api/slice/{rid}",
+            data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        sdata = json.load(urllib.request.urlopen(sreq, timeout=300))
+        assert sdata["sliced"] is True
+        assert sdata["gcode_lines"] > 100
+        assert sdata["estimate"]  # print estimate surfaced to the UI
+        assert sdata["profiles"]["process"] == "0.20mm Standard @BBL P2S"
+        gcode_url = sdata["gcode_url"]
+
+        # ENG-003: an identical re-confirm is served from cache, same proven result.
+        sdata2 = json.load(urllib.request.urlopen(
+            urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=30,
+        ))
+        assert sdata2["gcode_lines"] == sdata["gcode_lines"]
+        assert sdata2["gcode_url"] == gcode_url
+
+        resp = urllib.request.urlopen(base + gcode_url, timeout=30)
+        body = resp.read()
+        assert len(body) > 1000
+        assert "attachment" in resp.headers.get("Content-Disposition", "")
+
+
+# --- Stage-gate fixes: web error-handling + resource hardening ----------------
+
+
+def test_non_dict_json_body_is_clean_400(tmp_path):
+    """QA-001: a valid-JSON but non-object body must yield a clean 400, not an empty
+    response from an uncaught AttributeError."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        status, body = _post_with_raw_length(host, port, len(b"[1,2,3]"), body=b"[1,2,3]")
+    assert status == 400
+    assert b"invalid request body" in body.lower()
+
+
+def test_non_string_prompt_is_400(tmp_path):
+    """QA-007: a wrong-typed prompt is rejected, not silently str()-coerced."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/design",
+            data=json.dumps({"prompt": 12345}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("expected 400")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+
+def test_unknown_printer_key_is_400(tmp_path):
+    """TEST-004: slicing with a printer key the config doesn't know is a clean 400."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        ddata = json.load(urllib.request.urlopen(
+            urllib.request.Request(
+                base + "/api/design",
+                data=json.dumps({"prompt": "a box"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=30))
+        rid = ddata["mesh_url"].rsplit("/", 1)[-1]
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "no_such_printer", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 400")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+            assert b"Unknown printer or material" in e.read()
+
+
+def test_unexpected_pipeline_error_is_clean_500_no_traceback(tmp_path):
+    """TEST-008: an unexpected exception in the pipeline surfaces as a 500 with the error
+    class but no stack trace leaked to the browser."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    class _Boom:
+        def run(self, prompt, out_dir, **kw):
+            raise RuntimeError("boom")
+
+    with _serve(_Boom(), tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/design",
+            data=json.dumps({"prompt": "a box"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("expected 500")
+        except urllib.error.HTTPError as e:
+            assert e.code == 500
+            body = e.read()
+            assert b"RuntimeError: boom" in body
+            assert b"Traceback" not in body
+
+
+def test_unsupported_method_is_405(tmp_path):
+    """QA-005: an unsupported verb on an existing resource is 405, not 501."""
+    import http.client
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("PUT", "/api/design")
+            resp = conn.getresponse()
+            assert resp.status == 405
+            assert "GET" in (resp.getheader("Allow") or "")
+        finally:
+            conn.close()
+
+
+def test_evicted_design_dir_is_removed_from_disk(tmp_path, monkeypatch):
+    """QA-003: past the registry cap, an evicted design's on-disk directory is removed."""
+    import json
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    monkeypatch.setattr(webapp_mod, "MAX_REGISTRY", 2)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        for _ in range(3):  # cap is 2 -> the first design's dir is evicted
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    base + "/api/design",
+                    data=json.dumps({"prompt": "a box"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                ), timeout=30)
+    assert not (tmp_path / "1").exists()  # evicted dir cleaned up
+    assert (tmp_path / "3").exists()      # newest survives
+
+
+def _design_rid(base):
+    import json
+    import urllib.request
+
+    ddata = json.load(urllib.request.urlopen(
+        urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a box"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+    return ddata["mesh_url"].rsplit("/", 1)[-1]
+
+
+def test_slice_is_idempotent_one_real_slice_per_key(tmp_path, monkeypatch):
+    """NEW-1 (ENG-003 proof): an identical (rid, printer, material) re-confirm must hit
+    the cache, NOT re-run the slicer. Driven by a counting fake so a cache miss is
+    observable (the prior live test couldn't distinguish a hit from a second slice)."""
+    import json
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    calls = {"n": 0}
+
+    def counting_slice(config, mesh_path, printer, material):
+        calls["n"] += 1
+        gp = mesh_path.parent / f"{mesh_path.name.split('.')[0]}_{printer}_{material}.gcode.3mf"
+        gp.write_bytes(b"PKfake")
+        return (
+            {"sliced": True, "printer": printer, "material": material, "gcode_lines": 5,
+             "estimate": "", "profiles": {"machine": "m", "process": "p", "filament": "f"}},
+            gp,
+        )
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", counting_slice)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+
+        def slice_once():
+            return json.load(urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/api/slice/{rid}",
+                    data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                ), timeout=30))
+
+        d1 = slice_once()
+        d2 = slice_once()
+    assert calls["n"] == 1  # the second identical request was served from cache
+    assert d1["gcode_url"] == d2["gcode_url"]
+
+
+def test_slice_unexpected_error_is_clean_500(tmp_path, monkeypatch):
+    """NEW-4: the slice-side except-Exception guard returns a clean 500 (no traceback)."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("slice boom")
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 500")
+        except urllib.error.HTTPError as e:
+            assert e.code == 500
+            body = e.read()
+            assert b"RuntimeError: slice boom" in body
+            assert b"Traceback" not in body
+
+
+def test_handler_has_read_timeout(tmp_path):
+    """NEW-2: the handler sets a socket read timeout (QA-002 slowloris guard)."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    handler_cls = make_handler(pipe, tmp_path)
+    assert handler_cls.timeout == 30
+
+
+def test_concurrent_identical_slices_run_once(tmp_path, monkeypatch):
+    """The slice_lock double-checked re-check: while one request is mid-slice (holding the
+    lock), a second identical request blocks, then on acquiring the lock finds the cache
+    already populated and reuses it — so the slicer runs exactly once. Exercises the
+    re-check branch that the sequential idempotency test can't reach."""
+    import json
+    import threading
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    in_slice = threading.Event()
+    release = threading.Event()
+    calls = {"n": 0}
+
+    def slow_slice(config, mesh_path, printer, material):
+        calls["n"] += 1
+        in_slice.set()
+        release.wait(timeout=10)  # hold slice_lock until the test releases
+        gp = mesh_path.parent / f"x_{printer}_{material}.gcode.3mf"
+        gp.write_bytes(b"PK")
+        return ({"sliced": True, "printer": printer, "material": material}, gp)
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", slow_slice)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+
+        def post_slice(out):
+            out.append(json.load(urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/api/slice/{rid}",
+                    data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                ), timeout=15)))
+
+        r1, r2 = [], []
+        t1 = threading.Thread(target=post_slice, args=(r1,))
+        t1.start()
+        assert in_slice.wait(timeout=10)  # t1 is inside the slice, holding slice_lock
+        t2 = threading.Thread(target=post_slice, args=(r2,))
+        t2.start()
+        # give t2 time to pass the pre-lock cache miss and block on slice_lock
+        import time
+        time.sleep(0.3)
+        release.set()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+    assert calls["n"] == 1  # t2 reused t1's cached slice via the re-check branch
+    assert r1 and r2 and r1[0]["gcode_url"] == r2[0]["gcode_url"]

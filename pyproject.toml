@@ -21,11 +21,15 @@ dependencies = [
     "scipy>=1.13",
     "networkx>=3.3",
     "lxml>=5.0",  # trimesh's 3MF reader (default output format) requires it
+    # Manifold3D guarantees a clean 2-manifold mesh before slicing (pre-slice hardening).
+    # Optional at runtime: if absent, hardening is skipped and the validated mesh is used.
+    "manifold3d>=3.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",  # `pytest --cov=kimcad --cov-branch` to spot un-entered branches
     "ruff>=0.5",
 ]
 
