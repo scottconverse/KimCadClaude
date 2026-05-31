@@ -308,6 +308,17 @@ def test_web_options_lists_printers_with_sliceable_flag():
     assert opts["default_material"] == "pla"
 
 
+def test_web_options_lists_per_printer_available_materials():
+    # Each printer advertises only the materials it can actually print, so the UI offers
+    # exactly those — the Elegoo Neptune 4 Max has no TPU profile, so TPU isn't listed for it.
+    opts = web_options(Config.load())
+    by_key = {p["key"]: p for p in opts["printers"]}
+    assert set(by_key["bambu_p2s"]["materials"]) == {"pla", "petg", "tpu", "abs"}
+    assert set(by_key["bambu_a1"]["materials"]) == {"pla", "petg", "tpu", "abs"}
+    assert set(by_key["elegoo_neptune_4_max"]["materials"]) == {"pla", "petg", "abs"}
+    assert "tpu" not in by_key["elegoo_neptune_4_max"]["materials"]
+
+
 class _NoProcessConfig:
     """A config stand-in whose printer has no process profile, to drive the web-layer
     refusal path without depending on a specific shipped printer."""

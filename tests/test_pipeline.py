@@ -223,8 +223,10 @@ def test_slice_refusal_is_reported_not_raised(tmp_path):
     assert r.slice_result is None
     assert r.slice_error and "process profile" in r.slice_error
     assert r.report.sliced is False
-    # ENG-008: a capability gap reads as "not yet sliceable", distinct from a real failure.
-    assert r.report.slice_note and "not yet sliceable" in r.report.slice_note
+    # ENG-008: a profile gap reads as "not sliceable as configured", distinct from a real
+    # failure, and the wrapped message still names the specific cause (here, the process profile).
+    assert r.report.slice_note and "not sliceable as configured" in r.report.slice_note
+    assert "process profile" in r.report.slice_note
     assert r.mesh_path is not None and r.mesh_path.exists()  # mesh still exported
 
 

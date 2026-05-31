@@ -160,8 +160,9 @@
            control that actually sends is the connection picker below. -->
       <button id="prepare" class="secondary">Generate G-code…</button>
     </div>
-    <!-- UX-110: be honest that non-PLA materials currently use a generic profile. -->
-    <p id="materialNote" class="note hidden">Non-PLA materials use a generic filament profile for now.</p>
+    <!-- UX-110: honestly flag only the printer+material combinations that still use a
+         vendor "Generic" filament profile (the per-printer map drives this, not the name). -->
+    <p id="materialNote" class="note hidden">This printer + material uses a generic filament profile (not a tuned, brand-specific one).</p>
     <p id="printableHint" class="note hidden"></p>
     <!-- UX-105: shown when printer options failed to load, so "print" isn't silently absent. -->
     <p id="printUnavailable" class="note hidden">Printer options couldn't load — reload the page to send this to a printer. Your model download is available above.</p>
@@ -384,9 +385,24 @@ async function loadOptions() {
     optionsData = await res.json();
     fillSelect($("printerSel"), optionsData.printers, optionsData.default_printer,
       (p) => p.sliceable ? p.name : p.name + " — no G-code profile yet");
-    fillSelect($("materialSel"), optionsData.materials, optionsData.default_material, (m) => m.name);
+    fillMaterialsForPrinter(optionsData.default_material);
     updatePrintableHint();
   } catch (_) { optionsFailed = true; }  // UX-105: surfaced when a gated part is shown
+}
+
+// Offer only the materials the selected printer can actually print (it has a verified
+// filament profile for them) — e.g. the Elegoo Neptune 4 Max has no TPU profile, so TPU
+// isn't offered for it. Keeps the current material if still available, else picks a default.
+function fillMaterialsForPrinter(preferKey) {
+  const p = selectedPrinter();
+  const all = (optionsData && optionsData.materials) || [];
+  const allow = (p && Array.isArray(p.materials)) ? p.materials : null;
+  const avail = allow ? all.filter((m) => allow.includes(m.key)) : all;
+  const prev = $("materialSel").value;
+  const want = (preferKey && avail.some((m) => m.key === preferKey) && preferKey) ||
+               (avail.some((m) => m.key === prev) && prev) ||
+               (avail[0] && avail[0].key);
+  fillSelect($("materialSel"), avail, want, (m) => m.name);
 }
 
 function fillSelect(sel, items, defKey, labelFn) {
@@ -405,16 +421,22 @@ function selectedPrinter() {
 
 function updatePrintableHint() {
   const p = selectedPrinter();
-  const ok = !p || p.sliceable;
+  const noMaterials = !!(p && Array.isArray(p.materials) && p.materials.length === 0);
+  const ok = (!p || p.sliceable) && !noMaterials;
   $("prepare").disabled = !ok;
   const hint = $("printableHint");
   if (ok) { hide("printableHint"); }
   else {
-    hint.textContent = `${p.name} doesn't have a print (G-code) profile yet — pick another printer to generate G-code. Your validated model is still available above.`;
+    hint.textContent = noMaterials
+      ? `${p.name} has no material profiles configured — pick another printer. Your validated model is still available above.`
+      : `${p.name} doesn't have a print (G-code) profile yet — pick another printer to generate G-code. Your validated model is still available above.`;
     show("printableHint");
   }
-  // UX-110: flag that a non-PLA material falls back to a generic profile.
-  if ($("materialSel").value && $("materialSel").value !== "pla") show("materialNote");
+  // UX-110: flag ONLY the printer+material combinations that actually use a generic profile
+  // (driven by the per-printer generic_materials list, not a blanket "non-PLA" assumption).
+  const mat = $("materialSel").value;
+  const generic = (p && Array.isArray(p.generic_materials)) ? p.generic_materials : [];
+  if (mat && generic.includes(mat)) show("materialNote");
   else hide("materialNote");
 }
 
@@ -489,7 +511,7 @@ async function doSlice() {
       // capability gap of a printer configured without a process profile.
       $("printResult").textContent = "Slicing failed — please try again. " + (data.note || "");
     } else {
-      $("printResult").textContent = "Can't generate G-code for this printer yet: " + (data.note || "no profile.");
+      $("printResult").textContent = "Can't generate G-code for this combination: " + (data.note || "no profile.");
     }
   } catch (e) {
     stopSliceTimer();
@@ -714,7 +736,7 @@ $("goAnswer").addEventListener("click", () => {
 $("cancel").addEventListener("click", () => { if (controller) controller.abort(); });
 
 // Send-to-printer: select printer/material, confirm explicitly, then slice.
-$("printerSel").addEventListener("change", updatePrintableHint);
+$("printerSel").addEventListener("change", () => { fillMaterialsForPrinter(); updatePrintableHint(); });
 $("materialSel").addEventListener("change", updatePrintableHint);  // UX-110 material note
 $("prepare").addEventListener("click", () => {
   // UX-101: clear any prior "Print job ready" before re-confirming (no stale download link).

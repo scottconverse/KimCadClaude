@@ -148,14 +148,23 @@ def web_options(config: Any) -> dict[str, Any]:
     the UI can mark any printer configured without one as not-yet-sliceable instead of
     letting the user pick one that will only refuse. (All three currently configured
     printers — Bambu P2S, Bambu A1, Elegoo Neptune 4 Max — are sliceable.)"""
-    printers = [
-        {
+    def _printer_entry(key: str) -> dict[str, Any]:
+        p = config.printer(key)
+        fp = p.orca_filament_profiles
+        return {
             "key": key,
-            "name": config.printer(key).name,
-            "sliceable": config.printer(key).orca_process_profile is not None,
+            "name": p.name,
+            "sliceable": p.orca_process_profile is not None,
+            # Materials this printer can actually print (has a verified filament profile for),
+            # so the UI offers only what each printer supports — e.g. the Elegoo Neptune 4 Max
+            # has no shipped TPU profile, so it doesn't offer TPU.
+            "materials": list(fp.keys()),
+            # Of those, the ones still using a vendor "Generic <MAT>" profile (vs a tuned,
+            # brand-specific one) — so the UI can honestly flag only the generic combinations.
+            "generic_materials": [m for m, name in fp.items() if name.startswith("Generic")],
         }
-        for key in config.raw.get("printers", {})
-    ]
+
+    printers = [_printer_entry(key) for key in config.raw.get("printers", {})]
     materials = [
         {"key": key, "name": config.material(key).name}
         for key in config.raw.get("materials", {})
@@ -196,7 +205,8 @@ def slice_registered_mesh(
             timeout_s=config.limit("slice_timeout_s"),
         )
     except OrcaProfileError as e:
-        # Capability gap (printer not yet sliceable) — a known limitation, not an error.
+        # Profile gap (printer has no process profile, or this material isn't available on it)
+        # — a known limitation, not an operational error. The note names the specific cause.
         return {"sliced": False, "reason": "no_profile", "note": str(e)}, None
     except SliceError as e:
         # Operational failure on a sliceable printer (bad slice / timeout).

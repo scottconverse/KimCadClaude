@@ -6,7 +6,6 @@ import pytest
 
 from kimcad import slicer as slicer_mod
 from kimcad.config import Config, Material, Printer
-from kimcad import slicer as _slicer_mod
 from kimcad.slicer import (
     GcodeProofFailed,
     OrcaProfileError,
@@ -196,11 +195,13 @@ def test_resolve_maps_printer_material_to_three_jsons(tmp_path):
         assert path.exists() and kind in path.parts
 
 
-def test_resolve_falls_back_to_generic_filament(tmp_path):
-    # PETG has no printer-specific entry -> the shipped "Generic PETG" is used.
+def test_resolve_unmapped_material_is_not_available(tmp_path):
+    # A material with NO printer-specific filament entry is honestly "not available" on that
+    # printer — there is no silent cross-vendor generic fallback (which could resolve to a
+    # different vendor's profile and slice plausible-but-wrong G-code on the wrong machine).
     root = _profile_tree(tmp_path)
-    settings = resolve_slice_settings(root, _p2s(), _PETG)
-    assert settings.filament.stem == "Generic PETG"
+    with pytest.raises(OrcaProfileError, match="not available on printer"):
+        resolve_slice_settings(root, _p2s(), _PETG)
 
 
 def test_resolve_raises_when_no_process_profile(tmp_path):
@@ -226,11 +227,52 @@ def test_resolve_raises_when_configured_name_missing(tmp_path):
         resolve_slice_settings(root, bad, _PLA)
 
 
+def test_elegoo_tpu_is_honestly_not_available():
+    # The Neptune 4 Max has no shipped TPU filament profile, so TPU is a clear "not available"
+    # (raised before any file lookup), not a wrong-vendor generic. Config-only, no tree needed.
+    cfg = Config.load()
+    with pytest.raises(OrcaProfileError, match="not available on printer"):
+        resolve_slice_settings(
+            cfg.orca_profiles_root(), cfg.printer("elegoo_neptune_4_max"), cfg.material("tpu")
+        )
+
+
 def _profiles_present() -> bool:
     try:
         return Config.load().orca_profiles_root().exists()
     except Exception:  # pragma: no cover - config absent
         return False
+
+
+@pytest.mark.skipif(not _profiles_present(), reason="OrcaSlicer profiles not fetched")
+def test_every_configured_material_resolves_to_a_real_filament():
+    # Each printer's configured per-material filament name resolves to a real shipped JSON —
+    # catches a typo'd profile name (the Elegoo-class mistake) without a live slice.
+    cfg = Config.load()
+    root = cfg.orca_profiles_root()
+    expected = {
+        "bambu_p2s": {"pla", "petg", "tpu", "abs"},
+        "bambu_a1": {"pla", "petg", "tpu", "abs"},
+        "elegoo_neptune_4_max": {"pla", "petg", "abs"},  # no TPU profile ships for it
+    }
+    import json
+
+    for pk, mats in expected.items():
+        printer = cfg.printer(pk)
+        assert set(printer.orca_filament_profiles) == mats, pk
+        for mk in mats:
+            settings = resolve_slice_settings(root, printer, cfg.material(mk))
+            assert settings.filament.exists(), f"{pk}/{mk} -> {settings.filament}"
+            # Guard the wrong-vendor bug-family: a name that resolves to a real file for a
+            # DIFFERENT machine would slice plausible-but-wrong G-code. Require the resolved
+            # filament to declare THIS printer's machine compatible.
+            compat = json.loads(settings.filament.read_text(encoding="utf-8")).get(
+                "compatible_printers"
+            ) or []
+            assert printer.orca_machine_profile in compat, (
+                f"{pk}/{mk}: {settings.filament.name} not compatible with "
+                f"{printer.orca_machine_profile}"
+            )
 
 
 @pytest.mark.skipif(not _profiles_present(), reason="OrcaSlicer profiles not fetched")
@@ -322,7 +364,7 @@ def test_prove_gcode_failure_message_has_no_exited_prefix(tmp_path):
 
 def test_prove_gcode_rejects_too_many_members(tmp_path, monkeypatch):
     # ENG-002: an archive with an implausible number of .gcode members is rejected.
-    monkeypatch.setattr(_slicer_mod, "_MAX_GCODE_MEMBERS", 2)
+    monkeypatch.setattr(slicer_mod, "_MAX_GCODE_MEMBERS", 2)
     p = tmp_path / "many.gcode.3mf"
     with zipfile.ZipFile(p, "w") as zf:
         for i in range(3):
@@ -333,7 +375,7 @@ def test_prove_gcode_rejects_too_many_members(tmp_path, monkeypatch):
 
 def test_prove_gcode_rejects_oversize_member(tmp_path, monkeypatch):
     # ENG-002: a member whose uncompressed size exceeds the cap is rejected before walking.
-    monkeypatch.setattr(_slicer_mod, "MAX_GCODE_MEMBER_BYTES", 8)
+    monkeypatch.setattr(slicer_mod, "MAX_GCODE_MEMBER_BYTES", 8)
     p = tmp_path / "big.gcode.3mf"
     _write_gcode_3mf(p, gcode="G1 X10 Y10 E1\nG1 X20 Y20 E2\n" * 4)
     with pytest.raises(GcodeProofFailed, match="too large"):
