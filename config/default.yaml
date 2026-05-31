@@ -26,8 +26,9 @@ llm:
     local:
       provider: openai_compatible
       base_url: http://localhost:11434/v1   # Ollama default; LM Studio uses :1234
-      model_name: gemma3:12b                # smallest local model that reliably emits
-                                            # valid plan JSON + correct OpenSCAD on CPU;
+      model_name: gemma4:e4b                # on-device model (~4B effective) sized for the
+                                            # 32 GB / 780M-iGPU target — fast + stable there.
+                                            # gemma3:12b is too big/slow for the target;
                                             # override in local.yaml per machine
       api_key_env: null
       temperature: 0.2
@@ -55,13 +56,13 @@ printers:
     build_volume: [256, 256, 256]   # VERIFY exact P2S envelope (P-series standard assumed)
     nozzle_diameter: 0.4
     orca_machine_profile: "Bambu Lab P2S 0.4 nozzle"   # VERIFY profile name in shipped OrcaSlicer
-    reference_hardware: true          # Scott has this unit — real-print validated
+    reference_hardware: true          # target hardware (validated in the final beta, not yet)
   elegoo_neptune_4_max:
     name: "Elegoo Neptune 4 Max"
     build_volume: [420, 420, 480]
     nozzle_diameter: 0.4
     orca_machine_profile: "Elegoo Neptune 4 Max 0.4 nozzle"   # VERIFY
-    reference_hardware: true          # Scott has this unit — real-print validated
+    reference_hardware: true          # target hardware (validated in the final beta, not yet)
 
 # Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
 # unless a material overrides it. Temps are nozzle/bed in °C.
@@ -75,7 +76,3 @@ limits:
   openscad_timeout_simple_s: 30
   openscad_timeout_complex_s: 120
   max_output_bytes: 209715200   # 200 MB render guard
-
-server:
-  host: "127.0.0.1"   # localhost-only per threat model §12
-  port: 8080

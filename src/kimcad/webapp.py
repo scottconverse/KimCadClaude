@@ -22,6 +22,7 @@ from __future__ import annotations
 import itertools
 import json
 import threading
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,13 @@ from typing import Any
 from kimcad.printability import dim_tolerance
 
 WEB_DIR = Path(__file__).parent / "web"
+
+# Hardening caps (ENG-004): bound in-memory state and request size.
+MAX_REGISTRY = 50  # keep at most the last N rendered meshes; evict oldest
+MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
+
+# ENG-010: map mesh file extensions to a content type.
+_MESH_CONTENT_TYPES = {".stl": "model/stl", ".3mf": "model/3mf"}
 
 
 def _plan_payload(plan: Any) -> dict[str, Any]:
@@ -133,7 +141,8 @@ def _real_provider(config: Any, backend: str | None) -> Any:
 def make_handler(pipeline: Any, web_root: Path) -> type[BaseHTTPRequestHandler]:
     """Build a request handler bound to a pipeline and an output directory."""
     web_root.mkdir(parents=True, exist_ok=True)
-    registry: dict[int, Path] = {}
+    # ENG-004: bounded LRU-by-insertion registry — oldest meshes are evicted past MAX_REGISTRY.
+    registry: "OrderedDict[int, Path]" = OrderedDict()
     counter = itertools.count(1)
     lock = threading.Lock()
     index_html = (WEB_DIR / "index.html").read_bytes()
@@ -156,10 +165,27 @@ def make_handler(pipeline: Any, web_root: Path) -> type[BaseHTTPRequestHandler]:
             if self.path in ("/", "/index.html"):
                 self._send(200, index_html, "text/html; charset=utf-8")
                 return
+            if self.path.startswith("/vendor/"):
+                self._serve_vendor(self.path[len("/vendor/") :])
+                return
             if self.path.startswith("/api/mesh/"):
                 self._serve_mesh(self.path.rsplit("/", 1)[-1])
                 return
             self._json(404, {"error": "not found"})
+
+        def _serve_vendor(self, name: str) -> None:
+            # Vendored, read-only static assets (three.js) served locally so the 3D
+            # preview works offline. Only a plain filename in web/vendor/ is allowed — any
+            # path separator or traversal is rejected before touching the filesystem.
+            if not name or "/" in name or "\\" in name or ".." in name:
+                self._json(404, {"error": "not found"})
+                return
+            path = WEB_DIR / "vendor" / name
+            if not path.is_file():
+                self._json(404, {"error": "not found"})
+                return
+            ctype = "text/javascript" if path.suffix == ".js" else "application/octet-stream"
+            self._send(200, path.read_bytes(), f"{ctype}; charset=utf-8")
 
         def _serve_mesh(self, raw_id: str) -> None:
             try:
@@ -169,15 +195,31 @@ def make_handler(pipeline: Any, web_root: Path) -> type[BaseHTTPRequestHandler]:
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "mesh not found"})
                 return
-            self._send(200, mesh_path.read_bytes(), "model/stl")
+            # ENG-010: content type follows the file extension, not a hardcoded STL.
+            content_type = _MESH_CONTENT_TYPES.get(
+                mesh_path.suffix.lower(), "application/octet-stream"
+            )
+            self._send(200, mesh_path.read_bytes(), content_type)
 
         def do_POST(self) -> None:
             if self.path != "/api/design":
                 self._json(404, {"error": "not found"})
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            # ENG-004: reject oversized bodies before reading them (prompts are tiny).
+            raw_len = self.headers.get("Content-Length")
             try:
-                data = json.loads(self.rfile.read(length) or b"{}")
+                declared = int(raw_len) if raw_len is not None else 0
+            except (ValueError, TypeError):
+                declared = -1  # malformed header -> treat as bad request below
+            if declared > MAX_BODY_BYTES:
+                self._json(413, {"error": "Request body too large."})
+                return
+            try:
+                # QA-003: parse length inside the try so a bad header yields a clean 400,
+                # not an int() crash on the request thread.
+                if declared < 0:
+                    raise ValueError("invalid Content-Length header")
+                data = json.loads(self.rfile.read(declared) or b"{}")
                 prompt = str(data.get("prompt", "")).strip()
             except (ValueError, TypeError):
                 self._json(400, {"error": "invalid request body"})
@@ -195,6 +237,9 @@ def make_handler(pipeline: Any, web_root: Path) -> type[BaseHTTPRequestHandler]:
             if mesh_path is not None:
                 with lock:
                     registry[rid] = mesh_path
+                    # ENG-004: cap the registry — drop the oldest entries past MAX_REGISTRY.
+                    while len(registry) > MAX_REGISTRY:
+                        registry.popitem(last=False)
                 payload["mesh_url"] = f"/api/mesh/{rid}"
             self._json(200, payload)
 

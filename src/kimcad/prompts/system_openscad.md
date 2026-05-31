@@ -65,6 +65,11 @@ manifold, **3D-printable** solid.
     plate width, a wall thickness). The plan's `bounding_box_mm` is computed assuming the
     module's defaults, so overriding a default silently changes the part's size and
     breaks the dimensional match.
+18. **Never assign geometry to a variable.** OpenSCAD is not a normal programming
+    language: `body = difference() { ... };` or `x = cube(10);` is a **syntax error**.
+    Geometry comes from statements and modules, not assignment. To name or reuse a
+    shape, define a `module` and call it — e.g. `module body() { difference() { ... } }`
+    then `body();`. Variables (`=`) hold only numbers, strings, and lists.
 
 ## Printer & material constraints
 

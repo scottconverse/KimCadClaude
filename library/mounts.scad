@@ -6,6 +6,9 @@
 //   hole_grid(cols, rows, dx, dy, size, depth, fn) : rectangular grid of screw holes
 //   vesa(pattern, size, depth, fn)                 : square 4-hole pattern (e.g. 75/100)
 
+// Relative (same-dir) include: resolves to library/fasteners.scad. The library/ prefix
+// convention is for the model-generated code the sanitizer checks, not for one trusted
+// library module pulling in another.
 use <fasteners.scad>;
 
 module hole_grid(cols = 2, rows = 2, dx = 20, dy = 20, size = 4, depth = 12, fn = 32) {

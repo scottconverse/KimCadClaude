@@ -205,9 +205,21 @@ def _check_wall_thickness(
 
 
 def _check_shells(result: GateResult, report: MeshReport) -> None:
-    if report.n_bodies > 1:
+    """Warn only on genuinely *stray* bodies, not on plain hollow containers.
+
+    A fully-sealed hollow container (a box with walls) is one watertight solid, but
+    trimesh counts its outer skin and inner cavity skin as two separate bodies, so
+    ``n_bodies == 2`` for correct, intended geometry (the demo snap_box trips this).
+    The validator distinguishes a nested cavity (contained bbox) from a stray body
+    (disjoint bbox) and reports the stray count, so we key the warning off
+    ``stray_bodies`` — a hollow container has ``stray_bodies == 0`` and must not warn,
+    while loose extra geometry has ``stray_bodies >= 1`` and should.
+    """
+    if report.stray_bodies > 0:
+        bodies = report.stray_bodies + 1  # strays plus the main body
         result.add(
             Level.WARN,
             "shells.multiple",
-            f"{report.n_bodies} disconnected bodies — usually a stray-geometry mistake.",
+            f"{bodies} disconnected bodies ({report.stray_bodies} stray, sitting apart "
+            "from the main body) — usually a stray-geometry mistake.",
         )

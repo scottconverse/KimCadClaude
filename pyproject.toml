@@ -16,6 +16,8 @@ dependencies = [
     "pyyaml>=6.0",
     "trimesh>=4.4",
     "numpy>=2.0",
+    # trimesh runtime backends KimCad relies on (not imported directly): scipy powers
+    # connected-component split / body_count and convex ops; networkx backs graph ops.
     "scipy>=1.13",
     "networkx>=3.3",
     "lxml>=5.0",  # trimesh's 3MF reader (default output format) requires it

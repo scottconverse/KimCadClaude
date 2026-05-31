@@ -21,6 +21,7 @@ the binary; only :func:`render_scad` shells out.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -191,42 +192,41 @@ def ensure_terminated(code: str) -> tuple[str, bool]:
     return code, False
 
 
-def sanitize_scad(code: str) -> SanitizeResult:
-    """Strip file-I/O statements and flag blocking ops, line by line.
+def _strip_comments(code: str) -> str:
+    """Blank out comments so a construct can't hide in one (and can't be evaluated)."""
+    code = re.sub(r"/\*.*?\*/", " ", code, flags=re.DOTALL)
+    code = re.sub(r"//[^\n]*", " ", code)
+    return code
 
-    Returns the cleaned source plus a record of what was removed and any blocking
-    violations. If ``blocked`` is non-empty the caller must not render.
+
+def sanitize_scad(code: str) -> SanitizeResult:
+    """Block code that reaches outside the approved library or risks a CPU/RAM DoS.
+
+    Detection runs on the **full source** (with comments blanked), not line by line, so a
+    construct split across newlines — ``minkowski\\n(...)``, ``import\\n("…")``,
+    ``use\\n</etc/x>`` — cannot slip past (the regexes' ``\\s*`` spans newlines once it
+    isn't confined to a single line). Anything dangerous is **blocked** — the caller
+    re-prompts — rather than stripped, so valid geometry is never silently destroyed and
+    there is no partial-strip bypass. Only ``use``/``include`` inside ``library/`` survive.
     """
-    out_lines: list[str] = []
-    removed: list[str] = []
+    scan = _strip_comments(code)
     blocked: list[str] = []
 
-    for n, line in enumerate(code.splitlines(), start=1):
-        if _MINKOWSKI_RE.search(line):
-            blocked.append(f"line {n}: minkowski() is banned (CPU/RAM risk at high $fn)")
-            out_lines.append(line)
-            continue
+    if _MINKOWSKI_RE.search(scan):
+        blocked.append("minkowski() is banned (CPU/RAM risk at high $fn)")
+    if _IMPORT_RE.search(scan):
+        blocked.append("import()/surface() file I/O is not allowed")
+    for m in _USE_INCLUDE_RE.finditer(scan):
+        if not _approved_library_path(m.group(2)):
+            blocked.append(
+                f"{m.group(1)} <{m.group(2)}> reaches outside the approved library/ path"
+            )
 
-        m = _USE_INCLUDE_RE.search(line)
-        if m and not _approved_library_path(m.group(2)):
-            removed.append(f"line {n}: {m.group(1)} <{m.group(2)}> outside approved library")
-            out_lines.append(f"// [kimcad] removed file reference: {line.strip()}")
-            continue
-
-        if _IMPORT_RE.search(line):
-            removed.append(f"line {n}: import/surface file I/O")
-            out_lines.append(f"// [kimcad] removed file I/O: {line.strip()}")
-            continue
-
-        out_lines.append(line)
-
-    return SanitizeResult(code="\n".join(out_lines), removed=removed, blocked=blocked)
+    return SanitizeResult(code=code, removed=[], blocked=blocked)
 
 
 def _run(cmd: list[str], *, cwd: Path, timeout_s: int) -> subprocess.CompletedProcess[str]:
     env_path = str(PROJECT_ROOT)
-    import os
-
     env = dict(os.environ)
     # Let `use <library/...>` resolve while the working dir stays the isolated temp.
     existing = env.get("OPENSCADPATH")
