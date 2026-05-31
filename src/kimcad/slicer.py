@@ -87,6 +87,7 @@ class SliceResult:
     stderr: str
     duration_s: float
     gcode_proof: GcodeProof | None = None
+    settings: SliceSettings | None = None
 
 
 def slice_model(
@@ -142,6 +143,7 @@ def slice_model(
         stderr=proc.stderr,
         duration_s=duration,
         gcode_proof=proof,
+        settings=settings,
     )
 
 

@@ -144,3 +144,61 @@ def test_design_gate_failed_exit_5_prints_report(monkeypatch, capsys, tmp_path):
     assert code == 5
     assert "Gate: FAIL" in out  # report still printed for the user
     assert "Printability Gate FAILED" in out
+
+
+# --- Stage 1 Slice 3a: --slice confirmation -----------------------------------
+
+
+def test_parser_design_slice_flag_defaults_off():
+    parser = build_parser()
+    assert parser.parse_args(["design", "x"]).do_slice is False
+    assert parser.parse_args(["design", "x", "--slice"]).do_slice is True
+
+
+def test_design_slice_flag_confirms_and_reports(monkeypatch, capsys, tmp_path):
+    """--slice is the explicit print confirmation: it announces the printer + material
+    + resolved profiles up front, slices, and the report shows the proven G-code."""
+    from pathlib import Path
+
+    from kimcad.slicer import GcodeProof, SliceResult, SliceSettings
+
+    def fake_slicer(mesh_path, out_dir, basename):
+        gp = out_dir / f"{basename}.gcode.3mf"
+        gp.write_bytes(b"PK\x03\x04")
+        return SliceResult(
+            gcode_path=gp,
+            stdout="",
+            stderr="",
+            duration_s=0.1,
+            gcode_proof=GcodeProof(
+                entries=("Metadata/plate_1.gcode",), line_count=18000, has_motion=True
+            ),
+            settings=SliceSettings(
+                machine=Path("Bambu Lab P2S 0.4 nozzle.json"),
+                process=Path("0.20mm Standard @BBL P2S.json"),
+                filament=Path("Bambu PLA Basic @BBL P2S.json"),
+            ),
+        )
+
+    _patch_pipeline(monkeypatch, FakeProvider(make_plan([20, 20, 20])), slicer=fake_slicer)
+    code = main(["design", "a 20mm block", "--out", str(tmp_path), "--slice"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "slice for Bambu Lab P2S" in out  # up-front confirmation/intent line
+    assert "G-code produced" in out
+    assert "18000 G-code lines" in out
+    assert "0.20mm Standard @BBL P2S" in out  # resolved process profile surfaced
+
+
+def test_design_without_slice_flag_does_not_slice(monkeypatch, capsys, tmp_path):
+    sliced = {"n": 0}
+
+    def fake_slicer(mesh_path, out_dir, basename):
+        sliced["n"] += 1
+        return "x"
+
+    _patch_pipeline(monkeypatch, FakeProvider(make_plan([20, 20, 20])), slicer=fake_slicer)
+    code = main(["design", "a 20mm block", "--out", str(tmp_path)])
+    assert code == 0
+    assert sliced["n"] == 0  # no confirmation -> no G-code
+    assert "G-code produced" not in capsys.readouterr().out

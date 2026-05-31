@@ -127,6 +127,8 @@ class PrintReport:
     gcode_path: str | None = None
     gcode_lines: int | None = None
     slice_note: str | None = None
+    # (machine, process, filament) profile names actually used for the slice.
+    slice_profiles: tuple[str, str, str] | None = None
 
     def to_text(self) -> str:
         ax, ay, az = self.actual_bbox_mm
@@ -150,6 +152,12 @@ class PrintReport:
         if self.sliced:
             detail = f" ({self.gcode_lines} G-code lines)" if self.gcode_lines else ""
             lines.append(f"Slice: G-code produced{detail} -> {self.gcode_path}")
+            if self.slice_profiles:
+                machine, process, filament = self.slice_profiles
+                lines.append(
+                    f"  Profiles: machine={machine} | process={process} | "
+                    f"filament={filament}"
+                )
         elif self.slice_note:
             lines.append(f"Slice: {self.slice_note}")
         for level, code, message in self.findings:
@@ -326,6 +334,9 @@ class Pipeline:
             report.gcode_path = str(slice_result.gcode_path)
             if slice_result.gcode_proof is not None:
                 report.gcode_lines = slice_result.gcode_proof.line_count
+            if slice_result.settings is not None:
+                s = slice_result.settings
+                report.slice_profiles = (s.machine.stem, s.process.stem, s.filament.stem)
 
     def _build_geometry(
         self,

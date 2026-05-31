@@ -209,8 +209,9 @@ def test_slice_refusal_is_reported_not_raised(tmp_path):
 
 
 def test_successful_slice_recorded_in_report(tmp_path):
-    """A SliceResult carrying a G-code proof is folded into the print report."""
-    from kimcad.slicer import GcodeProof, SliceResult
+    """A SliceResult carrying a G-code proof and resolved profiles is folded into the
+    print report, including the exact machine/process/filament names used."""
+    from kimcad.slicer import GcodeProof, SliceResult, SliceSettings
 
     def good_slicer(mesh_path, out_dir, basename):
         gpath = out_dir / f"{basename}.gcode.3mf"
@@ -223,6 +224,11 @@ def test_successful_slice_recorded_in_report(tmp_path):
             gcode_proof=GcodeProof(
                 entries=("Metadata/plate_1.gcode",), line_count=42, has_motion=True
             ),
+            settings=SliceSettings(
+                machine=Path("Bambu Lab P2S 0.4 nozzle.json"),
+                process=Path("0.20mm Standard @BBL P2S.json"),
+                filament=Path("Bambu PLA Basic @BBL P2S.json"),
+            ),
         )
 
     provider = FakeProvider(_plan([20, 20, 20]))
@@ -234,4 +240,11 @@ def test_successful_slice_recorded_in_report(tmp_path):
     assert r.report.sliced is True
     assert r.report.gcode_lines == 42
     assert r.report.gcode_path.endswith(".gcode.3mf")
-    assert "G-code produced" in r.report.to_text()
+    assert r.report.slice_profiles == (
+        "Bambu Lab P2S 0.4 nozzle",
+        "0.20mm Standard @BBL P2S",
+        "Bambu PLA Basic @BBL P2S",
+    )
+    text = r.report.to_text()
+    assert "G-code produced" in text
+    assert "0.20mm Standard @BBL P2S" in text  # resolved profile shown to the user
