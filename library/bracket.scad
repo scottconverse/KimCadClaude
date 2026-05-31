@@ -8,6 +8,9 @@
 //     screw : metric screw size for mounting holes (e.g. 4 = M4)
 //     inset : hole distance from arm end / side edges (mm)
 
+// Relative (same-dir) include: library files sit beside each other, so this resolves to
+// library/fasteners.scad. The library/ prefix convention applies to model-generated code
+// the sanitizer checks — not to one trusted library module pulling in another.
 use <fasteners.scad>;
 
 module l_bracket(arm = 40, width = 30, thick = 4, screw = 4, inset = 8) {

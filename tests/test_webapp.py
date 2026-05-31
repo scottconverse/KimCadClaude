@@ -5,52 +5,21 @@ mapping from a PipelineResult to the JSON the page renders. Driven by a fake pro
 and a stub renderer, so no LLM, no binary, and no socket are involved.
 """
 
-from pathlib import Path
-
-import trimesh
-
-from kimcad.config import Config, Material, Printer
-from kimcad.ir import DesignPlan
-from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
+from kimcad.config import Config
 from kimcad.pipeline import Pipeline
 from kimcad.webapp import DemoProvider, design_response, make_handler
 
-BAMBU = Printer(key="bambu_p2s", name="Bambu Lab P2S", build_volume=(256, 256, 256), nozzle_diameter=0.4)
-PLA = Material(key="pla", name="PLA", nozzle_temp=210, bed_temp=55, wall_multiplier=2.0, shrinkage=0.002)
-
-
-class FakeProvider:
-    def __init__(self, plan, scad="use <library/box.scad>;\nbox(20,20,20);"):
-        self._plan = plan
-        self._scad = scad
-
-    def generate_design_plan(self, prompt, printer, material, history=None):
-        return self._plan
-
-    def generate_openscad(self, plan, printer, material, history=None):
-        return self._scad
+# TEST-007: shared with test_pipeline.py — see tests/conftest.py.
+from conftest import BAMBU, PLA, FakeProvider
+from conftest import box_renderer as _shared_box_renderer
+from conftest import make_plan as _plan
 
 
 def _box_renderer(extents, *, fail_times=0):
-    state = {"n": 0}
-
-    def render(scad, out_dir: Path, basename: str) -> RenderResult:
-        state["n"] += 1
-        if state["n"] <= fail_times:
-            raise RenderFailed(1, "synthetic render failure")
-        path = out_dir / f"{basename}.stl"
-        trimesh.creation.box(extents=extents).export(str(path))
-        return RenderResult(
-            output_path=path, output_format="stl", stdout="", stderr="",
-            duration_s=0.01, sanitize=SanitizeResult(code=scad, removed=[]),
-        )
-
+    # This suite's call sites expect only the render fn (not the (fn, state) tuple
+    # the shared helper returns), so unwrap it for an unchanged signature.
+    render, _state = _shared_box_renderer(extents, fail_times=fail_times)
     return render
-
-
-def _plan(bbox, **kw):
-    return DesignPlan(object_type="block", summary="a test block", bounding_box_mm=bbox,
-                      printer="bambu_p2s", material="pla", **kw)
 
 
 def _pipeline(provider, renderer, **kw):
@@ -165,3 +134,152 @@ def test_http_layer_serves_index_design_and_mesh(tmp_path):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+# --- webapp hardening (ENG-004 / QA-003 / ENG-010) ----------------------------
+#
+# These exercise the real HTTP layer over an ephemeral port, like the test above, but
+# focus on request-size caps, a malformed Content-Length, and extension-based mesh
+# content types.
+
+import contextlib  # noqa: E402
+import http.client  # noqa: E402
+import threading  # noqa: E402
+from http.server import ThreadingHTTPServer  # noqa: E402
+
+from kimcad.webapp import MAX_BODY_BYTES  # noqa: E402
+
+
+@contextlib.contextmanager
+def _serve(pipe, root):
+    """Run a handler on an ephemeral port; yield ('127.0.0.1', port)."""
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(pipe, root))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        yield "127.0.0.1", httpd.server_address[1]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def _post_with_raw_length(host, port, content_length, body=b""):
+    """POST /api/design forcing an explicit Content-Length header value (which may be
+    oversized or non-numeric), bypassing urllib's automatic length computation."""
+    conn = http.client.HTTPConnection(host, port, timeout=10)
+    try:
+        conn.putrequest("POST", "/api/design", skip_host=False, skip_accept_encoding=True)
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(content_length))
+        conn.endheaders()
+        if body:
+            conn.send(body)
+        resp = conn.getresponse()
+        return resp.status, resp.read()
+    finally:
+        conn.close()
+
+
+def test_oversize_content_length_rejected_with_413(tmp_path):
+    """A Content-Length above MAX_BODY_BYTES is rejected up front with 413; the body is
+    never read or processed (we send no body at all and still get a clean 413)."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        status, body = _post_with_raw_length(host, port, MAX_BODY_BYTES + 1)
+    assert status == 413
+    assert b"too large" in body.lower()
+
+
+def test_malformed_content_length_is_clean_400(tmp_path):
+    """A non-numeric Content-Length yields a clean 400, not a connection reset or a
+    crash on the request thread (QA-003)."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        status, body = _post_with_raw_length(host, port, "not-a-number")
+    assert status == 400
+    assert b"invalid request body" in body.lower()
+
+
+class _MeshPipeline:
+    """A minimal pipeline stand-in whose run() writes a real mesh file with a chosen
+    extension and returns a completed PipelineResult pointing at it.
+
+    The real Pipeline always exports the oriented mesh as ``.oriented.stl``, so the
+    .3mf branch of _serve_mesh's content-type map can't be reached through it. This
+    duck-typed pipeline lets the HTTP layer serve a genuine .3mf (and .stl) so the
+    extension -> content-type mapping (ENG-010) is exercised end to end over a socket.
+    """
+
+    def __init__(self, suffix: str):
+        self._suffix = suffix
+
+    def run(self, prompt, out_dir, **kw):
+        import trimesh
+
+        from kimcad.ir import DesignPlan
+        from kimcad.pipeline import PipelineStatus, PrintReport
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"part.oriented{self._suffix}"
+        trimesh.creation.box(extents=[20, 20, 20]).export(str(path))
+        plan = DesignPlan(object_type="block", summary="s", bounding_box_mm=[20, 20, 20])
+        report = PrintReport(
+            object_type="block", summary="s", printer="P", material="M",
+            gate_status="pass", headline="", target_bbox_mm=[20, 20, 20],
+            actual_bbox_mm=(20.0, 20.0, 20.0), findings=[], watertight=True,
+            repaired=False, repairs=[], n_bodies=1, volume_mm3=8000.0,
+            orientation="flat", orientation_stability=1.0, sanitizer_removed=[],
+        )
+        from kimcad.pipeline import PipelineResult
+
+        return PipelineResult(
+            status=PipelineStatus.completed, prompt=prompt, plan=plan,
+            report=report, mesh_path=path,
+        )
+
+
+def _design_and_get_content_type(tmp_path, suffix):
+    import json
+    import urllib.request
+
+    with _serve(_MeshPipeline(suffix), tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        req = urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a part"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        data = json.load(urllib.request.urlopen(req, timeout=30))
+        assert data.get("mesh_url"), data
+        resp = urllib.request.urlopen(base + data["mesh_url"], timeout=10)
+        return resp.headers.get("Content-Type")
+
+
+def test_mesh_content_type_is_3mf_for_3mf_file(tmp_path):
+    """ENG-010: /api/mesh/<id> serves model/3mf when the served file is a .3mf."""
+    assert _design_and_get_content_type(tmp_path / "a", ".3mf") == "model/3mf"
+
+
+def test_mesh_content_type_is_stl_for_stl_file(tmp_path):
+    """ENG-010: /api/mesh/<id> serves model/stl when the served file is a .stl."""
+    assert _design_and_get_content_type(tmp_path / "b", ".stl") == "model/stl"
+
+
+def test_serves_vendored_threejs_and_rejects_traversal(tmp_path):
+    """QA-006: three.js is vendored locally and served from /vendor/ (offline 3D), and
+    the route rejects anything but a plain filename (no path traversal)."""
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        r = urllib.request.urlopen(base + "/vendor/three.min.js", timeout=10)
+        assert r.status == 200
+        assert "javascript" in r.headers.get("Content-Type", "")
+        assert len(r.read()) > 1000
+        for bad in ("/vendor/nope.js", "/vendor/", "/vendor/sub/x.js", "/vendor/..%2fx"):
+            try:
+                urllib.request.urlopen(base + bad, timeout=10)
+                raise AssertionError(f"expected 404 for {bad}")
+            except urllib.error.HTTPError as e:
+                assert e.code == 404

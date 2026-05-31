@@ -1,20 +1,23 @@
 """Command-line interface — the Phase-1 user surface (spec §5).
 
-Two subcommands:
+Three subcommands:
 
     kimcad "a wall bracket for a 25mm pipe"     # design a part (default verb)
     kimcad design "..." [--printer ... --material ...]
     kimcad bench [--prompts bench/prompts.yaml] [--min-success-rate 0.7]
+    kimcad web [--host ... --port ... --demo]   # local browser UI (Phase 2)
 
-The CLI only wires already-tested pieces together: it builds the configured LLM
-backend, runs the :class:`~kimcad.pipeline.Pipeline`, and prints the print report.
-Missing prerequisites (no API key, no prompt file) fail with a plain-English message
-and a non-zero exit code rather than a traceback.
+The CLI only wires already-tested pieces together: it loads config, builds the
+configured LLM backend, runs the :class:`~kimcad.pipeline.Pipeline`, and prints the
+print report. Foreseeable setup problems — a bad config, a missing API key, or a
+missing prompt file — fail with a plain-English message and a non-zero exit code
+rather than a traceback.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import sys
 from pathlib import Path
 from typing import Any
@@ -86,10 +89,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
-    """Allow a bare prompt: ``kimcad "..."`` is treated as ``kimcad design "..."``."""
-    if argv and argv[0] not in _SUBCOMMANDS and not argv[0].startswith("-"):
-        return ["design", *argv]
-    return argv
+    """Allow a bare prompt: ``kimcad "..."`` is treated as ``kimcad design "..."``.
+
+    Guards against a typo'd subcommand: a single bare word that's a near-miss of a real
+    subcommand (e.g. ``benhc`` → ``bench``, ``wbe`` → ``web``) is left as-is so argparse
+    rejects it with the valid choices, instead of silently being taken as a one-word part
+    description and launching a multi-minute design run.
+    """
+    if not argv or argv[0] in _SUBCOMMANDS or argv[0].startswith("-"):
+        return argv
+    first = argv[0]
+    if " " not in first and difflib.get_close_matches(first, sorted(_SUBCOMMANDS), cutoff=0.6):
+        return argv
+    return ["design", *argv]
 
 
 def _build_pipeline(config: Config, args: argparse.Namespace):
@@ -114,7 +126,8 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     if result.status is PipelineStatus.render_failed:
         print(f"Could not produce a valid model after retries.\n  {result.error}")
         return 4
-    print(result.report.to_text())
+    if result.report is not None:
+        print(result.report.to_text())
     if result.status is PipelineStatus.gate_failed:
         print("\nPrintability Gate FAILED. Re-run with --proceed-anyway to override.")
         return 5
@@ -163,14 +176,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    config = Config.load()
     try:
+        if args.command == "web":
+            return _cmd_web(args)
+        # design / bench need config; loading it inside the try means a malformed
+        # config.yaml fails with a clean message instead of a raw traceback.
+        config = Config.load()
         if args.command == "design":
             return _cmd_design(config, args)
         if args.command == "bench":
             return _cmd_bench(config, args)
-        if args.command == "web":
-            return _cmd_web(args)
     except RuntimeError as e:
         # e.g. a configured backend whose API key env var is unset.
         print(f"Error: {e}", file=sys.stderr)

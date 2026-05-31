@@ -60,10 +60,12 @@ builds are not yet verified (spec §7.5); install those manually and point
 `config/local.yaml` at them.
 
 Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
-`localhost:11434`:
+`localhost:11434`, running `gemma4:e4b` — a small (~4B-effective) model picked because
+it fits the target machine (a 32 GB box with a 780M iGPU) and stays fast and stable
+there:
 
 ```
-ollama pull gemma3:12b
+ollama pull gemma4:e4b
 ```
 
 That is all the LLM setup required — no API key, no network. To point at a different

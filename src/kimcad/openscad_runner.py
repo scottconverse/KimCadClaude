@@ -21,6 +21,7 @@ the binary; only :func:`render_scad` shells out.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -226,8 +227,6 @@ def sanitize_scad(code: str) -> SanitizeResult:
 
 def _run(cmd: list[str], *, cwd: Path, timeout_s: int) -> subprocess.CompletedProcess[str]:
     env_path = str(PROJECT_ROOT)
-    import os
-
     env = dict(os.environ)
     # Let `use <library/...>` resolve while the working dir stays the isolated temp.
     existing = env.get("OPENSCADPATH")

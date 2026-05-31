@@ -6,8 +6,13 @@
 <title>KimCad</title>
 <style>
   :root {
+    /* UX-005: --accent darkened from #4f8cff (white-on-accent = 3.22:1, fails WCAG AA)
+       to #2f6fe0. White (#fff) on #2f6fe0 measures 4.7:1 — passes AA (>=4.5:1) for
+       button text while keeping the same blue family. --accent-bright keeps the original
+       brighter blue for non-text accents (focus rings, the 3D mesh, spinner border). */
     --bg: #0f1115; --panel: #181b22; --line: #2a2f3a; --ink: #e7ebf0;
-    --muted: #99a2b2; --accent: #4f8cff; --ok: #36c281; --warn: #e3a008; --fail: #f0506e;
+    --muted: #99a2b2; --accent: #2f6fe0; --accent-bright: #6aa1ff;
+    --ok: #36c281; --warn: #e3a008; --fail: #f0506e;
   }
   * { box-sizing: border-box; }
   body {
@@ -46,9 +51,33 @@
   .lvl { font-size: 11px; font-weight: 700; text-transform: uppercase; min-width: 46px; }
   .lvl.pass { color: var(--ok); } .lvl.warn { color: var(--warn); } .lvl.fail { color: var(--fail); }
   #viewer { width: 100%; height: 340px; background: #0b0d11; border-radius: 8px; margin-top: 14px; }
-  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent-bright); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+  /* UX-008: technical error detail is visually subordinate to the friendly message. */
+  .error-detail { font-size: 12px; color: var(--muted); margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
+  /* UX-003 / UX-006: inline validation message under the textarea. */
+  .validation { color: var(--fail); font-size: 13px; margin-top: 8px; }
+
+  /* UX-006: a clearly visible keyboard focus ring on the dark theme. */
+  button:focus-visible, textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent-bright); outline-offset: 2px;
+  }
+
+  /* UX-012: respect prefers-reduced-motion — no spin; show a static indicator instead. */
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: none; border-top-color: var(--accent-bright); }
+  }
+
+  /* UX-010: basic responsive handling — let rows wrap and widths stay flexible on
+     narrow windows. The fixed 340px viewer height is kept; only widths flex. */
+  @media (max-width: 600px) {
+    main { padding: 16px; }
+    .row { flex-wrap: wrap; align-items: stretch; }
+    .row > button { flex: 1 1 auto; }
+    .row > span { flex: 1 1 100%; }
+  }
 </style>
 </head>
 <body>
@@ -56,25 +85,31 @@
 <main>
   <div class="card">
     <label for="prompt" class="muted">Describe the part you want to print:</label>
-    <textarea id="prompt" placeholder="e.g. A wall hook with a 60 mm tall, 25 mm wide back plate, 4 mm thick, two 4 mm screw holes 30 mm apart, and a hook arm projecting 35 mm forward."></textarea>
+    <textarea id="prompt" aria-describedby="promptError" placeholder="e.g. A wall hook with a 60 mm tall, 25 mm wide back plate, 4 mm thick, two 4 mm screw holes 30 mm apart, and a hook arm projecting 35 mm forward."></textarea>
+    <!-- UX-003: inline validation message for an empty prompt. -->
+    <p id="promptError" class="validation hidden" role="alert"></p>
     <div class="row">
       <button id="go">Design it</button>
-      <span id="status" class="muted"></span>
+      <!-- UX-001: cancel the in-flight request; hidden until a request is running. -->
+      <button id="cancel" class="secondary hidden">Cancel</button>
+      <!-- UX-002: status announces progress to screen readers as it changes. -->
+      <span id="status" class="muted" role="status" aria-live="polite"></span>
     </div>
   </div>
 
-  <div id="clarify" class="card hidden">
-    <h2>One detail first</h2>
+  <!-- UX-002: results region announces and receives focus when revealed. -->
+  <div id="clarify" class="card hidden" tabindex="-1">
+    <h2 id="clarifyHeading">One detail first</h2>
     <p id="clarifyQ" class="muted"></p>
     <label for="answer" class="muted">Your answer:</label>
     <textarea id="answer" placeholder="Your answer…"></textarea>
     <div class="row"><button id="goAnswer">Continue</button></div>
   </div>
 
-  <div id="result" class="card hidden">
+  <div id="result" class="card hidden" tabindex="-1" aria-live="polite">
     <div class="row" style="justify-content: space-between; margin-top: 0;">
       <h2 id="title"></h2>
-      <span id="gateBadge" class="badge"></span>
+      <span id="gateBadge" class="badge hidden"></span>
     </div>
     <p id="summary" class="muted"></p>
     <p id="headline"></p>
@@ -90,46 +125,107 @@
     <p id="viewerNote" class="note hidden"></p>
 
     <div class="row">
-      <button id="prepare" class="secondary" disabled title="Coming in the next slice">Prepare print (G-code)</button>
-      <span class="note">G-code is generated only on explicit confirmation — wired in the next slice. The validated 3D model is ready now.</span>
+      <button id="prepare" class="secondary" disabled title="Not available yet">Send to printer (G-code)</button>
+      <!-- UX-009: user-facing copy — no dev jargon, explicit confirmation called out. -->
+      <span class="note">Your validated 3D model is ready now. Sending it to a printer (generating G-code) is coming soon, and will always ask you to confirm first.</span>
     </div>
   </div>
 
-  <div id="error" class="card hidden">
-    <h2 style="color: var(--fail);">Couldn't build that</h2>
-    <p id="errorMsg" class="muted"></p>
+  <div id="error" class="card hidden" tabindex="-1" aria-live="polite">
+    <h2 id="errorHeading" style="color: var(--fail);">We couldn't build that part</h2>
+    <!-- UX-008: friendly message is the headline; technical detail is subordinate. -->
+    <p id="errorMsg"></p>
+    <p id="errorDetail" class="error-detail hidden"></p>
   </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- three.js r128 vendored locally (served from /vendor/) so the 3D preview works offline. -->
+<script src="/vendor/three.min.js"></script>
+<script src="/vendor/STLLoader.js"></script>
+<script src="/vendor/OrbitControls.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 let lastPrompt = "";
 
+// --- request lifecycle (UX-001) ----------------------------------------------
+let controller = null;       // AbortController for the in-flight request
+let timerId = null;          // elapsed-time interval
+let startedAt = 0;
+const SOFT_THRESHOLD_MS = 8 * 60 * 1000; // 8 min: switch to reassuring copy
+
+function fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function tickStatus() {
+  const elapsed = Date.now() - startedAt;
+  const base = elapsed >= SOFT_THRESHOLD_MS
+    ? "Still working — this can take several minutes on this hardware."
+    : "Designing your part…";
+  // UX-013/015: this line is for progress only; the gate verdict lives on the result card.
+  $("status").innerHTML =
+    `<span class="spinner" aria-hidden="true"></span> ${escapeHtml(base)} (${fmtElapsed(elapsed)} elapsed)`;
+}
+
 async function design(prompt) {
-  setStatus(true, "Designing… this can take a few minutes on CPU.");
   hide("clarify"); hide("result"); hide("error");
+  controller = new AbortController();
+  startBusy();
   try {
     const res = await fetch("/api/design", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt }),
+      signal: controller.signal
     });
     const data = await res.json();
-    if (!res.ok) { showError(data.error || "Request failed."); return; }
+    if (!res.ok) {
+      // UX-008: 5xx bodies can be raw exception strings — keep a friendly headline and
+      // demote the raw text to subordinate detail. 4xx bodies are already user-friendly.
+      if (res.status >= 500) {
+        showError("We hit a problem building your part. Please try again.", data.error);
+      } else {
+        showError(data.error || "The request failed.");
+      }
+      return;
+    }
     render(data);
   } catch (e) {
-    showError("Could not reach the server: " + e.message);
+    if (e.name === "AbortError") {
+      $("status").textContent = "Cancelled.";
+      return;
+    }
+    showError("Could not reach the server.", e.message);
   } finally {
-    setStatus(false, "");
+    stopBusy();
   }
+}
+
+function startBusy() {
+  startedAt = Date.now();
+  $("go").disabled = true; $("goAnswer").disabled = true;
+  $("cancel").classList.remove("hidden");
+  document.body.setAttribute("aria-busy", "true"); // UX-002
+  tickStatus();
+  timerId = setInterval(tickStatus, 1000);
+}
+
+function stopBusy() {
+  if (timerId !== null) { clearInterval(timerId); timerId = null; }
+  controller = null;
+  $("go").disabled = false; $("goAnswer").disabled = false;
+  $("cancel").classList.add("hidden");
+  document.body.removeAttribute("aria-busy");
+  // Leave any final status text (e.g. "Cancelled.") in place; clear the spinner otherwise.
+  if ($("status").querySelector(".spinner")) $("status").textContent = "";
 }
 
 function render(data) {
   if (data.status === "clarification_needed") {
     $("clarifyQ").textContent = data.clarification || "Could you add a key dimension?";
     show("clarify");
+    focusCard("clarify"); // UX-002
     return;
   }
   if (data.status === "render_failed" || data.error && !data.report) {
@@ -142,14 +238,24 @@ function render(data) {
   $("summary").textContent = plan.summary || "";
   $("headline").textContent = report.headline || "";
 
+  // UX-014: only show the verdict badge when there's an actual verdict; no "—" glitch.
   const badge = $("gateBadge");
   const status = (report.gate_status || (data.status === "gate_failed" ? "fail" : "")).toLowerCase();
-  badge.className = "badge " + (status || "warn");
-  badge.textContent = status ? status : "—";
+  if (status) {
+    badge.className = "badge " + status;
+    badge.textContent = status;
+    badge.classList.remove("hidden");
+  } else {
+    badge.className = "badge hidden";
+    badge.textContent = "";
+  }
 
+  // UX-011: a passing gate may legitimately have no findings — say so, don't render blank.
+  const gatePassed = status === "pass" || (!status && data.status === "completed");
   renderDims(report.dims || []);
-  renderFindings(report.findings || []);
+  renderFindings(report.findings || [], gatePassed);
   show("result");
+  focusCard("result"); // UX-002: move focus to the result card (its heading reads first)
 
   if (data.mesh_url) showModel(data.mesh_url);
   else viewerFallback("No 3D model was produced.");
@@ -168,8 +274,17 @@ function renderDims(dims) {
   $("dimsTable").classList.remove("hidden");
 }
 
-function renderFindings(findings) {
+function renderFindings(findings, gatePassed) {
   const ul = $("findings"); ul.innerHTML = "";
+  if (!findings.length) {
+    // UX-011: don't render a blank list — give an affirmative when the gate is clean.
+    if (gatePassed) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="lvl pass">OK</span><span class="muted">No printability issues found.</span>`;
+      ul.appendChild(li);
+    }
+    return;
+  }
   for (const f of findings) {
     const li = document.createElement("li");
     const lvl = (f.level || "").toLowerCase();
@@ -184,7 +299,10 @@ let renderer, scene, camera, controls, animating = false;
 function showModel(url) {
   $("viewerNote").classList.add("hidden");
   if (typeof THREE === "undefined" || !THREE.STLLoader) {
-    viewerFallback("3D preview unavailable (viewer failed to load). The model is still saved.");
+    // The viewer is vendored locally; if it didn't load, the browser likely lacks WebGL.
+    viewerFallback("The 3D preview couldn't start (your browser may not support WebGL). " +
+      "Your model was still generated, saved, and validated — only the on-screen preview " +
+      "is unavailable.");
     return;
   }
   try {
@@ -229,23 +347,48 @@ function viewerFallback(msg) {
 }
 
 // --- helpers ------------------------------------------------------------------
-function setStatus(busy, msg) {
-  $("go").disabled = busy; $("goAnswer").disabled = busy;
-  $("status").innerHTML = busy ? `<span class="spinner"></span> ${escapeHtml(msg)}` : "";
-}
 function show(id) { $(id).classList.remove("hidden"); }
 function hide(id) { $(id).classList.add("hidden"); }
-function showError(msg) { $("errorMsg").textContent = msg; show("error"); }
+
+// UX-002: move keyboard focus to a revealed card / its heading.
+function focusCard(id) {
+  const el = $(id);
+  if (el && typeof el.focus === "function") {
+    try { el.focus({ preventScroll: false }); } catch (_) { el.focus(); }
+  }
+}
+
+// UX-008: friendly message is prominent; any technical detail is shown subordinate.
+function showError(msg, detail) {
+  $("errorMsg").textContent = msg || "Something went wrong while building your part.";
+  const d = $("errorDetail");
+  if (detail) { d.textContent = "Technical detail: " + detail; d.classList.remove("hidden"); }
+  else { d.textContent = ""; d.classList.add("hidden"); }
+  show("error");
+  focusCard("error");
+}
+
 function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+
+// UX-003: empty-prompt validation — inline message + focus back to the textarea.
+function showPromptError(msg) {
+  const e = $("promptError");
+  e.textContent = msg; e.classList.remove("hidden");
+  $("prompt").focus();
+}
+function clearPromptError() { $("promptError").classList.add("hidden"); $("promptError").textContent = ""; }
 
 $("go").addEventListener("click", () => {
   lastPrompt = $("prompt").value.trim();
-  if (lastPrompt) design(lastPrompt);
+  if (!lastPrompt) { showPromptError("Please describe the part you want to print."); return; }
+  clearPromptError();
+  design(lastPrompt);
 });
 $("goAnswer").addEventListener("click", () => {
   const ans = $("answer").value.trim();
   if (ans) design(lastPrompt + "\n\nAdditional detail: " + ans);
 });
+$("cancel").addEventListener("click", () => { if (controller) controller.abort(); });
 </script>
 </body>
 </html>

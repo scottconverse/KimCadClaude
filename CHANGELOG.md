@@ -16,7 +16,7 @@ All notable changes to KimCad are documented here. Format follows
   DeepSeek, and any OpenAI-compatible endpoint.
 - Local-first posture: defaults to a local runtime (Ollama, `gemma4:e4b`); cloud
   backends are opt-in via `config/local.yaml`, no API key required out of the box.
-- OpenSCAD code-generation system prompt and a five-module seed library
+- OpenSCAD code-generation system prompt and a five-file seed library
   (box, bracket, fasteners, fillets, mounts) injected into the prompt.
 - Sandboxed OpenSCAD subprocess runner with native 3MF output (STL fallback).
 - Trimesh mesh-validation pipeline and a Printability Gate (pass / warn / fail)
@@ -32,10 +32,12 @@ All notable changes to KimCad are documented here. Format follows
 - Verified, checksum-pinned Windows OrcaSlicer build (v2.4.0-alpha) with end-to-end
   slice proof: a real generated part slices to a valid G-code-bearing 3MF on the
   Bambu P2S profile.
-- Parametric library expansion — eight new modules covering the Appendix-B part families
-  that previously had to be hand-built: wall and pegboard hooks, cable clip, closed box /
-  two-part enclosure / tube, spool holder, and drawer divider. Each renders watertight at
-  an exact, documented bounding box, with render and contract tests.
+- Parametric library expansion — eight new modules across five new files covering the
+  Appendix-B part families that previously had to be hand-built: wall and pegboard hooks
+  (hooks.scad), cable clip (clips.scad), closed box / two-part enclosure / tube
+  (containers.scad), spool holder (holders.scad), and drawer divider (organizers.scad).
+  That brings the library to ten .scad files in all. Each module renders watertight at an
+  exact, documented bounding box, with render and contract tests.
 - Phase-2 web UI first slice (`kimcad web`): a dependency-free local browser app —
   describe → design plan → printability verdict → target-vs-actual dimensions → 3D preview
   — driven by the real pipeline. `--demo` serves a sample part with no model call.

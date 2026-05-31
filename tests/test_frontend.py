@@ -1,0 +1,86 @@
+"""TEST-003: static frontend-contract checks for the web UI.
+
+The page (src/kimcad/web/index.html) is plain HTML + vanilla JS served as-is, with no
+build step and no JS test runner. A cheap regret is the JS and the markup drifting:
+the script grabbing an element id that no longer exists, or the backend renaming a
+response field the script still reads. These checks read the file and assert, by simple
+string/regex presence, that:
+
+  1. every element id the JS manipulates (via getElementById / the $() helper) is
+     actually declared as id="..." somewhere in the markup; and
+  2. every field the backend's design_response/_report_payload puts on the wire is
+     referenced by name in the JS — i.e. the frontend consumes the documented contract.
+
+Kept deliberately robust: presence checks, not DOM parsing or execution, so cosmetic
+edits don't make it brittle, but a real break (renamed id or dropped field) trips it.
+"""
+
+from __future__ import annotations
+
+import re
+
+from kimcad.webapp import WEB_DIR
+
+_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+
+# Split markup from script so we can check ids against the markup, and field names
+# against the JS, without one masking the other.
+_SCRIPT_MATCH = re.search(r"<script>(.*?)</script>", _HTML, re.DOTALL)
+assert _SCRIPT_MATCH, "index.html should contain an inline <script> block"
+_JS = _SCRIPT_MATCH.group(1)
+_MARKUP = _HTML[: _SCRIPT_MATCH.start()]
+
+
+def test_index_html_exists_and_has_script():
+    assert (WEB_DIR / "index.html").exists()
+    assert "getElementById" in _JS
+    assert "fetch(\"/api/design\"" in _JS
+
+
+def test_every_js_element_id_exists_in_markup():
+    """Each id passed to $() / getElementById must be declared as id="..." in markup."""
+    # The helper is `const $ = (id) => document.getElementById(id);`, then used as $("foo").
+    referenced = set(re.findall(r'\$\(\s*"([A-Za-z0-9_-]+)"\s*\)', _JS))
+    referenced |= set(re.findall(r'getElementById\(\s*"([A-Za-z0-9_-]+)"\s*\)', _JS))
+    # Drop the helper's own parameter name if it slipped in (it won't, but be safe).
+    referenced.discard("id")
+    assert referenced, "expected the JS to reference at least one element id"
+
+    declared = set(re.findall(r'id="([A-Za-z0-9_-]+)"', _MARKUP))
+    missing = sorted(referenced - declared)
+    assert not missing, f"JS references ids absent from the markup: {missing}"
+
+
+def test_js_consumes_documented_response_fields():
+    """Every field the backend sends must be read somewhere in the JS.
+
+    Fields come from webapp.design_response (status, clarification, plan, report, error,
+    mesh_url, has_mesh), _plan_payload (object_type, summary), and _report_payload
+    (gate_status, headline, dims, findings). The JS must reference each by name so the
+    page actually renders the contract rather than silently dropping a field.
+    """
+    required_fields = [
+        # top-level PipelineResult mapping
+        "status",
+        "clarification",
+        "plan",
+        "report",
+        "error",
+        "mesh_url",
+        # plan payload
+        "object_type",
+        "summary",
+        # report payload
+        "gate_status",
+        "headline",
+        "dims",
+        "findings",
+    ]
+    missing = [f for f in required_fields if not re.search(rf"\b{re.escape(f)}\b", _JS)]
+    assert not missing, f"frontend JS does not reference backend fields: {missing}"
+
+
+def test_status_values_handled_by_frontend():
+    """The four PipelineStatus values the backend can return must each be handled."""
+    for status_value in ("clarification_needed", "render_failed", "gate_failed", "completed"):
+        assert status_value in _JS, f"frontend does not handle status={status_value}"

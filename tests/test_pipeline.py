@@ -2,57 +2,15 @@ from pathlib import Path
 
 import trimesh
 
-from kimcad.config import Config, Material, Printer
+from kimcad.config import Config
 from kimcad.ir import DesignPlan
-from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
+from kimcad.openscad_runner import RenderResult, SanitizeResult
 from kimcad.pipeline import Pipeline, PipelineStatus
 
-BAMBU = Printer(
-    key="bambu_p2s",
-    name="Bambu Lab P2S",
-    build_volume=(256, 256, 256),
-    nozzle_diameter=0.4,
-)
-PLA = Material(
-    key="pla", name="PLA", nozzle_temp=210, bed_temp=55, wall_multiplier=2.0, shrinkage=0.002
-)
-
-
-class FakeProvider:
-    def __init__(self, plan: DesignPlan, scad: str = "use <library/box.scad>;\nbox(20,20,20);"):
-        self._plan = plan
-        self._scad = scad
-        self.design_calls = 0
-        self.openscad_calls = 0
-
-    def generate_design_plan(self, prompt, printer, material, history=None):
-        self.design_calls += 1
-        return self._plan
-
-    def generate_openscad(self, plan, printer, material, history=None):
-        self.openscad_calls += 1
-        return self._scad
-
-
-def _box_renderer(extents, *, fail_times=0):
-    state = {"n": 0}
-
-    def render(scad, out_dir: Path, basename: str) -> RenderResult:
-        state["n"] += 1
-        if state["n"] <= fail_times:
-            raise RenderFailed(1, "synthetic render failure")
-        path = out_dir / f"{basename}.stl"
-        trimesh.creation.box(extents=extents).export(str(path))
-        return RenderResult(
-            output_path=path,
-            output_format="stl",
-            stdout="",
-            stderr="",
-            duration_s=0.01,
-            sanitize=SanitizeResult(code=scad, removed=[]),
-        )
-
-    return render, state
+# TEST-007: FakeProvider, the box renderer, and BAMBU/PLA are hoisted into conftest.py
+# and shared with test_webapp.py. The local aliases keep every test body below unchanged.
+from conftest import BAMBU, PLA, FakeProvider
+from conftest import box_renderer as _box_renderer
 
 
 def _resizing_renderer(extents_sequence):
