@@ -130,6 +130,12 @@
     <div id="viewer"></div>
     <p id="viewerNote" class="note hidden"></p>
 
+    <!-- Export fallback: the validated model is always downloadable, even when a printer
+         can't yet produce G-code. -->
+    <p id="downloadRow" class="note hidden">
+      <a id="downloadModel" href="#" download="kimcad-model.stl">Download 3D model (STL)</a>
+    </p>
+
     <!-- Send-to-printer: pick a printer + material, then explicitly confirm before any
          G-code is produced. Slicing runs on the already-validated mesh — no re-design. -->
     <div id="printSection" class="row hidden" style="flex-wrap: wrap; align-items: flex-end;">
@@ -289,6 +295,9 @@ function render(data) {
   if (data.mesh_url) {
     showModel(data.mesh_url);
     lastRid = parseRid(data.mesh_url);
+    // Export fallback: the validated model is always downloadable.
+    $("downloadModel").href = data.mesh_url;
+    show("downloadRow");
     // Offer send-to-printer only for a part that actually passed the gate.
     if (lastRid !== null && optionsData && gatePassed) { show("printSection"); updatePrintableHint(); }
   } else {
@@ -302,6 +311,7 @@ function parseRid(url) { const m = (url || "").match(/\/api\/mesh\/(\d+)/); retu
 
 function resetPrintUI() {
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
+  hide("downloadRow");
   $("printResult").textContent = "";
 }
 

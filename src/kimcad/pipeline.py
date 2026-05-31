@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from kimcad.config import Config, Material, Printer
+from kimcad.hardening import HardenReport, harden_mesh
 from kimcad.ir import DesignPlan, first_clarification
 from kimcad.llm_provider import LLMProvider
 from kimcad.openscad_runner import (
@@ -122,6 +123,9 @@ class PrintReport:
     orientation: str
     orientation_stability: float
     sanitizer_removed: list[str]
+    # Pre-slice mesh hardening (Manifold3D); the exported/sliced mesh is the hardened one.
+    hardened: bool = False
+    harden_summary: str = ""
     # Slice outcome (populated only when a print was confirmed and sliced).
     sliced: bool = False
     gcode_path: str | None = None
@@ -149,6 +153,8 @@ class PrintReport:
             + (f" (repaired: {'; '.join(self.repairs)})" if self.repaired else ""),
             f"Orientation: {self.orientation} (stability {self.orientation_stability:.2f})",
         ]
+        if self.harden_summary:
+            lines.append(f"Hardening: {self.harden_summary}")
         if self.sliced:
             detail = f" ({self.gcode_lines} G-code lines)" if self.gcode_lines else ""
             lines.append(f"Slice: G-code produced{detail} -> {self.gcode_path}")
@@ -274,10 +280,14 @@ class Pipeline:
             )
 
         oriented, orientation = auto_orient(mesh)
+        # Harden the oriented mesh into a guaranteed manifold before it is exported and
+        # sliced; the exported .oriented.stl (also the download fallback) is the hardened
+        # mesh, so a clean part goes to the slicer and to the user.
+        hardened, harden_report = harden_mesh(oriented)
         mesh_path = out_dir / f"{basename}.oriented.stl"
-        oriented.export(str(mesh_path))
+        hardened.export(str(mesh_path))
 
-        report = self._build_report(plan, render, mesh_report, gate, orientation)
+        report = self._build_report(plan, render, mesh_report, gate, orientation, harden_report)
 
         if gate.status is Level.FAIL and not proceed_anyway:
             return PipelineResult(
@@ -415,6 +425,7 @@ class Pipeline:
         mesh_report: MeshReport,
         gate: GateResult,
         orientation: Orientation,
+        harden_report: HardenReport | None = None,
     ) -> PrintReport:
         headline = next((f.message for f in gate.findings if f.code.startswith("dim.")), "")
         return PrintReport(
@@ -435,4 +446,6 @@ class Pipeline:
             orientation=orientation.description,
             orientation_stability=orientation.stability,
             sanitizer_removed=render.sanitize.removed,
+            hardened=bool(harden_report and harden_report.ok),
+            harden_summary=harden_report.summary() if harden_report else "",
         )

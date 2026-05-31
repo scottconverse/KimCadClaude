@@ -150,6 +150,25 @@ def test_gate_retry_fails_closed_after_budget(tmp_path):
     assert result.report is not None
 
 
+def test_run_hardens_mesh_before_export(tmp_path):
+    # Slice 4: the oriented mesh is hardened (Manifold3D) before export/slice, and the
+    # report says so. manifold3d is a declared dependency, so this runs in CI/target.
+    import pytest
+
+    try:
+        import manifold3d  # noqa: F401
+    except ImportError:  # pragma: no cover
+        pytest.skip("manifold3d not installed")
+
+    provider = FakeProvider(_plan([20, 20, 20]))
+    renderer, _ = _box_renderer((20, 20, 20))
+    r = _pipeline(provider, renderer).run("a block", tmp_path)
+    assert r.status is PipelineStatus.completed
+    assert r.report.hardened is True
+    assert "manifold3d" in r.report.harden_summary
+    assert r.mesh_path.exists()  # the hardened mesh was exported
+
+
 def test_proceed_anyway_skips_gate_retry(tmp_path):
     # proceed_anyway means the caller accepted the gate result; don't burn retries.
     provider = FakeProvider(_plan([50, 50, 50]))
