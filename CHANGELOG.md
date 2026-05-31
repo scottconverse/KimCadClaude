@@ -98,8 +98,8 @@ All notable changes to KimCad are documented here. Format follows
   release carrying the Bambu P2S profile, but it segfaults on every CLI slice on a
   GPU-less machine (upstream issue #12906). 2.4.0-alpha fixes that and ships the same
   P2S profile, so it is pinned until a 2.4.x stable with the fix is released.
-- Printer sliceability: the Bambu P2S and A1 are fully sliceable (machine + process +
-  filament profiles all ship). The Elegoo Neptune 4 Max ships a machine + filament
-  profile but **no process profile**, so it is selectable but not yet sliceable; slicing
-  for it reports the gap cleanly and the validated model is still produced. Sourcing the
-  Elegoo process profile is tracked in ROADMAP.
+- Printer sliceability: all three of Kim's printers — Bambu P2S, Bambu A1, and Elegoo
+  Neptune 4 Max — are fully sliceable (machine + process + filament profiles all ship)
+  and proven end to end against the bundled OrcaSlicer. The Elegoo's process profiles
+  ship under the name `Neptune4Max` (no spaces) while its machine profile uses
+  `Neptune 4 Max` (with spaces); resolving the right name is the only subtlety.

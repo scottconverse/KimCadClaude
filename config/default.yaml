@@ -79,10 +79,9 @@ printers:
     build_volume: [420, 420, 480]
     nozzle_diameter: 0.4
     orca_machine_profile: "Elegoo Neptune 4 Max (0.4 nozzle)"
-    # NOTE: the shipped OrcaSlicer build has a machine + filament for the Neptune 4 Max
-    # but no matching *process* profile, so slicing for this printer is not yet wired —
-    # its process profile must be sourced. Bambu P2S/A1 are the sliceable path for now.
-    orca_process_profile: null
+    # The shipped OrcaSlicer names this printer's *machine* profile with spaces
+    # ("Neptune 4 Max") but its *process* profiles without ("Neptune4Max"); both ship.
+    orca_process_profile: "0.20mm Standard @Elegoo Neptune4Max (0.4 nozzle)"
     orca_filament_profiles:
       pla: "Generic PLA @Elegoo"
     reference_hardware: true          # target hardware (validated in the final beta, not yet)

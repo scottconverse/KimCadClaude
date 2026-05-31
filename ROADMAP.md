@@ -61,11 +61,11 @@ No installer, no printer connectivity, no image input, no real print.
   (the model/codegen step is stubbed with a fake provider; everything after it is live).
 **Exit:** ✅ confirm a part → verified non-empty G-code with an estimate, multiple part types.
 **Needs:** target box. **Size:** ~1 week.
-> **Known limitation (carried forward):** the shipped OrcaSlicer has a machine + filament
-> profile for the **Elegoo Neptune 4 Max** but no matching **process** profile, so it is
-> selectable but not yet sliceable — slicing for it reports the gap cleanly and the validated
-> model is still produced. Sourcing/authoring the Elegoo process profile is a Stage 3
-> (printer-coverage) task; it does not block the Bambu P2S / A1 path.
+> **All three of Kim's printers are sliceable and proven** (Bambu P2S, Bambu A1, Elegoo
+> Neptune 4 Max), each via a live end-to-end slice through the bundled OrcaSlicer. (Earlier
+> notes here wrongly called the Elegoo unsliceable; that was a profile-name search miss —
+> OrcaSlicer names the Elegoo's process profiles `Neptune4Max` without spaces while the
+> machine profile uses `Neptune 4 Max` with spaces. The profiles ship; they're now wired.)
 
 ## Stage 2 — Send-to-printer connector + MCP (software-complete, hardware-deferred)
 **Goal:** the full send path exists and is tested — live printing waits for Kim's beta.

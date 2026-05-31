@@ -10,7 +10,8 @@ and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output. 
 CAD skills required, and the core path runs CPU-only — no discrete GPU.
 
 > Status: **early development.** The deterministic pipeline, the gated G-code export
-> (CLI `--slice` and the web UI), and Manifold3D mesh hardening are in. Real-hardware
+> (CLI `--slice` and the web UI) proven against all three of Kim's printers (Bambu P2S,
+> Bambu A1, Elegoo Neptune 4 Max), and Manifold3D mesh hardening are in. Real-hardware
 > print validation on Kim's printers is the final stage — see ROADMAP.
 
 ## What it does
@@ -99,10 +100,10 @@ kimcad "a 40 mm cable clip" --printer bambu_a1 --material pla --slice
 ```
 
 The report then names the exact OrcaSlicer machine/process/filament profiles used and
-the proven G-code line count. Kim's Bambu P2S and A1 are fully sliceable; the Elegoo
-Neptune 4 Max is selectable but not yet sliceable (the shipped OrcaSlicer has its
-machine + filament profiles but no matching process profile — see ROADMAP), so a slice
-for it reports that cleanly and the validated model is still produced.
+the proven G-code line count. All three of Kim's printers — the Bambu P2S, the Bambu A1,
+and the Elegoo Neptune 4 Max — are fully sliceable and proven end to end against the
+bundled OrcaSlicer. (If a printer were ever configured without a process profile, a
+slice for it reports that cleanly and the validated model is still produced.)
 
 ### Web UI (Phase 2, early)
 
