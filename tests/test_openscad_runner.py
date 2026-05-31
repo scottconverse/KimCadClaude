@@ -89,32 +89,62 @@ def test_sanitize_keeps_approved_library_use():
     assert result.removed == []
 
 
-def _live_lines(code: str) -> list[str]:
-    """Source lines that OpenSCAD would actually execute (comments dropped)."""
-    return [ln for ln in code.splitlines() if not ln.lstrip().startswith("//")]
-
-
-def test_sanitize_strips_foreign_use_and_import():
+def test_sanitize_blocks_foreign_use_and_import():
     code = 'use <library/box.scad>;\nuse </etc/secrets.scad>;\nimport("/etc/passwd");\ncube(5);'
     result = sanitize_scad(code)
-    assert result.safe  # stripping is not fatal
+    assert not result.safe  # dangerous code is blocked, not silently stripped
+    assert any("/etc/secrets.scad" in b for b in result.blocked)
+    assert any("import" in b for b in result.blocked)
+    # the approved library use does not trip the gate; geometry is preserved (not destroyed)
     assert "use <library/box.scad>;" in result.code
-    live = "\n".join(_live_lines(result.code))
-    assert "/etc/secrets.scad" not in live
-    assert "/etc/passwd" not in live
-    assert len(result.removed) == 2
+    assert "cube(5);" in result.code
 
 
 def test_sanitize_blocks_path_traversal_use():
     result = sanitize_scad("use <library/../../../etc/passwd.scad>;")
-    assert "etc/passwd" not in "\n".join(_live_lines(result.code))
-    assert len(result.removed) == 1
+    assert not result.safe
+    assert any("passwd" in b for b in result.blocked)
 
 
 def test_sanitize_blocks_minkowski():
     result = sanitize_scad("minkowski() { cube(10); sphere(2); }")
     assert not result.safe
     assert any("minkowski" in b for b in result.blocked)
+
+
+# --- adversarial: a dangerous construct split across newlines must not slip past ---
+
+
+def test_sanitize_blocks_multiline_minkowski():
+    result = sanitize_scad("minkowski\n() {\n cube(10); sphere(2);\n}")
+    assert not result.safe
+    assert any("minkowski" in b for b in result.blocked)
+
+
+def test_sanitize_blocks_multiline_import():
+    result = sanitize_scad('import\n(\n"/etc/passwd"\n);')
+    assert not result.safe
+    assert any("import" in b for b in result.blocked)
+
+
+def test_sanitize_blocks_multiline_foreign_use():
+    result = sanitize_scad("use\n</etc/secrets.scad>\ncube(1);")
+    assert not result.safe
+    assert any("secrets" in b for b in result.blocked)
+
+
+def test_sanitize_ignores_construct_inside_a_comment():
+    # A mention of minkowski/import in a comment is not executable and must not block.
+    assert sanitize_scad("// minkowski() is expensive\ncube(10);").safe
+    assert sanitize_scad("/* import('x') here */\ncube(10);").safe
+
+
+def test_sanitize_preserves_geometry_when_blocking():
+    # ENG-002: a blocked construct on a line with real geometry must not destroy that
+    # geometry — we block the whole render and re-prompt instead of stripping the line.
+    result = sanitize_scad('cube(10); import("x"); sphere(5);')
+    assert not result.safe
+    assert "cube(10)" in result.code and "sphere(5)" in result.code
 
 
 def test_render_refuses_blocked_code(tmp_path):
