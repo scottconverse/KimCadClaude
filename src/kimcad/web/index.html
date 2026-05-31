@@ -28,6 +28,12 @@
     width: 100%; min-height: 76px; resize: vertical; background: #11141a; color: var(--ink);
     border: 1px solid var(--line); border-radius: 8px; padding: 12px; font: inherit;
   }
+  select {
+    background: #11141a; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font: inherit; min-width: 180px;
+  }
+  label.field { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+  a { color: var(--accent-bright); }
   .row { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
   button {
     background: var(--accent); color: #fff; border: 0; border-radius: 8px;
@@ -124,11 +130,31 @@
     <div id="viewer"></div>
     <p id="viewerNote" class="note hidden"></p>
 
-    <div class="row">
-      <button id="prepare" class="secondary" disabled title="Not available yet">Send to printer (G-code)</button>
-      <!-- UX-009: user-facing copy — no dev jargon, explicit confirmation called out. -->
-      <span class="note">Your validated 3D model is ready now. Sending it to a printer (generating G-code) is coming soon, and will always ask you to confirm first.</span>
+    <!-- Send-to-printer: pick a printer + material, then explicitly confirm before any
+         G-code is produced. Slicing runs on the already-validated mesh — no re-design. -->
+    <div id="printSection" class="row hidden" style="flex-wrap: wrap; align-items: flex-end;">
+      <div>
+        <label class="field" for="printerSel">Printer</label>
+        <select id="printerSel"></select>
+      </div>
+      <div>
+        <label class="field" for="materialSel">Material</label>
+        <select id="materialSel"></select>
+      </div>
+      <button id="prepare" class="secondary">Send to printer (G-code)…</button>
     </div>
+    <p id="printableHint" class="note hidden"></p>
+
+    <!-- UX-009: explicit confirmation step before generating a print job. -->
+    <div id="confirmPrint" class="card hidden" tabindex="-1" style="margin-top: 14px;">
+      <p id="confirmPrintMsg"></p>
+      <div class="row">
+        <button id="confirmPrintYes">Yes, generate G-code</button>
+        <button id="confirmPrintNo" class="secondary">Cancel</button>
+      </div>
+    </div>
+
+    <div id="printResult" class="note hidden" aria-live="polite"></div>
   </div>
 
   <div id="error" class="card hidden" tabindex="-1" aria-live="polite">
@@ -146,6 +172,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let lastPrompt = "";
+let lastRid = null;          // mesh id of the most recent successful design
+let optionsData = null;      // printer/material choices from /api/options
 
 // --- request lifecycle (UX-001) ----------------------------------------------
 let controller = null;       // AbortController for the in-flight request
@@ -257,8 +285,92 @@ function render(data) {
   show("result");
   focusCard("result"); // UX-002: move focus to the result card (its heading reads first)
 
-  if (data.mesh_url) showModel(data.mesh_url);
-  else viewerFallback("No 3D model was produced.");
+  resetPrintUI();
+  if (data.mesh_url) {
+    showModel(data.mesh_url);
+    lastRid = parseRid(data.mesh_url);
+    // Offer send-to-printer only for a part that actually passed the gate.
+    if (lastRid !== null && optionsData && gatePassed) { show("printSection"); updatePrintableHint(); }
+  } else {
+    viewerFallback("No 3D model was produced.");
+    lastRid = null;
+  }
+}
+
+// --- send to printer (G-code) -------------------------------------------------
+function parseRid(url) { const m = (url || "").match(/\/api\/mesh\/(\d+)/); return m ? m[1] : null; }
+
+function resetPrintUI() {
+  hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
+  $("printResult").textContent = "";
+}
+
+async function loadOptions() {
+  try {
+    const res = await fetch("/api/options");
+    if (!res.ok) return;
+    optionsData = await res.json();
+    fillSelect($("printerSel"), optionsData.printers, optionsData.default_printer,
+      (p) => p.sliceable ? p.name : p.name + " — no G-code profile yet");
+    fillSelect($("materialSel"), optionsData.materials, optionsData.default_material, (m) => m.name);
+    updatePrintableHint();
+  } catch (_) { /* options are optional; send-to-printer just stays hidden */ }
+}
+
+function fillSelect(sel, items, defKey, labelFn) {
+  sel.innerHTML = "";
+  for (const it of (items || [])) {
+    const o = document.createElement("option");
+    o.value = it.key; o.textContent = labelFn(it);
+    if (it.key === defKey) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+function selectedPrinter() {
+  return ((optionsData && optionsData.printers) || []).find((p) => p.key === $("printerSel").value);
+}
+
+function updatePrintableHint() {
+  const p = selectedPrinter();
+  const ok = !p || p.sliceable;
+  $("prepare").disabled = !ok;
+  const hint = $("printableHint");
+  if (ok) { hide("printableHint"); }
+  else {
+    hint.textContent = `${p.name} doesn't have a print (G-code) profile yet — pick another printer to generate G-code. Your validated model is still available above.`;
+    show("printableHint");
+  }
+}
+
+async function doSlice() {
+  hide("confirmPrint");
+  if (lastRid === null) return;
+  const printer = $("printerSel").value, material = $("materialSel").value;
+  show("printResult");
+  $("printResult").textContent = "Generating G-code… this can take a moment.";
+  try {
+    const res = await fetch(`/api/slice/${lastRid}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ printer, material })
+    });
+    const data = await res.json();
+    if (!res.ok) { $("printResult").textContent = data.error || "Generating G-code failed."; return; }
+    if (data.sliced) {
+      const prof = data.profiles || {};
+      const lines = (data.gcode_lines != null) ? data.gcode_lines : "?";
+      $("printResult").innerHTML =
+        `<strong>Print job ready</strong> (${lines} G-code lines) for ` +
+        `${escapeHtml(data.printer || "")} + ${escapeHtml(data.material || "")}.<br>` +
+        `<span class="muted">machine: ${escapeHtml(prof.machine || "")} · ` +
+        `process: ${escapeHtml(prof.process || "")} · filament: ${escapeHtml(prof.filament || "")}</span><br>` +
+        `<a href="${escapeHtml(data.gcode_url || "#")}" download>Download print job (.gcode.3mf)</a>`;
+    } else {
+      $("printResult").textContent = "Can't generate G-code for this printer yet: " + (data.note || "no profile.");
+    }
+  } catch (e) {
+    $("printResult").textContent = "Could not reach the server: " + e.message;
+  }
 }
 
 function renderDims(dims) {
@@ -389,6 +501,24 @@ $("goAnswer").addEventListener("click", () => {
   if (ans) design(lastPrompt + "\n\nAdditional detail: " + ans);
 });
 $("cancel").addEventListener("click", () => { if (controller) controller.abort(); });
+
+// Send-to-printer: select printer/material, confirm explicitly, then slice.
+$("printerSel").addEventListener("change", updatePrintableHint);
+$("prepare").addEventListener("click", () => {
+  const p = selectedPrinter();
+  const printerName = p ? p.name : $("printerSel").value;
+  const matOpt = $("materialSel").selectedOptions[0];
+  const materialName = matOpt ? matOpt.textContent : $("materialSel").value;
+  $("confirmPrintMsg").textContent =
+    `Generate printable G-code for ${printerName} + ${materialName}? ` +
+    `This produces a print job you can download.`;
+  show("confirmPrint");
+  focusCard("confirmPrint");
+});
+$("confirmPrintNo").addEventListener("click", () => hide("confirmPrint"));
+$("confirmPrintYes").addEventListener("click", doSlice);
+
+loadOptions();
 </script>
 </body>
 </html>
