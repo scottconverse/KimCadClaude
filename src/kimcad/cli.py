@@ -72,6 +72,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="After a passing gate, also slice the part into a printable G-code 3MF "
         "for the chosen printer + material (explicit print confirmation).",
     )
+    d.add_argument(
+        "--send",
+        default=None,
+        metavar="CONNECTOR",
+        help="Slice, then send the print job to a configured connector by name "
+        "(e.g. 'mock' or 'octoprint'). This is the explicit per-send confirmation.",
+    )
 
     w = sub.add_parser("web", help="Launch the local web UI (Phase 2).")
     w.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1).")
@@ -142,15 +149,48 @@ def _slice_intent(config: Config, printer: Any, material: Any) -> str:
     )
 
 
+def _send_print_job(config: Config, connector_name: str, gcode_path: str) -> None:
+    """Build the named connector and send the sliced G-code, then print the job + printer
+    status. Any connector problem (unknown/offline/auth/refused) is shown plainly with the
+    on-disk G-code as the fallback — never a traceback."""
+    from pathlib import Path as _Path
+
+    from kimcad.connectors import build_connector
+    from kimcad.printer_connector import ConnectorError
+
+    try:
+        connector = build_connector(config, connector_name)
+        job = connector.send(_Path(gcode_path), confirm=True)
+    except ConnectorError as e:
+        print(f"\nNot sent to {connector_name}: {e}")
+        print(f"Your G-code is still on disk: {gcode_path}")
+        return
+    print(f"\nSent to {connector_name}: job {job.job_id} ({job.state.value}).")
+    try:
+        st = connector.status()
+        detail = f" — {st.detail}" if st.detail else ""
+        print(f"  Printer: {st.state.value}{detail}")
+    except ConnectorError as e:
+        print(f"  (couldn't read printer status: {e})")
+
+
 def _cmd_design(config: Config, args: argparse.Namespace) -> int:
+    # --send implies slicing (you can't send what wasn't sliced); validate the connector
+    # up front so a typo fails fast, not after a multi-minute run.
+    do_slice = args.do_slice or bool(args.send)
+    if args.send and args.send not in config.connectors():
+        known = ", ".join(config.connectors()) or "(none configured)"
+        print(f"Unknown connector '{args.send}'. Configured connectors: {known}")
+        return 2
+
     pipeline = _build_pipeline(config, args)
-    if args.do_slice:
+    if do_slice:
         print(_slice_intent(config, pipeline.printer, pipeline.material))
     result = pipeline.run(
         args.prompt,
         Path(args.out),
         proceed_anyway=args.proceed_anyway,
-        confirm_print=args.do_slice,
+        confirm_print=do_slice,
     )
 
     from kimcad.pipeline import PipelineStatus
@@ -166,6 +206,11 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     if result.status is PipelineStatus.gate_failed:
         print("\nPrintability Gate FAILED. Re-run with --proceed-anyway to override.")
         return 5
+    if args.send:
+        if result.report is not None and result.report.sliced and result.report.gcode_path:
+            _send_print_job(config, args.send, result.report.gcode_path)
+        else:
+            print(f"\nNothing to send to {args.send}: no G-code was produced.")
     print(f"\nMesh: {result.mesh_path}")
     return 0
 

@@ -63,6 +63,17 @@ class LLMBackend:
     timeout_s: float = 1200.0
 
 
+@dataclass(frozen=True)
+class ConnectorConfig:
+    """A named send-to-printer target. The API key is read from ``api_key_env`` at use
+    time and is never stored in config."""
+
+    name: str
+    type: str  # "loopback" | "octoprint" | …
+    base_url: str | None = None
+    api_key_env: str | None = None
+
+
 def _deep_merge(base: dict, overlay: dict) -> dict:
     out = dict(base)
     for k, v in overlay.items():
@@ -135,6 +146,19 @@ class Config:
             bed_temp=int(m["bed_temp"]),
             wall_multiplier=float(m["wall_multiplier"]),
             shrinkage=float(m["shrinkage"]),
+        )
+
+    # --- connectors (send-to-printer) --------------------------------------
+    def connectors(self) -> list[str]:
+        return list(self._d.get("connectors", {}))
+
+    def connector_config(self, name: str) -> ConnectorConfig:
+        c = self._d.get("connectors", {})[name]
+        return ConnectorConfig(
+            name=name,
+            type=c["type"],
+            base_url=c.get("base_url"),
+            api_key_env=c.get("api_key_env"),
         )
 
     # --- llm ----------------------------------------------------------------
