@@ -206,13 +206,13 @@ def test_slice_only_with_confirmation(tmp_path):
 
 
 def test_slice_refusal_is_reported_not_raised(tmp_path):
-    """A slicer that refuses (e.g. a printer with no process profile) must not blow up
-    the run: the part still completes with an exported mesh and a slice_note explaining
-    why no G-code was produced (the Elegoo case)."""
+    """A slicer that refuses (e.g. a printer configured with no process profile) must not
+    blow up the run: the part still completes with an exported mesh and a slice_note
+    explaining why no G-code was produced."""
     from kimcad.slicer import OrcaProfileError
 
     def refusing_slicer(mesh_path, out_dir, basename):
-        raise OrcaProfileError("printer 'elegoo' has no OrcaSlicer process profile")
+        raise OrcaProfileError("printer 'x' has no OrcaSlicer process profile")
 
     provider = FakeProvider(_plan([20, 20, 20]))
     renderer, _ = _box_renderer((20, 20, 20))

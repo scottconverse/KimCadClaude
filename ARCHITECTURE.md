@@ -51,8 +51,9 @@ slices on a separate confirmed `POST /api/slice/<id>`. Profile *names* in the co
 resolve to the shipped on-disk profile JSONs (`resolve_slice_settings`), and a slice is
 not trusted until it is **proven** — the exported 3MF is opened and must carry a real,
 motion-bearing toolpath (`prove_gcode_3mf`), from which the print estimate (time, layers,
-filament) is also parsed. A printer with no process profile (the Elegoo Neptune 4 Max
-today) is refused cleanly with the validated mesh still exported as the download fallback.
+filament) is also parsed. All three of Kim's printers (Bambu P2S, Bambu A1, Elegoo
+Neptune 4 Max) are wired and proven; a printer configured *without* a process profile is
+refused cleanly with the validated mesh still exported as the download fallback.
 
 ## Module map
 

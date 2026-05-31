@@ -39,9 +39,14 @@ from kimcad.config import Material, Printer
 # boundary so G10/G28/G92 etc. are not mistaken for moves.
 _MOTION_RE = re.compile(r"^\s*G[0-3]\b", re.IGNORECASE)
 
-# Estimate comment lines OrcaSlicer writes into the embedded G-code header/footer.
+# Estimate comment lines OrcaSlicer writes into the embedded G-code header/footer. The
+# wording varies by vendor profile: Bambu writes "total estimated time:"; Elegoo (and
+# upstream PrusaSlicer-derived profiles) write "estimated printing time (normal mode) =".
 _EST_TIME_RE = re.compile(r"total estimated time:\s*(.+?)\s*$", re.IGNORECASE)
-_EST_TIME_FALLBACK_RE = re.compile(r"model printing time:\s*(.+?)\s*(?:;|$)", re.IGNORECASE)
+_EST_TIME_FALLBACK_RE = re.compile(
+    r"(?:model printing time:|estimated printing time \(normal mode\)\s*=)\s*(.+?)\s*(?:;|$)",
+    re.IGNORECASE,
+)
 _FIL_MM_RE = re.compile(r"filament used \[mm\]\s*=\s*([0-9.]+)", re.IGNORECASE)
 _FIL_CM3_RE = re.compile(r"filament used \[cm3\]\s*=\s*([0-9.]+)", re.IGNORECASE)
 _LAYERS_RE = re.compile(r"total layer number:\s*([0-9]+)", re.IGNORECASE)

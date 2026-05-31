@@ -204,20 +204,13 @@ def test_resolve_falls_back_to_generic_filament(tmp_path):
 
 
 def test_resolve_raises_when_no_process_profile(tmp_path):
-    # The Elegoo case: machine + filament exist but the shipped build has no process
-    # profile, so slicing must refuse with a clear error rather than mis-slice.
+    # A printer configured with no process profile must refuse with a clear error rather
+    # than mis-slice. (This is the general mechanism; every shipped printer, Elegoo
+    # included, actually has a process profile.)
     root = _profile_tree(tmp_path)
-    elegoo = Printer(
-        key="elegoo_neptune_4_max",
-        name="Elegoo Neptune 4 Max",
-        build_volume=(420, 420, 480),
-        nozzle_diameter=0.4,
-        orca_machine_profile="Elegoo Neptune 4 Max (0.4 nozzle)",
-        orca_process_profile=None,
-        orca_filament_profiles={"pla": "Generic PLA @Elegoo"},
-    )
+    no_proc = _p2s(orca_process_profile=None)
     with pytest.raises(OrcaProfileError, match="no OrcaSlicer process profile"):
-        resolve_slice_settings(root, elegoo, _PLA)
+        resolve_slice_settings(root, no_proc, _PLA)
 
 
 def test_resolve_raises_when_no_machine_profile(tmp_path):
@@ -253,15 +246,18 @@ def test_resolve_real_p2s_pla_profiles():
 
 
 @pytest.mark.skipif(not _profiles_present(), reason="OrcaSlicer profiles not fetched")
-def test_resolve_real_elegoo_refuses_without_process():
-    """The configured Elegoo has no shipped process profile -> resolution refuses."""
+def test_resolve_real_all_three_printers_resolve():
+    """All three of Kim's printers (P2S, A1, Elegoo Neptune 4 Max) resolve to three real
+    shipped profile JSONs. (The Elegoo's process profiles ship as 'Neptune4Max' without
+    spaces while its machine profile uses 'Neptune 4 Max' with spaces.)"""
     cfg = Config.load()
-    with pytest.raises(OrcaProfileError):
-        resolve_slice_settings(
-            cfg.orca_profiles_root(),
-            cfg.printer("elegoo_neptune_4_max"),
-            cfg.material("pla"),
+    for key in ("bambu_p2s", "bambu_a1", "elegoo_neptune_4_max"):
+        settings = resolve_slice_settings(
+            cfg.orca_profiles_root(), cfg.printer(key), cfg.material("pla")
         )
+        assert settings.machine.exists(), key
+        assert settings.process.exists(), key
+        assert settings.filament.exists(), key
 
 
 # --- prove_gcode_3mf (G-code proof) -------------------------------------------
@@ -373,6 +369,16 @@ def test_estimate_time_fallback_to_model_printing_time(tmp_path):
     assert proof.estimated_time == "14m 31s"
 
 
+def test_estimate_time_normal_mode_format(tmp_path):
+    # The Elegoo / PrusaSlicer-derived header form: "estimated printing time (normal mode)".
+    p = tmp_path / "nm.gcode.3mf"
+    _write_gcode_3mf(
+        p, gcode="; estimated printing time (normal mode) = 33m 23s\nG28\nG1 X1 Y1 E1\n"
+    )
+    proof = prove_gcode_3mf(p)
+    assert proof.estimated_time == "33m 23s"
+
+
 def test_find_profile_json_ambiguous_name_raises(tmp_path):
     # TEST-005 / ENG-007 / QA-004: the same name+kind under two vendors must fail loud,
     # not silently slice with the first-sorted vendor's profile.
@@ -398,16 +404,19 @@ def _binary_and_profiles_present() -> bool:
 @pytest.mark.skipif(
     not _binary_and_profiles_present(), reason="OrcaSlicer binary/profiles not present"
 )
-def test_live_slice_box_produces_proven_gcode(tmp_path):
-    """The whole chain, live: resolve the configured P2S + PLA profiles, slice a real
-    20 mm box through the bundled OrcaSlicer, and prove the exported 3MF carries a real
-    motion-bearing toolpath. This is the high-altitude regression anchor for slicing —
-    no mocks, real binary, real profiles, real mesh."""
+@pytest.mark.parametrize("printer_key", ["bambu_p2s", "bambu_a1", "elegoo_neptune_4_max"])
+def test_live_slice_box_produces_proven_gcode(tmp_path, printer_key):
+    """The whole chain, live, for EACH of Kim's printers: resolve the configured profiles,
+    slice a real 20 mm box through the bundled OrcaSlicer, and prove the exported 3MF
+    carries a real motion-bearing toolpath WITH a parsed estimate (time + layers +
+    filament). No mocks, real binary, real profiles, real mesh — the high-altitude
+    regression anchor for slicing, including the Elegoo whose G-code header uses a
+    different time/profile-naming convention than Bambu's."""
     import trimesh
 
     cfg = Config.load()
     settings = resolve_slice_settings(
-        cfg.orca_profiles_root(), cfg.printer("bambu_p2s"), cfg.material("pla")
+        cfg.orca_profiles_root(), cfg.printer(printer_key), cfg.material("pla")
     )
     stl = tmp_path / "box.stl"
     trimesh.creation.box(extents=[20, 20, 20]).export(str(stl))
@@ -427,6 +436,8 @@ def test_live_slice_box_produces_proven_gcode(tmp_path):
     # the real OrcaSlicer output carries a print estimate (Stage 1 exit criterion).
     # TEST-010: a 20mm box at 0.2mm layers is ~100 layers; >= 90 is a real lower bound
     # that a near-empty-toolpath profile regression would breach (not just "non-empty").
-    assert res.gcode_proof.estimated_time
+    # The time estimate must parse for every printer (the Elegoo header format is the one
+    # that originally went unparsed).
+    assert res.gcode_proof.estimated_time, f"{printer_key}: no time estimate parsed"
     assert res.gcode_proof.layer_count and res.gcode_proof.layer_count >= 90
     assert res.gcode_proof.filament_mm and res.gcode_proof.filament_mm > 0

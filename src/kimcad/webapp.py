@@ -173,10 +173,10 @@ def slice_registered_mesh(
 ) -> tuple[dict[str, Any], Path | None]:
     """Slice an already-validated, oriented mesh for the chosen printer + material.
 
-    Returns ``(info, gcode_path)``. On any slicing problem — most importantly a printer
-    with no process profile (the Elegoo case) — ``info`` reports ``sliced: False`` with
-    a plain-English note and ``gcode_path`` is None, rather than raising: the validated
-    mesh is still downloadable, so the user just falls back to a plain model export.
+    Returns ``(info, gcode_path)``. On any slicing problem — e.g. a printer configured
+    with no process profile — ``info`` reports ``sliced: False`` with a plain-English
+    note and ``gcode_path`` is None, rather than raising: the validated mesh is still
+    downloadable, so the user just falls back to a plain model export.
     """
     from kimcad.slicer import OrcaProfileError, SliceError, resolve_slice_settings, slice_model
 

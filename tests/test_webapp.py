@@ -299,23 +299,42 @@ def test_serves_vendored_threejs_and_rejects_traversal(tmp_path):
 def test_web_options_lists_printers_with_sliceable_flag():
     opts = web_options(Config.load())
     by_key = {p["key"]: p for p in opts["printers"]}
+    # All three of Kim's printers ship machine + process + filament profiles.
     assert by_key["bambu_p2s"]["sliceable"] is True
     assert by_key["bambu_a1"]["sliceable"] is True
-    # The Elegoo ships a machine + filament but no process profile -> not yet sliceable.
-    assert by_key["elegoo_neptune_4_max"]["sliceable"] is False
+    assert by_key["elegoo_neptune_4_max"]["sliceable"] is True
     assert any(m["key"] == "pla" for m in opts["materials"])
     assert opts["default_printer"] == "bambu_p2s"
     assert opts["default_material"] == "pla"
 
 
+class _NoProcessConfig:
+    """A config stand-in whose printer has no process profile, to drive the web-layer
+    refusal path without depending on a specific shipped printer."""
+
+    def printer(self, key):
+        from kimcad.config import Printer
+
+        return Printer(
+            key="noproc", name="No-Process Printer", build_volume=(200, 200, 200),
+            nozzle_diameter=0.4, orca_machine_profile="M", orca_process_profile=None,
+        )
+
+    def material(self, key):
+        return Config.load().material("pla")
+
+    def orca_profiles_root(self):
+        from pathlib import Path
+
+        return Path(".")
+
+
 def test_slice_registered_mesh_refuses_printer_without_process(tmp_path):
-    """Slicing for a printer with no process profile reports a note, not an exception,
-    and produces no G-code (the Elegoo case) — deterministic, no binary needed."""
+    """The web-layer refusal: a printer with no process profile reports a note (reason
+    no_profile), not an exception, and produces no G-code — deterministic, no binary."""
     mesh = tmp_path / "part.oriented.stl"
     mesh.write_bytes(b"solid x\nendsolid x\n")  # never reached; resolution fails first
-    info, gcode_path = slice_registered_mesh(
-        Config.load(), mesh, "elegoo_neptune_4_max", "pla"
-    )
+    info, gcode_path = slice_registered_mesh(_NoProcessConfig(), mesh, "noproc", "pla")
     assert info["sliced"] is False
     assert info["reason"] == "no_profile"  # ENG-008: capability gap, not a failure
     assert "process profile" in info["note"]

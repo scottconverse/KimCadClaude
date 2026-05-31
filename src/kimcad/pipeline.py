@@ -328,7 +328,7 @@ class Pipeline:
             try:
                 slice_result = self.slicer(mesh_path, out_dir, basename)
             except OrcaProfileError as e:
-                # Capability gap (e.g. Elegoo has no process profile) — not an error.
+                # Capability gap (a printer configured with no process profile) — not an error.
                 slice_error = f"not yet sliceable for this printer: {e}"
             except SliceError as e:
                 # An operational failure on a sliceable printer (bad slice / timeout).
