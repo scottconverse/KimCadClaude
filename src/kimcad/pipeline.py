@@ -34,6 +34,7 @@ from kimcad.openscad_runner import (
 )
 from kimcad.orientation import Orientation, auto_orient
 from kimcad.printability import Finding, GateResult, Level, dim_tolerance, run_gate
+from kimcad.slicer import SliceError, SliceResult, resolve_slice_settings, slice_model
 from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
@@ -121,6 +122,11 @@ class PrintReport:
     orientation: str
     orientation_stability: float
     sanitizer_removed: list[str]
+    # Slice outcome (populated only when a print was confirmed and sliced).
+    sliced: bool = False
+    gcode_path: str | None = None
+    gcode_lines: int | None = None
+    slice_note: str | None = None
 
     def to_text(self) -> str:
         ax, ay, az = self.actual_bbox_mm
@@ -141,6 +147,11 @@ class PrintReport:
             + (f" (repaired: {'; '.join(self.repairs)})" if self.repaired else ""),
             f"Orientation: {self.orientation} (stability {self.orientation_stability:.2f})",
         ]
+        if self.sliced:
+            detail = f" ({self.gcode_lines} G-code lines)" if self.gcode_lines else ""
+            lines.append(f"Slice: G-code produced{detail} -> {self.gcode_path}")
+        elif self.slice_note:
+            lines.append(f"Slice: {self.slice_note}")
         for level, code, message in self.findings:
             lines.append(f"  [{level}] {code}: {message}")
         if self.sanitizer_removed:
@@ -163,6 +174,7 @@ class PipelineResult:
     mesh_path: Path | None = None
     report: PrintReport | None = None
     slice_result: Any = None
+    slice_error: str | None = None
     error: str | None = None
     render_attempts: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
@@ -185,7 +197,7 @@ class Pipeline:
         self.material = material
         self.provider = provider
         self.renderer = renderer or self._default_renderer
-        self.slicer = slicer
+        self.slicer = slicer or self._default_slicer
         self.max_render_retries = max_render_retries
 
     def _default_renderer(self, scad: str, out_dir: Path, basename: str) -> RenderResult:
@@ -197,6 +209,23 @@ class Pipeline:
             output_format=self.config.default_output_format(),
             timeout_s=self.config.limit("openscad_timeout_simple_s"),
             max_output_bytes=self.config.limit("max_output_bytes"),
+        )
+
+    def _default_slicer(self, mesh_path: Path, out_dir: Path, basename: str) -> SliceResult:
+        """Resolve the configured printer + material to on-disk OrcaSlicer profiles and
+        slice the oriented mesh into a G-code-bearing 3MF. Raises :class:`SliceError`
+        (e.g. when the printer has no process profile); ``run`` catches that and reports
+        slicing as unavailable rather than failing the whole job."""
+        settings = resolve_slice_settings(
+            self.config.orca_profiles_root(), self.printer, self.material
+        )
+        return slice_model(
+            mesh_path,
+            binary=self.config.binary_path("orcaslicer"),
+            out_dir=out_dir,
+            settings=settings,
+            basename=basename,
+            timeout_s=self.config.limit("slice_timeout_s"),
         )
 
     def run(
@@ -258,8 +287,13 @@ class Pipeline:
             )
 
         slice_result = None
+        slice_error = None
         if confirm_print and self.slicer is not None:
-            slice_result = self.slicer(mesh_path, out_dir, basename)
+            try:
+                slice_result = self.slicer(mesh_path, out_dir, basename)
+            except SliceError as e:
+                slice_error = str(e)
+            self._record_slice(report, slice_result, slice_error)
 
         return PipelineResult(
             status=PipelineStatus.completed,
@@ -273,8 +307,25 @@ class Pipeline:
             mesh_path=mesh_path,
             report=report,
             slice_result=slice_result,
+            slice_error=slice_error,
             render_attempts=attempts,
         )
+
+    @staticmethod
+    def _record_slice(
+        report: PrintReport, slice_result: Any, slice_error: str | None
+    ) -> None:
+        """Fold the slice outcome into the print report. A refusal (no process profile,
+        etc.) is recorded as a note, not an exception — the validated mesh is still
+        exported, so the user can fall back to a plain mesh download."""
+        if slice_error is not None:
+            report.slice_note = f"slicing unavailable: {slice_error}"
+            return
+        if isinstance(slice_result, SliceResult):
+            report.sliced = True
+            report.gcode_path = str(slice_result.gcode_path)
+            if slice_result.gcode_proof is not None:
+                report.gcode_lines = slice_result.gcode_proof.line_count
 
     def _build_geometry(
         self,

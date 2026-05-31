@@ -24,12 +24,19 @@ three on-disk JSONs :func:`slice_model` needs, falling back to the generic
 
 from __future__ import annotations
 
+import io
+import re
 import subprocess
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from kimcad.config import Material, Printer
+
+# A real motion line: G0/G1 (linear) or G2/G3 (arc), case-insensitive, with a word
+# boundary so G10/G28/G92 etc. are not mistaken for moves.
+_MOTION_RE = re.compile(r"^\s*G[0-3]\b", re.IGNORECASE)
 
 
 class SliceError(Exception):
@@ -63,12 +70,23 @@ class SliceSettings:
     filament: Path
 
 
+@dataclass(frozen=True)
+class GcodeProof:
+    """Evidence that a sliced 3MF actually contains printable toolpaths, not just that
+    a file was written. ``entries`` are the in-archive ``.gcode`` member names."""
+
+    entries: tuple[str, ...]
+    line_count: int
+    has_motion: bool
+
+
 @dataclass
 class SliceResult:
     gcode_path: Path
     stdout: str
     stderr: str
     duration_s: float
+    gcode_proof: GcodeProof | None = None
 
 
 def slice_model(
@@ -114,12 +132,51 @@ def slice_model(
     if not gcode_path.exists():
         raise SliceFailed(proc.returncode, f"expected {gcode_path.name} was not written")
 
+    # A zero exit + a written file is not proof of a usable slice: confirm the 3MF
+    # really carries motion-bearing G-code before we hand it back as a print job.
+    proof = prove_gcode_3mf(gcode_path)
+
     return SliceResult(
         gcode_path=gcode_path,
         stdout=proc.stdout,
         stderr=proc.stderr,
         duration_s=duration,
+        gcode_proof=proof,
     )
+
+
+def prove_gcode_3mf(path: Path) -> GcodeProof:
+    """Verify that a sliced ``*.gcode.3mf`` contains real, motion-bearing toolpaths.
+
+    OrcaSlicer embeds the per-plate G-code inside the 3MF (a zip) as
+    ``Metadata/plate_*.gcode``. A zero exit code and a written file do not guarantee a
+    usable slice — an empty or motion-free G-code stream would still print nothing — so
+    this opens the archive, requires at least one ``.gcode`` member, and requires at
+    least one G0/G1/G2/G3 move across those members.
+
+    Raises :class:`SliceFailed` if the file is not a zip, carries no G-code member, or
+    the G-code has no motion command.
+    """
+    if not zipfile.is_zipfile(path):
+        raise SliceFailed(0, f"{path.name} is not a valid 3MF (zip) container")
+    with zipfile.ZipFile(path) as zf:
+        entries = tuple(n for n in zf.namelist() if n.lower().endswith(".gcode"))
+        if not entries:
+            raise SliceFailed(0, f"{path.name} contains no .gcode toolpath member")
+        line_count = 0
+        has_motion = False
+        # Stream each member line-by-line rather than reading whole G-code files into
+        # memory — a real part's toolpath can be tens of MB, and the target box is
+        # memory-constrained (32 GB, shared with the local model).
+        for name in entries:
+            with zf.open(name) as raw:
+                for line in io.TextIOWrapper(raw, encoding="utf-8", errors="replace"):
+                    line_count += 1
+                    if not has_motion and _MOTION_RE.match(line):
+                        has_motion = True
+    if not has_motion:
+        raise SliceFailed(0, f"{path.name} G-code has no motion (G0/G1) commands")
+    return GcodeProof(entries=entries, line_count=line_count, has_motion=has_motion)
 
 
 # --- profile name -> on-disk JSON resolution ----------------------------------

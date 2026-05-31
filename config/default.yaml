@@ -98,3 +98,4 @@ limits:
   openscad_timeout_simple_s: 30
   openscad_timeout_complex_s: 120
   max_output_bytes: 209715200   # 200 MB render guard
+  slice_timeout_s: 600          # OrcaSlicer is CPU-bound on the 780M target; be generous

@@ -184,3 +184,54 @@ def test_slice_only_with_confirmation(tmp_path):
     r2 = pipe2.run("a block", tmp_path, confirm_print=True)
     assert sliced["called"] == 1
     assert r2.slice_result == "sliced-artifact"
+
+
+def test_slice_refusal_is_reported_not_raised(tmp_path):
+    """A slicer that refuses (e.g. a printer with no process profile) must not blow up
+    the run: the part still completes with an exported mesh and a slice_note explaining
+    why no G-code was produced (the Elegoo case)."""
+    from kimcad.slicer import OrcaProfileError
+
+    def refusing_slicer(mesh_path, out_dir, basename):
+        raise OrcaProfileError("printer 'elegoo' has no OrcaSlicer process profile")
+
+    provider = FakeProvider(_plan([20, 20, 20]))
+    renderer, _ = _box_renderer((20, 20, 20))
+    pipe = _pipeline(provider, renderer, slicer=refusing_slicer)
+    r = pipe.run("a block", tmp_path, confirm_print=True)
+
+    assert r.status is PipelineStatus.completed
+    assert r.slice_result is None
+    assert r.slice_error and "process profile" in r.slice_error
+    assert r.report.sliced is False
+    assert r.report.slice_note and "unavailable" in r.report.slice_note
+    assert r.mesh_path is not None and r.mesh_path.exists()  # mesh still exported
+
+
+def test_successful_slice_recorded_in_report(tmp_path):
+    """A SliceResult carrying a G-code proof is folded into the print report."""
+    from kimcad.slicer import GcodeProof, SliceResult
+
+    def good_slicer(mesh_path, out_dir, basename):
+        gpath = out_dir / f"{basename}.gcode.3mf"
+        gpath.write_bytes(b"PK\x03\x04")  # bytes irrelevant; the proof is supplied here
+        return SliceResult(
+            gcode_path=gpath,
+            stdout="",
+            stderr="",
+            duration_s=1.0,
+            gcode_proof=GcodeProof(
+                entries=("Metadata/plate_1.gcode",), line_count=42, has_motion=True
+            ),
+        )
+
+    provider = FakeProvider(_plan([20, 20, 20]))
+    renderer, _ = _box_renderer((20, 20, 20))
+    pipe = _pipeline(provider, renderer, slicer=good_slicer)
+    r = pipe.run("a block", tmp_path, confirm_print=True)
+
+    assert r.status is PipelineStatus.completed
+    assert r.report.sliced is True
+    assert r.report.gcode_lines == 42
+    assert r.report.gcode_path.endswith(".gcode.3mf")
+    assert "G-code produced" in r.report.to_text()
