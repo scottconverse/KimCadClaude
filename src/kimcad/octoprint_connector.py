@@ -232,9 +232,13 @@ class OctoPrintConnector:
                     user_message=f"The printer '{self.name}' rejected the API key — "
                     "check that it's correct.",
                 ) from e
+            # The bounded server reason stays in the developer message (str(e)); the
+            # user-facing message avoids echoing a raw upstream string and instead names the
+            # common causes in plain English.
             raise ConnectorError(
                 f"{self.name} rejected the upload (HTTP {e.code}){detail}",
-                user_message=f"The printer '{self.name}' refused the job{detail}.",
+                user_message=f"The printer '{self.name}' refused the job — it may be busy or "
+                "the file type unsupported. Try again when it's idle.",
             ) from e
         except (urllib.error.URLError, OSError) as e:
             raise PrinterOffline(

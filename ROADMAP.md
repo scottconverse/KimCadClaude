@@ -26,7 +26,7 @@ P2S not P1S; code-signing dropped (unsigned beta); recruited usability study rep
 in-app telemetry + public beta feedback.
 
 ## Current baseline (honest, as of Stage 2)
-Phase-1 pipeline + the web UI are built and tested (276 tests, ruff clean). The done-gate has
+Phase-1 pipeline + the web UI are built and tested (291 tests, ruff clean). The done-gate has
 passed **on `gemma4:e4b`** (≥ 8/10). **Stage 1** wired slicing into the normal flow behind the
 confirm gate, with a proven G-code 3MF per run (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max all
 slice live). **Stage 2** built the send-to-printer path — connector abstraction, OctoPrint
