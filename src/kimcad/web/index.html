@@ -33,7 +33,12 @@
     border-radius: 8px; padding: 8px 10px; font: inherit; min-width: 180px;
   }
   label.field { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
-  a { color: var(--accent-bright); }
+  /* UX-109: links are distinguished by more than hue (underline) for low-vision users. */
+  a { color: var(--accent-bright); text-decoration: underline; }
+  /* UX-103: the confirm step reads as "action required", not just another card. */
+  #confirmPrint { border-color: var(--accent-bright); }
+  /* UX-111: the not-sliceable hint reads as an inline advisory, distinct from a result. */
+  #printableHint { border-left: 3px solid var(--warn); padding-left: 10px; }
   .row { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
   button {
     background: var(--accent); color: #fff; border: 0; border-radius: 8px;
@@ -112,7 +117,10 @@
     <div class="row"><button id="goAnswer">Continue</button></div>
   </div>
 
-  <div id="result" class="card hidden" tabindex="-1" aria-live="polite">
+  <!-- UX-102: no aria-live on this large card (it would re-announce the whole report on
+       every slice); focus management announces it, and the narrow #printResult below is
+       the live region for slice status. -->
+  <div id="result" class="card hidden" tabindex="-1">
     <div class="row" style="justify-content: space-between; margin-top: 0;">
       <h2 id="title"></h2>
       <span id="gateBadge" class="badge hidden"></span>
@@ -149,7 +157,11 @@
       </div>
       <button id="prepare" class="secondary">Send to printer (G-code)…</button>
     </div>
+    <!-- UX-110: be honest that non-PLA materials currently use a generic profile. -->
+    <p id="materialNote" class="note hidden">Non-PLA materials use a generic filament profile for now.</p>
     <p id="printableHint" class="note hidden"></p>
+    <!-- UX-105: shown when printer options failed to load, so "print" isn't silently absent. -->
+    <p id="printUnavailable" class="note hidden">Printer options couldn't load — reload the page to send this to a printer. Your model download is available above.</p>
 
     <!-- UX-009: explicit confirmation step before generating a print job. -->
     <div id="confirmPrint" class="card hidden" tabindex="-1" style="margin-top: 14px;">
@@ -160,7 +172,9 @@
       </div>
     </div>
 
-    <div id="printResult" class="note hidden" aria-live="polite"></div>
+    <div id="printResult" class="note hidden" aria-live="polite" aria-atomic="true"></div>
+    <!-- UX-104: cancel an in-flight slice (parity with the design flow's Cancel). -->
+    <button id="sliceCancel" class="secondary hidden">Cancel slicing</button>
   </div>
 
   <div id="error" class="card hidden" tabindex="-1" aria-live="polite">
@@ -180,6 +194,14 @@ const $ = (id) => document.getElementById(id);
 let lastPrompt = "";
 let lastRid = null;          // mesh id of the most recent successful design
 let optionsData = null;      // printer/material choices from /api/options
+let optionsFailed = false;   // /api/options couldn't be loaded (UX-105)
+let currentSlug = "part";    // filename slug derived from the part type (UX-106)
+let sliceController = null;   // AbortController for an in-flight slice (UX-104)
+let sliceTimer = null, sliceStartedAt = 0;
+
+function slugify(s) {
+  return String(s || "part").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "part";
+}
 
 // --- request lifecycle (UX-001) ----------------------------------------------
 let controller = null;       // AbortController for the in-flight request
@@ -295,11 +317,16 @@ function render(data) {
   if (data.mesh_url) {
     showModel(data.mesh_url);
     lastRid = parseRid(data.mesh_url);
-    // Export fallback: the validated model is always downloadable.
+    currentSlug = slugify(plan.object_type);           // UX-106: descriptive filenames
+    // Export fallback: the validated model is always downloadable, named for the part.
     $("downloadModel").href = data.mesh_url;
+    $("downloadModel").setAttribute("download", currentSlug + ".stl");
     show("downloadRow");
     // Offer send-to-printer only for a part that actually passed the gate.
-    if (lastRid !== null && optionsData && gatePassed) { show("printSection"); updatePrintableHint(); }
+    if (lastRid !== null && gatePassed) {
+      if (optionsData) { show("printSection"); updatePrintableHint(); }
+      else if (optionsFailed) { show("printUnavailable"); }  // UX-105: don't silently hide
+    }
   } else {
     viewerFallback("No 3D model was produced.");
     lastRid = null;
@@ -310,21 +337,22 @@ function render(data) {
 function parseRid(url) { const m = (url || "").match(/\/api\/mesh\/(\d+)/); return m ? m[1] : null; }
 
 function resetPrintUI() {
+  stopSliceTimer();
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
-  hide("downloadRow");
+  hide("materialNote"); hide("printUnavailable"); hide("downloadRow");
   $("printResult").textContent = "";
 }
 
 async function loadOptions() {
   try {
     const res = await fetch("/api/options");
-    if (!res.ok) return;
+    if (!res.ok) { optionsFailed = true; return; }
     optionsData = await res.json();
     fillSelect($("printerSel"), optionsData.printers, optionsData.default_printer,
       (p) => p.sliceable ? p.name : p.name + " — no G-code profile yet");
     fillSelect($("materialSel"), optionsData.materials, optionsData.default_material, (m) => m.name);
     updatePrintableHint();
-  } catch (_) { /* options are optional; send-to-printer just stays hidden */ }
+  } catch (_) { optionsFailed = true; }  // UX-105: surfaced when a gated part is shown
 }
 
 function fillSelect(sel, items, defKey, labelFn) {
@@ -351,36 +379,77 @@ function updatePrintableHint() {
     hint.textContent = `${p.name} doesn't have a print (G-code) profile yet — pick another printer to generate G-code. Your validated model is still available above.`;
     show("printableHint");
   }
+  // UX-110: flag that a non-PLA material falls back to a generic profile.
+  if ($("materialSel").value && $("materialSel").value !== "pla") show("materialNote");
+  else hide("materialNote");
+}
+
+// UX-104: live elapsed counter during a slice (honest about a potentially long wait).
+function tickSlice() {
+  const s = Math.floor((Date.now() - sliceStartedAt) / 1000);
+  const base = s >= 60
+    ? "Still slicing — larger parts take longer on this hardware."
+    : "Generating G-code… on this hardware a slice can take a minute or more.";
+  $("printResult").innerHTML =
+    `<span class="spinner" aria-hidden="true"></span> ${escapeHtml(base)} (${fmtElapsed(Date.now() - sliceStartedAt)} elapsed)`;
+}
+function startSliceTimer() {
+  sliceStartedAt = Date.now();
+  tickSlice();
+  sliceTimer = setInterval(tickSlice, 1000);
+}
+function stopSliceTimer() {
+  if (sliceTimer !== null) { clearInterval(sliceTimer); sliceTimer = null; }
+}
+function setSliceControlsBusy(busy) {
+  // Don't let the user fire a second overlapping slice while one is in flight.
+  $("printerSel").disabled = busy;
+  $("materialSel").disabled = busy;
+  if (busy) { $("prepare").disabled = true; show("sliceCancel"); }
+  else { hide("sliceCancel"); updatePrintableHint(); }  // restores prepare's correct state
 }
 
 async function doSlice() {
   hide("confirmPrint");
   if (lastRid === null) return;
   const printer = $("printerSel").value, material = $("materialSel").value;
+  sliceController = new AbortController();
+  setSliceControlsBusy(true);
   show("printResult");
-  $("printResult").textContent = "Generating G-code… this can take a moment.";
+  startSliceTimer();
   try {
     const res = await fetch(`/api/slice/${lastRid}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ printer, material })
+      body: JSON.stringify({ printer, material }),
+      signal: sliceController.signal
     });
     const data = await res.json();
+    stopSliceTimer();
     if (!res.ok) { $("printResult").textContent = data.error || "Generating G-code failed."; return; }
     if (data.sliced) {
       const prof = data.profiles || {};
-      const lines = (data.gcode_lines != null) ? data.gcode_lines : "?";
+      const count = (data.gcode_lines != null) ? ` (${data.gcode_lines} G-code lines)` : "";  // UX-107
       const est = data.estimate ? `<br><span class="muted">Estimate: ${escapeHtml(data.estimate)}</span>` : "";
       $("printResult").innerHTML =
-        `<strong>Print job ready</strong> (${lines} G-code lines) for ` +
+        `<strong>Print job ready</strong>${count} for ` +
         `${escapeHtml(data.printer || "")} + ${escapeHtml(data.material || "")}.` + est + `<br>` +
         `<span class="muted">machine: ${escapeHtml(prof.machine || "")} · ` +
         `process: ${escapeHtml(prof.process || "")} · filament: ${escapeHtml(prof.filament || "")}</span><br>` +
-        `<a href="${escapeHtml(data.gcode_url || "#")}" download>Download print job (.gcode.3mf)</a>`;
+        `<a href="${escapeHtml(data.gcode_url || "#")}" download="${escapeHtml(currentSlug)}.gcode.3mf">Download print job (.gcode.3mf)</a>`;
+    } else if (data.reason === "failed") {
+      // ENG-008: a real slice failure on a sliceable printer is not the Elegoo capability gap.
+      $("printResult").textContent = "Slicing failed — please try again. " + (data.note || "");
     } else {
       $("printResult").textContent = "Can't generate G-code for this printer yet: " + (data.note || "no profile.");
     }
   } catch (e) {
-    $("printResult").textContent = "Could not reach the server: " + e.message;
+    stopSliceTimer();
+    if (e.name === "AbortError") { $("printResult").textContent = "Cancelled."; }
+    else { $("printResult").textContent = "Could not reach the server: " + e.message; }
+  } finally {
+    stopSliceTimer();
+    setSliceControlsBusy(false);
+    sliceController = null;
   }
 }
 
@@ -515,7 +584,10 @@ $("cancel").addEventListener("click", () => { if (controller) controller.abort()
 
 // Send-to-printer: select printer/material, confirm explicitly, then slice.
 $("printerSel").addEventListener("change", updatePrintableHint);
+$("materialSel").addEventListener("change", updatePrintableHint);  // UX-110 material note
 $("prepare").addEventListener("click", () => {
+  // UX-101: clear any prior "Print job ready" before re-confirming (no stale download link).
+  hide("printResult"); $("printResult").textContent = "";
   const p = selectedPrinter();
   const printerName = p ? p.name : $("printerSel").value;
   const matOpt = $("materialSel").selectedOptions[0];
@@ -525,9 +597,13 @@ $("prepare").addEventListener("click", () => {
     `This produces a print job you can download.`;
   show("confirmPrint");
   focusCard("confirmPrint");
+  // UX-103: make sure the confirm step is in view for mouse users, not just focused.
+  $("confirmPrint").scrollIntoView({ block: "center", behavior: "smooth" });
 });
-$("confirmPrintNo").addEventListener("click", () => hide("confirmPrint"));
+// UX-108: returning from the confirm step restores focus to its trigger.
+$("confirmPrintNo").addEventListener("click", () => { hide("confirmPrint"); $("prepare").focus(); });
 $("confirmPrintYes").addEventListener("click", doSlice);
+$("sliceCancel").addEventListener("click", () => { if (sliceController) sliceController.abort(); });
 
 loadOptions();
 </script>

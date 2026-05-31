@@ -28,7 +28,8 @@ lumpy neural meshes.
 ## Requirements
 
 - Python 3.11+
-- OpenSCAD 2021.01+ (built with `lib3mf` for 3MF export; STL is the fallback)
+- OpenSCAD 2021.01+ (`lib3mf` lets it emit 3MF as the *render* output, else STL; either
+  way the slice path consumes an STL, so a `lib3mf`-less build does not block printing)
 - OrcaSlicer (CLI)
 - An LLM backend. KimCad is **local-first**: out of the box it talks to a local
   runtime ([Ollama](https://ollama.com/) or LM Studio), so no API key and no network

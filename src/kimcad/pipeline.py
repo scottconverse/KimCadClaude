@@ -35,7 +35,13 @@ from kimcad.openscad_runner import (
 )
 from kimcad.orientation import Orientation, auto_orient
 from kimcad.printability import Finding, GateResult, Level, dim_tolerance, run_gate
-from kimcad.slicer import SliceError, SliceResult, resolve_slice_settings, slice_model
+from kimcad.slicer import (
+    OrcaProfileError,
+    SliceError,
+    SliceResult,
+    resolve_slice_settings,
+    slice_model,
+)
 from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
@@ -292,6 +298,15 @@ class Pipeline:
 
         report = self._build_report(plan, render, mesh_report, gate, orientation, harden_report)
 
+        # ENG-001: the exported/sliced mesh is the hardened one. If hardening actually
+        # altered the geometry, re-derive the report's integrity facts from the hardened
+        # mesh so the report describes the artifact that ships, not the pre-harden input.
+        if harden_report.ok and harden_report.changed:
+            _, hardened_mr = validate_mesh(hardened)
+            report.watertight = hardened_mr.watertight
+            report.volume_mm3 = hardened_mr.volume_mm3
+            report.n_bodies = hardened_mr.n_bodies
+
         if gate.status is Level.FAIL and not proceed_anyway:
             return PipelineResult(
                 status=PipelineStatus.gate_failed,
@@ -309,11 +324,15 @@ class Pipeline:
 
         slice_result = None
         slice_error = None
-        if confirm_print and self.slicer is not None:
+        if confirm_print:
             try:
                 slice_result = self.slicer(mesh_path, out_dir, basename)
+            except OrcaProfileError as e:
+                # Capability gap (e.g. Elegoo has no process profile) — not an error.
+                slice_error = f"not yet sliceable for this printer: {e}"
             except SliceError as e:
-                slice_error = str(e)
+                # An operational failure on a sliceable printer (bad slice / timeout).
+                slice_error = f"slicing failed: {e}"
             self._record_slice(report, slice_result, slice_error)
 
         return PipelineResult(
@@ -340,7 +359,7 @@ class Pipeline:
         etc.) is recorded as a note, not an exception — the validated mesh is still
         exported, so the user can fall back to a plain mesh download."""
         if slice_error is not None:
-            report.slice_note = f"slicing unavailable: {slice_error}"
+            report.slice_note = slice_error  # already categorized by run()
             return
         if isinstance(slice_result, SliceResult):
             report.sliced = True

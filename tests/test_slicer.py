@@ -6,7 +6,9 @@ import pytest
 
 from kimcad import slicer as slicer_mod
 from kimcad.config import Config, Material, Printer
+from kimcad import slicer as _slicer_mod
 from kimcad.slicer import (
+    GcodeProofFailed,
     OrcaProfileError,
     SliceFailed,
     SliceSettings,
@@ -296,11 +298,90 @@ def test_prove_gcode_rejects_missing_gcode_member(tmp_path):
 
 
 def test_prove_gcode_rejects_motionless_gcode(tmp_path):
-    # G-code present but only comments/setup, no G0/G1/G2/G3 — nothing would print.
+    # G-code present but only setup/home (M104/M140/G92/G10/G28) — the \b boundary in the
+    # motion regex must NOT mistake G10/G28/G92 for a G0-3 move (TEST-007 negative case).
     p = tmp_path / "motionless.gcode.3mf"
-    _write_gcode_3mf(p, gcode="; header only\nM104 S210\nM140 S55\nG92 E0\nG10\n")
-    with pytest.raises(SliceFailed, match="no motion"):
+    _write_gcode_3mf(p, gcode="; header only\nM104 S210\nG28\nG92 E0\nG10\n")
+    with pytest.raises(GcodeProofFailed, match="no motion"):
         prove_gcode_3mf(p)
+
+
+def test_prove_gcode_accepts_arc_only_motion(tmp_path):
+    # TEST-007 positive: an arc-fitted toolpath whose only motion is G2/G3 must pass.
+    p = tmp_path / "arc.gcode.3mf"
+    _write_gcode_3mf(p, gcode="; arc part\nG28\nG2 X10 Y10 I5 J0\nG3 X0 Y0 I-5 J0\n")
+    proof = prove_gcode_3mf(p)
+    assert proof.has_motion
+
+
+def test_prove_gcode_failure_message_has_no_exited_prefix(tmp_path):
+    # QA-006: a proof failure must not claim "orca-slicer exited 0" (it didn't fail there).
+    p = tmp_path / "notzip.3mf"
+    p.write_bytes(b"not a zip")
+    with pytest.raises(GcodeProofFailed) as exc:
+        prove_gcode_3mf(p)
+    assert "exited" not in str(exc.value)
+    assert isinstance(exc.value, SliceFailed)  # still a SliceFailed for existing handlers
+
+
+def test_prove_gcode_rejects_too_many_members(tmp_path, monkeypatch):
+    # ENG-002: an archive with an implausible number of .gcode members is rejected.
+    monkeypatch.setattr(_slicer_mod, "_MAX_GCODE_MEMBERS", 2)
+    p = tmp_path / "many.gcode.3mf"
+    with zipfile.ZipFile(p, "w") as zf:
+        for i in range(3):
+            zf.writestr(f"Metadata/plate_{i}.gcode", "G1 X1 Y1\n")
+    with pytest.raises(GcodeProofFailed, match="implausible number"):
+        prove_gcode_3mf(p)
+
+
+def test_prove_gcode_rejects_oversize_member(tmp_path, monkeypatch):
+    # ENG-002: a member whose uncompressed size exceeds the cap is rejected before walking.
+    monkeypatch.setattr(_slicer_mod, "_MAX_MEMBER_BYTES", 8)
+    p = tmp_path / "big.gcode.3mf"
+    _write_gcode_3mf(p, gcode="G1 X10 Y10 E1\nG1 X20 Y20 E2\n" * 4)
+    with pytest.raises(GcodeProofFailed, match="too large"):
+        prove_gcode_3mf(p)
+
+
+def test_estimate_mm_only_fallback(tmp_path):
+    # TEST-006: when the slicer emits filament [mm] but not [cm3], the mm fallback is used.
+    p = tmp_path / "mm.gcode.3mf"
+    _write_gcode_3mf(
+        p, gcode="; total layer number: 10\n; filament used [mm] = 1234.5\nG28\nG1 X1 Y1 E1\n"
+    )
+    proof = prove_gcode_3mf(p)
+    assert proof.filament_cm3 is None
+    assert proof.filament_mm == 1234.5
+    assert "1234 mm filament" in proof.estimate_summary()
+
+
+def test_estimate_absent_yields_empty_summary(tmp_path):
+    # TEST-006: motion-bearing G-code with no estimate comments -> empty summary.
+    p = tmp_path / "noest.gcode.3mf"
+    _write_gcode_3mf(p, gcode="; nothing useful\nG28\nG1 X1 Y1 E1\n")
+    proof = prove_gcode_3mf(p)
+    assert proof.estimated_time is None and proof.layer_count is None
+    assert proof.estimate_summary() == ""
+
+
+def test_estimate_time_fallback_to_model_printing_time(tmp_path):
+    # TEST-011: when only "model printing time" is present (no "total estimated time").
+    p = tmp_path / "fb.gcode.3mf"
+    _write_gcode_3mf(p, gcode="; model printing time: 14m 31s\nG28\nG1 X1 Y1 E1\n")
+    proof = prove_gcode_3mf(p)
+    assert proof.estimated_time == "14m 31s"
+
+
+def test_find_profile_json_ambiguous_name_raises(tmp_path):
+    # TEST-005 / ENG-007 / QA-004: the same name+kind under two vendors must fail loud,
+    # not silently slice with the first-sorted vendor's profile.
+    for vendor in ("BBL", "Creality"):
+        d = tmp_path / vendor / "filament"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "Generic PLA.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(OrcaProfileError, match="ambiguous"):
+        _find_profile_json(tmp_path, "filament", "Generic PLA")
 
 
 # --- live end-to-end slice through the real OrcaSlicer ------------------------
@@ -343,7 +424,9 @@ def test_live_slice_box_produces_proven_gcode(tmp_path):
     assert res.gcode_proof is not None
     assert res.gcode_proof.has_motion
     assert res.gcode_proof.line_count > 100  # a real toolpath, not a near-empty stub
-    # the real OrcaSlicer output carries a print estimate (Stage 1 exit criterion)
+    # the real OrcaSlicer output carries a print estimate (Stage 1 exit criterion).
+    # TEST-010: a 20mm box at 0.2mm layers is ~100 layers; >= 90 is a real lower bound
+    # that a near-empty-toolpath profile regression would breach (not just "non-empty").
     assert res.gcode_proof.estimated_time
-    assert res.gcode_proof.layer_count and res.gcode_proof.layer_count > 0
+    assert res.gcode_proof.layer_count and res.gcode_proof.layer_count >= 90
     assert res.gcode_proof.filament_mm and res.gcode_proof.filament_mm > 0

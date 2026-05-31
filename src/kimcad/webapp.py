@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import shutil
 import threading
 from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -177,7 +178,7 @@ def slice_registered_mesh(
     a plain-English note and ``gcode_path`` is None, rather than raising: the validated
     mesh is still downloadable, so the user just falls back to a plain model export.
     """
-    from kimcad.slicer import SliceError, resolve_slice_settings, slice_model
+    from kimcad.slicer import OrcaProfileError, SliceError, resolve_slice_settings, slice_model
 
     printer = config.printer(printer_key)
     material = config.material(material_key)
@@ -188,11 +189,17 @@ def slice_registered_mesh(
             binary=config.binary_path("orcaslicer"),
             out_dir=mesh_path.parent,
             settings=settings,
-            basename=mesh_path.name.split(".")[0],
+            # ENG-005: a per-(printer,material) basename so slicing the same mesh for a
+            # different printer/material writes a distinct file rather than overwriting.
+            basename=f"{mesh_path.name.split('.')[0]}_{printer.key}_{material.key}",
             timeout_s=config.limit("slice_timeout_s"),
         )
+    except OrcaProfileError as e:
+        # Capability gap (printer not yet sliceable) — a known limitation, not an error.
+        return {"sliced": False, "reason": "no_profile", "note": str(e)}, None
     except SliceError as e:
-        return {"sliced": False, "note": str(e)}, None
+        # Operational failure on a sliceable printer (bad slice / timeout).
+        return {"sliced": False, "reason": "failed", "note": str(e)}, None
     return (
         {
             "sliced": True,
@@ -223,6 +230,13 @@ def make_handler(
     # ENG-004: bounded LRU-by-insertion registries — oldest entries evicted past the cap.
     registry: "OrderedDict[int, Path]" = OrderedDict()
     gcode_registry: "OrderedDict[int, Path]" = OrderedDict()
+    # ENG-003: cache slices by (rid, printer, material) so an identical re-confirm doesn't
+    # re-run the (multi-minute, CPU-bound) slicer; serialize actual slices to protect the
+    # target box and stop two OrcaSlicer runs racing on disk.
+    slice_cache: "OrderedDict[tuple[int, Any, Any], tuple[dict[str, Any], Path | None]]" = (
+        OrderedDict()
+    )
+    slice_lock = threading.Lock()
     counter = itertools.count(1)
     lock = threading.Lock()
     index_html = (WEB_DIR / "index.html").read_bytes()
@@ -235,9 +249,33 @@ def make_handler(
             config_box["config"] = Config.load()
         return config_box["config"]
 
+    def _evict(rid: int) -> None:
+        """QA-003: drop a design id from every registry/cache AND remove its on-disk
+        directory, so disk doesn't grow unbounded as the in-memory caps evict. Call under
+        ``lock``."""
+        gcode_registry.pop(rid, None)
+        for k in [k for k in slice_cache if k[0] == rid]:
+            slice_cache.pop(k, None)
+        shutil.rmtree(web_root / str(rid), ignore_errors=True)
+
     class Handler(BaseHTTPRequestHandler):
+        # QA-002: bound socket reads so a stalled/partial body (slowloris) can't pin a
+        # worker thread forever. Slicing is CPU-bound, not socket I/O, so a slow slice is
+        # unaffected; this only times out a client that opens a connection and dawdles.
+        timeout = 30
+
         def log_message(self, *args: Any) -> None:  # keep the console quiet
             pass
+
+        def _method_not_allowed(self) -> None:
+            # QA-005: the resources exist for GET/POST, so an unsupported verb is 405
+            # (method not allowed), not the stdlib default 501 (not implemented).
+            self.send_response(405)
+            self.send_header("Allow", "GET, POST")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = _method_not_allowed
 
         def _send(self, status: int, body: bytes, content_type: str) -> None:
             self.send_response(status)
@@ -327,14 +365,22 @@ def make_handler(
                 self._json(413, {"error": "Request body too large."})
                 return None
             try:
-                # QA-003: parse length inside the try so a bad header yields a clean 400,
+                # Parse length inside the try so a bad header yields a clean 400,
                 # not an int() crash on the request thread.
                 if declared < 0:
                     raise ValueError("invalid Content-Length header")
-                return json.loads(self.rfile.read(declared) or b"{}")
+                obj = json.loads(self.rfile.read(declared) or b"{}")
             except (ValueError, TypeError):
                 self._json(400, {"error": "invalid request body"})
                 return None
+            # QA-001: a valid-JSON but non-object body (a list, scalar, or null) would
+            # crash the handlers' data.get(...) with an AttributeError *before* their
+            # traceback guards, dropping the connection with no response. Reject it here
+            # so the docstring's "returns the parsed dict" promise holds for callers.
+            if not isinstance(obj, dict):
+                self._json(400, {"error": "invalid request body"})
+                return None
+            return obj
 
         def do_POST(self) -> None:
             if self.path == "/api/design":
@@ -349,7 +395,13 @@ def make_handler(
             data = self._read_json_body()
             if data is None:
                 return
-            prompt = str(data.get("prompt", "")).strip()
+            # QA-007: a wrong-typed prompt (number, list) is a client error, not something
+            # to silently str()-coerce and feed to the model.
+            prompt_raw = data.get("prompt", "")
+            if not isinstance(prompt_raw, str):
+                self._json(400, {"error": "Please describe the part you want."})
+                return
+            prompt = prompt_raw.strip()
             if not prompt:
                 self._json(400, {"error": "Please describe the part you want."})
                 return
@@ -363,16 +415,30 @@ def make_handler(
             if mesh_path is not None:
                 with lock:
                     registry[rid] = mesh_path
-                    # ENG-004: cap the registry — drop the oldest entries past MAX_REGISTRY.
+                    # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
                     while len(registry) > MAX_REGISTRY:
-                        registry.popitem(last=False)
+                        old_rid, _ = registry.popitem(last=False)
+                        _evict(old_rid)
                 payload["mesh_url"] = f"/api/mesh/{rid}"
             self._json(200, payload)
+
+        def _respond_slice(self, rid: int, info: dict[str, Any], gcode_path: Path | None) -> None:
+            out = dict(info)
+            if gcode_path is not None and gcode_path.exists():
+                with lock:
+                    gcode_registry[rid] = gcode_path
+                out["gcode_url"] = f"/api/gcode/{rid}"
+            self._json(200, out)
 
         def _handle_slice(self, raw_id: str) -> None:
             """Slice an already-designed part (by mesh id) for the confirmed printer +
             material. The body carries the explicit print confirmation: a request to
-            this endpoint *is* the user choosing to produce G-code."""
+            this endpoint *is* the user choosing to produce G-code.
+
+            Idempotent + serialized (ENG-003/005): an identical (mesh, printer, material)
+            re-confirm returns the cached slice instead of re-running OrcaSlicer, and a
+            real slice holds ``slice_lock`` so two slices can't pin the box or race on disk.
+            """
             try:
                 rid = int(raw_id)
             except ValueError:
@@ -385,23 +451,33 @@ def make_handler(
             data = self._read_json_body()
             if data is None:
                 return
-            try:
-                info, gcode_path = slice_registered_mesh(
-                    get_config(), mesh_path, data.get("printer") or None, data.get("material") or None
-                )
-            except KeyError as e:
-                self._json(400, {"error": f"Unknown printer or material: {e}"})
+            key = (rid, data.get("printer") or None, data.get("material") or None)
+            with lock:
+                cached = slice_cache.get(key)
+            if cached is not None and cached[1] is not None and cached[1].exists():
+                self._respond_slice(rid, cached[0], cached[1])
                 return
-            except Exception as e:  # never leak a traceback to the browser
-                self._json(500, {"error": f"{type(e).__name__}: {e}"})
-                return
-            if gcode_path is not None and gcode_path.exists():
-                with lock:
-                    gcode_registry[rid] = gcode_path
-                    while len(gcode_registry) > MAX_REGISTRY:
-                        gcode_registry.popitem(last=False)
-                info["gcode_url"] = f"/api/gcode/{rid}"
-            self._json(200, info)
+            with slice_lock:
+                with lock:  # re-check: another thread may have just sliced this key
+                    cached = slice_cache.get(key)
+                if cached is not None and cached[1] is not None and cached[1].exists():
+                    info, gcode_path = cached
+                else:
+                    try:
+                        info, gcode_path = slice_registered_mesh(
+                            get_config(), mesh_path, key[1], key[2]
+                        )
+                    except KeyError as e:
+                        self._json(400, {"error": f"Unknown printer or material: {e}"})
+                        return
+                    except Exception as e:  # never leak a traceback to the browser
+                        self._json(500, {"error": f"{type(e).__name__}: {e}"})
+                        return
+                    with lock:
+                        slice_cache[key] = (info, gcode_path)
+                        while len(slice_cache) > MAX_REGISTRY:
+                            slice_cache.popitem(last=False)
+            self._respond_slice(rid, info, gcode_path)
 
     return Handler
 

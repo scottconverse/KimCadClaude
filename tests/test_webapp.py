@@ -317,6 +317,7 @@ def test_slice_registered_mesh_refuses_printer_without_process(tmp_path):
         Config.load(), mesh, "elegoo_neptune_4_max", "pla"
     )
     assert info["sliced"] is False
+    assert info["reason"] == "no_profile"  # ENG-008: capability gap, not a failure
     assert "process profile" in info["note"]
     assert gcode_path is None
 
@@ -391,7 +392,145 @@ def test_live_web_design_then_slice_then_download(tmp_path):
         assert sdata["profiles"]["process"] == "0.20mm Standard @BBL P2S"
         gcode_url = sdata["gcode_url"]
 
+        # ENG-003: an identical re-confirm is served from cache, same proven result.
+        sdata2 = json.load(urllib.request.urlopen(
+            urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=30,
+        ))
+        assert sdata2["gcode_lines"] == sdata["gcode_lines"]
+        assert sdata2["gcode_url"] == gcode_url
+
         resp = urllib.request.urlopen(base + gcode_url, timeout=30)
         body = resp.read()
         assert len(body) > 1000
         assert "attachment" in resp.headers.get("Content-Disposition", "")
+
+
+# --- Stage-gate fixes: web error-handling + resource hardening ----------------
+
+
+def test_non_dict_json_body_is_clean_400(tmp_path):
+    """QA-001: a valid-JSON but non-object body must yield a clean 400, not an empty
+    response from an uncaught AttributeError."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        status, body = _post_with_raw_length(host, port, len(b"[1,2,3]"), body=b"[1,2,3]")
+    assert status == 400
+    assert b"invalid request body" in body.lower()
+
+
+def test_non_string_prompt_is_400(tmp_path):
+    """QA-007: a wrong-typed prompt is rejected, not silently str()-coerced."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/design",
+            data=json.dumps({"prompt": 12345}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("expected 400")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+
+def test_unknown_printer_key_is_400(tmp_path):
+    """TEST-004: slicing with a printer key the config doesn't know is a clean 400."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        ddata = json.load(urllib.request.urlopen(
+            urllib.request.Request(
+                base + "/api/design",
+                data=json.dumps({"prompt": "a box"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=30))
+        rid = ddata["mesh_url"].rsplit("/", 1)[-1]
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "no_such_printer", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 400")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+            assert b"Unknown printer or material" in e.read()
+
+
+def test_unexpected_pipeline_error_is_clean_500_no_traceback(tmp_path):
+    """TEST-008: an unexpected exception in the pipeline surfaces as a 500 with the error
+    class but no stack trace leaked to the browser."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    class _Boom:
+        def run(self, prompt, out_dir, **kw):
+            raise RuntimeError("boom")
+
+    with _serve(_Boom(), tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/design",
+            data=json.dumps({"prompt": "a box"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("expected 500")
+        except urllib.error.HTTPError as e:
+            assert e.code == 500
+            body = e.read()
+            assert b"RuntimeError: boom" in body
+            assert b"Traceback" not in body
+
+
+def test_unsupported_method_is_405(tmp_path):
+    """QA-005: an unsupported verb on an existing resource is 405, not 501."""
+    import http.client
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("PUT", "/api/design")
+            resp = conn.getresponse()
+            assert resp.status == 405
+            assert "GET" in (resp.getheader("Allow") or "")
+        finally:
+            conn.close()
+
+
+def test_evicted_design_dir_is_removed_from_disk(tmp_path, monkeypatch):
+    """QA-003: past the registry cap, an evicted design's on-disk directory is removed."""
+    import json
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    monkeypatch.setattr(webapp_mod, "MAX_REGISTRY", 2)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        for _ in range(3):  # cap is 2 -> the first design's dir is evicted
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    base + "/api/design",
+                    data=json.dumps({"prompt": "a box"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                ), timeout=30)
+    assert not (tmp_path / "1").exists()  # evicted dir cleaned up
+    assert (tmp_path / "3").exists()      # newest survives

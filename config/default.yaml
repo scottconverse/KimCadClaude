@@ -66,7 +66,8 @@ printers:
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
   bambu_a1:
     name: "Bambu Lab A1"
-    build_volume: [256, 256, 256]
+    build_volume: [256, 256, 256]   # VERIFY exact A1 envelope (nominal 256³; A1 is a
+                                    # different machine class than the P-series)
     nozzle_diameter: 0.4
     orca_machine_profile: "Bambu Lab A1 0.4 nozzle"
     orca_process_profile: "0.20mm Standard @BBL A1"

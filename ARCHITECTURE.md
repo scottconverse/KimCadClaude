@@ -16,7 +16,10 @@ prompt
   → mesh validation                  # load mesh, check watertight, conservative repair
   → Printability Gate                # pass / warn / fail vs the chosen printer + material
   → auto-orient                      # rotate onto the most stable facet, drop to the bed
-  → [confirm + slice?]               # OrcaSlicer → G-code, only on explicit confirmation
+  → harden (Manifold3D)              # round-trip into a guaranteed 2-manifold; the
+                                     #   hardened mesh is what is exported and sliced
+  → [confirm + slice?]               # OrcaSlicer → G-code, only on explicit confirmation,
+                                     #   then proven (the 3MF must carry a real toolpath)
   → print report                     # plain-text (or JSON for the web UI) summary
 ```
 
@@ -42,12 +45,14 @@ Two failure classes are fed back to the model and retried inside one attempt bud
 G-code is only ever produced after explicit printer confirmation
 (`Pipeline.run(confirm_print=...)`); the slicer is otherwise never called.
 
-**Status of the slicer (deliberate Stage-0 scope):** `slicer.py` is implemented and
-unit-tested, and an end-to-end slice was proven once on a Bambu P2S profile, but it is
-**not yet wired into the default CLI or web flow** — the CLI doesn't pass `confirm_print`
-and the web "Send to printer" button is a stub. Connecting it (profile-name → on-disk-path
-resolution, material/profile confirmation, the G-code proof step) is **Stage 1 — the gated
-export loop** in `ROADMAP.md`. It is listed here so the gap is logged, not hidden.
+**Gated export (Stage 1, wired).** The slicer is now connected through the normal flow,
+behind that confirmation: the CLI `--slice` flag sets `confirm_print`, and the web UI
+slices on a separate confirmed `POST /api/slice/<id>`. Profile *names* in the config
+resolve to the shipped on-disk profile JSONs (`resolve_slice_settings`), and a slice is
+not trusted until it is **proven** — the exported 3MF is opened and must carry a real,
+motion-bearing toolpath (`prove_gcode_3mf`), from which the print estimate (time, layers,
+filament) is also parsed. A printer with no process profile (the Elegoo Neptune 4 Max
+today) is refused cleanly with the validated mesh still exported as the download fallback.
 
 ## Module map
 
@@ -59,7 +64,8 @@ export loop** in `ROADMAP.md`. It is listed here so the gap is logged, not hidde
 | `validation.py` | Loads a rendered mesh (flattening a multi-part scene), checks watertightness, attempts conservative repairs (fill holes, fix normals/winding/inversion), and reports geometry stats — volume, bounding box, body count. The bounding box here feeds the gate's dimensional assertion. |
 | `printability.py` | The **Printability Gate**: pass / warn / fail with reasons. Phase-1 checks: dimensional assertion (rendered bbox vs the plan envelope, flat 0.5 mm tolerance, no relative term), build-volume fit, declared wall thickness vs the material/nozzle minimum, and disconnected-shell detection. A non-watertight mesh is a hard fail. Single source of truth for the dimensional tolerance (`dim_tolerance`), shared with the retry feedback and the web UI. |
 | `orientation.py` | Auto-orientation: compute stable resting poses via the convex hull, rotate the part so the most probable resting face sits at Z = 0, and drop it to the bed. The chosen pose and its stability are surfaced in the report. |
-| `slicer.py` | OrcaSlicer CLI integration: turns a validated mesh into a sliced, G-code-bearing 3MF. Takes explicit on-disk profile JSON paths (`SliceSettings`); mapping config profile *names* to those paths is a pending binary-verification step. Never called without confirmation (enforced upstream in the pipeline). |
+| `hardening.py` | Pre-slice mesh hardening: round-trips the oriented mesh through **Manifold3D** into a guaranteed 2-manifold before it is exported and sliced (watertight is necessary but not sufficient — a watertight mesh can still carry non-manifold edges a slicer mis-handles). Best-effort and optional at runtime: if Manifold3D is absent or rejects the mesh, the already-validated mesh is passed through unchanged with a note. Never raises. |
+| `slicer.py` | OrcaSlicer CLI integration: turns a validated mesh into a sliced, G-code-bearing 3MF. Resolves config profile *names* to the shipped on-disk profile JSONs (`resolve_slice_settings`, fail-loud on a missing/ambiguous name), runs OrcaSlicer as an argv list (no shell), and **proves** the result — the 3MF must carry a real motion-bearing toolpath (`prove_gcode_3mf`), which also yields the print estimate. Never called without confirmation (enforced upstream in the pipeline). |
 | `pipeline.py` | The orchestrator described above: wires every stage, owns the render/gate retry loop, builds the `PrintReport`, and enforces the confirm-before-slice rule. |
 | `benchmark.py` | The Phase-1 done-gate harness. Runs a fixed set of plain-English prompts end to end and scores the batch against a pass-rate threshold. Data-driven (prompts and thresholds from `bench/*.yaml`) and decoupled from execution (a `run_one` callable) so the scoring is unit-testable without an LLM or binaries. Persists per-case artifacts (plan, report, outcome) for offline diagnosis. |
 | `cli.py` | The `kimcad` command — `design` (the default verb for a bare prompt), `bench`, and `web`. Wires already-tested pieces together; turns foreseeable setup problems (bad config, missing key, missing prompt file) into a plain-English message and a non-zero exit rather than a traceback. |
@@ -103,9 +109,12 @@ reuses the tested path rather than duplicating it.
 
 The server binds to `127.0.0.1` only by default (`kimcad web`, default port 8765, set
 with `--port`/`--host`). In-memory state and request size are bounded; a `--demo` mode
-serves a fixed sample part with no model call. Slicing to G-code is deliberately not
-triggered from the UI yet — it surfaces the validated 3MF/STL and leaves confirmed
-G-code generation to a later slice.
+serves a fixed sample part with no model call. Once a part passes the gate, the user
+picks a printer + material and, after an explicit confirmation, `POST /api/slice/<id>`
+slices the already-validated mesh (idempotent and serialized, so a re-confirm doesn't
+re-run the model or the slicer) and `GET /api/gcode/<id>` downloads the proven 3MF;
+`GET /api/options` feeds the printer/material pickers. The validated model itself is
+always downloadable as the export fallback.
 
 ## Local-first and the injectable seam
 

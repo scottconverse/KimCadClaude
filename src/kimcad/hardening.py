@@ -61,6 +61,11 @@ def harden_mesh(mesh: Any) -> tuple[Any, HardenReport]:
         )
 
     try:
+        # ENG-006: Manifold3D's mesh is float32 vertices / uint32 faces, so the hardened
+        # mesh is float32-derived — every vertex is perturbed to ~7 significant digits
+        # (sub-micron at print scale, far below the gate's 0.5 mm tolerance). This is why
+        # the pipeline re-derives the report's facts from the hardened mesh when it
+        # actually changed (ENG-001), rather than assuming a bit-identical round-trip.
         mesh_in = m3d.Mesh(
             vert_properties=np.asarray(mesh.vertices, dtype=np.float32),
             tri_verts=np.asarray(mesh.faces, dtype=np.uint32),

@@ -39,6 +39,38 @@ def test_harden_hollow_box_keeps_genus_zero_solid():
     assert out.is_watertight
 
 
+@pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
+def test_harden_rejects_real_nonmanifold_mesh_keeps_original():
+    # TEST-003: drive the real rejection branch — an open (non-manifold) mesh that
+    # Manifold3D can't build into a clean manifold returns the original, ok=False.
+    box = trimesh.creation.box(extents=[20, 20, 20])
+    open_mesh = trimesh.Trimesh(
+        vertices=box.vertices.copy(), faces=box.faces[1:].copy(), process=False
+    )
+    out, rep = harden_mesh(open_mesh)
+    assert rep.engine == "manifold3d"
+    assert rep.ok is False
+    assert out is open_mesh  # the validated mesh is returned unchanged
+
+
+@pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
+def test_harden_exception_path_keeps_validated_mesh(monkeypatch):
+    # TEST-003: if the Manifold round-trip raises, hardening must swallow it and return
+    # the original mesh (the "never raises" contract), driven through the real function.
+    import manifold3d
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("manifold boom")
+
+    monkeypatch.setattr(manifold3d, "Manifold", boom)
+    box = trimesh.creation.box(extents=[10, 10, 10])
+    out, rep = harden_mesh(box)
+    assert rep.engine == "manifold3d"
+    assert rep.ok is False
+    assert out is box
+    assert "hardening raised" in rep.note
+
+
 def test_harden_skips_cleanly_when_manifold3d_absent(monkeypatch):
     # Simulate manifold3d not being installed: import inside harden_mesh must raise
     # ImportError, and the original mesh is returned unchanged with a clear note.

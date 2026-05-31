@@ -69,6 +69,27 @@ class SliceFailed(SliceError):
         super().__init__(f"orca-slicer exited {returncode}: {stderr.strip()[:500]}")
 
 
+class GcodeProofFailed(SliceFailed):
+    """A slice wrote a file, but it carries no usable, motion-bearing G-code toolpath.
+
+    Distinct from a slicer *process* failure: the slicer may have exited 0 (or never
+    run at all), so the misleading "orca-slicer exited 0" framing of :class:`SliceFailed`
+    is suppressed here in favor of the plain proof reason. Still a ``SliceFailed`` so
+    existing ``except SliceFailed`` handlers keep working.
+    """
+
+    def __init__(self, message: str):
+        SliceError.__init__(self, message)  # plain message; no "exited N" template
+        self.returncode = None
+        self.stderr = message
+
+
+# Proof bounds (ENG-002): a sliced 3MF is the slicer's own output, but a pathological or
+# zip-bomb archive must not be able to pin a core / exhaust memory during the proof.
+_MAX_GCODE_MEMBERS = 64
+_MAX_MEMBER_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed per .gcode member
+
+
 @dataclass(frozen=True)
 class SliceSettings:
     """Resolved on-disk profile JSONs for one slice job."""
@@ -182,15 +203,21 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
     this opens the archive, requires at least one ``.gcode`` member, and requires at
     least one G0/G1/G2/G3 move across those members.
 
-    Raises :class:`SliceFailed` if the file is not a zip, carries no G-code member, or
-    the G-code has no motion command.
+    Raises :class:`GcodeProofFailed` if the file is not a zip, carries no G-code member,
+    or the G-code has no motion command. Defensive bounds reject a pathological archive
+    (too many members, or a member whose uncompressed size exceeds ``_MAX_MEMBER_BYTES``)
+    so a malformed/zip-bomb 3MF can't pin a core during the proof.
     """
     if not zipfile.is_zipfile(path):
-        raise SliceFailed(0, f"{path.name} is not a valid 3MF (zip) container")
+        raise GcodeProofFailed(f"{path.name} is not a valid 3MF (zip) container")
     with zipfile.ZipFile(path) as zf:
         entries = tuple(n for n in zf.namelist() if n.lower().endswith(".gcode"))
         if not entries:
-            raise SliceFailed(0, f"{path.name} contains no .gcode toolpath member")
+            raise GcodeProofFailed(f"{path.name} contains no .gcode toolpath member")
+        if len(entries) > _MAX_GCODE_MEMBERS:
+            raise GcodeProofFailed(
+                f"{path.name} has an implausible number of G-code members ({len(entries)})"
+            )
         line_count = 0
         has_motion = False
         est: dict[str, Any] = {}
@@ -198,8 +225,15 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
         # memory — a real part's toolpath can be tens of MB, and the target box is
         # memory-constrained (32 GB, shared with the local model). Estimate fields are
         # only scanned on comment lines, and only until found, so the hot motion path is
-        # untouched.
+        # untouched. G-code is ASCII; errors="replace" keeps the motion scan robust (a
+        # replaced byte can't forge a G0-3 match) and only risks cosmetic mangling of a
+        # localized estimate string.
         for name in entries:
+            if zf.getinfo(name).file_size > _MAX_MEMBER_BYTES:
+                raise GcodeProofFailed(
+                    f"{path.name} member {name!r} is too large to proof "
+                    f"({zf.getinfo(name).file_size} bytes)"
+                )
             with zf.open(name) as raw:
                 for line in io.TextIOWrapper(raw, encoding="utf-8", errors="replace"):
                     line_count += 1
@@ -208,7 +242,7 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
                     elif line.lstrip().startswith(";"):
                         _scan_estimate(line, est)
     if not has_motion:
-        raise SliceFailed(0, f"{path.name} G-code has no motion (G0/G1) commands")
+        raise GcodeProofFailed(f"{path.name} G-code has no motion (G0/G1/G2/G3) commands")
     return GcodeProof(
         entries=entries,
         line_count=line_count,
@@ -261,7 +295,11 @@ def _find_profile_json(root: Path, kind: str, name: str) -> Path:
     position — rather than "kind appears anywhere in the path" — avoids mis-resolving
     a name that lives under a subdirectory that merely happens to share a kind's name.
 
-    Raises :class:`OrcaProfileError` if no such file exists.
+    Raises :class:`OrcaProfileError` if no such file exists, OR if the name resolves to
+    more than one file (e.g. the same profile name shipped under two vendor subtrees):
+    silently taking the first sorted match could slice with the wrong-vendor profile —
+    plausible-looking but wrong G-code — so ambiguity fails loud and the config must
+    disambiguate. For the shipped tree every configured name is unique.
     """
     # Profile names contain spaces, '@', and parens but never glob metacharacters
     # ('*', '?', '['), so the name can be used in the glob pattern verbatim.
@@ -273,6 +311,12 @@ def _find_profile_json(root: Path, kind: str, name: str) -> Path:
     if not matches:
         raise OrcaProfileError(
             f"no {kind} profile named {name!r} found under {root}"
+        )
+    if len(matches) > 1:
+        where = ", ".join(str(m.relative_to(root)) for m in matches)
+        raise OrcaProfileError(
+            f"ambiguous {kind} profile {name!r}: {len(matches)} matches under {root} "
+            f"({where}); disambiguate the configured profile name"
         )
     return matches[0]
 

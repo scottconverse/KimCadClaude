@@ -57,7 +57,8 @@ No installer, no printer connectivity, no image input, no real print.
   2-manifold and *surfaces* what it did (never silent); optional at runtime; the gate still
   hard-fails defects upstream.
 - ✅ Download/export is the delivery path (web "Download 3D model" fallback + G-code 3MF
-  download). Tests incl. a live design→harden→slice→prove→download path on the real binary.
+  download). Tests incl. a live render→harden→slice→prove→download path on the real binary
+  (the model/codegen step is stubbed with a fake provider; everything after it is live).
 **Exit:** ✅ confirm a part → verified non-empty G-code with an estimate, multiple part types.
 **Needs:** target box. **Size:** ~1 week.
 > **Known limitation (carried forward):** the shipped OrcaSlicer has a machine + filament

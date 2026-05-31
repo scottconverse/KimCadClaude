@@ -5,6 +5,12 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
+> The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
+> **Stage 1 (gated G-code export) tagged `stage-1` on 2026-05-30.**
+> New runtime dependency this stage: **`manifold3d>=3.0`** — installed by default
+> (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
+> *import* is optional at runtime (hardening is skipped with a note if it is absent).
+
 ### Added
 - Project scaffold: src-layout package, configuration loader, dependency manifest,
   cross-platform line-ending normalization.
@@ -65,7 +71,8 @@ All notable changes to KimCad are documented here. Format follows
   model is always downloadable as the export fallback.
 - Manifold3D pre-slice mesh hardening: the oriented mesh is round-tripped into a
   guaranteed 2-manifold before export/slice; optional at runtime (skipped, with a note,
-  if `manifold3d` is absent). Adds the `manifold3d` dependency.
+  if `manifold3d` is absent). New dependency `manifold3d>=3.0` (installed by default; see
+  the note at the top of this section).
 - Bambu A1 printer profile added (one of Kim's printers).
 
 ### Changed
