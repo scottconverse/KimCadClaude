@@ -92,7 +92,7 @@ class GcodeProofFailed(SliceFailed):
 # Proof bounds (ENG-002): a sliced 3MF is the slicer's own output, but a pathological or
 # zip-bomb archive must not be able to pin a core / exhaust memory during the proof.
 _MAX_GCODE_MEMBERS = 64
-_MAX_MEMBER_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed per .gcode member
+MAX_GCODE_MEMBER_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed per .gcode member
 
 
 @dataclass(frozen=True)
@@ -210,7 +210,7 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
 
     Raises :class:`GcodeProofFailed` if the file is not a zip, carries no G-code member,
     or the G-code has no motion command. Defensive bounds reject a pathological archive
-    (too many members, or a member whose uncompressed size exceeds ``_MAX_MEMBER_BYTES``)
+    (too many members, or a member whose uncompressed size exceeds ``MAX_GCODE_MEMBER_BYTES``)
     so a malformed/zip-bomb 3MF can't pin a core during the proof.
     """
     if not zipfile.is_zipfile(path):
@@ -237,7 +237,7 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
             # Cheap pre-check on the zip-declared size, then a real bound on bytes actually
             # read — the declared file_size is forgeable, so the streaming loop below is the
             # authoritative cap against a crafted/zip-bomb member (RE-ENG-001).
-            if zf.getinfo(name).file_size > _MAX_MEMBER_BYTES:
+            if zf.getinfo(name).file_size > MAX_GCODE_MEMBER_BYTES:
                 raise GcodeProofFailed(
                     f"{path.name} member {name!r} is too large to proof "
                     f"({zf.getinfo(name).file_size} bytes)"
@@ -246,9 +246,9 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
             with zf.open(name) as raw:
                 for line in io.TextIOWrapper(raw, encoding="utf-8", errors="replace"):
                     member_chars += len(line)
-                    if member_chars > _MAX_MEMBER_BYTES:
+                    if member_chars > MAX_GCODE_MEMBER_BYTES:
                         raise GcodeProofFailed(
-                            f"{path.name} member {name!r} exceeds the {_MAX_MEMBER_BYTES}-byte "
+                            f"{path.name} member {name!r} exceeds the {MAX_GCODE_MEMBER_BYTES}-byte "
                             "proof cap (decompressed)"
                         )
                     line_count += 1

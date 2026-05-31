@@ -333,7 +333,7 @@ def test_prove_gcode_rejects_too_many_members(tmp_path, monkeypatch):
 
 def test_prove_gcode_rejects_oversize_member(tmp_path, monkeypatch):
     # ENG-002: a member whose uncompressed size exceeds the cap is rejected before walking.
-    monkeypatch.setattr(_slicer_mod, "_MAX_MEMBER_BYTES", 8)
+    monkeypatch.setattr(_slicer_mod, "MAX_GCODE_MEMBER_BYTES", 8)
     p = tmp_path / "big.gcode.3mf"
     _write_gcode_3mf(p, gcode="G1 X10 Y10 E1\nG1 X20 Y20 E2\n" * 4)
     with pytest.raises(GcodeProofFailed, match="too large"):

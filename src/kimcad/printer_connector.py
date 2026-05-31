@@ -43,6 +43,11 @@ class PrinterOffline(ConnectorError):
     """The printer could not be reached or is not ready to accept a job."""
 
 
+class AuthError(ConnectorError):
+    """The printer was reachable but rejected our credentials (e.g. a bad API key) —
+    distinct from :class:`PrinterOffline` (unreachable)."""
+
+
 class JobState(str, Enum):
     """Lifecycle of a print job, normalized across connectors."""
 
