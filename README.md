@@ -129,6 +129,34 @@ already-validated mesh, so confirming a print never re-runs the model. The valid
 3D model itself is always downloadable as the export fallback, including for printers
 that can't yet produce G-code.
 
+### Send to a printer
+
+A sliced job can be sent to a **printer connection** through a swappable connector. Every
+send requires explicit confirmation and refuses anything that isn't a proven slice; no
+real hardware is driven yet (that's the final beta at Kim's), so a built-in **`mock`**
+loopback and a runnable mock OctoPrint server let you exercise the whole path on the dev
+box. Configure connections under `connectors:` in `config/default.yaml` (the shipped ones
+are `mock` and an `octoprint` whose API key is read from an env var, never stored).
+
+- **CLI:** `kimcad design "a cable clip" --send mock` slices and sends (the `--send` flag
+  is the explicit confirmation). A real printer: `--send octoprint` (with
+  `OCTOPRINT_API_KEY` set). If the printer is offline/unreachable, it says so and leaves
+  the G-code on disk.
+- **Web:** after a slice, pick a connection and confirm to send; the result shows the job
+  + printer status, and the download stays as the fallback.
+- **Agent / MCP:** `python -m kimcad.mock_printer` runs a mock printer, and
+  `python -m kimcad.mcp_server` exposes the printer as MCP tools (list connections, status,
+  capabilities, and a confirmation-gated `send_print`) so an agent can drive it.
+
+To try the OctoPrint path with no hardware (the mock defaults to port `5000`, matching the
+shipped `octoprint` connector's `base_url`):
+
+1. Run `python -m kimcad.mock_printer` — it starts on `127.0.0.1:5000` and prints its
+   `X-Api-Key` (default `mock-key`).
+2. Set `OCTOPRINT_API_KEY=mock-key` in your environment.
+3. `kimcad design "a cable clip" --send octoprint` — slices, then sends to the mock over the
+   real OctoPrint REST path.
+
 ### The done-gate
 
 Phase 1 is judged by a fixed benchmark — the ten Appendix B prompts in

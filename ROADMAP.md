@@ -25,11 +25,19 @@ dependencies, and an honest size. Where something genuinely can't be proven yet,
 P2S not P1S; code-signing dropped (unsigned beta); recruited usability study replaced by
 in-app telemetry + public beta feedback.
 
-## Current baseline (honest)
-Phase-1 pipeline built + unit-tested (119 tests). Web UI is a first slice only. The done-gate
-has **not** officially passed — and now it needs to pass **on `gemma4:e4b`**, which is the
-real test, not the gemma3:12b runs I'd been doing. Slicing proven on one part, not wired in.
-No installer, no printer connectivity, no image input, no real print.
+## Current baseline (honest, as of Stage 2)
+Phase-1 pipeline + the web UI are built and tested (291 tests, ruff clean). The done-gate has
+passed **on `gemma4:e4b`** (≥ 8/10). **Stage 1** wired slicing into the normal flow behind the
+confirm gate, with a proven G-code 3MF per run (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max all
+slice live). **Stage 2** built the send-to-printer path — connector abstraction, OctoPrint
+connector + mock server, capability reconciliation, CLI `--send`, web send, and an MCP server —
+all software-complete and mock-tested. Still ahead: a one-click installer, image input, and a
+**real print on physical hardware** (Stage 10, at Kim's — nothing here has driven real hardware
+yet).
+
+> Earlier snapshot (pre-Stage-1, kept for history): "Phase-1 pipeline built + unit-tested (119
+> tests); slicing proven on one part, not wired in; no printer connectivity; no real print."
+> Superseded by Stages 1–2 above.
 
 ---
 
@@ -67,15 +75,27 @@ No installer, no printer connectivity, no image input, no real print.
 > OrcaSlicer names the Elegoo's process profiles `Neptune4Max` without spaces while the
 > machine profile uses `Neptune 4 Max` with spaces. The profiles ship; they're now wired.)
 
-## Stage 2 — Send-to-printer connector + MCP (software-complete, hardware-deferred)
+## Stage 2 — Send-to-printer connector + MCP (software-complete, hardware-deferred)  ✅ DONE
 **Goal:** the full send path exists and is tested — live printing waits for Kim's beta.
-- "Send to printer" abstraction; **MCP as the first connector**; explicit per-send
-  confirmation; printer status/capability query → auto-fill the blank profile field;
-  download/export stays the fallback.
-- Tested end-to-end against a **mocked/emulated printer** (OctoPrint or a Moonraker emulator
-  runs fine on the dev box). **No real print here — that's Stage 10 at Kim's.**
-**Exit:** confirmed part → "sent" through the connector to an emulated printer, or downloaded;
-status flows through. **Needs:** target box + an emulator. **Size:** ~1 week.
+- ✅ **`PrinterConnector` abstraction** (a `Protocol`): capabilities / status / send /
+  job-status, with a swappable connector per printer connection. A built-in **`mock`**
+  loopback connector exercises the whole path with no hardware.
+- ✅ **OctoPrint connector** (stdlib `urllib`, API key from env only — never stored/logged)
+  plus a **runnable mock OctoPrint server** (`python -m kimcad.mock_printer`) so the real
+  REST path is tested end-to-end offline.
+- ✅ **Capability reconciliation:** a printer's reported build volume / nozzle / materials
+  auto-fills a blank profile field and flags any config-vs-printer mismatch (config stays
+  authoritative, but the disagreement is surfaced).
+- ✅ **Explicit per-send confirmation** everywhere: `confirm is True` (not merely truthy) —
+  and the file must prove out as a real motion-bearing slice — or nothing is sent. Surfaced
+  in the CLI (`--send <connector>`), the web UI (pick a connection → confirm), and **MCP**.
+- ✅ **MCP server** (`python -m kimcad.mcp_server`, dependency-free JSON-RPC 2.0 over stdio):
+  `list_connectors` / `printer_status` / `printer_capabilities` / `send_print`, so an agent
+  can drive the printer behind the same confirmation gate.
+- ✅ Download/export stays the fallback. **No real print here — that's Stage 10 at Kim's.**
+**Exit:** ✅ confirmed part → "sent" through a connector to a mock printer (loopback or the
+mock OctoPrint server), or downloaded; status flows through. **Needs:** target box + a mock
+printer (both met on the dev box). **Size:** ~1 week.
 
 ## Stage 3 — Printer coverage + ready/not-ready UI (software-complete)
 **Goal:** multi-brand support and live status, all built and mock-tested.

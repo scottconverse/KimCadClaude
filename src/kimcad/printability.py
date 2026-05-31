@@ -164,6 +164,14 @@ def _check_dimensions(
 
 
 def _check_build_volume(result: GateResult, report: MeshReport, printer: Printer) -> None:
+    if printer.build_volume is None:
+        result.add(
+            Level.WARN,
+            "volume.unchecked",
+            f"Build volume for {printer.name} is unknown (not configured / not reported "
+            "by the printer), so build-plate fit was not checked.",
+        )
+        return
     over = [
         f"{axis} {g:.1f} > {b:.0f}"
         for axis, g, b in zip("XYZ", report.bounding_box_mm, printer.build_volume)
@@ -192,6 +200,8 @@ def _check_wall_thickness(
     )
     if declared is None:
         return  # no declared wall to check; mesh-measured thickness is Phase 3
+    if printer.nozzle_diameter is None:
+        return  # nozzle unknown -> can't compute the minimum wall; skip quietly
     minimum = material.min_wall_mm(printer.nozzle_diameter)
     if declared < minimum:
         result.add(

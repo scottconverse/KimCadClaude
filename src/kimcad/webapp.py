@@ -303,6 +303,21 @@ def make_handler(
             if self.path == "/api/options":
                 self._json(200, web_options(get_config()))
                 return
+            if self.path == "/api/connectors":
+                from kimcad.connectors import connector_is_simulated
+
+                cfg = get_config()
+                names = list(cfg.connectors())
+                # Each entry carries `simulated` (a loopback/no-hardware connection) so the UI
+                # can label honestly instead of narrating a mock send as a real print (UX-001).
+                conns = [
+                    {"name": n, "simulated": connector_is_simulated(cfg.connector_config(n))}
+                    for n in names
+                ]
+                # default = the first configured connector (config order); on a
+                # no-hardware box that's the built-in "mock" loopback, intentionally.
+                self._json(200, {"connectors": conns, "default": names[0] if names else None})
+                return
             if self.path.startswith("/vendor/"):
                 self._serve_vendor(self.path[len("/vendor/") :])
                 return
@@ -390,7 +405,60 @@ def make_handler(
             if self.path.startswith("/api/slice/"):
                 self._handle_slice(self.path.rsplit("/", 1)[-1])
                 return
+            if self.path.startswith("/api/send/"):
+                self._handle_send(self.path.rsplit("/", 1)[-1])
+                return
             self._json(404, {"error": "not found"})
+
+        def _handle_send(self, raw_id: str) -> None:
+            """Send an already-sliced part (by id) to a configured connector. The POST is
+            the explicit per-send confirmation (the user confirmed in the UI)."""
+            from kimcad.connectors import build_connector
+            from kimcad.printer_connector import ConnectorError
+
+            try:
+                rid = int(raw_id)
+            except ValueError:
+                self._json(404, {"error": "not found"})
+                return
+            with lock:
+                gcode_path = gcode_registry.get(rid)
+            if gcode_path is None or not gcode_path.exists():
+                self._json(404, {"error": "Slice the part first, then send it to a printer."})
+                return
+            data = self._read_json_body()
+            if data is None:
+                return
+            connector_name = data.get("connector")
+            if not connector_name:
+                self._json(400, {"error": "No connector chosen."})
+                return
+            try:
+                connector = build_connector(get_config(), connector_name)
+                job = connector.send(gcode_path, confirm=True)
+            except ConnectorError as e:
+                # not-sent is a soft outcome (offline / auth / refused / config) — the G-code
+                # is still downloadable, so report it without a 5xx. `reason` lets the UI give a
+                # typed next step; `note` is the user-facing message, not the developer detail.
+                self._json(200, {"sent": False, "reason": e.reason, "note": e.user_message})
+                return
+            except Exception as e:  # never leak a traceback
+                self._json(500, {"error": f"{type(e).__name__}: {e}"})
+                return
+            info: dict[str, Any] = {
+                "sent": True,
+                "connector": connector_name,
+                "simulated": not getattr(connector, "drives_hardware", True),
+                "job_id": job.job_id,
+                "state": job.state.value,
+            }
+            try:
+                st = connector.status()
+                info["printer_state"] = st.state.value
+                info["printer_detail"] = st.detail
+            except ConnectorError:
+                pass
+            self._json(200, info)
 
         def _handle_design(self) -> None:
             data = self._read_json_body()

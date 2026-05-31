@@ -102,6 +102,18 @@ materials:
   tpu:   { name: "TPU",     nozzle_temp: 225, bed_temp: 45,  wall_multiplier: 3.0, shrinkage: 0.008 }
   abs:   { name: "ABS/ASA", nozzle_temp: 250, bed_temp: 100, wall_multiplier: 2.5, shrinkage: 0.006 }
 
+# Send-to-printer connectors. Each named target the CLI `--send <name>` / the web can
+# print to. The API key is read from the named env var at send time, never stored here.
+# No real hardware is driven until the final beta — "mock" is a built-in loopback to try
+# the flow, and a mock OctoPrint server ships (`python -m kimcad.mock_printer`).
+connectors:
+  mock:
+    type: loopback
+  octoprint:
+    type: octoprint
+    base_url: http://127.0.0.1:5000   # your OctoPrint instance
+    api_key_env: OCTOPRINT_API_KEY    # set this env var to your OctoPrint API key
+
 limits:
   openscad_timeout_simple_s: 30
   openscad_timeout_complex_s: 120

@@ -47,19 +47,28 @@ def _strip_fences(text: str) -> str:
 
 
 def build_constraints_block(printer: Printer, material: Material) -> str:
+    lines = [f"- Printer: {printer.name}"]
     bv = printer.build_volume
-    min_wall = material.min_wall_mm(printer.nozzle_diameter)
-    return (
-        f"- Printer: {printer.name}\n"
-        f"- Build volume (x, y, z): {bv[0]:.0f} × {bv[1]:.0f} × {bv[2]:.0f} mm "
-        "(the part must fit inside this)\n"
-        f"- Nozzle diameter: {printer.nozzle_diameter:.2f} mm\n"
+    if bv is not None:
+        lines.append(
+            f"- Build volume (x, y, z): {bv[0]:.0f} × {bv[1]:.0f} × {bv[2]:.0f} mm "
+            "(the part must fit inside this)"
+        )
+    if printer.nozzle_diameter is not None:
+        lines.append(f"- Nozzle diameter: {printer.nozzle_diameter:.2f} mm")
+    lines.append(
         f"- Material: {material.name} "
-        f"(nozzle {material.nozzle_temp}°C, bed {material.bed_temp}°C)\n"
-        f"- Minimum wall thickness: {min_wall:.1f} mm\n"
-        f"- Default hole/peg clearance: 0.2 mm "
-        f"(account for ~{material.shrinkage * 100:.1f}% shrinkage)\n"
+        f"(nozzle {material.nozzle_temp}°C, bed {material.bed_temp}°C)"
     )
+    if printer.nozzle_diameter is not None:
+        lines.append(
+            f"- Minimum wall thickness: {material.min_wall_mm(printer.nozzle_diameter):.1f} mm"
+        )
+    lines.append(
+        f"- Default hole/peg clearance: 0.2 mm "
+        f"(account for ~{material.shrinkage * 100:.1f}% shrinkage)"
+    )
+    return "\n".join(lines) + "\n"
 
 
 def build_library_manifest(library_dir: Path = LIBRARY_DIR) -> str:

@@ -203,3 +203,136 @@ def test_design_without_slice_flag_does_not_slice(monkeypatch, capsys, tmp_path)
     assert code == 0
     assert sliced["n"] == 0  # no confirmation -> no G-code
     assert "G-code produced" not in capsys.readouterr().out
+
+
+# --- Stage 2 Slice 4: --send -------------------------------------------------
+
+
+def _real_gcode_slicer():
+    """A fake slicer that writes a genuinely-proveable .gcode.3mf so a connector's send
+    (which proves the file) accepts it."""
+    import zipfile
+
+    from kimcad.slicer import GcodeProof, SliceResult, SliceSettings
+
+    def fake_slicer(mesh_path, out_dir, basename):
+        from pathlib import Path
+
+        gp = out_dir / f"{basename}.gcode.3mf"
+        with zipfile.ZipFile(gp, "w") as zf:
+            zf.writestr("3D/3dmodel.model", "<model/>")
+            zf.writestr("Metadata/plate_1.gcode", "G28\nG1 X10 Y10 E1\nG1 X20 Y20 E2\n")
+        return SliceResult(
+            gcode_path=gp, stdout="", stderr="", duration_s=0.1,
+            gcode_proof=GcodeProof(
+                entries=("Metadata/plate_1.gcode",), line_count=3, has_motion=True
+            ),
+            settings=SliceSettings(
+                machine=Path("m.json"), process=Path("p.json"), filament=Path("f.json")
+            ),
+        )
+
+    return fake_slicer
+
+
+def test_design_send_to_mock_connector(monkeypatch, capsys, tmp_path):
+    """--send slices then sends to the named connector; 'mock' is the built-in loopback."""
+    _patch_pipeline(
+        monkeypatch, FakeProvider(make_plan([20, 20, 20])), slicer=_real_gcode_slicer()
+    )
+    code = main(["design", "a 20mm block", "--out", str(tmp_path), "--send", "mock"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "G-code produced" in out  # --send implied slicing
+    # 'mock' is a simulation, so the copy must NOT claim a real print (UX-001).
+    assert "Simulated send to mock" in out
+    assert "mock-1 (queued)" in out
+    assert "no real printer was used" in out.lower()
+    assert "Printer:" in out
+
+
+def test_gate_failed_part_is_never_sent(monkeypatch, capsys, tmp_path):
+    """The stage's headline safety property: a part that FAILS the gate must not be sent,
+    even with --send (the slicer is never invoked, the connector never built)."""
+    sliced = {"n": 0}
+
+    def counting_slicer(mesh_path, out_dir, basename):
+        sliced["n"] += 1
+        return "should-not-happen"
+
+    # plan claims 50mm, render is 20mm -> dim mismatch -> gate FAIL
+    _patch_pipeline(monkeypatch, FakeProvider(make_plan([50, 50, 50])), slicer=counting_slicer)
+    code = main(["design", "a block", "--out", str(tmp_path), "--send", "mock"])
+    out = capsys.readouterr().out
+    assert code == 5
+    assert sliced["n"] == 0
+    assert "Sent to" not in out
+
+
+def test_gate_failed_part_not_sent_even_with_proceed_anyway(monkeypatch, capsys, tmp_path):
+    """ENG-201: --proceed-anyway lets a gate-FAILED part be sliced for export/inspection,
+    but a part the printability gate rejected is never dispatched to a printer."""
+    # plan claims 50mm, render is 20mm -> dim mismatch -> gate FAIL; the slicer still runs
+    # under --proceed-anyway so the part can be exported.
+    _patch_pipeline(monkeypatch, FakeProvider(make_plan([50, 50, 50])), slicer=_real_gcode_slicer())
+    code = main(
+        ["design", "a block", "--out", str(tmp_path), "--send", "mock", "--proceed-anyway"]
+    )
+    out = capsys.readouterr().out
+    assert code == 0  # the run completes (the part was exported), but...
+    assert "FAILED the printability gate" in out  # ...it is explicitly NOT sent
+    assert "Sent to" not in out
+    assert "Simulated send" not in out
+
+
+def test_send_with_no_gcode_says_nothing_to_send(monkeypatch, capsys, tmp_path):
+    # --send on a passing part whose slicer produced no real SliceResult -> nothing to send.
+    def no_gcode_slicer(mesh_path, out_dir, basename):
+        return "not-a-slice-result"
+
+    _patch_pipeline(monkeypatch, FakeProvider(make_plan([20, 20, 20])), slicer=no_gcode_slicer)
+    code = main(["design", "a 20mm block", "--out", str(tmp_path), "--send", "mock"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "Nothing to send to mock" in out
+    assert "Sent to" not in out
+
+
+def test_design_send_unknown_connector_fails_fast(capsys):
+    # Validated before any pipeline run -> exit 2, no LLM/slicer invoked.
+    code = main(["design", "a block", "--send", "no_such_connector"])
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "Unknown connector 'no_such_connector'" in out
+
+
+def test_send_print_job_offline_falls_back_to_disk(capsys, tmp_path):
+    # An offline OctoPrint connector reports cleanly and points at the on-disk G-code.
+    import os
+    import zipfile
+
+    from kimcad.cli import _send_print_job
+    from kimcad.config import Config
+
+    g = tmp_path / "part.gcode.3mf"
+    with zipfile.ZipFile(g, "w") as zf:
+        zf.writestr("Metadata/plate_1.gcode", "G28\nG1 X1 Y1 E1\n")
+    os.environ["OCTO_OFFLINE_KEY"] = "k"
+    cfg = Config(
+        {
+            "binaries": {"openscad": "x", "orcaslicer": "y"},
+            "defaults": {"printer": "p", "material": "pla"},
+            "printers": {"p": {"name": "P"}},
+            "materials": {"pla": {"name": "PLA", "nozzle_temp": 210, "bed_temp": 55,
+                                  "wall_multiplier": 2.0, "shrinkage": 0.002}},
+            "connectors": {
+                "octo": {"type": "octoprint", "base_url": "http://127.0.0.1:1",
+                         "api_key_env": "OCTO_OFFLINE_KEY"}
+            },
+            "limits": {},
+        }
+    )
+    _send_print_job(cfg, "octo", str(g))
+    out = capsys.readouterr().out
+    assert "Not sent to octo" in out
+    assert str(g) in out  # download fallback: the G-code is still on disk

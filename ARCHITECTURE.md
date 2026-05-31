@@ -68,12 +68,20 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | `hardening.py` | Pre-slice mesh hardening: round-trips the oriented mesh through **Manifold3D** into a guaranteed 2-manifold before it is exported and sliced (watertight is necessary but not sufficient — a watertight mesh can still carry non-manifold edges a slicer mis-handles). Best-effort and optional at runtime: if Manifold3D is absent or rejects the mesh, the already-validated mesh is passed through unchanged with a note. Never raises. |
 | `slicer.py` | OrcaSlicer CLI integration: turns a validated mesh into a sliced, G-code-bearing 3MF. Resolves config profile *names* to the shipped on-disk profile JSONs (`resolve_slice_settings`, fail-loud on a missing/ambiguous name), runs OrcaSlicer as an argv list (no shell), and **proves** the result — the 3MF must carry a real motion-bearing toolpath (`prove_gcode_3mf`), which also yields the print estimate. Never called without confirmation (enforced upstream in the pipeline). |
 | `pipeline.py` | The orchestrator described above: wires every stage, owns the render/gate retry loop, builds the `PrintReport`, and enforces the confirm-before-slice rule. |
+| `printer_connector.py` | The send-to-printer **abstraction**: the `PrinterConnector` `Protocol` (capabilities / status / send / job-status), the frozen `PrinterCapabilities` / `PrinterStatus` / `PrintJob` models, the `ConnectorError` family, and the shared `ensure_sendable()` gate — it sends only when `confirm is True` (not merely truthy) **and** the file proves out as a real motion-bearing slice, otherwise nothing is sent. Ships a thread-safe in-memory `LoopbackConnector` (the `mock` connector) so the whole path is testable with no hardware. |
+| `octoprint_connector.py` | A real OctoPrint REST connector over stdlib `urllib` (`X-Api-Key` header). The API key comes from the environment only — never stored in config, never logged. A reachable-but-rejected printer (401/403) raises a distinct `AuthError` rather than masquerading as offline; single-plate G-code is extracted with a hard size cap. |
+| `mock_printer.py` | A runnable mock OctoPrint server (stdlib `http.server`) — version / printerprofiles / printer / files / job endpoints with API-key auth — so the OctoPrint connector is exercised end-to-end offline. `python -m kimcad.mock_printer`. |
+| `capability.py` | Capability reconciliation: `reconcile(printer, caps)` auto-fills a **blank** profile field from the printer's reported build volume / nozzle / materials and flags any config-vs-printer mismatch (config stays authoritative; the disagreement is surfaced with the actual numbers, never silently overridden). |
+| `connectors.py` | The connector **factory**: `build_connector(config, name)` resolves a configured connection (`mock` / `octoprint`) and reads any API key from its env var, with clear errors for an unknown name, unknown type, or missing base-url / key (it names the missing env var, never its value). |
+| `mcp_server.py` | The printer **MCP server** — a dependency-free MCP server (newline-delimited JSON-RPC 2.0 over stdio) exposing `list_connectors` / `printer_status` / `printer_capabilities` / `send_print` so an agent can drive the printer. The protocol is a pure `handle()` method (unit-tested with no subprocess); `send_print` passes the confirm value straight through to the `confirm is True` gate without coercion, so a truthy-but-not-`True` value cannot send. `python -m kimcad.mcp_server`. |
 | `benchmark.py` | The Phase-1 done-gate harness. Runs a fixed set of plain-English prompts end to end and scores the batch against a pass-rate threshold. Data-driven (prompts and thresholds from `bench/*.yaml`) and decoupled from execution (a `run_one` callable) so the scoring is unit-testable without an LLM or binaries. Persists per-case artifacts (plan, report, outcome) for offline diagnosis. |
-| `cli.py` | The `kimcad` command — `design` (the default verb for a bare prompt), `bench`, and `web`. Wires already-tested pieces together; turns foreseeable setup problems (bad config, missing key, missing prompt file) into a plain-English message and a non-zero exit rather than a traceback. |
+| `cli.py` | The `kimcad` command — `design` (the default verb for a bare prompt), `bench`, and `web`. `design --slice` is the explicit slice confirmation; `design --send <connector>` additionally sends the proven G-code through a connector behind the same confirmation gate (a gate-failed part is never sent; an offline printer is reported and the file is left on disk). Wires already-tested pieces together; turns foreseeable setup problems (bad config, missing key, missing prompt file) into a plain-English message and a non-zero exit rather than a traceback. |
 | `webapp.py` | The local web layer (see below). |
 
 `config.py` loads `config/default.yaml` overlaid with an optional, gitignored
-`config/local.yaml`, exposing typed `Printer` / `Material` / `LLMBackend` accessors.
+`config/local.yaml`, exposing typed `Printer` / `Material` / `LLMBackend` / `Connector`
+accessors. A `Printer`'s build volume and nozzle may be left blank, to be auto-filled by
+capability reconciliation against a connected printer.
 
 ## The OpenSCAD module library
 
@@ -114,8 +122,14 @@ serves a fixed sample part with no model call. Once a part passes the gate, the 
 picks a printer + material and, after an explicit confirmation, `POST /api/slice/<id>`
 slices the already-validated mesh (idempotent and serialized, so a re-confirm doesn't
 re-run the model or the slicer) and `GET /api/gcode/<id>` downloads the proven 3MF;
-`GET /api/options` feeds the printer/material pickers. The validated model itself is
-always downloadable as the export fallback.
+`GET /api/options` feeds the printer/material pickers. After a successful slice the page
+can also **send** the job to a printer connection: `GET /api/connectors` lists the
+configured connections (each flagged `simulated` so the UI labels a no-hardware connection
+honestly rather than narrating a mock send as a real print) and `POST /api/send/<id>` sends
+behind an explicit confirm step, returning the job + printer status (and `simulated`). A send
+failure (offline/unreachable printer, bad key, misconfig) is a soft result, not an error — it
+carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
+download stays as the fallback, as does the validated model itself.
 
 ## Local-first and the injectable seam
 

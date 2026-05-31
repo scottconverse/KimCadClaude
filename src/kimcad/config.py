@@ -22,8 +22,10 @@ LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
 class Printer:
     key: str
     name: str
-    build_volume: tuple[float, float, float]
-    nozzle_diameter: float
+    # Physical envelope + nozzle. Either may be left blank (None) in config and filled
+    # from a connector's reported capabilities (see kimcad.capability.reconcile).
+    build_volume: tuple[float, float, float] | None
+    nozzle_diameter: float | None
     orca_machine_profile: str | None = None
     # OrcaSlicer process (print-settings) profile name, and a material-key -> filament
     # profile name map. Names resolve to the shipped profile JSON files at slice time.
@@ -59,6 +61,17 @@ class LLMBackend:
     # Per-request timeout. A local CPU model can take many minutes for one generation,
     # well past the OpenAI client's 10-minute default, so this defaults generously.
     timeout_s: float = 1200.0
+
+
+@dataclass(frozen=True)
+class ConnectorConfig:
+    """A named send-to-printer target. The API key is read from ``api_key_env`` at use
+    time and is never stored in config."""
+
+    name: str
+    type: str  # "loopback" | "octoprint" | …
+    base_url: str | None = None
+    api_key_env: str | None = None
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -103,12 +116,20 @@ class Config:
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]
         p = self._d["printers"][key]
-        bv = p["build_volume"]
+        bv = p.get("build_volume")
+        # A 3-element value is the envelope; anything else (missing, empty, malformed) is
+        # blank (None) — to be filled from a connector's reported capabilities.
+        build_volume = (
+            (float(bv[0]), float(bv[1]), float(bv[2]))
+            if isinstance(bv, (list, tuple)) and len(bv) == 3
+            else None
+        )
+        nozzle = p.get("nozzle_diameter")
         return Printer(
             key=key,
             name=p["name"],
-            build_volume=(float(bv[0]), float(bv[1]), float(bv[2])),
-            nozzle_diameter=float(p["nozzle_diameter"]),
+            build_volume=build_volume,
+            nozzle_diameter=float(nozzle) if nozzle is not None else None,
             orca_machine_profile=p.get("orca_machine_profile"),
             orca_process_profile=p.get("orca_process_profile"),
             orca_filament_profiles=dict(p.get("orca_filament_profiles", {})),
@@ -125,6 +146,19 @@ class Config:
             bed_temp=int(m["bed_temp"]),
             wall_multiplier=float(m["wall_multiplier"]),
             shrinkage=float(m["shrinkage"]),
+        )
+
+    # --- connectors (send-to-printer) --------------------------------------
+    def connectors(self) -> list[str]:
+        return list(self._d.get("connectors", {}))
+
+    def connector_config(self, name: str) -> ConnectorConfig:
+        c = self._d.get("connectors", {})[name]
+        return ConnectorConfig(
+            name=name,
+            type=c["type"],
+            base_url=c.get("base_url"),
+            api_key_env=c.get("api_key_env"),
         )
 
     # --- llm ----------------------------------------------------------------

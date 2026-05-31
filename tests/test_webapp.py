@@ -379,13 +379,15 @@ def _binary_and_profiles_present() -> bool:
         return False
 
 
+@pytest.mark.live  # TEST-008: invokes the real OrcaSlicer; `pytest -m "not live"` skips it
 @pytest.mark.skipif(
     not _binary_and_profiles_present(), reason="OrcaSlicer binary/profiles not present"
 )
-def test_live_web_design_then_slice_then_download(tmp_path):
-    """Full web path, live: design a part over HTTP, confirm a slice for P2S + PLA, and
-    download the proven G-code 3MF as an attachment."""
+def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
+    """Full web path, live: design a part over HTTP, confirm a slice for P2S + PLA,
+    download the proven G-code 3MF, then send it to the mock connector (+ error branches)."""
     import json
+    import urllib.error
     import urllib.request
 
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
@@ -427,6 +429,139 @@ def test_live_web_design_then_slice_then_download(tmp_path):
         body = resp.read()
         assert len(body) > 1000
         assert "attachment" in resp.headers.get("Content-Disposition", "")
+
+        # Stage 2: send the sliced job to the built-in "mock" connector.
+        send = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/send/{rid}",
+            data=json.dumps({"connector": "mock"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+        assert send["sent"] is True
+        assert send["connector"] == "mock" and send["job_id"]
+        assert send["simulated"] is True  # UX-001: the mock is a simulation, flagged as such
+        assert send.get("printer_state")  # status flows through
+
+        # an unknown connector is a soft "not sent" (the download still works), not a 5xx,
+        # and carries a typed reason + a user-facing note (ENG-204/UX-003)
+        bad = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/send/{rid}",
+            data=json.dumps({"connector": "no_such"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+        assert bad["sent"] is False and bad["note"]
+        assert bad["reason"] == "config"
+
+        # TEST-001: the POST is the confirmation; a body "confirm" field must NOT be able to
+        # downgrade the gate. Pin that the web path always calls send(confirm is True), even
+        # when the body says confirm=false. (If a body confirm is ever wired in, this trips.)
+        import kimcad.connectors as conn_mod
+        from kimcad.printer_connector import JobState, PrinterState, PrinterStatus, PrintJob
+
+        seen: dict[str, object] = {}
+
+        class _Recorder:
+            name = "rec"
+            drives_hardware = True
+
+            def send(self, gcode, *, confirm, job_name=None):
+                seen["confirm"] = confirm
+                return PrintJob("r1", JobState.printing)
+
+            def status(self):
+                return PrinterStatus(online=True, state=PrinterState.operational)
+
+        monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: _Recorder())
+        json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/send/{rid}",
+            data=json.dumps({"connector": "mock", "confirm": False}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+        assert seen["confirm"] is True  # identity True, regardless of the body's confirm
+
+        # no connector chosen -> clean 400
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/send/{rid}", data=b"{}",
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 400")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+        # a status() error after a successful send still reports sent=True (status guarded)
+        from kimcad.printer_connector import ConnectorError
+
+        class _StatusBoom:
+            name = "boom"
+
+            def send(self, gcode, *, confirm, job_name=None):
+                return PrintJob("j1", JobState.printing)
+
+            def status(self):
+                raise ConnectorError("status link down")
+
+        monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: _StatusBoom())
+        ok = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/send/{rid}",
+            data=json.dumps({"connector": "mock"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+        assert ok["sent"] is True and ok.get("printer_state") is None
+
+        # an unexpected (non-ConnectorError) failure -> clean 500, no traceback leaked
+        def _boom(c, n):
+            raise RuntimeError("kaboom")
+
+        monkeypatch.setattr(conn_mod, "build_connector", _boom)
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/send/{rid}",
+                data=json.dumps({"connector": "mock"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 500")
+        except urllib.error.HTTPError as e:
+            assert e.code == 500
+            body = e.read()
+            assert b"RuntimeError: kaboom" in body and b"Traceback" not in body
+
+
+# --- Stage 2 Slice 4b: send-to-printer web endpoints --------------------------
+
+
+def test_connectors_endpoint_lists_configured_connectors(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        data = json.load(urllib.request.urlopen(f"http://{host}:{port}/api/connectors", timeout=10))
+    # Each entry is {name, simulated} so the UI can label a no-hardware connection honestly.
+    by_name = {c["name"]: c for c in data["connectors"]}
+    assert "mock" in by_name
+    assert by_name["mock"]["simulated"] is True  # the loopback is a simulation
+    if "octoprint" in by_name:
+        assert by_name["octoprint"]["simulated"] is False  # a real connector
+    assert data["default"] is not None
+
+
+def test_send_before_slice_is_404(tmp_path):
+    import json
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/send/999",
+            data=json.dumps({"connector": "mock"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("expected 404")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
 
 
 # --- Stage-gate fixes: web error-handling + resource hardening ----------------
@@ -689,9 +824,14 @@ def test_concurrent_identical_slices_run_once(tmp_path, monkeypatch):
         assert in_slice.wait(timeout=10)  # t1 is inside the slice, holding slice_lock
         t2 = threading.Thread(target=post_slice, args=(r2,))
         t2.start()
-        # give t2 time to pass the pre-lock cache miss and block on slice_lock
+        # TEST-007: t2 should reach slice_lock and block on it before we release t1, so the
+        # under-lock re-check branch (not the pre-lock cache hit) serves it. There is no public
+        # "blocked on a lock" hook, so we settle briefly. This is a deliberately accepted, bounded
+        # risk: if the settle is too short on a heavily loaded runner, t2 instead takes the
+        # pre-lock cache-hit path — still correct behavior (calls stays 1, urls match), just a
+        # different valid branch. The test can therefore only under-cover, never flaky-FAIL.
         import time
-        time.sleep(0.3)
+        time.sleep(0.5)
         release.set()
         t1.join(timeout=15)
         t2.join(timeout=15)
