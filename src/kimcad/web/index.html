@@ -175,6 +175,23 @@
     <div id="printResult" class="note hidden" aria-live="polite" aria-atomic="true"></div>
     <!-- UX-104: cancel an in-flight slice (parity with the design flow's Cancel). -->
     <button id="sliceCancel" class="secondary hidden">Cancel slicing</button>
+
+    <!-- Send to a printer connector (shown after a successful slice; explicit confirm). -->
+    <div id="sendSection" class="row hidden" style="flex-wrap: wrap; align-items: flex-end;">
+      <div>
+        <label class="field" for="connectorSel">Printer connection</label>
+        <select id="connectorSel"></select>
+      </div>
+      <button id="sendBtn" class="secondary">Send to printer…</button>
+    </div>
+    <div id="confirmSend" class="card hidden" tabindex="-1" style="margin-top: 14px;">
+      <p id="confirmSendMsg"></p>
+      <div class="row">
+        <button id="confirmSendYes">Yes, send it</button>
+        <button id="confirmSendNo" class="secondary">Cancel</button>
+      </div>
+    </div>
+    <div id="sendResult" class="note hidden" aria-live="polite" aria-atomic="true"></div>
   </div>
 
   <div id="error" class="card hidden" tabindex="-1" aria-live="polite">
@@ -195,6 +212,8 @@ let lastPrompt = "";
 let lastRid = null;          // mesh id of the most recent successful design
 let optionsData = null;      // printer/material choices from /api/options
 let optionsFailed = false;   // /api/options couldn't be loaded (UX-105)
+let connectorsData = null;   // printer connections from /api/connectors
+let sliceReady = false;      // a slice succeeded -> the send section is offerable
 let currentSlug = "part";    // filename slug derived from the part type (UX-106)
 let sliceController = null;   // AbortController for an in-flight slice (UX-104)
 let sliceTimer = null, sliceStartedAt = 0;
@@ -344,7 +363,10 @@ function resetPrintUI() {
   stopSliceTimer();
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
   hide("materialNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
+  hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  sliceReady = false;
   $("printResult").textContent = "";
+  $("sendResult").textContent = "";
 }
 
 async function loadOptions() {
@@ -419,6 +441,10 @@ function setSliceControlsBusy(busy) {
 
 async function doSlice() {
   hide("confirmPrint");
+  // N4: a (re-)slice supersedes any prior send-ability — clear the send section so a
+  // stale "Sent to X" / send button from the previous slice can't act on the old job.
+  sliceReady = false; hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  $("sendResult").textContent = "";
   if (lastRid === null) return;
   const printer = $("printerSel").value, material = $("materialSel").value;
   sliceController = new AbortController();
@@ -444,6 +470,10 @@ async function doSlice() {
         `<span class="muted">machine: ${escapeHtml(prof.machine || "")} · ` +
         `process: ${escapeHtml(prof.process || "")} · filament: ${escapeHtml(prof.filament || "")}</span><br>` +
         `<a href="${escapeHtml(data.gcode_url || "#")}" download="${escapeHtml(currentSlug)}.gcode.3mf">Download print job (.gcode.3mf)</a>`;
+      // a successful slice can be sent to a printer connection (if any are configured)
+      hide("sendResult"); $("sendResult").textContent = "";
+      sliceReady = true;
+      maybeShowSendSection();
     } else if (data.reason === "failed") {
       // ENG-008: a real slice failure on a sliceable printer is distinct from the
       // capability gap of a printer configured without a process profile.
@@ -459,6 +489,61 @@ async function doSlice() {
     stopSliceTimer();
     setSliceControlsBusy(false);
     sliceController = null;
+  }
+}
+
+// --- send to a printer connection ---------------------------------------------
+function maybeShowSendSection() {
+  // show only after a successful slice AND once the connector list has loaded (the two
+  // are async, so re-check from both sides — UX-fix for the startup race).
+  if (sliceReady && connectorsData && (connectorsData.connectors || []).length) show("sendSection");
+}
+
+async function loadConnectors() {
+  try {
+    const res = await fetch("/api/connectors");
+    if (!res.ok) return;
+    connectorsData = await res.json();
+    const sel = $("connectorSel");
+    sel.innerHTML = "";
+    for (const name of (connectorsData.connectors || [])) {
+      const o = document.createElement("option");
+      o.value = name; o.textContent = name;
+      if (name === connectorsData.default) o.selected = true;
+      sel.appendChild(o);
+    }
+    maybeShowSendSection();  // a slice may have finished before this resolved
+  } catch (_) { /* connections are optional; the section just stays hidden */ }
+}
+
+async function doSend() {
+  hide("confirmSend");
+  if (lastRid === null) return;
+  const connector = $("connectorSel").value;
+  $("sendBtn").disabled = true;
+  show("sendResult");
+  $("sendResult").textContent = "Sending to " + connector + "…";
+  try {
+    const res = await fetch(`/api/send/${lastRid}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connector })
+    });
+    const data = await res.json();
+    if (!res.ok) { $("sendResult").textContent = data.error || "Send failed."; return; }
+    if (data.sent) {
+      const printer = data.printer_state ? ` Printer: ${escapeHtml(data.printer_state)}.` : "";
+      $("sendResult").innerHTML =
+        `<strong>Sent to ${escapeHtml(data.connector || connector)}</strong> — ` +
+        `job ${escapeHtml(data.job_id || "")} (${escapeHtml(data.state || "")}).` + printer;
+    } else {
+      $("sendResult").textContent =
+        "Couldn't send: " + (data.note || "the printer didn't accept the job.") +
+        " Your G-code download above still works.";
+    }
+  } catch (e) {
+    $("sendResult").textContent = "Could not reach the server: " + e.message;
+  } finally {
+    $("sendBtn").disabled = false;
   }
 }
 
@@ -616,7 +701,22 @@ $("confirmPrintNo").addEventListener("click", () => { hide("confirmPrint"); $("p
 $("confirmPrintYes").addEventListener("click", doSlice);
 $("sliceCancel").addEventListener("click", () => { if (sliceController) sliceController.abort(); });
 
+// Send-to-printer: pick a connection, confirm explicitly, then send.
+$("sendBtn").addEventListener("click", () => {
+  hide("sendResult"); $("sendResult").textContent = "";
+  const connector = $("connectorSel").value;
+  $("confirmSendMsg").textContent =
+    `Send this print job to "${connector}"? It will be uploaded to that connection and queued to print.`;
+  show("confirmSend");
+  focusCard("confirmSend");
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $("confirmSend").scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+});
+$("confirmSendNo").addEventListener("click", () => { hide("confirmSend"); $("sendBtn").focus(); });
+$("confirmSendYes").addEventListener("click", doSend);
+
 loadOptions();
+loadConnectors();
 </script>
 </body>
 </html>
