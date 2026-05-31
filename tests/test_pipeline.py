@@ -230,7 +230,7 @@ def test_slice_refusal_is_reported_not_raised(tmp_path):
 
 def test_operational_slice_failure_is_distinguished_from_capability_gap(tmp_path):
     """ENG-008: a SliceFailed on a sliceable printer is reported as a failure ('slicing
-    failed'), not framed like the intentional Elegoo capability gap."""
+    failed'), not framed like the capability gap of a printer with no process profile."""
     from kimcad.slicer import SliceFailed
 
     def failing_slicer(mesh_path, out_dir, basename):

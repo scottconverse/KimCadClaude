@@ -101,5 +101,6 @@ All notable changes to KimCad are documented here. Format follows
 - Printer sliceability: all three of Kim's printers — Bambu P2S, Bambu A1, and Elegoo
   Neptune 4 Max — are fully sliceable (machine + process + filament profiles all ship)
   and proven end to end against the bundled OrcaSlicer. The Elegoo's process profiles
-  ship under the name `Neptune4Max` (no spaces) while its machine profile uses
-  `Neptune 4 Max` (with spaces); resolving the right name is the only subtlety.
+  ship under the name `Neptune4Max` (no spaces, nested under `process/EN4SERIES/`) while
+  its machine profile uses `Neptune 4 Max` (with spaces); resolving the right name was
+  the subtlety that an earlier (space-using) search missed.

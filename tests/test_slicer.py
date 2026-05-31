@@ -379,6 +379,27 @@ def test_estimate_time_normal_mode_format(tmp_path):
     assert proof.estimated_time == "33m 23s"
 
 
+def test_estimate_time_primary_stops_at_semicolon(tmp_path):
+    # ENG-001: "total estimated time:" followed by another clause must capture only the
+    # time, not greedily to end-of-line.
+    p = tmp_path / "multi.gcode.3mf"
+    _write_gcode_3mf(p, gcode="; total estimated time: 14m 45s; foo: bar\nG28\nG1 X1 Y1 E1\n")
+    proof = prove_gcode_3mf(p)
+    assert proof.estimated_time == "14m 45s"
+
+
+def test_estimate_ignores_first_layer_time(tmp_path):
+    # The "estimated first layer printing time (normal mode)" line must NOT be mistaken
+    # for the whole-print estimate (it isn't the substring "estimated printing time").
+    p = tmp_path / "fl.gcode.3mf"
+    _write_gcode_3mf(
+        p,
+        gcode="; estimated first layer printing time (normal mode) = 22s\nG28\nG1 X1 Y1 E1\n",
+    )
+    proof = prove_gcode_3mf(p)
+    assert proof.estimated_time is None
+
+
 def test_find_profile_json_ambiguous_name_raises(tmp_path):
     # TEST-005 / ENG-007 / QA-004: the same name+kind under two vendors must fail loud,
     # not silently slice with the first-sorted vendor's profile.

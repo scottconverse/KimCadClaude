@@ -445,7 +445,8 @@ async function doSlice() {
         `process: ${escapeHtml(prof.process || "")} · filament: ${escapeHtml(prof.filament || "")}</span><br>` +
         `<a href="${escapeHtml(data.gcode_url || "#")}" download="${escapeHtml(currentSlug)}.gcode.3mf">Download print job (.gcode.3mf)</a>`;
     } else if (data.reason === "failed") {
-      // ENG-008: a real slice failure on a sliceable printer is not the Elegoo capability gap.
+      // ENG-008: a real slice failure on a sliceable printer is distinct from the
+      // capability gap of a printer configured without a process profile.
       $("printResult").textContent = "Slicing failed — please try again. " + (data.note || "");
     } else {
       $("printResult").textContent = "Can't generate G-code for this printer yet: " + (data.note || "no profile.");

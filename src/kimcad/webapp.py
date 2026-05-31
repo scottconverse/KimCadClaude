@@ -144,9 +144,10 @@ def _real_provider(config: Any, backend: str | None) -> Any:
 def web_options(config: Any) -> dict[str, Any]:
     """The printer + material choices the UI offers, plus the configured defaults.
 
-    Each printer carries a ``sliceable`` flag (it has an OrcaSlicer process profile)
-    so the UI can mark printers — like the Elegoo, which currently has none — as
-    not-yet-sliceable instead of letting the user pick one that will only refuse."""
+    Each printer carries a ``sliceable`` flag (it has an OrcaSlicer process profile) so
+    the UI can mark any printer configured without one as not-yet-sliceable instead of
+    letting the user pick one that will only refuse. (All three currently configured
+    printers — Bambu P2S, Bambu A1, Elegoo Neptune 4 Max — are sliceable.)"""
     printers = [
         {
             "key": key,

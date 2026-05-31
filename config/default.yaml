@@ -52,8 +52,8 @@ defaults:
 # Build volume = [x, y, z] in mm. nozzle_diameter in mm.
 # OrcaSlicer profile names below are verified against the pinned shipped build
 # (v2.4.0-alpha resources/profiles/). A material with no entry in orca_filament_profiles
-# falls back to that material's "Generic <MATERIAL>" filament. Kim's printers are the
-# Bambu P2S + A1 (fully sliceable) and the Elegoo Neptune 4 Max.
+# falls back to that material's vendor-neutral "Generic <MATERIAL>" filament. Kim's three
+# printers — Bambu P2S, Bambu A1, and the Elegoo Neptune 4 Max — are all fully sliceable.
 printers:
   bambu_p2s:
     name: "Bambu Lab P2S"
@@ -76,7 +76,7 @@ printers:
     reference_hardware: true          # Kim's; validated in the final beta, not yet
   elegoo_neptune_4_max:
     name: "Elegoo Neptune 4 Max"
-    build_volume: [420, 420, 480]
+    build_volume: [420, 420, 480]   # matches the shipped machine profile's printable area
     nozzle_diameter: 0.4
     orca_machine_profile: "Elegoo Neptune 4 Max (0.4 nozzle)"
     # The shipped OrcaSlicer names this printer's *machine* profile with spaces
@@ -88,6 +88,14 @@ printers:
 
 # Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
 # unless a material overrides it. Temps are nozzle/bed in °C.
+#
+# CONTRACT (read before trusting these for a print): these temps + wall_multiplier feed
+# the *Printability Gate* (wall-thickness check), not the slice. At slice time the
+# material only selects the OrcaSlicer *filament profile* — which carries its own
+# temps/flow — so changing nozzle_temp here does not change the sliced temperatures.
+# Non-PLA materials currently fall back to the vendor-neutral "Generic <MATERIAL>"
+# filament (BBL-authored) on every printer; per-printer-tuned non-PLA profiles are a
+# Stage 3 (printer-coverage) item, validated against real hardware at Kim's.
 materials:
   pla:   { name: "PLA",     nozzle_temp: 210, bed_temp: 55,  wall_multiplier: 2.0, shrinkage: 0.002 }
   petg:  { name: "PETG",    nozzle_temp: 240, bed_temp: 75,  wall_multiplier: 2.5, shrinkage: 0.004 }

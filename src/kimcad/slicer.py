@@ -42,7 +42,7 @@ _MOTION_RE = re.compile(r"^\s*G[0-3]\b", re.IGNORECASE)
 # Estimate comment lines OrcaSlicer writes into the embedded G-code header/footer. The
 # wording varies by vendor profile: Bambu writes "total estimated time:"; Elegoo (and
 # upstream PrusaSlicer-derived profiles) write "estimated printing time (normal mode) =".
-_EST_TIME_RE = re.compile(r"total estimated time:\s*(.+?)\s*$", re.IGNORECASE)
+_EST_TIME_RE = re.compile(r"total estimated time:\s*(.+?)\s*(?:;|$)", re.IGNORECASE)
 _EST_TIME_FALLBACK_RE = re.compile(
     r"(?:model printing time:|estimated printing time \(normal mode\)\s*=)\s*(.+?)\s*(?:;|$)",
     re.IGNORECASE,

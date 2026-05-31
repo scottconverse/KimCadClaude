@@ -83,6 +83,12 @@ status flows through. **Needs:** target box + an emulator. **Size:** ~1 week.
   capability/status checks; a "ready / not ready" UI; honest labeling (nothing is
   hardware-verified until Kim's beta).
 - Tested against each printer-API contract via mocks/emulators.
+- **Per-printer material tuning:** today non-PLA materials slice with the vendor-neutral
+  "Generic <MATERIAL>" filament profile on every printer (fine for PLA, approximate for
+  PETG/TPU/ABS on a non-Bambu machine). Wire per-printer, per-material filament profiles
+  (the Elegoo and Bambu trees both ship them), and verify each printer's build volume
+  against the real machine — the same "config claims what the files/hardware back" check
+  that the Elegoo miss flagged.
 **Exit:** any supported brand selectable with live (emulated) status; the ready/not-ready UI
 works. **Needs:** target box + emulators. **Size:** ~1.5–2 weeks.
 
