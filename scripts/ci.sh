@@ -21,6 +21,15 @@ echo "[ci] pytest..."
 # -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
 # mistaken for one that proved the real slicer contract (TEST-002).
 "$PY" -m pytest -q -ra
+# Frontend unit tests (vitest). The committed SPA build is what ships, so a toolchain-less
+# environment doesn't fail the gate — it skips with a note. On a dev box with the frontend
+# deps installed, a vitest failure blocks the push (set -e).
+if [ -d frontend/node_modules ] && command -v npm >/dev/null 2>&1; then
+    echo "[ci] frontend tests (vitest)..."
+    npm --prefix frontend run test
+else
+    echo "[ci] NOTE: frontend/node_modules or npm absent — vitest SKIPPED (committed build unaffected)."
+fi
 # Warn loudly (don't fail — the binary is fetched separately) when the live slice/web tests
 # would skip: that run did NOT prove the real OrcaSlicer CLI contract end to end, so a
 # release tag should not be cut from it.

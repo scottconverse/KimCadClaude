@@ -88,6 +88,54 @@ def test_workshop_fonts_are_bundled_for_offline_use():
         assert matches, f"missing bundled latin woff2 for {stem} (offline fonts incomplete)"
 
 
+_FRONTEND_SRC = WEB_DIR.parents[2] / "frontend" / "src"
+_TS_FILES = sorted(_FRONTEND_SRC.rglob("*.ts*"))
+# "Consumer" source = the components/logic that actually USE the wire fields. The api.ts type
+# declaration is excluded (declaring a field in the interface is not consuming it — a field
+# rendered nowhere should still trip the test), and the *.test.ts files are excluded (a field
+# named only in a test must not satisfy the contract).
+_TS_CONSUMERS = "\n".join(
+    p.read_text(encoding="utf-8")
+    for p in _TS_FILES
+    if p.name != "api.ts" and ".test." not in p.name
+)
+
+
+def test_frontend_source_consumes_documented_response_fields():
+    """The SPA's TypeScript *consumer* source references every field the backend's
+    design_response / _plan_payload / _report_payload puts on the wire, so the UI actually
+    renders the documented contract rather than silently dropping a field. (Replaces the old
+    inline-vanilla-JS check; the field rendering moved into the React/TS source in Slice 4.)"""
+    required_fields = [
+        # top-level design_response mapping
+        "status",
+        "clarification",
+        "plan",
+        "report",
+        "error",
+        "mesh_url",
+        "has_mesh",
+        # plan payload
+        "object_type",
+        "summary",
+        "target_bbox_mm",
+        # report payload
+        "gate_status",
+        "headline",
+        "dims",
+        "findings",
+    ]
+    missing = [f for f in required_fields if not re.search(rf"\b{re.escape(f)}\b", _TS_CONSUMERS)]
+    assert not missing, f"frontend consumer source does not reference backend fields: {missing}"
+
+
+def test_frontend_source_handles_every_pipeline_status():
+    """Each PipelineStatus value the backend can return must be branched on in the consumer
+    source (not merely named in a comment or a test)."""
+    for status_value in ("clarification_needed", "render_failed", "gate_failed", "completed"):
+        assert status_value in _TS_CONSUMERS, f"frontend does not handle status={status_value}"
+
+
 def test_viewport_chunk_is_code_split_from_the_entry():
     """Stage 4 Slice 3: three.js (the 3D viewport) is lazy-loaded, so it lands in a separate
     chunk (Workspace.js) rather than bloating the initial entry bundle. The committed build

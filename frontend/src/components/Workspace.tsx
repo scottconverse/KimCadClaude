@@ -1,23 +1,28 @@
+import type { DesignResponse } from '../api'
 import ChatPanel from './ChatPanel'
 import RightPanel from './RightPanel'
 import Viewport from './Viewport'
 
-// The three-column working view (conversation · viewport · parameters/printability). Stage 4,
-// Slice 3 stands up the layout and the live viewport; the side panels fill in over Slices 4–5.
+// The three-column working view (conversation · viewport · parameters/printability), wired to
+// the design result in Slice 4.
 export default function Workspace({
+  prompt,
+  result,
   meshUrl,
   busy,
-  notice,
+  error,
 }: {
+  prompt: string
+  result: DesignResponse | null
   meshUrl: string | null
   busy: boolean
-  notice: string | null
+  error: string | null
 }) {
   return (
     <div className="kc-workspace">
-      <ChatPanel notice={notice} />
+      <ChatPanel prompt={prompt} result={result} busy={busy} error={error} />
       <Viewport meshUrl={meshUrl} busy={busy} />
-      <RightPanel />
+      <RightPanel result={result} />
     </div>
   )
 }

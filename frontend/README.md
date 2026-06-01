@@ -45,6 +45,12 @@ npm run build    # tsc --noEmit (typecheck) + vite build → writes ../src/kimca
 
 ## Verify
 
-`tests/test_frontend.py` (the built shell mounts `#root` and references existing `/assets/`
-bundles) and `tests/test_webapp.py` (the server serves `/` and `/assets/` and rejects traversal)
-gate the build output from the Python side, so a missing or stale build trips the suite.
+```
+npm test          # vitest — unit tests for the pure logic (api client, status mappers)
+```
+
+`tests/test_frontend.py` (the built shell mounts `#root`, references existing `/assets/`
+bundles, carries the Workshop tokens + fonts, and consumes every documented backend field) and
+`tests/test_webapp.py` (the server serves `/` and `/assets/` and rejects traversal) gate the
+build output from the Python side, so a missing or stale build trips the suite. `npm test`
+(vitest) covers the TypeScript logic and is run by `scripts/ci.sh` when the toolchain is present.
