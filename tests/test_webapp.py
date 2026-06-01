@@ -452,15 +452,18 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
         assert send["simulated"] is True  # UX-001: the mock is a simulation, flagged as such
         assert send.get("printer_state")  # status flows through
 
-        # an unknown connector is a soft "not sent" (the download still works), not a 5xx,
-        # and carries a typed reason + a user-facing note (ENG-204/UX-003)
+        # an unknown connector is a soft "not sent" (the download still works), not a 5xx, and
+        # carries a typed reason + a user-facing note. An unknown NAME is reason="unknown"
+        # (distinct from a misconfigured "config"), and the soft failure mirrors the status
+        # contract's `simulated` field (QA-003 / ENG-002).
         bad = json.load(urllib.request.urlopen(urllib.request.Request(
             base + f"/api/send/{rid}",
             data=json.dumps({"connector": "no_such"}).encode(),
             headers={"Content-Type": "application/json"},
         ), timeout=30))
         assert bad["sent"] is False and bad["note"]
-        assert bad["reason"] == "config"
+        assert bad["reason"] == "unknown"
+        assert bad["simulated"] is False
 
         # TEST-001: the POST is the confirmation; a body "confirm" field must NOT be able to
         # downgrade the gate. Pin that the web path always calls send(confirm is True), even

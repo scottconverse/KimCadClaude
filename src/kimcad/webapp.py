@@ -489,14 +489,19 @@ def make_handler(
             if not connector_name:
                 self._json(400, {"error": "No connector chosen."})
                 return
+            simulated = False
             try:
                 connector = build_connector(get_config(), connector_name)
+                simulated = not getattr(connector, "drives_hardware", True)
                 job = connector.send(gcode_path, confirm=True)
             except ConnectorError as e:
-                # not-sent is a soft outcome (offline / auth / refused / config) — the G-code
-                # is still downloadable, so report it without a 5xx. `reason` lets the UI give a
-                # typed next step; `note` is the user-facing message, not the developer detail.
-                self._json(200, {"sent": False, "reason": e.reason, "note": e.user_message})
+                # not-sent is a soft outcome (offline / auth / refused / config / busy / unknown)
+                # — the G-code is still downloadable, so report it without a 5xx. `reason` lets
+                # the UI give a typed next step; `note` is the user-facing message; `simulated`
+                # mirrors the status contract so a failed send is described as honestly as a sent
+                # one (ENG-002).
+                self._json(200, {"sent": False, "reason": e.reason,
+                                 "simulated": simulated, "note": e.user_message})
                 return
             except Exception as e:  # never leak a traceback
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
@@ -504,7 +509,7 @@ def make_handler(
             info: dict[str, Any] = {
                 "sent": True,
                 "connector": connector_name,
-                "simulated": not getattr(connector, "drives_hardware", True),
+                "simulated": simulated,
                 "job_id": job.job_id,
                 "state": job.state.value,
             }
