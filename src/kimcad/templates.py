@@ -428,12 +428,11 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
     return (snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider)
 
 
-_DEFAULT_REGISTRY: TemplateRegistry | None = None
+# Built eagerly at import: construction is cheap and deterministic, and the families are
+# immutable, so there's no init race when the threaded webapp builds pipelines concurrently.
+_DEFAULT_REGISTRY = TemplateRegistry(_build_default_families())
 
 
 def default_registry() -> TemplateRegistry:
-    """The process-wide built-in registry (built once)."""
-    global _DEFAULT_REGISTRY
-    if _DEFAULT_REGISTRY is None:
-        _DEFAULT_REGISTRY = TemplateRegistry(_build_default_families())
+    """The process-wide built-in registry (constructed once at import)."""
     return _DEFAULT_REGISTRY

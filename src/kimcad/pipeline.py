@@ -42,6 +42,7 @@ from kimcad.slicer import (
     resolve_slice_settings,
     slice_model,
 )
+from kimcad.templates import TemplateMatch, TemplateRegistry, default_registry
 from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
@@ -200,6 +201,10 @@ class PipelineResult:
     slice_error: str | None = None
     error: str | None = None
     render_attempts: int = 0
+    # The matched template family + its derived parameter values, when the deterministic
+    # template engine built this part (None when the LLM-codegen fallback was used). This
+    # is what the live-slider UI needs: the typed parameters and the family to re-render.
+    template: TemplateMatch | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -213,6 +218,7 @@ class Pipeline:
         *,
         renderer: Renderer | None = None,
         slicer: Slicer | None = None,
+        registry: TemplateRegistry | None = None,
         max_render_retries: int = 2,
     ):
         self.config = config
@@ -221,6 +227,10 @@ class Pipeline:
         self.provider = provider
         self.renderer = renderer or self._default_renderer
         self.slicer = slicer or self._default_slicer
+        # The deterministic template engine. Pass an empty TemplateRegistry(()) to force
+        # the LLM-codegen path for every part (the engine off); the default registry makes
+        # template-covered object types deterministic and instantly re-renderable.
+        self.registry = registry if registry is not None else default_registry()
         self.max_render_retries = max_render_retries
 
     def _default_renderer(self, scad: str, out_dir: Path, basename: str) -> RenderResult:
@@ -275,8 +285,17 @@ class Pipeline:
                 clarification=clarification,
             )
 
+        # Tiered engine: a template-covered object type builds deterministically (no model
+        # call, instantly re-renderable); everything else falls back to LLM codegen. For a
+        # template part, the size it will actually be is the family's analytic envelope, so
+        # align the plan's target bbox to it — the gate then verifies the template built
+        # what it declares, and the report/viewport show that size.
+        match = self.registry.match(plan)
+        if match is not None:
+            plan = plan.model_copy(update={"bounding_box_mm": list(match.expected_bbox())})
+
         render, scad, mesh, mesh_report, gate, attempts, error = self._build_geometry(
-            plan, out_dir, basename, gate_retry=not proceed_anyway
+            plan, out_dir, basename, gate_retry=not proceed_anyway, match=match
         )
         if render is None:
             return PipelineResult(
@@ -286,6 +305,7 @@ class Pipeline:
                 scad=scad,
                 render_attempts=attempts,
                 error=error,
+                template=match,
             )
 
         oriented, orientation = auto_orient(mesh)
@@ -320,6 +340,7 @@ class Pipeline:
                 mesh_path=mesh_path,
                 report=report,
                 render_attempts=attempts,
+                template=match,
             )
 
         slice_result = None
@@ -351,6 +372,7 @@ class Pipeline:
             slice_result=slice_result,
             slice_error=slice_error,
             render_attempts=attempts,
+            template=match,
         )
 
     @staticmethod
@@ -380,6 +402,7 @@ class Pipeline:
         basename: str,
         *,
         gate_retry: bool = True,
+        match: TemplateMatch | None = None,
     ) -> tuple[
         RenderResult | None,
         str | None,
@@ -389,10 +412,12 @@ class Pipeline:
         int,
         str | None,
     ]:
-        """Generate OpenSCAD, render, and run the Gate in one feedback loop.
+        """Produce geometry for the plan: the deterministic template path when a family
+        matched, else generate OpenSCAD with the model and run the render+Gate feedback
+        loop.
 
-        Two classes of failure are fed back to the model and retried within a single
-        attempt budget, then the loop fails closed:
+        LLM path — two classes of failure are fed back to the model and retried within a
+        single attempt budget, then the loop fails closed:
         - render / blocked-code errors (the code produced no geometry);
         - fixable Gate failures (it rendered, but the size is wrong or it doesn't fit
           the build volume) — only when ``gate_retry`` is set, since ``proceed_anyway``
@@ -401,6 +426,9 @@ class Pipeline:
         Returns (render, scad, mesh, mesh_report, gate, attempts, error). ``render`` is
         None only when geometry never rendered (caller maps that to render_failed).
         """
+        if match is not None:
+            return self._build_from_template(match, plan, out_dir, basename)
+
         thread: list[dict[str, str]] = []
         scad = self.provider.generate_openscad(plan, self.printer, self.material, history=thread)
         last_error: str | None = None
@@ -437,6 +465,44 @@ class Pipeline:
             return render, scad, mesh, mesh_report, gate, attempt, None
 
         return render, scad, mesh, mesh_report, gate, self.max_render_retries + 1, None
+
+    def _build_from_template(
+        self,
+        match: TemplateMatch,
+        plan: DesignPlan,
+        out_dir: Path,
+        basename: str,
+    ) -> tuple[
+        RenderResult | None,
+        str | None,
+        Any,
+        MeshReport | None,
+        GateResult | None,
+        int,
+        str | None,
+    ]:
+        """The deterministic path: emit the template's OpenSCAD (a pure function of its
+        in-range parameters — no model call), render once, and run the Gate against the
+        template's declared envelope.
+
+        No feedback loop: re-rendering identical SCAD can't change the outcome, so a
+        render/blocked error is surfaced directly rather than retried, and a part that
+        fails the Gate (e.g. too big for the build volume) fails closed — the fix is to
+        adjust a parameter (a live-slider re-render), not to regenerate geometry. Returns
+        the same 7-tuple as the LLM path with ``attempts`` fixed at 1.
+        """
+        scad = match.scad()
+        try:
+            render = self.renderer(scad, out_dir, basename)
+        except (RenderError, BlockedCodeError) as e:
+            # A proven library module shouldn't fail to render; surface it as a real defect
+            # rather than mask it with an LLM fallback (no-match is the only fallback path).
+            return None, scad, None, None, None, 1, str(e)
+
+        mesh = load_mesh(render.output_path)
+        mesh, mesh_report = validate_mesh(mesh)
+        gate = run_gate(mesh_report, plan, self.printer, self.material)
+        return render, scad, mesh, mesh_report, gate, 1, None
 
     @staticmethod
     def _feed_back(thread: list[dict[str, str]], scad: str, message: str) -> None:
