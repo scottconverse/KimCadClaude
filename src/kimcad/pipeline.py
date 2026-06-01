@@ -292,7 +292,15 @@ class Pipeline:
         # what it declares, and the report/viewport show that size.
         match = self.registry.match(plan)
         if match is not None:
-            plan = plan.model_copy(update={"bounding_box_mm": list(match.expected_bbox())})
+            plan = plan.model_copy(
+                update={
+                    "bounding_box_mm": list(match.expected_bbox()),
+                    # Reflect the template's actual parameter values in the gate plan so
+                    # dimension-keyed checks (e.g. wall thickness) gate the geometry that's
+                    # built, not the model's original guess.
+                    "dimensions": {**plan.dimensions, **match.values},
+                }
+            )
 
         render, scad, mesh, mesh_report, gate, attempts, error = self._build_geometry(
             plan, out_dir, basename, gate_retry=not proceed_anyway, match=match
@@ -308,6 +316,44 @@ class Pipeline:
                 template=match,
             )
 
+        return self._assemble_result(
+            prompt=prompt,
+            plan=plan,
+            match=match,
+            render=render,
+            scad=scad,
+            mesh=mesh,
+            mesh_report=mesh_report,
+            gate=gate,
+            attempts=attempts,
+            out_dir=out_dir,
+            basename=basename,
+            proceed_anyway=proceed_anyway,
+            confirm_print=confirm_print,
+        )
+
+    def _assemble_result(
+        self,
+        *,
+        prompt: str,
+        plan: DesignPlan,
+        match: TemplateMatch | None,
+        render: RenderResult,
+        scad: str | None,
+        mesh: Any,
+        mesh_report: MeshReport,
+        gate: GateResult,
+        attempts: int,
+        out_dir: Path,
+        basename: str,
+        proceed_anyway: bool,
+        confirm_print: bool,
+    ) -> PipelineResult:
+        """Shared tail for both a prompt-driven ``run`` and a live-slider ``rerender``:
+        orient, harden + export the manifold mesh, build the report, then fail closed on a
+        gate FAIL (unless the caller overrode it) or slice on confirmation. Keeping the
+        safety sequence — harden-before-export, never-slice-a-gate-failed-part — in one
+        place means both entry points share exactly one implementation of it."""
         oriented, orientation = auto_orient(mesh)
         # Harden the oriented mesh into a guaranteed manifold before it is exported and
         # sliced; the exported .oriented.stl (also the download fallback) is the hardened
@@ -373,6 +419,70 @@ class Pipeline:
             slice_error=slice_error,
             render_attempts=attempts,
             template=match,
+        )
+
+    def rerender(
+        self,
+        base_plan: DesignPlan,
+        family_name: str,
+        values: dict[str, float],
+        out_dir: Path,
+        *,
+        basename: str = "part",
+        proceed_anyway: bool = False,
+        confirm_print: bool = False,
+    ) -> PipelineResult:
+        """Deterministically re-render a template-backed part at new parameter values — the
+        live-slider path. No model call and no prompt: rebuild the match from the family +
+        (clamped) values, re-align the target envelope, and run the same single-shot build +
+        gate + assemble tail as a template ``run``. ``base_plan`` carries the unchanged
+        object_type / summary / printer / material so the report and gate behave exactly as
+        on the original design. An unknown family is reported as ``render_failed`` (the
+        caller passed a family that isn't in the registry)."""
+        out_dir.mkdir(parents=True, exist_ok=True)
+        match = self.registry.match_family(family_name, values)
+        if match is None:
+            return PipelineResult(
+                status=PipelineStatus.render_failed,
+                prompt="",
+                plan=base_plan,
+                error=f"unknown template family '{family_name}'",
+            )
+        plan = base_plan.model_copy(
+            update={
+                "bounding_box_mm": list(match.expected_bbox()),
+                # The slider values are the part's current dimensions — gate against them, not
+                # the original design's, so dragging the wall thin actually warns.
+                "dimensions": {**base_plan.dimensions, **match.values},
+            }
+        )
+        render, scad, mesh, mesh_report, gate, attempts, error = self._build_from_template(
+            match, plan, out_dir, basename
+        )
+        if render is None:
+            return PipelineResult(
+                status=PipelineStatus.render_failed,
+                prompt="",
+                plan=plan,
+                scad=scad,
+                render_attempts=attempts,
+                error=error,
+                template=match,
+            )
+        return self._assemble_result(
+            prompt="",
+            plan=plan,
+            match=match,
+            render=render,
+            scad=scad,
+            mesh=mesh,
+            mesh_report=mesh_report,
+            gate=gate,
+            attempts=attempts,
+            out_dir=out_dir,
+            basename=basename,
+            proceed_anyway=proceed_anyway,
+            confirm_print=confirm_print,
         )
 
     @staticmethod

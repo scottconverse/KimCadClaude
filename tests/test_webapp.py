@@ -36,7 +36,7 @@ def _pipeline(provider, renderer, **kw):
 
 def test_completed_payload_has_plan_report_and_mesh(tmp_path):
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
-    payload, mesh_path = design_response(pipe, "a 20mm block", tmp_path)
+    payload, mesh_path, _ = design_response(pipe, "a 20mm block", tmp_path)
 
     assert payload["status"] == "completed"
     assert payload["plan"]["target_bbox_mm"] == [20, 20, 20]
@@ -51,7 +51,7 @@ def test_completed_payload_has_plan_report_and_mesh(tmp_path):
 def test_dim_mismatch_is_reported_per_axis(tmp_path):
     # plan says 50 mm, render is 20 mm -> the axis is flagged not-ok and the gate fails
     pipe = _pipeline(FakeProvider(_plan([50, 50, 50])), _box_renderer((20, 20, 20)))
-    payload, mesh_path = design_response(pipe, "a block", tmp_path)
+    payload, mesh_path, _ = design_response(pipe, "a block", tmp_path)
 
     assert payload["status"] == "gate_failed"
     assert payload["report"]["gate_status"] == "fail"
@@ -88,7 +88,7 @@ def test_clarification_payload(tmp_path):
         FakeProvider(_plan(None, open_questions=["What overall size?"])),
         _box_renderer((20, 20, 20)),
     )
-    payload, mesh_path = design_response(pipe, "a block", tmp_path)
+    payload, mesh_path, _ = design_response(pipe, "a block", tmp_path)
 
     assert payload["status"] == "clarification_needed"
     assert payload["clarification"] == "What overall size?"
@@ -102,7 +102,7 @@ def test_render_failed_payload(tmp_path):
         _box_renderer((20, 20, 20), fail_times=99),
         max_render_retries=1,
     )
-    payload, mesh_path = design_response(pipe, "a block", tmp_path)
+    payload, mesh_path, _ = design_response(pipe, "a block", tmp_path)
 
     assert payload["status"] == "render_failed"
     assert payload["error"]
@@ -1139,3 +1139,188 @@ def test_concurrent_identical_slices_run_once(tmp_path, monkeypatch):
         t2.join(timeout=15)
     assert calls["n"] == 1  # t2 reused t1's cached slice via the re-check branch
     assert r1 and r2 and r1[0]["gcode_url"] == r2[0]["gcode_url"]
+
+
+# --- Stage 5: template parameters on /api/design + the live-slider re-render endpoint -----
+
+import json as _json  # noqa: E402
+import urllib.error  # noqa: E402
+import urllib.request as _urlreq  # noqa: E402
+
+from kimcad.ir import DesignPlan  # noqa: E402
+
+
+def _box_plan(**dims) -> DesignPlan:
+    return DesignPlan(
+        object_type="box", summary="a box",
+        dimensions=dims or {"width": 80, "depth": 60, "height": 40, "wall": 2},
+        printer="bambu_p2s", material="pla",
+    )
+
+
+def _req_json(host, port, method, path, obj=None):
+    """Issue a JSON request; return (status, parsed_body), reading the body even on 4xx/5xx."""
+    body = _json.dumps(obj).encode() if obj is not None else None
+    req = _urlreq.Request(
+        f"http://{host}:{port}{path}", data=body, method=method,
+        headers={"Content-Type": "application/json"} if body is not None else {})
+    try:
+        with _urlreq.urlopen(req, timeout=20) as r:
+            return r.status, _json.load(r)
+    except urllib.error.HTTPError as e:
+        return e.code, _json.load(e)
+
+
+def test_design_payload_exposes_template_parameters(tmp_path):
+    # A template-covered object_type (a "box") returns the typed slider snapshot the UI binds to.
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    payload, mesh_path, result = design_response(pipe, "a box", tmp_path)
+    assert payload["status"] == "completed"
+    assert payload["template"] == "snap_box"
+    params = {p["name"]: p for p in payload["parameters"]}
+    assert set(params) == {"width", "depth", "height", "wall"}
+    assert params["width"]["value"] == 80
+    assert params["width"]["min"] <= params["width"]["value"] <= params["width"]["max"]
+    assert params["wall"]["step"] == 0.2 and params["wall"]["unit"] == "mm"
+    assert result.template is not None
+    assert mesh_path is not None
+
+
+def test_llm_design_payload_has_no_parameters(tmp_path):
+    # An LLM-backed part (an object_type the registry doesn't cover) has no adjustable params.
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    payload, _mesh, result = design_response(pipe, "a block", tmp_path)
+    assert "template" not in payload and "parameters" not in payload
+    assert result.template is None
+
+
+def test_render_endpoint_rejects_non_template_design(tmp_path):
+    # An LLM-backed design id has no re-render context -> 404 (there are no sliders to drive).
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a block"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        status, body = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": 50}})
+    assert status == 404
+    assert "no adjustable parameters" in body["error"]
+
+
+def test_render_endpoint_rejects_bad_values(tmp_path):
+    # A template-backed design, but a malformed body (no/non-dict "values") -> clean 400.
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        status, body = _req_json(host, port, "POST", f"/api/render/{rid}", {"nope": 1})
+    assert status == 400
+    assert "parameter values" in body["error"]
+
+
+def _openscad_present() -> bool:
+    try:
+        return Config.load().binary_path("openscad").exists()
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _openscad_present(), reason="OpenSCAD binary not fetched")
+def test_render_endpoint_reshapes_a_template_part_without_the_model(tmp_path):
+    # End-to-end over a socket with the REAL renderer: design a box, then drag it bigger via
+    # /api/render — deterministically (no model call), getting a fresh fetchable mesh at the new size.
+    prov = FakeProvider(_box_plan(width=80, depth=60, height=40, wall=2))
+    pipe = Pipeline(Config.load(), BAMBU, PLA, prov)  # real OpenSCAD renderer (no override)
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        assert d["template"] == "snap_box" and "parameters" in d
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        x0 = next(dim["actual"] for dim in d["report"]["dims"] if dim["axis"] == "X")
+        assert abs(x0 - 80) <= 0.1
+
+        status, r = _req_json(host, port, "POST", f"/api/render/{rid}",
+                              {"values": {"width": 120, "depth": 90, "height": 60, "wall": 3}})
+        assert status == 200 and r["status"] == "completed"
+        x1 = next(dim["actual"] for dim in r["report"]["dims"] if dim["axis"] == "X")
+        assert abs(x1 - 120) <= 0.1, f"re-render should reshape to width 120, got {x1}"
+        assert r["template"] == "snap_box"
+        mreq = _urlreq.urlopen(f"http://{host}:{port}{r['mesh_url']}", timeout=20)
+        assert mreq.status == 200 and len(mreq.read()) > 0
+    assert prov.openscad_calls == 0  # the deterministic path never called the model
+
+
+@pytest.mark.skipif(not _openscad_present(), reason="OpenSCAD binary not fetched")
+def test_rerender_invalidates_a_cached_slice(tmp_path, monkeypatch):
+    # Safety: after a part is re-shaped, a previously cached slice for it is dropped so the OLD
+    # geometry can't be sliced/sent. The slicer is stubbed (module-level slice_registered_mesh)
+    # to avoid the multi-minute real slice; the real renderer still drives the geometry change.
+    import kimcad.webapp as webapp_mod
+    calls = {"n": 0}
+
+    def _fake_slice(config, mesh_path, printer, material):
+        calls["n"] += 1
+        gp = mesh_path.parent / "part.gcode.3mf"
+        gp.write_bytes(b"PK\x03\x04")
+        return {"sliced": True}, gp
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", _fake_slice)
+    prov = FakeProvider(_box_plan())
+    pipe = Pipeline(Config.load(), BAMBU, PLA, prov)  # real renderer
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        _s, s1 = _req_json(host, port, "POST", f"/api/slice/{rid}",
+                           {"printer": "bambu_p2s", "material": "pla"})
+        assert s1.get("gcode_url"), "first slice should produce g-code"
+        _s, _r = _req_json(host, port, "POST", f"/api/render/{rid}",
+                           {"values": {"width": 100, "depth": 70, "height": 50, "wall": 2}})
+        _s, s2 = _req_json(host, port, "POST", f"/api/slice/{rid}",
+                           {"printer": "bambu_p2s", "material": "pla"})
+        assert s2.get("gcode_url")
+    assert calls["n"] == 2, "re-render must invalidate the cached slice, forcing a re-slice"
+
+
+def test_concurrent_rerenders_are_serialized(tmp_path):
+    # RENDER-001: a deliberately slow renderer records its [enter, exit] interval; with the
+    # render_lock, two concurrent /api/render calls for the same id must NOT overlap (else they
+    # would race on the shared per-design output dir). The 0.3s body makes overlap detectable.
+    import threading
+    import time
+
+    import trimesh
+
+    from kimcad.openscad_runner import RenderResult, SanitizeResult
+
+    intervals = []
+    ilock = threading.Lock()
+
+    def slow_render(scad, out_dir, basename):
+        t0 = time.monotonic()
+        time.sleep(0.3)
+        p = out_dir / f"{basename}.stl"
+        trimesh.creation.box(extents=(80, 60, 40)).export(str(p))
+        with ilock:
+            intervals.append((t0, time.monotonic()))
+        return RenderResult(output_path=p, output_format="stl", stdout="", stderr="",
+                            duration_s=0.3, sanitize=SanitizeResult(code=scad, removed=[]))
+
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()), renderer=slow_render)
+    results = {}
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        intervals.clear()  # count only the two re-renders, not the initial design render
+
+        def go(k, w):
+            results[k] = _req_json(host, port, "POST", f"/api/render/{rid}",
+                                   {"values": {"width": w, "depth": 60, "height": 40, "wall": 2}})
+
+        t1 = threading.Thread(target=go, args=("a", 100))
+        t2 = threading.Thread(target=go, args=("b", 120))
+        t1.start()
+        t2.start()
+        t1.join(20)
+        t2.join(20)
+
+    assert len(intervals) == 2 and results.get("a") and results.get("b")
+    assert results["a"][0] == 200 and results["b"][0] == 200
+    (a0, a1), (b0, b1) = sorted(intervals)
+    assert a1 <= b0 + 0.001, "re-renders overlapped — render_lock is not serializing them"

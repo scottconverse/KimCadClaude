@@ -105,6 +105,25 @@ def test_template_gate_failure_is_single_shot_no_retry_no_llm(tmp_path):
     assert result.report is not None  # report still produced for the user
 
 
+def test_rerender_gate_reflects_current_parameter_values(tmp_path):
+    # RENDER-002: the re-render gate must check the CURRENT slider values, not the original
+    # design's. The stub renderer is fine here — the wall gate reads plan.dimensions, so this
+    # proves the plan carries the new wall (0.8), not the stale 2.0.
+    plan = _plan("box", dimensions={"width": 80, "depth": 60, "height": 40, "wall": 2.0})
+    pipe = _pipeline(FakeProvider(plan), _box_renderer((80, 60, 40))[0])
+    design = pipe.run("a box", tmp_path)
+    wall0 = [f for f in design.gate.findings if f.code.startswith("wall.")]
+    assert wall0 and "2.0" in wall0[0].message  # original wall reported
+
+    r = pipe.rerender(design.plan, "snap_box",
+                      {"width": 80, "depth": 60, "height": 40, "wall": 0.8}, tmp_path)
+    assert r.plan.dimensions["wall"] == 0.8
+    wall1 = [f for f in r.gate.findings if f.code.startswith("wall.")]
+    assert wall1, "the re-render gate should still produce a wall finding"
+    assert "0.8" in wall1[0].message, "gate must reflect the current wall, not the stale 2.0"
+    assert "2.0" not in wall1[0].message
+
+
 def test_proceed_anyway_slices_a_gate_failed_template_part(tmp_path):
     # The explicit override behaves identically on the template path: a gate-FAILED template
     # part DOES slice with proceed_anyway, confirming proceed_anyway is the one override
