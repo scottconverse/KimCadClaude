@@ -66,6 +66,11 @@
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent-bright); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  /* UX-003: connection-status severity on the app's semantic scale (the glyph in the text
+     stays too, so colour is never the only signal). */
+  #connectorStatus.status-ready { color: var(--ok); }
+  #connectorStatus.status-warn { color: var(--warn); }
+  #connectorStatus.status-error { color: var(--fail); }
 
   /* UX-008: technical error detail is visually subordinate to the friendly message. */
   .error-detail { font-size: 12px; color: var(--muted); margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
@@ -163,6 +168,9 @@
     <!-- UX-110: honestly flag only the printer+material combinations that still use a
          vendor "Generic" filament profile (the per-printer map drives this, not the name). -->
     <p id="materialNote" class="note hidden">This printer + material uses a generic filament profile (not a tuned, brand-specific one).</p>
+    <!-- UX-002: explain WHY a material is hidden for the selected printer (a missing tuned
+         profile, not a product limitation), instead of silently dropping the option. -->
+    <p id="materialHiddenNote" class="note hidden"></p>
     <p id="printableHint" class="note hidden"></p>
     <!-- UX-105: shown when printer options failed to load, so "print" isn't silently absent. -->
     <p id="printUnavailable" class="note hidden">Printer options couldn't load — reload the page to send this to a printer. Your model download is available above.</p>
@@ -193,7 +201,7 @@
       <button id="sendBtn" class="secondary">Send to printer…</button>
     </div>
     <!-- Live ready/not-ready status of the selected connection (queried on demand). -->
-    <p id="connectorStatus" class="note hidden" aria-live="polite"></p>
+    <p id="connectorStatus" class="note hidden" role="status" aria-live="polite"></p>
     <div id="confirmSend" class="card hidden" tabindex="-1" style="margin-top: 14px;">
       <p id="confirmSendMsg"></p>
       <div class="row">
@@ -372,7 +380,7 @@ function parseRid(url) { const m = (url || "").match(/\/api\/mesh\/(\d+)/); retu
 function resetPrintUI() {
   stopSliceTimer();
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
-  hide("materialNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
+  hide("materialNote"); hide("materialHiddenNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
   hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
   hide("sendSection"); hide("confirmSend"); hide("sendResult"); hide("connectorStatus");
   sliceReady = false;
@@ -405,6 +413,20 @@ function fillMaterialsForPrinter(preferKey) {
                (avail.some((m) => m.key === prev) && prev) ||
                (avail[0] && avail[0].key);
   fillSelect($("materialSel"), avail, want, (m) => m.name);
+  // UX-002: don't silently drop materials this printer can't print — name them and say why
+  // (a missing tuned profile, not a product limitation), so the user can switch printers.
+  const hidden = allow ? all.filter((m) => !allow.includes(m.key)) : [];
+  const note = $("materialHiddenNote");
+  if (p && hidden.length) {
+    const names = hidden.map((m) => m.name).join(", ");
+    const plural = hidden.length > 1;
+    note.textContent = `${p.name} has no tuned profile for ${names} yet, so ` +
+      `${plural ? "they aren't" : "it isn't"} offered — pick another printer to use ` +
+      `${plural ? "them" : "it"}.`;
+    show("materialHiddenNote");
+  } else {
+    hide("materialHiddenNote");
+  }
 }
 
 function fillSelect(sel, items, defKey, labelFn) {
@@ -569,6 +591,19 @@ function connectorStatusText(d) {
   return "◐ Online but busy" + (d.state ? ` (${d.state})` : "") + ".";
 }
 
+// UX-003: map a status to the app's semantic green/amber/red scale. The glyph in the text
+// stays, so colour is never the only indicator.
+function connectorStatusClass(d) {
+  if (d.simulated) return "status-ready";
+  if (d.reason === "auth" || d.reason === "error") return "status-error";
+  if (d.reason === "config" || d.reason === "unknown" ||
+      d.reason === "offline" || d.reason === "busy") return "status-warn";
+  if (!d.online) return "status-warn";
+  if (d.state === "error") return "status-error";
+  if (d.ready) return "status-ready";
+  return "status-warn";  // online but busy / printing / paused
+}
+
 async function loadConnectorStatus() {
   const name = $("connectorSel").value;
   const el = $("connectorStatus");
@@ -579,6 +614,8 @@ async function loadConnectorStatus() {
     const res = await fetch("/api/connector-status/" + encodeURIComponent(name));
     const d = await res.json();
     el.textContent = connectorStatusText(d);
+    el.classList.remove("status-ready", "status-warn", "status-error");
+    el.classList.add(connectorStatusClass(d));
   } catch (_) {
     el.textContent = `Couldn't check ${name} status.`;
   }
