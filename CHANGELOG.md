@@ -136,7 +136,7 @@ All notable changes to KimCad are documented here. Format follows
   ready / busy / offline / needs-setup / simulation that never 5xxes and never leaks a credential.
 - Connection-status + send **honesty hardening** (independent-audit gate fixes): a typed `reason`
   vocabulary (`config` / `unknown` / `auth` / `offline` / `busy` / `bad_response` / `error`)
-  carried on both `/api/connector-status` and `/api/send` soft failures (each with a `simulated`
+  carried on both `/api/connector-status/<name>` and `/api/send/<id>` soft failures (each with a `simulated`
   flag); a rejected credential on a large upload is reported as `auth` rather than mislabeled
   "offline" (a mid-write socket reset is re-probed); a non-JSON HTTP-200 response degrades to an
   error status instead of raising; and the status line is an ARIA live region mapped onto the

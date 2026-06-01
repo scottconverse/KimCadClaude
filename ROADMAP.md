@@ -116,8 +116,9 @@ printer (both met on the dev box). **Size:** ~1 week.
 - **Still a gap:** a **Bambu-native** connector (the v3.0 spec finishes it via `bambulabs-api`),
   and the Creality-Connect / Prusa-Connect cloud paths. The stage `audit-team` gate + tag are
   pending.
-**Exit:** supported brands selectable with live (emulated) status; the ready/not-ready UI works.
-**Needs:** target box + emulators. **Size:** ~1.5–2 weeks.
+**Exit (met for the shipped connectors):** OctoPrint / Moonraker / PrusaLink selectable with live
+(emulated) status; the ready/not-ready UI works. **Still pending:** a Bambu-native connector and
+the stage `audit-team` gate + tag. **Needs:** target box + emulators. **Size:** ~1.5–2 weeks.
 
 ## Stage 4 — Web UI to a genuinely usable product
 **Goal:** the browser app is a coherent tool end to end.

@@ -55,11 +55,13 @@ class ConnectorError(Exception):
     - ``"offline"``      — the printer could not be reached.
     - ``"busy"``         — the printer refused the job because it's busy (retry when idle).
     - ``"bad_response"`` — the endpoint answered but not with the expected JSON (wrong device).
-    - ``"not_confirmed"``— a send was attempted without the explicit per-send confirmation.
     - ``"error"``        — generic / uncategorized failure (the base default).
 
-    ``reason`` appears on ``/api/connector-status`` (``config``/``unknown`` from build, or a
-    live status) and on ``/api/send`` soft-failures (any of the above).
+    ``"not_confirmed"`` (``ensure_sendable`` raises it when a send lacks an explicit
+    ``confirm=True``) is an INTERNAL guard — caught before any network call, never returned to a
+    client, so the README "Connector response reasons" table omits it (DOC-001). The response
+    reasons above appear on ``/api/connector-status`` (``config``/``unknown`` from build;
+    ``offline``/``busy``/``error`` from a live status) and on ``/api/send`` soft-failures.
     """
 
     reason = "error"

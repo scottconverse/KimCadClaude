@@ -152,9 +152,12 @@ so the UI labels a no-hardware connection honestly rather than narrating a mock 
 print.
 
 - **CLI:** `kimcad design "a cable clip" --send mock` slices and sends (the `--send` flag is the
-  explicit confirmation). A real connection: `--send octoprint` / `--send moonraker` /
-  `--send prusalink`. If the printer is offline/unreachable, it says so and leaves the G-code on
-  disk; a part that failed the printability gate is never sent.
+  explicit confirmation). For a real printer: `--send octoprint` (shipped configured — just set
+  its API-key env var), or `--send moonraker` / `--send prusalink` once you've added that
+  connector under `connectors:` and pointed `base_url` at your printer (the `config/default.yaml`
+  entries for them are commented examples — uncomment and edit). If the printer is
+  offline/unreachable, it says so and leaves the G-code on disk; a part that failed the
+  printability gate is never sent.
 - **Web:** after a slice, pick a connection and confirm to send. A live **ready / not-ready badge**
   shows whether the chosen connection is reachable and idle, and the download stays as the fallback.
 - **Agent / MCP:** `python -m kimcad.mcp_server` exposes the printer as MCP tools (list
