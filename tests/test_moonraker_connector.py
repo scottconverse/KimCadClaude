@@ -241,3 +241,11 @@ def test_large_upload_with_wrong_key_is_auth_not_offline(tmp_path):
         c = _connector(base, key="wrong-key")
         with pytest.raises(AuthError):
             c.send(g, confirm=True)
+
+
+def test_status_no_result_envelope_is_error(monkeypatch):
+    # ENG-003: a reachable device answering 200 with no Moonraker `result` envelope (wrong
+    # device) reports an error status, not a false "ready."
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"{}"))
+    assert c.status().state is PrinterState.error

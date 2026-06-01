@@ -42,6 +42,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# ENG-006: even a bare `pytest .` must not collect the bundled third-party OpenSCAD library
+# tests under tools/ (legacy pytest API, not KimCad code) — keep the gate signal clean.
+norecursedirs = ["tools", ".venv"]
 markers = [
     # Tests that invoke the real OrcaSlicer binary (live assembly). Run the fast inner loop
     # with `pytest -m "not live"`; the full suite (CI) runs everything.

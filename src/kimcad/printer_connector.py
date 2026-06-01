@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import threading
 import urllib.error
+import uuid
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -301,6 +302,35 @@ def auth_error_if_upload_rejected(
     except (urllib.error.URLError, OSError):
         pass  # genuinely unreachable on the re-probe too -> fall through to offline
     return None
+
+
+def encode_multipart(
+    fields: dict[str, str], files: dict[str, tuple[str, bytes]]
+) -> tuple[bytes, str]:
+    """Encode form fields + files as ``multipart/form-data``. Returns ``(body, content_type)``.
+
+    Shared by the connectors that upload over multipart (OctoPrint, Moonraker) — PrusaLink uses a
+    raw PUT body and needs none (ENG-002: one copy, not three).
+    """
+    boundary = "----KimCad" + uuid.uuid4().hex
+    out: list[bytes] = []
+    for name, value in fields.items():
+        out += [
+            f"--{boundary}".encode(),
+            f'Content-Disposition: form-data; name="{name}"'.encode(),
+            b"",
+            str(value).encode(),
+        ]
+    for name, (filename, content) in files.items():
+        out += [
+            f"--{boundary}".encode(),
+            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"'.encode(),
+            b"Content-Type: application/octet-stream",
+            b"",
+            content,
+        ]
+    out += [f"--{boundary}--".encode(), b""]
+    return b"\r\n".join(out), f"multipart/form-data; boundary={boundary}"
 
 
 @dataclass

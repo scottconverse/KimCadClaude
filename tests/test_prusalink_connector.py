@@ -294,3 +294,11 @@ def test_mock_409s_duplicate_filename_without_overwrite():
         assert _put(base, "dup.gcode", overwrite=True) == 201  # Overwrite replaces it
         # The connector always sends Overwrite: ?1, so a real re-send round-trips (asserted via
         # the connector path elsewhere); this exercises the mock's conformance to the API.
+
+
+def test_status_no_printer_block_is_error(monkeypatch):
+    # ENG-003: a reachable device answering 200 with no `printer` block (wrong device) reports
+    # an error status, not a false "ready."
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"{}"))
+    assert c.status().state is PrinterState.error

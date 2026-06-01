@@ -24,7 +24,6 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +38,7 @@ from kimcad.printer_connector import (
     PrintJob,
     auth_error_if_upload_rejected,
     decode_json,
+    encode_multipart,
     ensure_sendable,
     extract_single_plate_gcode,
     read_error_body,
@@ -75,31 +75,6 @@ def _moonraker_error_detail(e: urllib.error.HTTPError) -> str:
         pass
     text = " ".join(text.split())  # collapse internal whitespace in the extracted reason too
     return f" — {text[:_ERR_BODY_CAP]}" if text else ""
-
-
-def _encode_multipart(
-    fields: dict[str, str], files: dict[str, tuple[str, bytes]]
-) -> tuple[bytes, str]:
-    """Encode form fields + files as ``multipart/form-data``. Returns ``(body, content_type)``."""
-    boundary = "----KimCad" + uuid.uuid4().hex
-    out: list[bytes] = []
-    for name, value in fields.items():
-        out += [
-            f"--{boundary}".encode(),
-            f'Content-Disposition: form-data; name="{name}"'.encode(),
-            b"",
-            str(value).encode(),
-        ]
-    for name, (filename, content) in files.items():
-        out += [
-            f"--{boundary}".encode(),
-            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"'.encode(),
-            b"Content-Type: application/octet-stream",
-            b"",
-            content,
-        ]
-    out += [f"--{boundary}--".encode(), b""]
-    return b"\r\n".join(out), f"multipart/form-data; boundary={boundary}"
 
 
 class MoonrakerConnector:
@@ -141,7 +116,17 @@ class MoonrakerConnector:
         qs = "&".join(urllib.parse.quote(o) for o in objects)
         _status, raw = self._request("GET", f"/printer/objects/query?{qs}")
         data = decode_json(raw, name=self.name)
-        return (data.get("result") or {}).get("status") or {}
+        result = data.get("result")
+        if not isinstance(result, dict):
+            # A 200 without Moonraker's `result` envelope is the wrong device, not an idle
+            # printer — surface it as bad_response rather than reporting "operational" (ENG-003).
+            raise ConnectorError(
+                f"{self.name} returned a response with no Moonraker result envelope",
+                reason="bad_response",
+                user_message=f"The printer '{self.name}' returned an unexpected response - it may "
+                "not be a Moonraker endpoint.",
+            )
+        return result.get("status") or {}
 
     # --- connector contract -------------------------------------------------
     def capabilities(self) -> PrinterCapabilities:
@@ -192,8 +177,11 @@ class MoonrakerConnector:
             return PrinterStatus(
                 online=e.code < 500, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
             )
-        except (urllib.error.URLError, OSError) as e:
-            return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
+        except (urllib.error.URLError, OSError):
+            # QA-003: a clean detail, not the raw urllib/WinError string (noisy for agents).
+            return PrinterStatus(
+                online=False, state=PrinterState.offline, detail="could not connect"
+            )
         except ConnectorError:
             return PrinterStatus(
                 online=True, state=PrinterState.error, detail="unexpected response from printer"
@@ -216,7 +204,7 @@ class MoonrakerConnector:
         gcode = extract_single_plate_gcode(gcode_path)
         base = job_name or gcode_path.name.removesuffix(".gcode.3mf")
         upload_name = base + ".gcode"
-        body, content_type = _encode_multipart(
+        body, content_type = encode_multipart(
             {"root": "gcodes", "print": "true"}, {"file": (upload_name, gcode)}
         )
         try:

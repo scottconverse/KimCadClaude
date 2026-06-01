@@ -91,7 +91,11 @@ class GcodeProofFailed(SliceFailed):
 
 
 # Proof bounds (ENG-002): a sliced 3MF is the slicer's own output, but a pathological or
-# zip-bomb archive must not be able to pin a core / exhaust memory during the proof.
+# zip-bomb archive must not be able to pin a core / exhaust memory during the proof. NOTE
+# (ENG-004): this caps members for the zip-bomb guard, but the send path
+# (`extract_single_plate_gcode`) accepts a SINGLE plate only — KimCad produces single-plate
+# slices today, so a >1-plate archive would prove OK yet be refused at send. Keep the two
+# layers aligned: if multi-plate slicing ever ships, teach the connectors to upload N files.
 _MAX_GCODE_MEMBERS = 64
 MAX_GCODE_MEMBER_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed per .gcode member
 

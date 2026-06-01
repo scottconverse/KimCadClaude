@@ -151,7 +151,18 @@ class PrusaLinkConnector:
         )
 
     def _printer_block(self) -> dict[str, Any]:
-        return (self._get_json("/api/v1/status") or {}).get("printer") or {}
+        printer = self._get_json("/api/v1/status").get("printer")
+        if not isinstance(printer, dict):
+            # A reachable device that answers 200 with no `printer` block is the wrong device,
+            # not an idle printer — surface it honestly rather than reporting "operational"
+            # (ENG-003). status()/job_status() catch this and degrade to an error STATUS.
+            raise ConnectorError(
+                f"{self.name} returned a response with no printer status",
+                reason="bad_response",
+                user_message=f"The printer '{self.name}' returned an unexpected response - it may "
+                "not be a PrusaLink endpoint.",
+            )
+        return printer
 
     def status(self) -> PrinterStatus:
         try:
@@ -163,8 +174,11 @@ class PrusaLinkConnector:
             return PrinterStatus(
                 online=e.code < 500, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
             )
-        except (urllib.error.URLError, OSError) as e:
-            return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
+        except (urllib.error.URLError, OSError):
+            # QA-003: a clean detail, not the raw urllib/WinError string (noisy for agents).
+            return PrinterStatus(
+                online=False, state=PrinterState.offline, detail="could not connect"
+            )
         except ConnectorError:
             return PrinterStatus(
                 online=True, state=PrinterState.error, detail="unexpected response from printer"

@@ -200,9 +200,11 @@ def slice_registered_mesh(
             binary=config.binary_path("orcaslicer"),
             out_dir=mesh_path.parent,
             settings=settings,
-            # ENG-005: a per-(printer,material) basename so slicing the same mesh for a
-            # different printer/material writes a distinct file rather than overwriting.
-            basename=f"{mesh_path.name.split('.')[0]}_{printer.key}_{material.key}",
+            # ENG-005: a per-(printer,material) basename so slicing the same mesh for a different
+            # printer/material writes a distinct file rather than overwriting. The mesh is always
+            # named `part.oriented.<suffix>` by the pipeline, so the segment before the first dot
+            # is the stable base name.
+            basename=f"{mesh_path.name.partition('.')[0]}_{printer.key}_{material.key}",
             timeout_s=config.limit("slice_timeout_s"),
         )
     except OrcaProfileError as e:
