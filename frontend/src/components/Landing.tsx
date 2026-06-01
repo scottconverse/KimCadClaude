@@ -1,9 +1,8 @@
-// The landing (empty) screen: the entry point where the user describes a part.
-//
-// Slice 2 builds the screen and Workshop styling. The textarea, "Design it" button, and the
-// example chips become live in Slice 4, when the prompt → /api/design flow is wired; for now
-// they are presentational (no misleading handlers). The photo on-ramp is a later stage (image
-// intake) and is intentionally absent here.
+import { useState, type FormEvent } from 'react'
+
+// The landing (empty) screen. Wired in Slice 3: the textarea + "Design it" submit a prompt,
+// and clicking an example submits it directly. The photo on-ramp is a later stage and is
+// intentionally absent.
 const EXAMPLES = [
   'a wall-mounted holder for a 1 kg filament spool',
   'a 40 mm desk cable clip',
@@ -20,7 +19,21 @@ function SendGlyph() {
   )
 }
 
-export default function Landing() {
+export default function Landing({
+  onSubmit,
+  busy,
+}: {
+  onSubmit: (prompt: string) => void
+  busy: boolean
+}) {
+  const [value, setValue] = useState('')
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    const trimmed = value.trim()
+    if (trimmed && !busy) onSubmit(trimmed)
+  }
+
   return (
     <main className="kc-landing">
       <div className="kc-landing-inner">
@@ -31,23 +44,36 @@ export default function Landing() {
           actually printable, and gets it ready for your printer.
         </p>
 
-        <div className="kc-input-card">
+        <form className="kc-input-card" onSubmit={submit}>
           <textarea
             className="kc-input"
             rows={2}
             placeholder="e.g. a wall-mounted holder for a 1 kg filament spool"
             aria-label="Describe the part you want"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            disabled={busy}
           />
-          <button type="button" className="kc-btn kc-btn-accent kc-design-btn">
+          <button
+            type="submit"
+            className="kc-btn kc-btn-accent kc-design-btn"
+            disabled={busy || value.trim() === ''}
+          >
             Design it
             <SendGlyph />
           </button>
-        </div>
+        </form>
 
         <div className="kc-examples">
           <span className="kc-examples-label">Try</span>
           {EXAMPLES.map((example) => (
-            <button key={example} type="button" className="kc-chip">
+            <button
+              key={example}
+              type="button"
+              className="kc-chip"
+              disabled={busy}
+              onClick={() => onSubmit(example)}
+            >
               {example}
             </button>
           ))}

@@ -86,3 +86,17 @@ def test_workshop_fonts_are_bundled_for_offline_use():
     for stem in ("bricolage-grotesque", "hanken-grotesk", "jetbrains-mono"):
         matches = list(_ASSETS_DIR.glob(f"{stem}-latin*.woff2"))
         assert matches, f"missing bundled latin woff2 for {stem} (offline fonts incomplete)"
+
+
+def test_viewport_chunk_is_code_split_from_the_entry():
+    """Stage 4 Slice 3: three.js (the 3D viewport) is lazy-loaded, so it lands in a separate
+    chunk (Workspace.js) rather than bloating the initial entry bundle. The committed build
+    must show that split — the workspace chunk present and clearly larger than the entry, since
+    three.js dwarfs the app shell."""
+    entry = _ASSETS_DIR / "kimcad.js"
+    chunk = _ASSETS_DIR / "Workspace.js"
+    assert entry.is_file(), "entry bundle kimcad.js is missing"
+    assert chunk.is_file(), "code-split Workspace chunk missing — is the viewport still lazy-loaded?"
+    assert chunk.stat().st_size > entry.stat().st_size, (
+        "the Workspace chunk should be larger than the entry (three.js lives in the chunk)"
+    )

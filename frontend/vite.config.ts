@@ -19,6 +19,10 @@ export default defineConfig({
     outDir: '../src/kimcad/web',
     emptyOutDir: false,
     assetsDir: 'assets',
+    // The viewport chunk is ~three.js-sized by nature (the 3D engine). It is already
+    // code-split + lazy-loaded (App.tsx imports the workspace dynamically) and served from
+    // localhost, so the generic >500 kB heuristic doesn't apply — raise it to match reality.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/kimcad.js',
