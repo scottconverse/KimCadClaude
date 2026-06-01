@@ -2,7 +2,8 @@
 
 ## ⛔ READ FIRST
 
-- **Stage 3 is DONE and tagged.** Next is **Stage 4 (React SPA shell + viewport)**.
+- **Stage 4 is DONE, merged to `main`, and tagged `stage-4`.** Next is **Stage 5 (deterministic
+  template engine + live sliders — the critical path)**.
 - **Source of truth = this doc + the in-repo v3.0 spec + the design handoff** (both under
   `docs/design/`). Do NOT rebuild from memory — I have lost context across sessions before.
 - **The agent-pipeline skill is DEAD for this project.** Scott killed it (it can't run from the
@@ -11,7 +12,7 @@
 
 ---
 
-## 🔧 Stage 4 — IN PROGRESS (resume here)
+## ✅ Stage 4 — DONE (merged + tagged `stage-4`)
 
 Branch **`stage-4-react-spa-shell`** (off `main` @ `efd2b72`). The pre-Stage-4 cleanup already
 landed on `main` (ROADMAP rewrite to the 9-stage v3.0 plan; HANDOFF branch-name fix; stale audit
@@ -28,10 +29,12 @@ printability report, all 4 statuses) + field-contract tests reinstated + **vites
 `scripts/ci.sh`); **5** printer/material selectors + gate-aware slice (`/api/slice/<id>`) + G-code/model
 download + read-only connector status. Branch head was **`c65a42d`**. CI gate = ruff + full pytest + vitest.
 
-**🚧 STAGE-4 GATE: audit-team RAN — NOT YET PASSED. ← RESUME HERE.** The 5-role `audit-team` (rendered +
+**✅ STAGE-4 GATE: PASSED — 0/0/0/0/0, merged + tagged `stage-4`.** The 5-role `audit-team` (rendered +
 runtime) ran 2026-06-01; package at **`docs/audits/stage-4/audit-team-stage-4-2026-06-01/`** (`00-executive-
-audit.md` is the front door + the full punch-list). **Roll-up: 0 Blocker · 0 Critical · 6 Major · 19 Minor ·
-9 Nit (34).** No Blockers/Criticals — every safety invariant verified clean (gate-fail-can't-slice in 3
+audit.md` + `REMEDIATION.md`; the re-audit + closure are in the `…-reaudit/` sibling). The original roll-up
+was 0/0/6/19/9; **all 34 findings + the 3 re-audit findings (UX-R01 harness-artifact, NEW-T01, UX-R02) are
+resolved with proof** — see REMEDIATION.md + 00-reaudit-closure.md. (History below is the as-found record.)
+The original roll-up: **0 Blocker · 0 Critical · 6 Major · 19 Minor · 9 Nit (34).** No Blockers/Criticals — every safety invariant verified clean (gate-fail-can't-slice in 3
 layers + tested; no traversal bypass; no XSS; no credential leak; build byte-reproducible; runtime green
 end-to-end with a real OrcaSlicer slice). **NEXT: fix ALL 34 (Major→Nit) per the 00-executive punch list →
 re-audit → 0/0/0/0/0 → full ruff+pytest+vitest → push → MERGE + TAG `stage-4` MYSELF → only THEN report.**
@@ -41,9 +44,11 @@ comments); **UX-003** primary-button text fails WCAG-AA contrast (white on `#c86
 text-bearing fill); **UX-001** viewport lacks the design's dimension pills + bbox + drag hint; **DOC-401**
 README/ARCHITECTURE overclaim a browser "send to printer" that doesn't exist — **DESCOPE the doc** (send is
 Stage 10), don't build it; **DOC-402** no CHANGELOG Stage-4 entry (+ stale vanilla-UI lines); **ENG-401**
-CI should assert committed build == fresh build. **NOT merged/tagged — the 0/0/0/0/0 bar is not met.**
+CI should assert committed build == fresh build. **All now FIXED — merged + tagged `stage-4` at 0/0/0/0/0.**
 
-**FIX PROGRESS — 10 of 34 done + pushed** (head `d39a9ee`): batch 1 (`2603566`) = **TEST-001** (the
+**FIX RECORD — ALL 34 fixed + the 3 re-audit findings resolved, merged + tagged** (the per-batch detail
+below is the as-fixed history; authoritative resolution is in `REMEDIATION.md` + `00-reaudit-closure.md`):
+batch 1 (`2603566`) = **TEST-001** (the
 spell-checker contract test — now strips comments + requires `.field`/quoted literals, proven to bite),
 **DOC-401** (descoped the browser-"send" overclaim in README + ARCHITECTURE), **DOC-402** (CHANGELOG
 Stage-4 entry), DOC-403/404 (frontend/README), DOC-406 (App comment). Batch 2 (`d39a9ee`) = **ENG-401**
