@@ -10,9 +10,10 @@ and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output. 
 CAD skills required, and the core path runs CPU-only — no discrete GPU.
 
 > Status: **early development.** The deterministic pipeline, the gated G-code export
-> (CLI `--slice` and the web UI) proven against all three of Kim's printers (Bambu P2S,
-> Bambu A1, Elegoo Neptune 4 Max), and Manifold3D mesh hardening are in. Real-hardware
-> print validation on Kim's printers is the final stage — see ROADMAP.
+> (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
+> Bambu A1, Elegoo Neptune 4 Max — software/profile validation, not yet a real print), and
+> Manifold3D mesh hardening are in. Real-hardware print validation on Kim's printers is the
+> final stage — see ROADMAP.
 
 ## What it does
 
@@ -147,9 +148,10 @@ hardware-verified.
 | `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
 
 A connection's credential is always read from an **environment variable** (named by
-`api_key_env`), never stored in config and never logged. Each connection is flagged `simulated`,
-so the UI labels a no-hardware connection honestly rather than narrating a mock send as a real
-print.
+`api_key_env`), never stored in config and never logged. Find it in your printer's settings —
+OctoPrint: *Settings → API*; PrusaLink: the printer's *Settings → Network → PrusaLink*; Moonraker:
+only if your `[authorization]` requires one. Each connection is flagged `simulated`, so the UI
+labels a no-hardware connection honestly rather than narrating a mock send as a real print.
 
 - **CLI:** `kimcad design "a cable clip" --send mock` slices and sends (the `--send` flag is the
   explicit confirmation). For a real printer: `--send octoprint` (shipped configured — just set
@@ -181,7 +183,7 @@ that names the cause.
 | `config` | misconfigured connection (missing credential / `base_url`) | status, send |
 | `unknown` | no configured connection by that name (a typo) | status, send |
 | `offline` | the printer could not be reached | status, send |
-| `busy` | the printer is busy (printing / paused) — retry when idle | status, send |
+| `busy` | the printer is busy (printing / paused) — retry when idle | status; send (PrusaLink 409 only — OctoPrint/Moonraker report a busy upload as `error`) |
 | `auth` | reachable, but the credential was rejected | send (status shows `error` + `detail`) |
 | `bad_response` | the endpoint answered, but not with the expected JSON (wrong device) | send (status shows `error`) |
 | `error` | a generic / uncategorized failure | status, send |

@@ -526,7 +526,10 @@ def make_handler(
                 self._json(200, {"sent": False, "reason": e.reason,
                                  "simulated": simulated, "note": e.user_message})
                 return
-            except Exception as e:  # never leak a traceback
+            except Exception as e:  # never leak a traceback — the class + message only, no stack
+                # QA-003 (re-audit): this last-resort 500 is for a truly UNEXPECTED error (the
+                # connectors raise typed ConnectorErrors for the expected cases). Showing the
+                # exception class + message (never the stack) is the deliberate, tested contract.
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return
             info: dict[str, Any] = {

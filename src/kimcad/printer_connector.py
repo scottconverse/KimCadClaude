@@ -45,9 +45,10 @@ class ConnectorError(Exception):
     phrasing that is safe to show an end user). ``str(self)`` stays the developer-facing
     detail, which may name an env var, a URL, etc.
 
-    Reason vocabulary (ENG-003 — the single source of truth; keep the web UI's
-    ``connectorStatusText`` and any MCP/agent consumers exhaustive against this set, and the
-    README "Connector response reasons" table in sync):
+    Reason vocabulary — the single source of truth; keep the README "Connector response reasons"
+    table and any client that branches on ``reason`` in sync with this set. (The web UI renders a
+    live status snapshot by its ``state``/``online`` fields and a build failure by ``reason``, so
+    it branches on the relevant subset, not the full enum.):
 
     - ``"config"``       — misconfigured connection (missing API key / base_url).
     - ``"unknown"``      — no configured connection by that name (a typo, not a setup task).

@@ -230,6 +230,15 @@ def test_upload_filename_is_percent_encoded(tmp_path):
     assert state["files"] == ["a b#c.gcode"]
 
 
+def test_upload_filename_encodes_non_ascii(tmp_path):
+    # TEST-R2-003: a non-ASCII job name is percent-encoded (UTF-8) and round-trips through the
+    # server's unquote — a unicode name must not corrupt the request target.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_prusalink() as (base, state):
+        _connector(base).send(g, confirm=True, job_name="café-Ω-part")
+    assert state["files"] == ["café-Ω-part.gcode"]
+
+
 # --- QA-001: a garbage HTTP-200 body degrades to an error STATUS, never a raw traceback ----
 
 

@@ -69,7 +69,8 @@
   /* UX-003: connection-status severity on the app's semantic scale (the glyph in the text
      stays too, so colour is never the only signal). */
   #connectorStatus.status-ready { color: var(--ok); }
-  #connectorStatus.status-warn { color: var(--warn); }
+  /* UX-404: a darker amber than --warn so the small status text clears WCAG AA on the panel. */
+  #connectorStatus.status-warn { color: #946a00; }
   #connectorStatus.status-error { color: var(--fail); }
 
   /* UX-008: technical error detail is visually subordinate to the friendly message. */
@@ -584,7 +585,10 @@ function connectorStatusText(d) {
     if (d.state === "error") return "○ Needs attention — online but reports an error" +
       (d.detail ? ` (${d.detail})` : "") + ". Check the printer or its API key.";
     if (d.ready) return "● Ready — online and idle.";
-    return "◐ Online but busy" + (d.state ? ` (${d.state})` : "") + ".";
+    // Online, not ready, not faulted -> printing/paused. Name the state only when it's a
+    // recognized busy state (never the contradictory "(operational)") (UX-403).
+    const busy = (d.state === "printing" || d.state === "paused") ? ` (${d.state})` : "";
+    return "◐ Online but busy" + busy + ".";
   }
   if (d.reason === "unknown") return "○ Unknown connection — " + (d.note || "no connection by that name.");
   if (d.reason === "config")  return "○ Needs setup — " + (d.note || "not configured.");
@@ -609,15 +613,20 @@ async function loadConnectorStatus() {
   const el = $("connectorStatus");
   if (!name) { hide("connectorStatus"); return; }
   show("connectorStatus");
+  // UX-401: clear any prior severity colour before each check, so "Checking…" or a failure
+  // doesn't keep wearing a stale green/red class.
+  el.classList.remove("status-ready", "status-warn", "status-error");
   el.textContent = `Checking ${name}…`;
   try {
     const res = await fetch("/api/connector-status/" + encodeURIComponent(name));
     const d = await res.json();
     el.textContent = connectorStatusText(d);
-    el.classList.remove("status-ready", "status-warn", "status-error");
     el.classList.add(connectorStatusClass(d));
   } catch (_) {
-    el.textContent = `Couldn't check ${name} status.`;
+    // UX-402: match the server-driven copy's shape (glyph + the download reassurance).
+    el.textContent = "○ Status unavailable — couldn't check this connection. " +
+      "You can still download the G-code.";
+    el.classList.add("status-error");
   }
 }
 
@@ -737,7 +746,11 @@ function showModel(url) {
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b0d11);
     camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 5000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(w, h); el.appendChild(renderer.domElement);
+    renderer.setSize(w, h);
+    // UX-407: label the WebGL canvas for assistive tech (it's otherwise an opaque element).
+    renderer.domElement.setAttribute("role", "img");
+    renderer.domElement.setAttribute("aria-label", "3D preview of the generated part");
+    el.appendChild(renderer.domElement);
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444455, 1.1));
     const dir = new THREE.DirectionalLight(0xffffff, 0.7); dir.position.set(1, 1, 2); scene.add(dir);
     if (THREE.OrbitControls) { controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; }
