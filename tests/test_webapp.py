@@ -929,6 +929,47 @@ def test_unsupported_method_is_405(tmp_path):
             conn.close()
 
 
+def test_head_returns_headers_without_body(tmp_path):
+    """QA-001: HEAD on a GET resource returns a header-only 200 (not 405) — same status +
+    Content-Length as GET, with no body."""
+    import http.client
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("HEAD", "/")
+            resp = conn.getresponse()
+            assert resp.status == 200
+            assert resp.getheader("Content-Type", "").startswith("text/html")
+            assert int(resp.getheader("Content-Length")) > 0
+            assert resp.read() == b""  # HEAD carries no body
+        finally:
+            conn.close()
+
+
+def test_static_assets_carry_an_etag_and_revalidate_304(tmp_path):
+    """QA-002: static assets (vendor/assets) carry an ETag; a matching If-None-Match gets a
+    body-less 304 (correct revalidation for the build's stable, un-hashed filenames)."""
+    import http.client
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("GET", "/vendor/three.min.js")
+            resp = conn.getresponse()
+            etag = resp.getheader("ETag")
+            resp.read()
+            assert etag, "a static asset should carry an ETag"
+            conn.request("GET", "/vendor/three.min.js", headers={"If-None-Match": etag})
+            resp2 = conn.getresponse()
+            assert resp2.status == 304
+            assert resp2.read() == b""
+        finally:
+            conn.close()
+
+
 def test_evicted_design_dir_is_removed_from_disk(tmp_path, monkeypatch):
     """QA-003: past the registry cap, an evicted design's on-disk directory is removed."""
     import json
