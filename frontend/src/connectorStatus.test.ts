@@ -12,6 +12,9 @@ describe('connectorTone', () => {
     expect(connectorTone({ name: 'x', ready: false, simulated: false, state: 'printing' })).toBe(
       'warn',
     )
+    expect(connectorTone({ name: 'x', ready: false, simulated: false, state: 'paused' })).toBe(
+      'warn',
+    )
     expect(connectorTone({ name: 'x', ready: false, simulated: false, reason: 'offline' })).toBe(
       'fail',
     )
@@ -29,5 +32,20 @@ describe('connectorLabel', () => {
     expect(
       connectorLabel({ name: 'x', ready: false, simulated: false, note: 'a specific reason' }),
     ).toBe('a specific reason')
+  })
+
+  it('derives a label from state/reason when there is no note', () => {
+    expect(connectorLabel({ name: 'x', ready: false, simulated: false, state: 'printing' })).toMatch(
+      /busy/i,
+    )
+    expect(connectorLabel({ name: 'x', ready: false, simulated: false, state: 'paused' })).toMatch(
+      /paused/i,
+    )
+    expect(connectorLabel({ name: 'x', ready: false, simulated: false, reason: 'auth' })).toMatch(
+      /authentication/i,
+    )
+    expect(connectorLabel({ name: 'x', ready: false, simulated: false, reason: 'config' })).toMatch(
+      /setup/i,
+    )
   })
 })

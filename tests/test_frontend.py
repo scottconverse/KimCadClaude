@@ -178,3 +178,11 @@ def test_viewport_chunk_is_code_split_from_the_entry():
     assert chunk.stat().st_size > entry.stat().st_size, (
         "the Workspace chunk should be larger than the entry (three.js lives in the chunk)"
     )
+    # Directly verify three.js is in the lazy chunk and NOT in the entry — `WebGLRenderer` is a
+    # stable three.js public class name that survives minification (used via `new THREE.WebGLRenderer`).
+    entry_text = entry.read_text(encoding="utf-8", errors="ignore")
+    chunk_text = chunk.read_text(encoding="utf-8", errors="ignore")
+    assert "WebGLRenderer" in chunk_text, "three.js should be bundled in the lazy Workspace chunk"
+    assert "WebGLRenderer" not in entry_text, (
+        "three.js leaked into the entry bundle — the viewport is no longer lazy-loaded"
+    )

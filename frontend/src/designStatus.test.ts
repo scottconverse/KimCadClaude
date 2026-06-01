@@ -46,4 +46,9 @@ describe('assistantMessage', () => {
     ).toMatch(/tell me/i)
     expect(assistantMessage({ status: 'render_failed', has_mesh: false })).toMatch(/couldn/i)
   })
+
+  it('uses a sensible fallback for an unrecognised status', () => {
+    expect(assistantMessage({ ...base, status: 'something_new' })).toBe(base.plan!.summary)
+    expect(assistantMessage({ status: 'something_new', has_mesh: false })).toBe('Done.')
+  })
 })
