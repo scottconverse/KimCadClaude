@@ -2,8 +2,10 @@
 
 ## ⛔ READ FIRST
 
-- **Stage 4 is DONE — merged to `main` and tagged `stage-4` @ `dcbcd1a`.** **Next is Stage 5
-  (deterministic template engine + live sliders — the critical path).**
+- **Stage 4 is DONE — merged to `main` (merge commit `dcbcd1a`) and tagged `stage-4`.** **Next is
+  Stage 5 (deterministic template engine + live sliders — the critical path).** (The `stage-4` tag
+  was advanced past the merge to the docs-consistency commit — see "Tag provenance" below — so the
+  tag and the `main` head are the same commit.)
 - **Source of truth = this doc + the in-repo v3.0 spec + the design handoff** (both under
   `docs/design/`). Do NOT rebuild from memory — I have lost context across sessions before.
 - **The agent-pipeline skill is DEAD for this project.** Scott killed it (it can't run from the
@@ -12,7 +14,7 @@
 
 ---
 
-## ✅ Stage 4 — DONE (merged + tagged `stage-4` @ `dcbcd1a`)
+## ✅ Stage 4 — DONE (merged to `main`, merge commit `dcbcd1a`, tagged `stage-4`)
 
 The minimal web UI is now the designed React SPA, served locally, with a real 3D viewport — the
 §5 design at high fidelity. Built in **5 slices** off branch `stage-4-react-spa-shell` (from `main`
@@ -40,6 +42,14 @@ Authoritative record is committed in-repo:
 - Re-audit: `docs/audits/stage-4/audit-team-stage-4-2026-06-01-reaudit/` (`00-reaudit-closure.md` +
   the role re-audits).
 
+**Tag provenance (why the tag isn't the merge commit):** the Stage-4 feature merge is commit
+`dcbcd1a`, but that merge still carried an earlier, self-contradicting version of HANDOFF/ROADMAP (a
+"DONE" banner over leftover "Stage 4 is next / fix all 34" text). Those docs were corrected on `main`
+*after* the merge, and the **lightweight `stage-4` tag was advanced from `dcbcd1a` to the
+docs-consistency commit** so the tagged artifact carries the corrected docs rather than the
+contradictory ones. The `stage-4` tag and the `main` head are therefore the same commit (verify:
+`git rev-parse stage-4` == `git rev-parse main`); `dcbcd1a` remains the merge commit for provenance.
+
 **Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
 {status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
 findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `POST /api/slice/<id>`
@@ -55,7 +65,9 @@ slice + download; the CLI (`--send`) and MCP are the send paths today.
 
 - **Repo:** `github.com/scottconverse/KimCadClaude` (private). **GitHub is the only remote.**
 - **`main`:** tags **`stage-0` / `stage-1` / `stage-2` / `stage-3` / `stage-4`** — all done, audited
-  to **0/0/0/0/0** with `audit-team`, merged + tagged. **Stage 3 @ `96aba02`, Stage 4 @ `dcbcd1a`.**
+  to **0/0/0/0/0** with `audit-team`, merged + tagged. **Stage 3 tag @ `96aba02`; Stage 4 merge @
+  `dcbcd1a`, with the `stage-4` tag advanced to the docs-consistency commit (= the post-cleanup
+  `main` head — see "Tag provenance" above).**
   `main` is in sync with `origin/main`.
 - Branches `stage-3-printer-coverage` and `stage-4-react-spa-shell` are merged to `main` (not deleted).
 - **Tests: 404 passing (incl. 4 live OrcaSlicer slices), `ruff` clean.** Fast inner loop:

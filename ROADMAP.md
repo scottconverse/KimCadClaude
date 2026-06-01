@@ -30,8 +30,9 @@ in-app telemetry + public beta feedback.
 
 ## Current baseline (honest, as of Stage 4 — DONE, merged, tagged)
 The Phase-1 pipeline, the local web UI, and the designed React SPA + Three.js viewport are built
-and tested. **Stage 3 is tagged `stage-3` @ `96aba02` and Stage 4 is tagged `stage-4` @ `dcbcd1a`**,
-both merged to `main` (in sync with `origin/main`). Verification: **404 tests passing** (including 4
+and tested. **Stage 3 is tagged `stage-3` @ `96aba02` and Stage 4 is tagged `stage-4`** (off the `dcbcd1a`
+merge, with the lightweight tag advanced to the later docs-consistency commit so it carries these
+corrected docs), both merged to `main` (in sync with `origin/main`). Verification: **404 tests passing** (including 4
 live OrcaSlicer slices), **`ruff` clean**, and the frontend `npm test` (vitest, 19 passed) + `build`
 pass on Windows with `npm audit` = 0. The supported gate is **native Windows**: the pre-push hook
 (`.githooks/pre-push` → `scripts/ci.sh` = ruff + the FULL pytest incl. live) gates every push, and
