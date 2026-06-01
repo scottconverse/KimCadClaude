@@ -161,7 +161,9 @@ to him.
   `…-gate-r2-2026-06-01` (deep-dives only), `…-gate-r3-2026-06-01` (convergence **0/0/0/0/0**,
   deep-dives + `_fullsuite.log`). First self audit: `kimcad-audit-stage3-2026-05-31`.
 - The independent **Codex** audit (caught the Critical) is marked stale at
-  `C:\Users\scott\dev\kimcad\_STALE-codex-audit-2026-06-01-SUPERSEDED\` (untracked, inside repo).
+  `C:\Users\scott\dev\kimcad-STALE-codex-audit-2026-06-01-SUPERSEDED` — a sibling of the repo,
+  **outside** the working tree (it was moved out of `kimcad/` during the Stage-4 cleanup so the
+  tree stays clean; the old in-repo `_STALE-...` path no longer exists).
 - **TODO (Scott to direct):** commit the live gate-audit packages INTO the repo (e.g.
   `docs/audits/stage-3/`) so they travel with + verify against the code, and write the missing
   **r2/r3 exec + punchlist**. Artifacts outside VC can't prove when/how they were generated.
