@@ -11,6 +11,58 @@
 
 ---
 
+## 🔧 Stage 4 — IN PROGRESS (resume here)
+
+Branch **`stage-4-react-spa-shell`** (off `main` @ `efd2b72`). The pre-Stage-4 cleanup already
+landed on `main` (ROADMAP rewrite to the 9-stage v3.0 plan; HANDOFF branch-name fix; stale audit
+dir removed; audit-lite 0/0/0/0/0; pushed). The React SPA is built in **slices** — each run through
+the real `audit-lite` **skill** to 0/0/0/0/0, then full `ruff` + `pytest`, then pushed. Slice audit
+reports are committed under `docs/audits/stage-4/`.
+
+**Done (pushed; audit-lite 0/0/0/0/0 each):**
+- **Slice 1 — build seam.** `frontend/` = React 18 + TS + **Vite 8**; builds to committed
+  `src/kimcad/web/{index.html,assets/}`; the Python server serves `/assets/<file>` (traversal-guarded,
+  mirrors `/vendor/`). Node is **build-time only**. Build/run steps in `frontend/README.md`. Single
+  no-emit tsconfig (no stray `vite.config.js`). `npm run build` = `prebuild` clean + `tsc --noEmit` + vite.
+- **Slice 2 — Workshop design system.** Full token set + self-hosted **latin-only** fonts
+  (@fontsource-variable; 3 woff2; offline, no CDN) in `frontend/src/styles.css`; `Topbar.tsx` +
+  `Landing.tsx`; `prebuild` rimraf clean of `web/assets` (no orphan bundles, vendor/+index.html
+  survive); a11y (`:focus-within` on the input card, `:focus-visible` on buttons/chips).
+
+**Remaining (next, SAME per-slice process):**
+- **Slice 3 — workspace layout + Three.js viewport.** 3-col workspace (`360px 1fr 392px`) + the
+  **vanilla Three.js** viewport: `npm i three @types/three`, port `KCViewport` from
+  `docs/design/prototype/jsx/preview.jsx` behind a thin React wrapper, but **adapt it to load the REAL
+  rendered mesh** from `GET /api/mesh/<id>` via three's `STLLoader` (the prototype builds fake
+  procedural geometry — the product loads the actual STL). Dark viewport `#14171c`, grid/plate, orbit +
+  auto-rotate, resize, empty state. Static panel scaffolds (chat left, params+report right).
+- **Slice 4 — wire the design flow.** Prompt → `POST /api/design` → conversation messages + plan
+  summary + printability report + load mesh into the viewport; handle clarification + error + the four
+  `PipelineStatus` values. Read-only params (NO live sliders — that's Stage 5). **Reinstate the
+  frontend↔backend field-contract tests** here against the TS source (watch-item W2).
+- **Slice 5 — wire printer/material + slice + download + status.** `GET /api/options` → selectors;
+  gate-aware "Slice & prepare" → `POST /api/slice/<id>` → estimate + download `.3mf`/g-code;
+  `GET /api/connector-status/<name>` → read-only status badge (reinstate the connector-status contract
+  tests, W2). The full direct-print/send UI is **Stage 10** — keep send minimal here.
+- **Stage 4 END:** run the **`audit-team`** (Audit Full) skill on the whole branch → fix every finding
+  Blocker→Nit → re-audit → **0/0/0/0/0** → full ruff + pytest → push → **merge + tag `stage-4` myself**
+  → only THEN report. The audit-team **UI/UX role MUST do the pixel-level visual review** against
+  `docs/design/screens/*.png` + the prototype (Slice-2 watch-item W4 — no live screenshot was taken
+  mid-build because driving one of Scott's 4 connected browsers needs an interactive pick).
+
+**Carried watch items:** W1 optional shared `resolve()`-containment hardening for `/assets/` + `/vendor/`;
+W2 reinstate field-contract tests (Slice 4/5); W3 DONE (prebuild clean); W4 pixel visual review at the
+gate; W5 wire the inert landing/topbar chrome before merge; W6 add vitest for component-level JS tests.
+
+**Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
+{status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
+findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `POST /api/slice/<id>`
+{printer,material} → {sliced,reason?,estimate,gcode_url?}; `GET /api/gcode/<id>`; `GET /api/options`;
+`GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}. The
+server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API.
+
+---
+
 ## 1. Where the code is
 
 - **Repo:** `github.com/scottconverse/KimCadClaude` (private). **GitHub is the only remote.**
