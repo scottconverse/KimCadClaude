@@ -1,22 +1,84 @@
-/* KimCad SPA — Workshop theme baseline (Stage 4, Slice 1).
+/* KimCad SPA — Workshop design system (Stage 4, Slice 2).
  *
- * Just enough of the design-system tokens and the shell chrome to prove the
- * build→serve seam. The full token set, vendored fonts, three-column layout, and
- * component styles come in Slice 2 (design system) and beyond. Token values are from
- * docs/design (Workshop theme: warm sand / terracotta / dark viewport). */
+ * Token values are the "Workshop" theme from docs/design (warm sand / terracotta / dark
+ * viewport). Fonts are the self-hosted @fontsource-variable families, declared latin-only
+ * below (Vite bundles the referenced woff2 into the committed build — no CDN, fully offline;
+ * latin only because the UI is English). This file defines the @font-face rules, the design
+ * tokens, the base reset, and the chrome built so far (topbar + landing); the three-column
+ * workspace, panels, and viewport styling are added in the following slices. */
+
+/* ------------------------------------------------------ Self-hosted fonts (latin only) */
+@font-face {
+  font-family: 'Bricolage Grotesque Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2')
+    format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Hanken Grotesk Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2')
+    format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2')
+    format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
+  /* Surfaces & ink */
   --kc-bg: #f0ebe0;
   --kc-surface: #faf6ee;
+  --kc-surface-2: #f4eee2;
   --kc-ink: #272219;
   --kc-muted: #6f6857;
   --kc-hair: rgba(39, 34, 25, 0.1);
-  --kc-accent: #c8623a;
+  --kc-hair-strong: rgba(39, 34, 25, 0.16);
   --kc-viewport-bg: #14171c;
-  /* Fonts are vendored in Slice 2; until then fall back to the system stack so the
-   * shell renders identically offline. */
-  --kc-font-body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --kc-font-display: 'Bricolage Grotesque', var(--kc-font-body);
+
+  /* Accent (Workshop terracotta) */
+  --kc-accent: #c8623a;
+  --kc-accent-strong: #b1542f;
+  --kc-on-accent: #ffffff;
+
+  /* Semantic status (constant across themes) */
+  --kc-pass: #1d7a4e;
+  --kc-warn: #876312;
+  --kc-warn-accent: #c9962f;
+  --kc-fail: #a8431f;
+
+  /* Typography */
+  --kc-font-display: 'Bricolage Grotesque Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kc-font-body: 'Hanken Grotesk Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kc-font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Radii */
+  --kc-r-card: 16px;
+  --kc-r-modal: 20px;
+  --kc-r-btn: 11px;
+  --kc-r-input: 11px;
+  --kc-r-chip: 999px;
+
+  /* Elevation */
+  --kc-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --kc-shadow-hero: 0 18px 50px -22px rgba(0, 0, 0, 0.4);
+
+  /* Chrome */
+  --kc-topbar-h: 58px;
 }
 
 * {
@@ -35,7 +97,15 @@ body {
   color: var(--kc-ink);
   font-family: var(--kc-font-body);
   font-size: 15px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+textarea,
+input {
+  font-family: inherit;
 }
 
 .kc-shell {
@@ -44,13 +114,17 @@ body {
   height: 100%;
 }
 
+/* ------------------------------------------------------------------ Topbar */
+
 .kc-topbar {
   display: flex;
   align-items: center;
-  height: 58px;
+  justify-content: space-between;
+  height: var(--kc-topbar-h);
   padding: 0 16px;
   background: var(--kc-surface);
   border-bottom: 1px solid var(--kc-hair);
+  flex: 0 0 auto;
 }
 
 .kc-brand {
@@ -60,11 +134,14 @@ body {
 }
 
 .kc-logo {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   border-radius: 9px;
   background: var(--kc-accent);
+  color: var(--kc-on-accent);
 }
 
 .kc-wordmark {
@@ -79,24 +156,231 @@ body {
   color: var(--kc-accent);
 }
 
-.kc-main {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 360px 1fr 392px;
-  min-height: 0;
+.kc-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.kc-viewport {
-  grid-column: 2;
+/* ------------------------------------------------------------------ Buttons */
+
+.kc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--kc-r-btn);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.05s ease;
+}
+
+.kc-btn:active {
+  transform: translateY(1px);
+}
+
+.kc-btn-accent {
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
+}
+
+.kc-btn-accent:hover {
+  background: var(--kc-accent-strong);
+}
+
+.kc-btn-dark {
+  background: var(--kc-ink);
+  color: var(--kc-bg);
+}
+
+.kc-btn-dark:hover {
+  background: #3a3326;
+}
+
+.kc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--kc-hair);
+  border-radius: 10px;
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.kc-icon-btn:hover {
+  color: var(--kc-accent);
+  border-color: var(--kc-hair-strong);
+}
+
+.kc-chip {
+  padding: 7px 13px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.kc-chip:hover {
+  border-color: var(--kc-accent);
+  color: var(--kc-accent);
+}
+
+/* Keyboard-focus rings for the interactive chrome (the textarea uses :focus-within on its
+ * card instead). Only shows for keyboard navigation, not mouse clicks. */
+.kc-btn:focus-visible,
+.kc-icon-btn:focus-visible,
+.kc-chip:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ Landing */
+
+.kc-landing {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 14px;
-  border-radius: 16px;
-  background: var(--kc-viewport-bg);
+  padding: 32px 24px;
+  min-height: 0;
+  overflow: auto;
 }
 
-.kc-viewport-empty {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 14px;
+.kc-landing-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 640px;
+  animation: kc-fadeup 0.4s ease both;
+}
+
+@keyframes kc-fadeup {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kc-badge {
+  padding: 6px 13px;
+  border: 1px solid var(--kc-hair);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.kc-hero-title {
+  margin: 18px 0 0;
+  font-family: var(--kc-font-display);
+  font-size: clamp(30px, 4.4vw, 47px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.kc-hero-sub {
+  margin: 14px 0 0;
+  max-width: 30em;
+  color: var(--kc-muted);
+  font-size: 15px;
+  text-wrap: pretty;
+}
+
+.kc-input-card {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  margin-top: 26px;
+  padding: 14px;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-hero);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+/* The textarea suppresses its own outline, so the card carries the keyboard-focus
+ * indicator (accessibility): a clear accent ring whenever the textarea is focused. */
+.kc-input-card:focus-within {
+  border-color: var(--kc-accent);
+  box-shadow: var(--kc-shadow-hero), 0 0 0 3px rgba(200, 98, 58, 0.18);
+}
+
+.kc-input {
+  flex: 1 1 auto;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--kc-ink);
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 6px 4px;
+}
+
+.kc-input::placeholder {
+  color: var(--kc-muted);
+}
+
+.kc-design-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 11px 16px;
+}
+
+.kc-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.kc-examples-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kc-muted);
+}
+
+.kc-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 28px;
+  color: var(--kc-muted);
+  font-size: 12.5px;
+}
+
+.kc-steps span {
+  position: relative;
+}
+
+.kc-steps span + span::before {
+  content: '·';
+  position: absolute;
+  left: -11px;
+  color: var(--kc-hair-strong);
 }

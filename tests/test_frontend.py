@@ -57,3 +57,32 @@ def test_built_spa_loads_a_stylesheet():
     assert re.search(r'<link[^>]+rel="stylesheet"[^>]+href="/assets/[^"]+\.css"', _HTML), (
         "SPA shell must link a bundled stylesheet from /assets/"
     )
+
+
+# --- Stage 4 Slice 2: the Workshop design system is actually in the built output ----------
+
+_ASSETS_DIR = WEB_DIR / "assets"
+
+
+def _built_css() -> str:
+    css_files = list(_ASSETS_DIR.glob("*.css"))
+    assert css_files, "no built CSS bundle found in web/assets — did the SPA build run?"
+    return "\n".join(p.read_text(encoding="utf-8") for p in css_files)
+
+
+def test_built_css_carries_workshop_tokens():
+    """The Workshop theme's signature tokens survive the build: the terracotta accent, the
+    dark viewport colour, and the three named font families."""
+    css = _built_css()
+    assert "#c8623a" in css, "built CSS missing the Workshop accent (terracotta)"
+    assert "#14171c" in css, "built CSS missing the dark viewport colour"
+    for family in ("Bricolage Grotesque", "Hanken Grotesk", "JetBrains Mono"):
+        assert family in css, f"built CSS missing the {family} font family"
+
+
+def test_workshop_fonts_are_bundled_for_offline_use():
+    """Each Workshop family ships as a self-hosted latin woff2 in the build (no CDN), so the
+    UI renders correctly fully offline on the target box."""
+    for stem in ("bricolage-grotesque", "hanken-grotesk", "jetbrains-mono"):
+        matches = list(_ASSETS_DIR.glob(f"{stem}-latin*.woff2"))
+        assert matches, f"missing bundled latin woff2 for {stem} (offline fonts incomplete)"
