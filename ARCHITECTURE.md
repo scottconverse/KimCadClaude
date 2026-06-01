@@ -135,6 +135,14 @@ failure (offline/unreachable printer, bad key, misconfig) is a soft result, not 
 carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
 download stays as the fallback, as does the validated model itself.
 
+**The browser UI is a React + TypeScript SPA** (Stage 4), compiled by Vite from `frontend/`
+into `src/kimcad/web/` (`index.html` + `assets/`). Node/Vite are **build-time only** — the
+committed build output is served verbatim by this same stdlib server (the SPA shell at `/`,
+its bundles at `/assets/<file>` behind the same traversal guard as `/vendor/`), so `kimcad web`
+runs with no Node toolchain on the target box. The JSON endpoints above are the unchanged
+contract between the SPA and the pipeline. Rebuild the UI with
+`npm --prefix frontend ci && npm --prefix frontend run build` (see `frontend/README.md`).
+
 ## Local-first and the injectable seam
 
 KimCad is **local-first**: out of the box it talks to a local runtime (Ollama or LM

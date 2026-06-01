@@ -332,6 +332,46 @@ def test_serves_vendored_threejs_and_rejects_traversal(tmp_path):
                 assert e.code == 404
 
 
+def test_serves_spa_index_and_assets_and_rejects_traversal(tmp_path):
+    """Stage 4: ``/`` serves the built React SPA shell, ``/assets/<file>`` serves its
+    compiled JS/CSS bundles with a sensible content type, and the assets route rejects
+    anything but a plain filename (no path traversal) — exactly like /vendor/."""
+    import re
+    import urllib.error
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        r = urllib.request.urlopen(base + "/", timeout=10)
+        assert r.status == 200
+        assert "text/html" in r.headers.get("Content-Type", "")
+        html = r.read().decode("utf-8")
+        assert 'id="root"' in html
+        # Every /assets/ bundle the shell references is served with the right content type.
+        refs = re.findall(r'(?:src|href)="/assets/([^"]+)"', html)
+        assert refs, "the served shell should reference at least one /assets/ bundle"
+        seen_js = seen_css = False
+        for name in refs:
+            ar = urllib.request.urlopen(base + "/assets/" + name, timeout=10)
+            assert ar.status == 200
+            ctype = ar.headers.get("Content-Type", "")
+            assert len(ar.read()) > 0
+            if name.endswith(".js"):
+                assert "javascript" in ctype
+                seen_js = True
+            elif name.endswith(".css"):
+                assert "text/css" in ctype
+                seen_css = True
+        assert seen_js and seen_css, "shell should load both a JS bundle and a stylesheet"
+        for bad in ("/assets/nope.js", "/assets/", "/assets/sub/x.js", "/assets/..%2fx"):
+            try:
+                urllib.request.urlopen(base + bad, timeout=10)
+                raise AssertionError(f"expected 404 for {bad}")
+            except urllib.error.HTTPError as e:
+                assert e.code == 404
+
+
 # --- Stage 1 Slice 3b: printer/material selection + slice-on-confirm -----------
 
 

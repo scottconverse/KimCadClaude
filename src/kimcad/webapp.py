@@ -42,6 +42,23 @@ MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
 # ENG-010: map mesh file extensions to a content type.
 _MESH_CONTENT_TYPES = {".stl": "model/stl", ".3mf": "model/3mf"}
 
+# Stage 4: content types for the built SPA static assets (JS/CSS/fonts/images) served from
+# web/assets/. The React/TS SPA is compiled by Vite (build-time only) into src/kimcad/web;
+# the Python server serves the committed build output with no Node toolchain at runtime.
+_ASSET_CONTENT_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".ttf": "font/ttf",
+    ".svg": "image/svg+xml; charset=utf-8",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+}
+
 
 def _plan_payload(plan: Any) -> dict[str, Any]:
     return {
@@ -347,6 +364,10 @@ def make_handler(
             if self.path.startswith("/vendor/"):
                 self._serve_vendor(self.path[len("/vendor/") :])
                 return
+            if self.path.startswith("/assets/"):
+                # Strip any query string (Vite may version an asset URL) before the lookup.
+                self._serve_asset(urlsplit(self.path).path[len("/assets/") :])
+                return
             if self.path.startswith("/api/mesh/"):
                 self._serve_mesh(self.path.rsplit("/", 1)[-1])
                 return
@@ -379,6 +400,20 @@ def make_handler(
                 return
             ctype = "text/javascript" if path.suffix == ".js" else "application/octet-stream"
             self._send(200, path.read_bytes(), f"{ctype}; charset=utf-8")
+
+        def _serve_asset(self, name: str) -> None:
+            # Built SPA static assets (JS/CSS/fonts/images) served from web/assets/. Mirrors
+            # the vendor guard exactly: only a plain filename is allowed — any path separator
+            # or traversal is rejected before touching the filesystem.
+            if not name or "/" in name or "\\" in name or ".." in name:
+                self._json(404, {"error": "not found"})
+                return
+            path = WEB_DIR / "assets" / name
+            if not path.is_file():
+                self._json(404, {"error": "not found"})
+                return
+            ctype = _ASSET_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+            self._send(200, path.read_bytes(), ctype)
 
         def _serve_mesh(self, raw_id: str) -> None:
             try:

@@ -17,6 +17,12 @@ venv/
 /output/
 *.gcode
 
+# Frontend (Node is build-time only; the built SPA lands in src/kimcad/web and IS committed)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+
 # Editor / OS
 .vscode/
 .idea/

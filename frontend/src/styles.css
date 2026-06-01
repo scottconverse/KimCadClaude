@@ -1,0 +1,102 @@
+/* KimCad SPA — Workshop theme baseline (Stage 4, Slice 1).
+ *
+ * Just enough of the design-system tokens and the shell chrome to prove the
+ * build→serve seam. The full token set, vendored fonts, three-column layout, and
+ * component styles come in Slice 2 (design system) and beyond. Token values are from
+ * docs/design (Workshop theme: warm sand / terracotta / dark viewport). */
+
+:root {
+  --kc-bg: #f0ebe0;
+  --kc-surface: #faf6ee;
+  --kc-ink: #272219;
+  --kc-muted: #6f6857;
+  --kc-hair: rgba(39, 34, 25, 0.1);
+  --kc-accent: #c8623a;
+  --kc-viewport-bg: #14171c;
+  /* Fonts are vendored in Slice 2; until then fall back to the system stack so the
+   * shell renders identically offline. */
+  --kc-font-body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kc-font-display: 'Bricolage Grotesque', var(--kc-font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--kc-bg);
+  color: var(--kc-ink);
+  font-family: var(--kc-font-body);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.kc-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.kc-topbar {
+  display: flex;
+  align-items: center;
+  height: 58px;
+  padding: 0 16px;
+  background: var(--kc-surface);
+  border-bottom: 1px solid var(--kc-hair);
+}
+
+.kc-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.kc-logo {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--kc-accent);
+}
+
+.kc-wordmark {
+  font-family: var(--kc-font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.kc-wordmark-accent {
+  font-weight: 800;
+  color: var(--kc-accent);
+}
+
+.kc-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 360px 1fr 392px;
+  min-height: 0;
+}
+
+.kc-viewport {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 14px;
+  border-radius: 16px;
+  background: var(--kc-viewport-bg);
+}
+
+.kc-viewport-empty {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}

@@ -124,6 +124,12 @@ The server binds to `127.0.0.1` (your machine only) by default. `--host` can bin
 elsewhere, but do **not** expose it on a public interface without putting your own
 authentication/proxy in front — it runs the pipeline for anyone who can reach it.
 
+The page is a React + TypeScript single-page app, compiled by Vite into `src/kimcad/web/`
+and served as static files by the Python server. **You do not need Node to run KimCad** —
+the built UI is committed, so `kimcad web` works on its own. Node is needed only to *rebuild*
+the UI after changing it: `npm --prefix frontend ci && npm --prefix frontend run build`
+(details in `frontend/README.md`).
+
 Once a part passes the gate you can pick a printer + material and, after an explicit
 confirmation, generate a printable G-code 3MF and download it — slicing runs on the
 already-validated mesh, so confirming a print never re-runs the model. The validated
