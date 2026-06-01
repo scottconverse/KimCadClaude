@@ -262,6 +262,22 @@ def _design_and_get_content_type(tmp_path, suffix):
         return resp.headers.get("Content-Type")
 
 
+def _trimesh_can_export_3mf() -> bool:
+    """Whether trimesh can export a .3mf in this runtime (it needs a 3MF backend, e.g. lxml).
+    Without it, /api/design 500s on the .3mf path; skip cleanly rather than muddy the gate
+    (TEST-004). The shipped/pinned venv has it, so the test runs and passes there."""
+    import trimesh
+
+    try:
+        trimesh.creation.box(extents=[1, 1, 1]).export(file_type="3mf")
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(
+    not _trimesh_can_export_3mf(), reason="trimesh 3MF export unavailable in this runtime"
+)
 def test_mesh_content_type_is_3mf_for_3mf_file(tmp_path):
     """ENG-010: /api/mesh/<id> serves model/3mf when the served file is a .3mf."""
     assert _design_and_get_content_type(tmp_path / "a", ".3mf") == "model/3mf"
@@ -614,6 +630,72 @@ def test_connector_status_unknown_name_is_typed_unknown(tmp_path):
             f"http://{host}:{port}/api/connector-status/bogus", timeout=10))
     assert d["ready"] is False and d["reason"] == "unknown"
     assert d["simulated"] is False
+
+
+# --- TEST-003 / ENG-002: /api/send soft-failures are symmetric with /api/connector-status ----
+
+
+def _register_stub_gcode(host, port, monkeypatch, gcode_path):
+    """Design a part over HTTP, then register a stub sliced G-code for it WITHOUT running the
+    real slicer (monkeypatching slice_registered_mesh), so send-path tests are fast + offline.
+    Unknown/config sends fail at build_connector and a stubbed loopback send never reaches
+    ensure_sendable, so the registered file only needs to exist. Returns (base_url, rid)."""
+    import json
+    import urllib.request
+
+    monkeypatch.setattr(
+        "kimcad.webapp.slice_registered_mesh",
+        lambda cfg, mesh, printer, material: ({}, gcode_path),
+    )
+    base = f"http://{host}:{port}"
+    d = json.load(urllib.request.urlopen(urllib.request.Request(
+        base + "/api/design", data=json.dumps({"prompt": "a 20mm block"}).encode(),
+        headers={"Content-Type": "application/json"}), timeout=10))
+    rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+    s = json.load(urllib.request.urlopen(urllib.request.Request(
+        base + f"/api/slice/{rid}", data=json.dumps({"printer": "x", "material": "pla"}).encode(),
+        headers={"Content-Type": "application/json"}), timeout=10))
+    assert "gcode_url" in s  # the stub slice registered the G-code
+    return base, rid
+
+
+def _post_send(base, rid, connector):
+    import json
+    import urllib.request
+
+    return json.load(urllib.request.urlopen(urllib.request.Request(
+        base + f"/api/send/{rid}", data=json.dumps({"connector": connector}).encode(),
+        headers={"Content-Type": "application/json"}), timeout=10))
+
+
+def test_send_unknown_connector_is_typed_unknown_not_simulated(tmp_path, monkeypatch):
+    g = tmp_path / "g.gcode.3mf"
+    g.write_bytes(b"stub")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base, rid = _register_stub_gcode(host, port, monkeypatch, g)
+        bad = _post_send(base, rid, "no_such")
+    assert bad["sent"] is False and bad["reason"] == "unknown"
+    assert bad["simulated"] is False and bad["note"]
+
+
+def test_send_simulated_connector_failure_carries_simulated_true(tmp_path, monkeypatch):
+    # ENG-002: a failed send to a SIMULATED connector reports simulated=True, symmetric with
+    # status — the asymmetry that let the stale live send assertion hide.
+    from kimcad.printer_connector import LoopbackConnector, PrinterOffline
+
+    def _boom(self, gcode_path, *, confirm, job_name=None):
+        raise PrinterOffline("mock offline", user_message="The mock connection is offline.")
+
+    monkeypatch.setattr(LoopbackConnector, "send", _boom)
+    g = tmp_path / "g.gcode.3mf"
+    g.write_bytes(b"stub")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base, rid = _register_stub_gcode(host, port, monkeypatch, g)
+        res = _post_send(base, rid, "mock")
+    assert res["sent"] is False and res["reason"] == "offline"
+    assert res["simulated"] is True and res["note"]
 
 
 def test_connector_status_busy_is_online_but_not_ready(tmp_path, monkeypatch):
