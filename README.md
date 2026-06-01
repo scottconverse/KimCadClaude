@@ -41,6 +41,11 @@ lumpy neural meshes.
 OpenSCAD and OrcaSlicer are fetched as pinned portable builds into `tools/` by the
 setup step (see below); a system install can be pointed to via `config/local.yaml`.
 
+**No Node.js is needed to *run* KimCad.** The browser UI is a React single-page app whose
+compiled output is committed and served by the Python server, so `kimcad web` works with the
+steps above alone. Node (+ `npm`) is needed only to *rebuild* that UI after changing it:
+`npm --prefix frontend ci && npm --prefix frontend run build` (see `frontend/README.md`).
+
 ## Setup
 
 ```
