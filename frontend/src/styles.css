@@ -50,9 +50,12 @@
   --kc-hair-strong: rgba(39, 34, 25, 0.16);
   --kc-viewport-bg: #14171c;
 
-  /* Accent (Workshop terracotta) */
+  /* Accent (Workshop terracotta). `--kc-accent` is the brand fill for NON-text accents (logo,
+   * dots, focus rings, badges). Text-bearing fills + accent text use the darker `-strong` /
+   * `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
   --kc-accent: #c8623a;
   --kc-accent-strong: #b1542f;
+  --kc-accent-deep: #9a4828;
   --kc-on-accent: #ffffff;
 
   /* Semantic status (constant across themes) */
@@ -187,12 +190,12 @@ input {
 }
 
 .kc-btn-accent {
-  background: var(--kc-accent);
+  background: var(--kc-accent-strong);
   color: var(--kc-on-accent);
 }
 
 .kc-btn-accent:hover {
-  background: var(--kc-accent-strong);
+  background: var(--kc-accent-deep);
 }
 
 .kc-btn-dark {
@@ -236,7 +239,7 @@ input {
 
 .kc-chip:hover {
   border-color: var(--kc-accent);
-  color: var(--kc-accent);
+  color: var(--kc-accent-strong);
 }
 
 /* Keyboard-focus rings for the interactive chrome (the textarea uses :focus-within on its
@@ -282,6 +285,8 @@ input {
 }
 
 .kc-badge {
+  display: inline-flex;
+  align-items: center;
   padding: 6px 13px;
   border: 1px solid var(--kc-hair);
   border-radius: var(--kc-r-chip);
@@ -289,6 +294,15 @@ input {
   color: var(--kc-muted);
   font-size: 11.5px;
   font-weight: 600;
+}
+
+.kc-badge-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--kc-pass);
 }
 
 .kc-hero-title {
@@ -519,6 +533,80 @@ input {
 
 .kc-viewport-overlay-error {
   color: #e9a08a;
+}
+
+/* Print-aware viewport affordances: projected W/D/H dimension pills (positioned by KCViewport),
+ * an orientation chip, and a drag hint. */
+.kc-dim-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--kc-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.kc-viewport-chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 10px;
+  border-radius: var(--kc-r-chip);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.kc-viewport-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11.5px;
+  pointer-events: none;
+}
+
+/* Touch targets: on coarse pointers, the interactive chrome is at least ~44px tall. */
+@media (pointer: coarse) {
+  .kc-btn,
+  .kc-icon-btn,
+  .kc-chip,
+  .kc-field select {
+    min-height: 44px;
+  }
+}
+
+/* On narrow screens the hero input stacks (textarea above a full-width button) so neither is
+ * squeezed. */
+@media (max-width: 640px) {
+  .kc-input-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kc-design-btn {
+    justify-content: center;
+  }
+}
+
+/* Respect "reduce motion": no spinners, fade-ups, or transitions for users who opt out (the
+ * viewport's auto-rotate is also disabled in KCViewport). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Right column — parameters + printability */
@@ -847,7 +935,7 @@ input {
   margin-top: 2px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--kc-accent);
+  color: var(--kc-accent-strong);
   text-decoration: none;
 }
 
@@ -857,4 +945,31 @@ input {
 
 .kc-export-error {
   color: var(--kc-fail);
+}
+
+/* Assistant message rows carry a small cube avatar. */
+.kc-ai-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-right: 22px;
+}
+
+.kc-ai-row .kc-msg-ai,
+.kc-ai-row .kc-think {
+  flex: 1 1 auto;
+  margin-right: 0;
+}
+
+.kc-ava {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: 9px;
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
 }

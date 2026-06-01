@@ -1,18 +1,29 @@
 import * as THREE from 'three'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 
-// KCViewport — a vanilla Three.js viewport for KimCad (Stage 4, Slice 3).
+// KCViewport — a vanilla Three.js viewport for KimCad (Stage 4).
 //
-// Unlike the design prototype's KCViewport (which builds fake procedural geometry from
-// sliders), this loads the REAL rendered part: the pipeline exports `*.oriented.stl`
-// (pipeline.py), the web server serves it at GET /api/mesh/<id>, and this loads that STL
-// with three's STLLoader. Kept framework-free (no react-three-fiber) and driven from a thin
-// React wrapper (Viewport.tsx). Units are millimetres (KimCad's mesh space); Z is up
-// (build-plate orientation), matching the exported, plate-down oriented mesh.
+// Loads the REAL rendered part — the pipeline exports `*.oriented.stl`, the server serves it at
+// GET /api/mesh/<id>, and this loads it with three's STLLoader. Framework-free (no react-three-
+// fiber); driven from a thin React wrapper (Viewport.tsx). Units are millimetres (KimCad's mesh
+// space); Z is up (build-plate orientation). Print-aware affordances: a bounding box + projected
+// X/Y/Z dimension labels (so the centerpiece reads as an instrumented preview, not a decoration).
 
 const VIEWPORT_BG = 0x14171c // Workshop dark viewport
 const ACCENT = 0xc8623a // Workshop terracotta
 const PLATE = 0xffffff
+
+export interface DimLabels {
+  x: HTMLElement
+  y: HTMLElement
+  z: HTMLElement
+}
+
+export interface Dimensions {
+  x: number
+  y: number
+  z: number
+}
 
 export class KCViewport {
   private container: HTMLElement
@@ -21,6 +32,7 @@ export class KCViewport {
   private camera: THREE.PerspectiveCamera
   private modelGroup: THREE.Group
   private target = new THREE.Vector3(0, 0, 0)
+  private labels: DimLabels | null
 
   // Spherical camera (azimuth, polar, radius), auto-rotating when idle.
   private theta = -0.7
@@ -28,6 +40,10 @@ export class KCViewport {
   private radius = 460
   private autoRotate = true
   private dragging = false
+  private reduceMotion = false
+
+  private dims: Dimensions | null = null
+  private labelAnchors: { x: THREE.Vector3; y: THREE.Vector3; z: THREE.Vector3 } | null = null
 
   private raf = 0
   private disposed = false
@@ -35,12 +51,16 @@ export class KCViewport {
   private ro?: ResizeObserver
   private cleanups: Array<() => void> = []
   private dragCleanup?: () => void
-  // Monotonic load id: a load that's no longer the latest (a newer load started, or the model
-  // was cleared) discards its result instead of clobbering the viewport — guards the STL race.
   private loadToken = 0
 
-  constructor(container: HTMLElement, canvas: HTMLCanvasElement) {
+  constructor(container: HTMLElement, canvas: HTMLCanvasElement, labels: DimLabels | null = null) {
     this.container = container
+    this.labels = labels
+    // Respect the OS "reduce motion" setting — no perpetual auto-rotate for users who opt out.
+    this.reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (this.reduceMotion) this.autoRotate = false
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -72,7 +92,6 @@ export class KCViewport {
   async loadMesh(url: string): Promise<void> {
     const token = ++this.loadToken
     const geometry = await new STLLoader().loadAsync(url)
-    // Discard if disposed, or if a newer load / a clear happened while we were fetching.
     if (this.disposed || token !== this.loadToken) {
       geometry.dispose()
       return
@@ -96,6 +115,7 @@ export class KCViewport {
         new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18 }),
       ),
     )
+    this.buildBBoxAndDims()
     this.frameToModel()
   }
 
@@ -103,6 +123,14 @@ export class KCViewport {
   clearModel(): void {
     this.loadToken++ // a pending load is no longer the latest → it will discard its result
     this.removeModelChildren()
+    this.dims = null
+    this.labelAnchors = null
+    this.hideLabels()
+  }
+
+  /** The loaded part's bounding-box dimensions (mm), or null when empty. */
+  getDimensions(): Dimensions | null {
+    return this.dims
   }
 
   resize(): void {
@@ -116,7 +144,7 @@ export class KCViewport {
   resetView(): void {
     this.theta = -0.7
     this.phi = 1.15
-    this.autoRotate = true
+    this.autoRotate = !this.reduceMotion
     this.frameToModel()
   }
 
@@ -127,8 +155,6 @@ export class KCViewport {
     this.dragCleanup?.()
     this.ro?.disconnect()
     this.cleanups.forEach((fn) => fn())
-    // Release every GPU resource in the scene — model, grid, and plate border (lights carry
-    // no geometry/material). renderer.dispose() alone does not free these.
     this.scene.traverse((obj) => {
       const o = obj as THREE.Mesh
       o.geometry?.dispose?.()
@@ -137,6 +163,9 @@ export class KCViewport {
       else (mat as THREE.Material | undefined)?.dispose?.()
     })
     this.renderer.dispose()
+    // Proactively release the WebGL context (don't wait for GC) — matters under React
+    // StrictMode's dev double-mount and repeated New-design cycles.
+    this.renderer.forceContextLoss()
   }
 
   // ---- internals -------------------------------------------------------------
@@ -175,6 +204,46 @@ export class KCViewport {
     this.scene.add(border)
   }
 
+  /** A faint bounding box around the part + the W/D/H dimensions and their screen-label anchors. */
+  private buildBBoxAndDims(): void {
+    const box = new THREE.Box3().setFromObject(this.modelGroup)
+    if (box.isEmpty()) return
+    const min = box.min
+    const max = box.max
+    const size = box.getSize(new THREE.Vector3())
+    this.dims = {
+      x: Math.round(size.x),
+      y: Math.round(size.y),
+      z: Math.round(size.z),
+    }
+
+    // 12 edges of the box → a faint wireframe.
+    const c = [
+      [min.x, min.y, min.z], [max.x, min.y, min.z], [max.x, max.y, min.z], [min.x, max.y, min.z],
+      [min.x, min.y, max.z], [max.x, min.y, max.z], [max.x, max.y, max.z], [min.x, max.y, max.z],
+    ]
+    const e = [
+      [0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7],
+    ]
+    const verts: number[] = []
+    for (const [a, b] of e) verts.push(...c[a], ...c[b])
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+    this.modelGroup.add(
+      new THREE.LineSegments(
+        g,
+        new THREE.LineBasicMaterial({ color: PLATE, transparent: true, opacity: 0.26 }),
+      ),
+    )
+
+    // Anchor each dimension label to a front-bottom edge midpoint.
+    this.labelAnchors = {
+      x: new THREE.Vector3((min.x + max.x) / 2, min.y, min.z),
+      y: new THREE.Vector3(max.x, (min.y + max.y) / 2, min.z),
+      z: new THREE.Vector3(min.x, min.y, (min.z + max.z) / 2),
+    }
+  }
+
   private frameToModel(): void {
     const box = new THREE.Box3().setFromObject(this.modelGroup)
     if (box.isEmpty()) return
@@ -182,7 +251,7 @@ export class KCViewport {
     const size = box.getSize(new THREE.Vector3())
     const maxDim = Math.max(size.x, size.y, size.z, 1)
     this.radius = Math.max(120, maxDim * 2.4)
-    this.autoRotate = true
+    if (!this.reduceMotion) this.autoRotate = true
   }
 
   private positionCamera(): void {
@@ -195,12 +264,39 @@ export class KCViewport {
     this.camera.lookAt(c)
   }
 
+  private hideLabels(): void {
+    if (!this.labels) return
+    for (const k of ['x', 'y', 'z'] as const) this.labels[k].style.opacity = '0'
+  }
+
+  /** Project the dimension anchors to screen space and update the DOM label pills. */
+  private updateLabels(): void {
+    if (!this.labels || !this.labelAnchors || !this.dims) return
+    const w = this.container.clientWidth
+    const h = this.container.clientHeight
+    const offsets = { x: [0, 18], y: [22, 8], z: [-26, 0] } as const
+    for (const k of ['x', 'y', 'z'] as const) {
+      const v = this.labelAnchors[k].clone().project(this.camera)
+      const el = this.labels[k]
+      if (v.z >= 1) {
+        el.style.opacity = '0'
+        continue
+      }
+      const sx = (v.x * 0.5 + 0.5) * w + offsets[k][0]
+      const sy = (-v.y * 0.5 + 0.5) * h + offsets[k][1]
+      el.style.opacity = '1'
+      el.style.transform = `translate(-50%, -50%) translate(${sx}px, ${sy}px)`
+      el.textContent = `${this.dims[k]} mm`
+    }
+  }
+
   private loop(): void {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.loop)
     if (this.autoRotate && !this.dragging) this.theta += 0.0026
     this.positionCamera()
     this.renderer.render(this.scene, this.camera)
+    this.updateLabels()
   }
 
   private bindInteractions(canvas: HTMLCanvasElement): void {
@@ -231,9 +327,11 @@ export class KCViewport {
       this.dragging = false
       endDrag()
       window.clearTimeout(this.resumeTimer)
-      this.resumeTimer = window.setTimeout(() => {
-        this.autoRotate = true
-      }, 3500)
+      if (!this.reduceMotion) {
+        this.resumeTimer = window.setTimeout(() => {
+          this.autoRotate = true
+        }, 3500)
+      }
     }
     const down = (e: PointerEvent) => {
       this.dragging = true
@@ -242,7 +340,7 @@ export class KCViewport {
       py = e.clientY
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
-      this.dragCleanup = endDrag // so dispose() during an active drag removes these too
+      this.dragCleanup = endDrag
     }
     canvas.addEventListener('pointerdown', down)
     this.cleanups.push(() => canvas.removeEventListener('pointerdown', down))

@@ -37,11 +37,14 @@ export default function Landing({
   return (
     <main className="kc-landing">
       <div className="kc-landing-inner">
-        <span className="kc-badge">Local-first · runs entirely on your machine</span>
+        <span className="kc-badge">
+          <span className="kc-badge-dot" aria-hidden="true" />
+          No CAD skills needed · runs entirely on your machine
+        </span>
         <h1 className="kc-hero-title">What do you want to make today?</h1>
         <p className="kc-hero-sub">
-          Describe a functional part in plain words. KimCad designs it, checks that it&rsquo;s
-          actually printable, and gets it ready for your printer.
+          Describe a functional part in plain words — I&rsquo;ll design it, check that it&rsquo;s
+          actually printable, and get it ready for your printer.
         </p>
 
         <form className="kc-input-card" onSubmit={submit}>

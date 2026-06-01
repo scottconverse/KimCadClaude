@@ -1,10 +1,32 @@
+import type { ReactNode } from 'react'
 import type { DesignResponse } from '../api'
 import { assistantMessage } from '../designStatus'
 
-// Left column — the design conversation. Slice 4 renders the real exchange: the user's prompt,
-// a thinking state while the design runs, then the assistant's reply (a clarifying question, the
-// built summary, or a build error) derived from the PipelineStatus. The full multi-turn refine
-// flow + the parameter-history rail come later.
+// Left column — the design conversation. Renders the user's prompt, a thinking state while the
+// design runs, then the assistant's reply (clarifying question, built summary, or build error).
+// Assistant rows carry a small cube avatar, matching the design.
+function CubeGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2 21 7v10l-9 5-9-5V7Z" />
+      <path d="M3 7l9 5 9-5" />
+      <path d="M12 12v10" />
+    </svg>
+  )
+}
+
+function AssistantRow({ children, tone }: { children: ReactNode; tone?: 'error' }) {
+  return (
+    <div className="kc-ai-row">
+      <span className="kc-ava" aria-hidden="true">
+        <CubeGlyph />
+      </span>
+      <div className={`kc-msg kc-msg-ai${tone === 'error' ? ' kc-msg-error' : ''}`}>{children}</div>
+    </div>
+  )
+}
+
 export default function ChatPanel({
   prompt,
   result,
@@ -30,16 +52,19 @@ export default function ChatPanel({
         )}
         {prompt !== '' && <div className="kc-msg kc-msg-user">{prompt}</div>}
         {busy && (
-          <div className="kc-think">
-            <span className="kc-spin" aria-hidden="true" />
-            <span>Designing your part…</span>
+          <div className="kc-ai-row">
+            <span className="kc-ava" aria-hidden="true">
+              <CubeGlyph />
+            </span>
+            <div className="kc-think">
+              <span className="kc-spin" aria-hidden="true" />
+              <span>Designing your part…</span>
+            </div>
           </div>
         )}
-        {!busy && error !== null && (
-          <div className="kc-msg kc-msg-ai kc-msg-error">{error}</div>
-        )}
+        {!busy && error !== null && <AssistantRow tone="error">{error}</AssistantRow>}
         {!busy && error === null && result !== null && (
-          <div className="kc-msg kc-msg-ai">{assistantMessage(result)}</div>
+          <AssistantRow>{assistantMessage(result)}</AssistantRow>
         )}
       </div>
     </aside>

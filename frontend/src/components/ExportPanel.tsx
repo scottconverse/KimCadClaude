@@ -154,7 +154,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
               {slice.estimate && <p className="kc-muted-note">{slice.estimate}</p>}
               {slice.gcode_url && (
                 <a className="kc-btn kc-btn-dark kc-download" href={slice.gcode_url}>
-                  Download G-code
+                  Download print file (.3mf)
                 </a>
               )}
             </div>
