@@ -38,7 +38,9 @@ def _parse_upload(body: bytes, content_type: str) -> tuple[str | None, bool]:
             filename = s.split(b'"', 1)[0].decode("utf-8", "replace") or None
         elif b'name="print"' in head_l:
             value = part.split(b"\r\n\r\n", 1)[-1].strip().lower()
-            if value.startswith(b"true"):
+            # Parse the boolean strictly (like real Moonraker) — `startswith(b"true")` would
+            # also accept "truthy"/"true-ish", weakening the mock as a conformance oracle (ENG-004).
+            if value in (b"true", b"1"):
                 do_print = True
     return filename, do_print
 

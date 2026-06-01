@@ -82,12 +82,18 @@ def _make_handler(state: dict[str, Any], api_key: str | None) -> type[BaseHTTPRe
             if path.startswith("/api/v1/files/"):
                 fname = unquote(path.rsplit("/", 1)[-1])
                 do_print = self.headers.get("Print-After-Upload", "").strip() in ("?1", "1", "true")
+                overwrite = self.headers.get("Overwrite", "").strip() in ("?1", "1", "true")
                 with lock:
                     if state["printing"]:
                         # PrusaLink rejects a print-upload while already printing.
                         self._json(409, {"title": "Conflict", "message": "printer is printing"})
                         return
-                    state["files"].append(fname)
+                    if fname in state["files"] and not overwrite:
+                        # A duplicate filename 409s unless the Overwrite header is set (ENG-007).
+                        self._json(409, {"title": "Conflict", "message": "file already exists"})
+                        return
+                    if fname not in state["files"]:
+                        state["files"].append(fname)
                     if do_print:
                         state["printing"] = True
                         state["progress"] = 0.0

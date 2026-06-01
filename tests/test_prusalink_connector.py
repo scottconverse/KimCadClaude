@@ -268,3 +268,29 @@ def test_status_5xx_reports_not_online(monkeypatch):
     monkeypatch.setattr(c, "_request", _boom)
     st = c.status()
     assert st.online is False and st.state is PrinterState.error
+
+
+# --- ENG-007: the mock 409s a duplicate filename unless Overwrite is set -------------------
+
+
+def test_mock_409s_duplicate_filename_without_overwrite():
+    import urllib.error
+    import urllib.request
+
+    def _put(base, name, *, overwrite):
+        headers = {"Content-Type": "application/octet-stream"}
+        if overwrite:
+            headers["Overwrite"] = "?1"
+        req = urllib.request.Request(
+            f"{base}/api/v1/files/usb/{name}", data=b"G1 X1\n", method="PUT", headers=headers
+        )
+        return urllib.request.urlopen(req, timeout=10).status
+
+    with serve_mock_prusalink(api_key=None) as (base, _state):
+        assert _put(base, "dup.gcode", overwrite=False) == 201  # first upload
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            _put(base, "dup.gcode", overwrite=False)  # duplicate, no Overwrite -> 409
+        assert exc.value.code == 409
+        assert _put(base, "dup.gcode", overwrite=True) == 201  # Overwrite replaces it
+        # The connector always sends Overwrite: ?1, so a real re-send round-trips (asserted via
+        # the connector path elsewhere); this exercises the mock's conformance to the API.

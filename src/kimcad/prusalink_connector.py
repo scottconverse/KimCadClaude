@@ -129,7 +129,7 @@ class PrusaLinkConnector:
             if e.code in (401, 403):
                 raise AuthError(
                     f"{self.name} rejected the API key (HTTP {e.code}){detail}",
-                    user_message=f"The printer '{self.name}' rejected the API key — "
+                    user_message=f"The printer '{self.name}' rejected the API key - "
                     "check that it's correct.",
                 ) from e
             raise ConnectorError(
@@ -209,7 +209,7 @@ class PrusaLinkConnector:
             if e.code in (401, 403):
                 raise AuthError(
                     f"{self.name} rejected the API key (HTTP {e.code}){detail}",
-                    user_message=f"The printer '{self.name}' rejected the API key — "
+                    user_message=f"The printer '{self.name}' rejected the API key - "
                     "check that it's correct.",
                 ) from e
             if e.code == 409:
@@ -222,7 +222,7 @@ class PrusaLinkConnector:
                 ) from e
             raise ConnectorError(
                 f"{self.name} rejected the upload (HTTP {e.code}){detail}",
-                user_message=f"The printer '{self.name}' refused the job — it may be busy or "
+                user_message=f"The printer '{self.name}' refused the job - it may be busy or "
                 "the file type unsupported. Try again when it's idle.",
             ) from e
         except (urllib.error.URLError, OSError) as e:

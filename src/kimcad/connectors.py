@@ -9,12 +9,15 @@ have to import each other.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
 from kimcad.prusalink_connector import PrusaLinkConnector
+
+if TYPE_CHECKING:
+    from kimcad.config import ConnectorConfig
 
 # Map a config ``type`` to its connector class. This is the SINGLE source of truth for
 # whether a connection drives real hardware: each class sets ``drives_hardware``, and
@@ -29,7 +32,7 @@ _CONNECTOR_CLASSES: dict[str, type] = {
 }
 
 
-def connector_is_simulated(cc: Any) -> bool:
+def connector_is_simulated(cc: ConnectorConfig) -> bool:
     """Whether a :class:`~kimcad.config.ConnectorConfig` names a simulated (no-hardware)
     connector, derived from the connector class's ``drives_hardware``. An unknown type is
     treated as real — the safe direction (never mislabel a real printer as a simulation)."""
