@@ -28,21 +28,26 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
 P2S not P1S; code-signing dropped (unsigned beta); recruited usability study replaced by
 in-app telemetry + public beta feedback.
 
-## Current baseline (honest, as of Stage 3 — DONE, merged, tagged)
-The Phase-1 pipeline + the local web UI are built and tested. **Stage 3 is merged to `main` and
-tagged `stage-3` @ `96aba02`.** Verification: **400 tests passing** (including 4 live OrcaSlicer
-slices) and **`ruff` clean**. The pre-push hook (`.githooks/pre-push` → `scripts/ci.sh` = ruff +
-the FULL pytest incl. live) gates every push. Connectors cover OctoPrint + Moonraker/Klipper +
-PrusaLink/Prusa + a loopback mock + KimCad's own MCP server, with per-printer per-material
-profiles and a ready/not-ready status UI. Stage 4 (the React SPA shell + Three.js viewport +
-wired design→gate→slice→download flow) is **done, merged, and tagged `stage-4`**. **Next =
-Stage 5 (deterministic template engine + live sliders — the critical path).**
+## Current baseline (honest, as of Stage 4 — DONE, merged, tagged)
+The Phase-1 pipeline, the local web UI, and the designed React SPA + Three.js viewport are built
+and tested. **Stage 3 is tagged `stage-3` @ `96aba02` and Stage 4 is tagged `stage-4` @ `dcbcd1a`**,
+both merged to `main` (in sync with `origin/main`). Verification: **404 tests passing** (including 4
+live OrcaSlicer slices), **`ruff` clean**, and the frontend `npm test` (vitest, 19 passed) + `build`
+pass on Windows with `npm audit` = 0. The supported gate is **native Windows**: the pre-push hook
+(`.githooks/pre-push` → `scripts/ci.sh` = ruff + the FULL pytest incl. live) gates every push, and
+the frontend steps pass natively. (Running `scripts/ci.sh` under WSL/Linux fails only on the
+Windows-installed `node_modules` — Vite 8 / Rolldown's Linux native binding isn't present — which is
+an environment mismatch, not a code defect; a Linux `npm ci` would install it.) Connectors cover
+OctoPrint + Moonraker/Klipper + PrusaLink/Prusa + a loopback mock + KimCad's own MCP server, with
+per-printer per-material profiles and a ready/not-ready status UI. The React SPA (Workshop design
+system, vanilla Three.js viewport, wired design→gate→slice→download flow) replaced the minimal web
+UI. **Next = Stage 5 (deterministic template engine + live sliders — the critical path).**
 
-Still ahead before beta: the React SPA + viewport (Stage 4), the deterministic template engine +
-live sliders (Stage 5 — the critical-path that makes instant sliders possible), the model swap
-(Stage 6), Smart Mesh + PrintProof3D (Stage 7), CadQuery (Stage 8), image on-ramp (Stage 9),
-direct-print UI + Bambu-native (Stage 10), and the Windows installer + beta gate (Stage 11).
-**No part has driven real hardware yet — that's after Stage 11, at Kim's.**
+Still ahead before beta: the deterministic template engine + live sliders (Stage 5 — the
+critical-path that makes instant sliders possible), the model swap (Stage 6), Smart Mesh +
+PrintProof3D (Stage 7), CadQuery (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native
+(Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware
+yet — that's after Stage 11, at Kim's.**
 
 ---
 

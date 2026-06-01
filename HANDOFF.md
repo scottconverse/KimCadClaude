@@ -2,8 +2,8 @@
 
 ## ⛔ READ FIRST
 
-- **Stage 4 is DONE, merged to `main`, and tagged `stage-4`.** Next is **Stage 5 (deterministic
-  template engine + live sliders — the critical path)**.
+- **Stage 4 is DONE — merged to `main` and tagged `stage-4` @ `dcbcd1a`.** **Next is Stage 5
+  (deterministic template engine + live sliders — the critical path).**
 - **Source of truth = this doc + the in-repo v3.0 spec + the design handoff** (both under
   `docs/design/`). Do NOT rebuild from memory — I have lost context across sessions before.
 - **The agent-pipeline skill is DEAD for this project.** Scott killed it (it can't run from the
@@ -12,62 +12,33 @@
 
 ---
 
-## ✅ Stage 4 — DONE (merged + tagged `stage-4`)
+## ✅ Stage 4 — DONE (merged + tagged `stage-4` @ `dcbcd1a`)
 
-Branch **`stage-4-react-spa-shell`** (off `main` @ `efd2b72`). The pre-Stage-4 cleanup already
-landed on `main` (ROADMAP rewrite to the 9-stage v3.0 plan; HANDOFF branch-name fix; stale audit
-dir removed; audit-lite 0/0/0/0/0; pushed). The React SPA is built in **slices** — each run through
-the real `audit-lite` **skill** to 0/0/0/0/0, then full `ruff` + `pytest`, then pushed. Slice audit
-reports are committed under `docs/audits/stage-4/`.
+The minimal web UI is now the designed React SPA, served locally, with a real 3D viewport — the
+§5 design at high fidelity. Built in **5 slices** off branch `stage-4-react-spa-shell` (from `main`
+@ `efd2b72`), each run through the real `audit-lite` **skill** to 0/0/0/0/0 with rendered
+desktop+mobile visual checks, then full `ruff` + `pytest`, then pushed. Slice + gate audit reports
+are committed under `docs/audits/stage-4/`.
 
-**ALL 5 SLICES DONE + PUSHED**, each through the real `audit-lite` skill to 0/0/0/0/0 with rendered
-desktop+mobile visual checks (slice reports under `docs/audits/stage-4/`): **1** build seam (React 18 +
-TS + Vite 8 → committed `src/kimcad/web/`, served at `/`+`/assets/`); **2** Workshop design system +
-self-hosted latin fonts + topbar + landing; **3** 3-col workspace + vanilla Three.js `KCViewport` loading
-the REAL `*.oriented.stl` via `STLLoader`; **4** wired flow (prompt→`/api/design`→conversation + plan +
-printability report, all 4 statuses) + field-contract tests reinstated + **vitest** stood up (wired into
-`scripts/ci.sh`); **5** printer/material selectors + gate-aware slice (`/api/slice/<id>`) + G-code/model
-download + read-only connector status. Branch head was **`c65a42d`**. CI gate = ruff + full pytest + vitest.
+**What shipped:** **1** build seam (React 18 + TS + Vite 8 → committed `src/kimcad/web/`, served at
+`/` + `/assets/`); **2** Workshop design system + self-hosted latin fonts + topbar + landing; **3**
+3-col workspace + vanilla Three.js `KCViewport` loading the REAL `*.oriented.stl` via `STLLoader`;
+**4** wired flow (prompt → `/api/design` → conversation + plan + printability report, all 4 statuses)
++ field-contract tests + **vitest** stood up; **5** printer/material selectors + gate-aware slice
+(`/api/slice/<id>`) + G-code/model download + read-only connector status.
 
-**✅ STAGE-4 GATE: PASSED — 0/0/0/0/0, merged + tagged `stage-4`.** The 5-role `audit-team` (rendered +
-runtime) ran 2026-06-01; package at **`docs/audits/stage-4/audit-team-stage-4-2026-06-01/`** (`00-executive-
-audit.md` + `REMEDIATION.md`; the re-audit + closure are in the `…-reaudit/` sibling). The original roll-up
-was 0/0/6/19/9; **all 34 findings + the 3 re-audit findings (UX-R01 harness-artifact, NEW-T01, UX-R02) are
-resolved with proof** — see REMEDIATION.md + 00-reaudit-closure.md. (History below is the as-found record.)
-The original roll-up: **0 Blocker · 0 Critical · 6 Major · 19 Minor · 9 Nit (34).** No Blockers/Criticals — every safety invariant verified clean (gate-fail-can't-slice in 3
-layers + tested; no traversal bypass; no XSS; no credential leak; build byte-reproducible; runtime green
-end-to-end with a real OrcaSlicer slice). **NEXT: fix ALL 34 (Major→Nit) per the 00-executive punch list →
-re-audit → 0/0/0/0/0 → full ruff+pytest+vitest → push → MERGE + TAG `stage-4` MYSELF → only THEN report.**
-The 6 Majors: **TEST-001** the field-contract test is a substring spell-checker (mutation-proven — deleting
-the printability panel left it green except `headline`; tighten to require `.field`/quoted shapes, strip
-comments); **UX-003** primary-button text fails WCAG-AA contrast (white on `#c8623a` = 3.99:1 — darken the
-text-bearing fill); **UX-001** viewport lacks the design's dimension pills + bbox + drag hint; **DOC-401**
-README/ARCHITECTURE overclaim a browser "send to printer" that doesn't exist — **DESCOPE the doc** (send is
-Stage 10), don't build it; **DOC-402** no CHANGELOG Stage-4 entry (+ stale vanilla-UI lines); **ENG-401**
-CI should assert committed build == fresh build. **All now FIXED — merged + tagged `stage-4` at 0/0/0/0/0.**
-
-**FIX RECORD — ALL 34 fixed + the 3 re-audit findings resolved, merged + tagged** (the per-batch detail
-below is the as-fixed history; authoritative resolution is in `REMEDIATION.md` + `00-reaudit-closure.md`):
-batch 1 (`2603566`) = **TEST-001** (the
-spell-checker contract test — now strips comments + requires `.field`/quoted literals, proven to bite),
-**DOC-401** (descoped the browser-"send" overclaim in README + ARCHITECTURE), **DOC-402** (CHANGELOG
-Stage-4 entry), DOC-403/404 (frontend/README), DOC-406 (App comment). Batch 2 (`d39a9ee`) = **ENG-401**
-(ci.sh now asserts committed SPA build == fresh build), ENG-408 (frontend release gate), TEST-004 (code-
-split now fingerprints three.js IN the chunk / ABSENT from the entry), TEST-003 (vitest branch cases, 14).
-**All 4 doc/test/CI Majors done.** **REMAINING (24): 2 Majors — UX-003** (primary-button text contrast
-< WCAG-AA: white on `#c8623a` = 3.99:1; darken the text-bearing fill) **+ UX-001** (viewport lacks the
-design's dimension pills + bbox + drag hint) — plus the UX Minor/Nit batch (UX-002 wireframe, UX-004
-touch-targets, UX-005 mobile hero stack, UX-006 inert gear, UX-007 reduced-motion, UX-008 badge copy,
-UX-009 dynamic aria-label, UX-010/011/012) which need a rebuild + a fresh RENDERED visual recheck; the
-webapp.py polish (ENG-402 lock the reads, ENG-405 doc the fallback, QA-001 HEAD→200, QA-002 cache headers,
-QA-003 orphan-dir cleanup, QA-004 413 keep-alive) which need full-pytest re-runs; DOC-405, TEST-002
-(component-render tests or a justified deferral), TEST-005/006, ENG-403/404/406/407 (404 + 407 = verified
-no-action). **Then re-audit → 0/0/0/0/0 → merge + tag.** Each finding's detail is in the per-role deep-dives.
-(This was a context-forced stop after completing all 5 slices + the gate + 10/34 fixes — not a chosen checkpoint.)
-
-**Carried watch items:** W1 optional shared `resolve()`-containment hardening for `/assets/` + `/vendor/`;
-W2 reinstate field-contract tests (Slice 4/5); W3 DONE (prebuild clean); W4 pixel visual review at the
-gate; W5 wire the inert landing/topbar chrome before merge; W6 add vitest for component-level JS tests.
+**Gate: PASSED at 0/0/0/0/0.** The 5-role `audit-team` (rendered + runtime) ran 2026-06-01 on the
+branch and rolled up **0 Blocker · 0 Critical · 6 Major · 19 Minor · 9 Nit (34)** — no
+Blockers/Criticals; every safety invariant verified clean (gate-fail-can't-slice in 3 layers +
+tested; no traversal bypass; no XSS; no credential leak; build byte-reproducible; runtime green
+end-to-end with a real OrcaSlicer slice). All 34 were fixed, then a 5-role **re-audit** surfaced 3
+more (UX-R01 dimension-pills harness-artifact, NEW-T01 contract-test cross-module collision, UX-R02
+touch-target verification gap) — all resolved — converging to **0/0/0/0/0**, then merged + tagged.
+Authoritative record is committed in-repo:
+- Package: `docs/audits/stage-4/audit-team-stage-4-2026-06-01/` (`00-executive-audit.md` + 5 deep-dives
+  + `REMEDIATION.md`).
+- Re-audit: `docs/audits/stage-4/audit-team-stage-4-2026-06-01-reaudit/` (`00-reaudit-closure.md` +
+  the role re-audits).
 
 **Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
 {status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
@@ -75,21 +46,31 @@ findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `PO
 {printer,material} → {sliced,reason?,estimate,gcode_url?}; `GET /api/gcode/<id>`; `GET /api/options`;
 `GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}. The
 server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API.
+Browser **send** is intentionally NOT wired in the SPA (it's Stage 10) — the web UI is status +
+slice + download; the CLI (`--send`) and MCP are the send paths today.
 
 ---
 
 ## 1. Where the code is
 
 - **Repo:** `github.com/scottconverse/KimCadClaude` (private). **GitHub is the only remote.**
-- **`main`:** tags **`stage-0` / `stage-1` / `stage-2` / `stage-3`** — all done, audited to
-  **0/0/0/0/0** with `audit-team`, merged + tagged. **Stage 3 tag @ `96aba02`.** `main` is in
-  sync with `origin/main`.
-- Branch **`stage-3-printer-coverage`** is merged to `main` (not deleted).
-- **Tests: 400 passing (incl. 4 live OrcaSlicer slices), ruff clean.** Pre-push hook
-  (`.githooks/pre-push` → `scripts/ci.sh` = ruff + the FULL pytest incl. live) gates every push;
-  enable per clone with `git config core.hooksPath .githooks`. Fast inner loop:
-  `pytest -m "not live"`. **LESSON (load-bearing): never claim "green" off `-m "not live"` + a
-  local commit — run the FULL suite AND PUSH so the hook gates the live tests.**
+- **`main`:** tags **`stage-0` / `stage-1` / `stage-2` / `stage-3` / `stage-4`** — all done, audited
+  to **0/0/0/0/0** with `audit-team`, merged + tagged. **Stage 3 @ `96aba02`, Stage 4 @ `dcbcd1a`.**
+  `main` is in sync with `origin/main`.
+- Branches `stage-3-printer-coverage` and `stage-4-react-spa-shell` are merged to `main` (not deleted).
+- **Tests: 404 passing (incl. 4 live OrcaSlicer slices), `ruff` clean.** Fast inner loop:
+  `pytest -m "not live"` (= 400 passed, 4 deselected). **LESSON (load-bearing): never claim "green"
+  off `-m "not live"` + a local commit — run the FULL suite AND PUSH so the hook gates the live tests.**
+- **Supported gate = native Windows.** The pre-push hook (`.githooks/pre-push` → `scripts/ci.sh` =
+  ruff + the FULL pytest incl. live) gates every push on Windows; enable per clone with
+  `git config core.hooksPath .githooks`. The frontend steps — `npm --prefix frontend run test`
+  (vitest, 19 passed) and `run build` — also pass natively on Windows, and `npm audit` = 0.
+  **Do NOT report `bash scripts/ci.sh` as "green" from WSL/Linux:** `frontend/node_modules` is
+  installed on Windows, so only `@rolldown/binding-win32-x64-msvc` is present; Vite 8 / Rolldown
+  can't load its Linux native binding under WSL and the frontend step fails. That is an environment
+  mismatch, not a code defect — a Linux `npm ci` would install `@rolldown/binding-linux-x64-gnu` —
+  and the committed SPA build + the Python gate are unaffected. State the gate by environment; don't
+  assert a cross-platform "ci.sh green".
 - **Project root: `C:\Users\scott\dev\kimcad`** — deliberately OUTSIDE OneDrive (venv + slicer
   binaries trigger OneDrive sync storms). NEVER use any OneDrive path.
 
@@ -124,28 +105,30 @@ server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor
   Grotesque / Hanken Grotesk / JetBrains Mono. (Also extracted at
   `C:\Users\scott\dev\kimcad-design-handoff\`.)
 
-## 4. The stage plan (9 stages to the v3.0 Windows beta; Stage 3 done)
+## 4. The stage plan (9 stages to the v3.0 Windows beta; Stages 3–4 done)
 
-3 ✅ printer coverage · **4 = React SPA shell + viewport** · 5 = deterministic template engine +
-live sliders · 6 = model swap (Qwen default) + tiered fallback · 7 = Smart Mesh + PrintProof3D +
+3 ✅ printer coverage · 4 ✅ React SPA shell + viewport · **5 = deterministic template engine +
+live sliders** · 6 = model swap (Qwen default) + tiered fallback · 7 = Smart Mesh + PrintProof3D +
 report · 8 = CadQuery parallel backend · 9 = image on-ramp (opt-in) · 10 = direct-print UI + Bambu
 + first-run wizard · 11 = Windows installer + beta gate. (Final-level breadth + real-hardware =
 post-beta.) **KEY INSIGHT:** the instant-slider UX (re-render <1s, no LLM) is impossible on the
 current **LLM-writes-OpenSCAD** engine — there is **no `templates/` module**; the deterministic
 template engine (Stage 5) is the critical path, and UX-first + architecture-first converge there.
 
-## 5. NEXT = Stage 4 — React SPA shell + viewport
+## 5. NEXT = Stage 5 — deterministic template engine + live sliders
 
-- **Stack APPROVED by Scott: React + TypeScript + Vite SPA**, compiled to static files **served by
-  the existing local Python server** (Node/Vite are build-time only; they never ship). Keep the
-  **vanilla Three.js** viewport — port `KCViewport` from `docs/design/prototype/jsx/preview.jsx`
-  behind a thin React wrapper (not r3f). Build the Workshop design system from `docs/design/`. The
-  built SPA is byte-identical across Win/Mac/Linux → mac/Linux are a backend-packaging exercise,
-  not a UI rewrite. Windows beta shell = **WebView2** later (controlled render engine);
-  localhost-browser is the zero-dep fallback; Tauri later for one cross-OS shell.
-- Wire the existing text→plan→gate→slice→download flow through the new UI (read-only first; real
-  sliders need the template engine = Stage 5).
-- First action: branch `stage-4-react-spa-shell` off `main`, then build per the §6 process.
+The **critical path**. Stage 4 delivered the SPA + viewport with **read-only** slider scaffolding
+only, because true live sliders are impossible on the LLM-writes-OpenSCAD engine (re-render goes
+through the model). Stage 5 builds the `templates/` module that makes instant, local re-render real:
+
+- A `templates/` engine of named parametric families; the planner picks a template + fills named
+  parameters; re-render is a pure deterministic pass — **<1s, no model in the loop**.
+- **Named live sliders** wired to template parameters: drag → re-render instantly, fully local —
+  upgrading the Stage-4 read-only scaffolding into functional controls.
+- The LLM-writes-OpenSCAD path stays as the tiered fallback for prompts no template covers.
+- **Exit:** named parameter sliders drag → re-render in <1s with no model call across the template
+  families; the tiered template→LLM fallback is proven. Tests + a real run-through on the app.
+- First action: branch `stage-5-template-engine` off `main`, then build per the §6 process.
 
 ## 6. THE PROCESS (manual)
 
@@ -154,9 +137,10 @@ the slice — NEVER a prose self-review — (2) fix EVERY finding (Blocker→Nit
 `audit-lite`, (4) fix, (5) push, (6) straight to the next slice, no pausing. **At stage end:** push
 the final slice → run `audit-team` (Audit Full) on the branch → fix → **re-audit** → … until
 **0/0/0/0/0** or a genuinely human-required blocker → **merge + tag** → only THEN a full report.
-Branch per stage; the pre-push hook gates every push. **I (Claude) run the re-audits AND the
-merge+tag MYSELF** — Scott's Codex audits are his discretionary spot-checks, NOT a gate I hand back
-to him.
+For a UI slice, `audit-lite` MUST include a real RENDERED browser visual check (desktop + mobile),
+not a static token comparison. Branch per stage; the pre-push hook gates every push. **I (Claude)
+run the re-audits AND the merge+tag MYSELF** — Scott's Codex audits are his discretionary
+spot-checks, NOT a gate I hand back to him.
 
 ## 7. Behavioral lessons — load-bearing, do NOT repeat
 
@@ -164,22 +148,31 @@ to him.
   "audit-lite." My self-review is exactly what the gate exists to override (it's been wrong before).
 - **FULL suite + PUSH before claiming green.** An independent Codex audit caught a Critical
   live-test regression I missed by filtering `-m "not live"` and not pushing (2026-06-01).
+- **State the gate by environment.** Don't assert a blanket "ci.sh green" — the supported gate is
+  native Windows (ruff + full pytest via the hook; npm vitest/build on Windows). `ci.sh` under
+  WSL/Linux fails on a Windows-installed `node_modules` (missing the Linux Rolldown binding), which
+  is an environment mismatch, not a defect. Codex caught me reporting an unqualified green (2026-06-01).
 - **Never say "continuing" then stop** (idle reads as dead); **never assert a fact — a path, "it's
   pushed/merged," a count — without running the one-line check first.** Scott called both out hard
   (2026-06-01). See `~/.claude/.../feedback_no_fake_progress_no_unverified_facts.md`.
+- **One truth per doc.** A handoff/roadmap that says "done" in one place and "still ahead / fix all
+  N" in another is a process miss — fix or archive the obsolete narrative so there is a single
+  current state. Scott caught HANDOFF + ROADMAP self-contradicting after the Stage-4 merge (2026-06-01).
 - The handoff/spec is the source of truth — don't rebuild from a vacuum.
 
-## 8. Audit reports + bookkeeping TODO
+## 8. Audit reports + bookkeeping
 
+- **Stage 4 gate audits are committed IN the repo** under `docs/audits/stage-4/` (per-slice
+  `audit-lite-*`, the `audit-team-…` package + `REMEDIATION.md`, and the `…-reaudit/` closure) — they
+  travel with and verify against the code.
 - Stage 3 gate audits live OUTSIDE version control under `C:\Users\scott\dev\`:
   `kimcad-audit-stage3-gate-2026-06-01` (r1, found the Blocker, full package),
   `…-gate-r2-2026-06-01` (deep-dives only), `…-gate-r3-2026-06-01` (convergence **0/0/0/0/0**,
   deep-dives + `_fullsuite.log`). First self audit: `kimcad-audit-stage3-2026-05-31`.
 - The independent **Codex** audit (caught the Critical) is marked stale at
   `C:\Users\scott\dev\kimcad-STALE-codex-audit-2026-06-01-SUPERSEDED` — a sibling of the repo,
-  **outside** the working tree (it was moved out of `kimcad/` during the Stage-4 cleanup so the
-  tree stays clean; the old in-repo `_STALE-...` path no longer exists).
-- **TODO (Scott to direct):** commit the live gate-audit packages INTO the repo (e.g.
+  **outside** the working tree.
+- **TODO (Scott to direct):** commit the live Stage-3 gate-audit packages INTO the repo (e.g.
   `docs/audits/stage-3/`) so they travel with + verify against the code, and write the missing
   **r2/r3 exec + punchlist**. Artifacts outside VC can't prove when/how they were generated.
 
@@ -192,6 +185,9 @@ to him.
   box before adopting, per spec §7.5. Spec reference HW is a Beelink 890M; our box is the 780M.)*
 - **OrcaSlicer v2.4.0-alpha** pinned (checksum-verified, gitignored `tools/`); `scripts/fetch_tools.py`
   fetches OpenSCAD + OrcaSlicer. `manifold3d>=3.0` (default; import optional at runtime).
+- **Frontend toolchain (build-time only):** React 18 + TypeScript + **Vite 8** (Rolldown bundler).
+  `node_modules` is Windows-installed (`@rolldown/binding-win32-x64-msvc`); rebuild on Windows with
+  `npm --prefix frontend ci && npm --prefix frontend run build`. Node never ships at runtime.
 
 ## 10. Context
 
