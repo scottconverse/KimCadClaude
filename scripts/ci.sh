@@ -21,6 +21,27 @@ echo "[ci] pytest..."
 # -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
 # mistaken for one that proved the real slicer contract (TEST-002).
 "$PY" -m pytest -q -ra
+# Frontend unit tests (vitest) + build-reproducibility check. The committed SPA build is what
+# ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
+# KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a
+# dev box with the deps installed, a vitest failure OR a committed-build drift blocks the push.
+if [ -d frontend/node_modules ] && command -v npm >/dev/null 2>&1; then
+    echo "[ci] frontend tests (vitest)..."
+    npm --prefix frontend run test
+    echo "[ci] frontend build reproducibility (committed output == fresh build)..."
+    npm --prefix frontend run build >/dev/null
+    if ! git diff --quiet -- src/kimcad/web; then
+        echo "[ci] FAIL: src/kimcad/web differs from a fresh build — rebuild + commit the SPA output:"
+        git --no-pager diff --stat -- src/kimcad/web
+        exit 1
+    fi
+else
+    echo "[ci] NOTE: frontend/node_modules or npm absent — vitest + build check SKIPPED (committed build unaffected)."
+    if [ "${KIMCAD_RELEASE:-}" = "1" ]; then
+        echo "[ci] RELEASE GATE: refusing — frontend toolchain absent, the SPA gate is unproven."
+        exit 1
+    fi
+fi
 # Warn loudly (don't fail — the binary is fetched separately) when the live slice/web tests
 # would skip: that run did NOT prove the real OrcaSlicer CLI contract end to end, so a
 # release tag should not be cut from it.

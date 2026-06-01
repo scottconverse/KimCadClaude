@@ -2,12 +2,79 @@
 
 ## ⛔ READ FIRST
 
-- **Stage 3 is DONE and tagged.** Next is **Stage 4 (React SPA shell + viewport)**.
+- **Stage 4 is DONE, merged to `main`, and tagged `stage-4`.** Next is **Stage 5 (deterministic
+  template engine + live sliders — the critical path)**.
 - **Source of truth = this doc + the in-repo v3.0 spec + the design handoff** (both under
   `docs/design/`). Do NOT rebuild from memory — I have lost context across sessions before.
 - **The agent-pipeline skill is DEAD for this project.** Scott killed it (it can't run from the
   wrong cwd / an uninitialized repo). This project runs the **manual process** in §6. Do NOT
   re-invoke `agent-pipeline-claude:run`.
+
+---
+
+## ✅ Stage 4 — DONE (merged + tagged `stage-4`)
+
+Branch **`stage-4-react-spa-shell`** (off `main` @ `efd2b72`). The pre-Stage-4 cleanup already
+landed on `main` (ROADMAP rewrite to the 9-stage v3.0 plan; HANDOFF branch-name fix; stale audit
+dir removed; audit-lite 0/0/0/0/0; pushed). The React SPA is built in **slices** — each run through
+the real `audit-lite` **skill** to 0/0/0/0/0, then full `ruff` + `pytest`, then pushed. Slice audit
+reports are committed under `docs/audits/stage-4/`.
+
+**ALL 5 SLICES DONE + PUSHED**, each through the real `audit-lite` skill to 0/0/0/0/0 with rendered
+desktop+mobile visual checks (slice reports under `docs/audits/stage-4/`): **1** build seam (React 18 +
+TS + Vite 8 → committed `src/kimcad/web/`, served at `/`+`/assets/`); **2** Workshop design system +
+self-hosted latin fonts + topbar + landing; **3** 3-col workspace + vanilla Three.js `KCViewport` loading
+the REAL `*.oriented.stl` via `STLLoader`; **4** wired flow (prompt→`/api/design`→conversation + plan +
+printability report, all 4 statuses) + field-contract tests reinstated + **vitest** stood up (wired into
+`scripts/ci.sh`); **5** printer/material selectors + gate-aware slice (`/api/slice/<id>`) + G-code/model
+download + read-only connector status. Branch head was **`c65a42d`**. CI gate = ruff + full pytest + vitest.
+
+**✅ STAGE-4 GATE: PASSED — 0/0/0/0/0, merged + tagged `stage-4`.** The 5-role `audit-team` (rendered +
+runtime) ran 2026-06-01; package at **`docs/audits/stage-4/audit-team-stage-4-2026-06-01/`** (`00-executive-
+audit.md` + `REMEDIATION.md`; the re-audit + closure are in the `…-reaudit/` sibling). The original roll-up
+was 0/0/6/19/9; **all 34 findings + the 3 re-audit findings (UX-R01 harness-artifact, NEW-T01, UX-R02) are
+resolved with proof** — see REMEDIATION.md + 00-reaudit-closure.md. (History below is the as-found record.)
+The original roll-up: **0 Blocker · 0 Critical · 6 Major · 19 Minor · 9 Nit (34).** No Blockers/Criticals — every safety invariant verified clean (gate-fail-can't-slice in 3
+layers + tested; no traversal bypass; no XSS; no credential leak; build byte-reproducible; runtime green
+end-to-end with a real OrcaSlicer slice). **NEXT: fix ALL 34 (Major→Nit) per the 00-executive punch list →
+re-audit → 0/0/0/0/0 → full ruff+pytest+vitest → push → MERGE + TAG `stage-4` MYSELF → only THEN report.**
+The 6 Majors: **TEST-001** the field-contract test is a substring spell-checker (mutation-proven — deleting
+the printability panel left it green except `headline`; tighten to require `.field`/quoted shapes, strip
+comments); **UX-003** primary-button text fails WCAG-AA contrast (white on `#c8623a` = 3.99:1 — darken the
+text-bearing fill); **UX-001** viewport lacks the design's dimension pills + bbox + drag hint; **DOC-401**
+README/ARCHITECTURE overclaim a browser "send to printer" that doesn't exist — **DESCOPE the doc** (send is
+Stage 10), don't build it; **DOC-402** no CHANGELOG Stage-4 entry (+ stale vanilla-UI lines); **ENG-401**
+CI should assert committed build == fresh build. **All now FIXED — merged + tagged `stage-4` at 0/0/0/0/0.**
+
+**FIX RECORD — ALL 34 fixed + the 3 re-audit findings resolved, merged + tagged** (the per-batch detail
+below is the as-fixed history; authoritative resolution is in `REMEDIATION.md` + `00-reaudit-closure.md`):
+batch 1 (`2603566`) = **TEST-001** (the
+spell-checker contract test — now strips comments + requires `.field`/quoted literals, proven to bite),
+**DOC-401** (descoped the browser-"send" overclaim in README + ARCHITECTURE), **DOC-402** (CHANGELOG
+Stage-4 entry), DOC-403/404 (frontend/README), DOC-406 (App comment). Batch 2 (`d39a9ee`) = **ENG-401**
+(ci.sh now asserts committed SPA build == fresh build), ENG-408 (frontend release gate), TEST-004 (code-
+split now fingerprints three.js IN the chunk / ABSENT from the entry), TEST-003 (vitest branch cases, 14).
+**All 4 doc/test/CI Majors done.** **REMAINING (24): 2 Majors — UX-003** (primary-button text contrast
+< WCAG-AA: white on `#c8623a` = 3.99:1; darken the text-bearing fill) **+ UX-001** (viewport lacks the
+design's dimension pills + bbox + drag hint) — plus the UX Minor/Nit batch (UX-002 wireframe, UX-004
+touch-targets, UX-005 mobile hero stack, UX-006 inert gear, UX-007 reduced-motion, UX-008 badge copy,
+UX-009 dynamic aria-label, UX-010/011/012) which need a rebuild + a fresh RENDERED visual recheck; the
+webapp.py polish (ENG-402 lock the reads, ENG-405 doc the fallback, QA-001 HEAD→200, QA-002 cache headers,
+QA-003 orphan-dir cleanup, QA-004 413 keep-alive) which need full-pytest re-runs; DOC-405, TEST-002
+(component-render tests or a justified deferral), TEST-005/006, ENG-403/404/406/407 (404 + 407 = verified
+no-action). **Then re-audit → 0/0/0/0/0 → merge + tag.** Each finding's detail is in the per-role deep-dives.
+(This was a context-forced stop after completing all 5 slices + the gate + 10/34 fixes — not a chosen checkpoint.)
+
+**Carried watch items:** W1 optional shared `resolve()`-containment hardening for `/assets/` + `/vendor/`;
+W2 reinstate field-contract tests (Slice 4/5); W3 DONE (prebuild clean); W4 pixel visual review at the
+gate; W5 wire the inert landing/topbar chrome before merge; W6 add vitest for component-level JS tests.
+
+**Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
+{status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
+findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `POST /api/slice/<id>`
+{printer,material} → {sliced,reason?,estimate,gcode_url?}; `GET /api/gcode/<id>`; `GET /api/options`;
+`GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}. The
+server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API.
 
 ---
 
@@ -109,7 +176,9 @@ to him.
   `…-gate-r2-2026-06-01` (deep-dives only), `…-gate-r3-2026-06-01` (convergence **0/0/0/0/0**,
   deep-dives + `_fullsuite.log`). First self audit: `kimcad-audit-stage3-2026-05-31`.
 - The independent **Codex** audit (caught the Critical) is marked stale at
-  `C:\Users\scott\dev\kimcad\_STALE-codex-audit-2026-06-01-SUPERSEDED\` (untracked, inside repo).
+  `C:\Users\scott\dev\kimcad-STALE-codex-audit-2026-06-01-SUPERSEDED` — a sibling of the repo,
+  **outside** the working tree (it was moved out of `kimcad/` during the Stage-4 cleanup so the
+  tree stays clean; the old in-repo `_STALE-...` path no longer exists).
 - **TODO (Scott to direct):** commit the live gate-audit packages INTO the repo (e.g.
   `docs/audits/stage-3/`) so they travel with + verify against the code, and write the missing
   **r2/r3 exec + punchlist**. Artifacts outside VC can't prove when/how they were generated.

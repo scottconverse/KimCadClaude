@@ -21,6 +21,7 @@ Design notes:
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 import shutil
@@ -41,6 +42,23 @@ MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
 
 # ENG-010: map mesh file extensions to a content type.
 _MESH_CONTENT_TYPES = {".stl": "model/stl", ".3mf": "model/3mf"}
+
+# Stage 4: content types for the built SPA static assets (JS/CSS/fonts/images) served from
+# web/assets/. The React/TS SPA is compiled by Vite (build-time only) into src/kimcad/web;
+# the Python server serves the committed build output with no Node toolchain at runtime.
+_ASSET_CONTENT_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".ttf": "font/ttf",
+    ".svg": "image/svg+xml; charset=utf-8",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+}
 
 
 def _plan_payload(plan: Any) -> dict[str, Any]:
@@ -241,6 +259,12 @@ def make_handler(
     design-only tests can keep calling ``make_handler(pipeline, root)``.
     """
     web_root.mkdir(parents=True, exist_ok=True)
+    # QA-003: clear stale per-design dirs from a previous run. The in-memory registry + id
+    # counter reset on each start, so old output/web/<id> dirs (no longer referenced) would
+    # otherwise accumulate; `_evict` only reclaims within a session.
+    for child in web_root.iterdir():
+        if child.is_dir() and child.name.isdigit():
+            shutil.rmtree(child, ignore_errors=True)
     # ENG-004: bounded LRU-by-insertion registries — oldest entries evicted past the cap.
     registry: "OrderedDict[int, Path]" = OrderedDict()
     gcode_registry: "OrderedDict[int, Path]" = OrderedDict()
@@ -289,21 +313,32 @@ def make_handler(
             pass
 
         def _method_not_allowed(self) -> None:
-            # QA-005: the resources exist for GET/POST, so an unsupported verb is 405
+            # QA-005: the resources exist for GET/HEAD/POST, so an unsupported verb is 405
             # (method not allowed), not the stdlib default 501 (not implemented).
             self.send_response(405)
-            self.send_header("Allow", "GET, POST")
+            self.send_header("Allow", "GET, HEAD, POST")
             self.send_header("Content-Length", "0")
             self.end_headers()
 
-        do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = _method_not_allowed
+        do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _method_not_allowed
+
+        def do_HEAD(self) -> None:
+            # QA-001: HEAD on a GET resource returns the same status + headers as GET with NO
+            # body (so curl -I / health checks / link-checkers get a header-only 200, not a 405).
+            # The GET handlers run unchanged; `_send`/`_send_download` suppress the body when set.
+            self._head_only = True
+            try:
+                self.do_GET()
+            finally:
+                self._head_only = False
 
         def _send(self, status: int, body: bytes, content_type: str) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            if not getattr(self, "_head_only", False):
+                self.wfile.write(body)
 
         def _json(self, status: int, obj: dict[str, Any]) -> None:
             self._send(status, json.dumps(obj).encode("utf-8"), "application/json")
@@ -314,7 +349,8 @@ def make_handler(
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            if not getattr(self, "_head_only", False):
+                self.wfile.write(body)
 
         def do_GET(self) -> None:
             if self.path in ("/", "/index.html"):
@@ -347,6 +383,10 @@ def make_handler(
             if self.path.startswith("/vendor/"):
                 self._serve_vendor(self.path[len("/vendor/") :])
                 return
+            if self.path.startswith("/assets/"):
+                # Strip any query string (Vite may version an asset URL) before the lookup.
+                self._serve_asset(urlsplit(self.path).path[len("/assets/") :])
+                return
             if self.path.startswith("/api/mesh/"):
                 self._serve_mesh(self.path.rsplit("/", 1)[-1])
                 return
@@ -366,10 +406,34 @@ def make_handler(
             ctype = _MESH_CONTENT_TYPES.get(gcode_path.suffix.lower(), "application/octet-stream")
             self._send_download(gcode_path.read_bytes(), ctype, gcode_path.name)
 
+        def _serve_static(self, path: Path, content_type: str) -> None:
+            # QA-002: serve a read-only static file with an ETag for cheap revalidation. The
+            # build's filenames are STABLE (un-hashed), so a content-hash ETag + `no-cache`
+            # (revalidate) is the correct caching: never stale after a rebuild (the ETag changes
+            # with the content), and a matching `If-None-Match` returns a body-less 304.
+            body = path.read_bytes()
+            etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            if not getattr(self, "_head_only", False):
+                self.wfile.write(body)
+
         def _serve_vendor(self, name: str) -> None:
-            # Vendored, read-only static assets (three.js) served locally so the 3D
-            # preview works offline. Only a plain filename in web/vendor/ is allowed — any
-            # path separator or traversal is rejected before touching the filesystem.
+            # Vendored, read-only static assets (three.js) served locally so the 3D preview
+            # works offline. Only a plain filename in web/vendor/ is allowed — any path
+            # separator or traversal is rejected before touching the filesystem (mirrors
+            # _serve_asset's guard exactly).
             if not name or "/" in name or "\\" in name or ".." in name:
                 self._json(404, {"error": "not found"})
                 return
@@ -377,8 +441,29 @@ def make_handler(
             if not path.is_file():
                 self._json(404, {"error": "not found"})
                 return
-            ctype = "text/javascript" if path.suffix == ".js" else "application/octet-stream"
-            self._send(200, path.read_bytes(), f"{ctype}; charset=utf-8")
+            ctype = (
+                "text/javascript; charset=utf-8"
+                if path.suffix == ".js"
+                else "application/octet-stream"
+            )
+            self._serve_static(path, ctype)
+
+        def _serve_asset(self, name: str) -> None:
+            # Built SPA static assets (JS/CSS/fonts/images) served from web/assets/. Mirrors the
+            # vendor guard exactly: only a plain filename is allowed — any path separator or
+            # traversal is rejected before touching the filesystem. ENG-405/406: an unknown
+            # suffix falls back to application/octet-stream — a safe default (the SPA build only
+            # emits the mapped types), and the type map (`_ASSET_CONTENT_TYPES`) is the single
+            # source for the asset content types.
+            if not name or "/" in name or "\\" in name or ".." in name:
+                self._json(404, {"error": "not found"})
+                return
+            path = WEB_DIR / "assets" / name
+            if not path.is_file():
+                self._json(404, {"error": "not found"})
+                return
+            ctype = _ASSET_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+            self._serve_static(path, ctype)
 
         def _serve_mesh(self, raw_id: str) -> None:
             try:
@@ -404,6 +489,10 @@ def make_handler(
             except (ValueError, TypeError):
                 declared = -1  # malformed header -> treat as bad request below
             if declared > MAX_BODY_BYTES:
+                # QA-004: we reject without draining the oversized upload, so tell the client to
+                # close rather than treat this as a keep-alive turn (a client still streaming the
+                # body would otherwise hit a connection-abort reading the response).
+                self.close_connection = True
                 self._json(413, {"error": "Request body too large."})
                 return None
             try:
@@ -493,14 +582,16 @@ def make_handler(
             except ValueError:
                 self._json(404, {"error": "not found"})
                 return
+            # ENG-402: read the shared registries together under the lock (consistent snapshot).
             with lock:
                 gcode_path = gcode_registry.get(rid)
+                gate_failed = gate_status_by_rid.get(rid) == "fail"
             if gcode_path is None or not gcode_path.exists():
                 self._json(404, {"error": "Slice the part first, then send it to a printer."})
                 return
             # ENG-001: belt-and-suspenders — a gate-FAILED part is never dispatched even if a
             # gcode entry somehow exists (the slice guard above already blocks producing one).
-            if gate_status_by_rid.get(rid) == "fail":
+            if gate_failed:
                 self._json(200, {"sent": False, "reason": "gate_failed", "simulated": False,
                                  "note": "This part failed the printability gate; it can't be "
                                  "sent to a printer."})
@@ -604,13 +695,16 @@ def make_handler(
             except ValueError:
                 self._json(404, {"error": "not found"})
                 return
-            mesh_path = registry.get(rid)
+            # ENG-402: read the shared registries together under the lock (consistent snapshot).
+            with lock:
+                mesh_path = registry.get(rid)
+                gate_failed = gate_status_by_rid.get(rid) == "fail"
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "Design the part first, then send it to a printer."})
                 return
             # ENG-001: a part that FAILED the printability gate is never sliced or sent — mirror
             # the CLI's "download to inspect, never send" stance server-side (not just a hidden UI).
-            if gate_status_by_rid.get(rid) == "fail":
+            if gate_failed:
                 self._json(200, {"sliced": False, "reason": "gate_failed",
                                  "note": "This part failed the printability gate; download the "
                                  "model to inspect, but it can't be sliced or sent to a printer."})

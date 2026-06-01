@@ -142,6 +142,30 @@ All notable changes to KimCad are documented here. Format follows
   error status instead of raising; and the status line is an ARIA live region mapped onto the
   app's green/amber/red scale.
 
+#### Stage 4 — React/TypeScript SPA shell + Three.js viewport + wired flow
+- The browser UI is now a **React + TypeScript + Vite single-page app** (`frontend/`), compiled
+  to plain static files committed under `src/kimcad/web/` and served by the same dependency-free
+  stdlib `http.server` (shell at `/`, bundles at `/assets/<file>` behind the `/vendor/`-style
+  traversal guard). **Node/Vite are build-time only** — `kimcad web` runs with no Node toolchain.
+  This **replaces the earlier vanilla-HTML/JS page** (and that page's in-browser send controls).
+- **Workshop design system** (the v3.0 design tokens) with self-hosted, latin-only variable fonts
+  bundled for fully offline use (no CDN); a topbar + landing + a three-column workspace that
+  stacks on mobile.
+- A **vanilla Three.js viewport** (`KCViewport`) that loads and displays the REAL exported
+  `*.oriented.stl` from `GET /api/mesh/<id>` (orbit / zoom / auto-rotate; three.js is code-split
+  and lazy-loaded).
+- The text → plan → gate → slice → download flow wired through the SPA: the conversation, the
+  plan summary, the printability report (target-vs-actual dimensions + findings), printer/material
+  selectors, gate-aware **Slice & prepare** (`POST /api/slice/<id>`), G-code + model download, and
+  a **read-only** ready/not-ready connection badge.
+- **Sending to a printer from the browser is intentionally deferred to a later stage** — the SPA
+  does status + slice + download only; the CLI (`--send`) and the MCP server remain the send paths.
+  (This supersedes the Stage-2 "Web send-to-printer" item above, which belonged to the now-removed
+  vanilla UI.)
+- Tooling/tests: a **vitest** unit harness for the SPA's pure logic (wired into `scripts/ci.sh`),
+  frontend↔backend field-contract tests against the TypeScript source, and a build that the
+  Python server-side tests gate (shell + `/assets/` serving + traversal rejection).
+
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable
   and fast there); `gemma3:12b` was too large for the target and is no longer used.

@@ -1,0 +1,975 @@
+/* KimCad SPA — Workshop design system (Stage 4, Slice 2).
+ *
+ * Token values are the "Workshop" theme from docs/design (warm sand / terracotta / dark
+ * viewport). Fonts are the self-hosted @fontsource-variable families, declared latin-only
+ * below (Vite bundles the referenced woff2 into the committed build — no CDN, fully offline;
+ * latin only because the UI is English). This file defines the @font-face rules, the design
+ * tokens, the base reset, and the chrome built so far (topbar + landing); the three-column
+ * workspace, panels, and viewport styling are added in the following slices. */
+
+/* ------------------------------------------------------ Self-hosted fonts (latin only) */
+@font-face {
+  font-family: 'Bricolage Grotesque Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2')
+    format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Hanken Grotesk Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2')
+    format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2')
+    format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* Surfaces & ink */
+  --kc-bg: #f0ebe0;
+  --kc-surface: #faf6ee;
+  --kc-surface-2: #f4eee2;
+  --kc-ink: #272219;
+  --kc-muted: #6f6857;
+  --kc-hair: rgba(39, 34, 25, 0.1);
+  --kc-hair-strong: rgba(39, 34, 25, 0.16);
+  --kc-viewport-bg: #14171c;
+
+  /* Accent (Workshop terracotta). `--kc-accent` is the brand fill for NON-text accents (logo,
+   * dots, focus rings, badges). Text-bearing fills + accent text use the darker `-strong` /
+   * `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
+  --kc-accent: #c8623a;
+  --kc-accent-strong: #b1542f;
+  --kc-accent-deep: #9a4828;
+  --kc-on-accent: #ffffff;
+
+  /* Semantic status (constant across themes) */
+  --kc-pass: #1d7a4e;
+  --kc-warn: #876312;
+  --kc-warn-accent: #c9962f;
+  --kc-fail: #a8431f;
+
+  /* Typography */
+  --kc-font-display: 'Bricolage Grotesque Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kc-font-body: 'Hanken Grotesk Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kc-font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Radii */
+  --kc-r-card: 16px;
+  --kc-r-modal: 20px;
+  --kc-r-btn: 11px;
+  --kc-r-input: 11px;
+  --kc-r-chip: 999px;
+
+  /* Elevation */
+  --kc-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --kc-shadow-hero: 0 18px 50px -22px rgba(0, 0, 0, 0.4);
+
+  /* Chrome */
+  --kc-topbar-h: 58px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--kc-bg);
+  color: var(--kc-ink);
+  font-family: var(--kc-font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+textarea,
+input {
+  font-family: inherit;
+}
+
+.kc-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ Topbar */
+
+.kc-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--kc-topbar-h);
+  padding: 0 16px;
+  background: var(--kc-surface);
+  border-bottom: 1px solid var(--kc-hair);
+  flex: 0 0 auto;
+}
+
+.kc-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.kc-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
+}
+
+.kc-wordmark {
+  font-family: var(--kc-font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.kc-wordmark-accent {
+  font-weight: 800;
+  color: var(--kc-accent);
+}
+
+.kc-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ------------------------------------------------------------------ Buttons */
+
+.kc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--kc-r-btn);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.05s ease;
+}
+
+.kc-btn:active {
+  transform: translateY(1px);
+}
+
+.kc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kc-btn-accent {
+  background: var(--kc-accent-strong);
+  color: var(--kc-on-accent);
+}
+
+.kc-btn-accent:hover {
+  background: var(--kc-accent-deep);
+}
+
+.kc-btn-dark {
+  background: var(--kc-ink);
+  color: var(--kc-bg);
+}
+
+.kc-btn-dark:hover {
+  background: #3a3326;
+}
+
+.kc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--kc-hair);
+  border-radius: 10px;
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.kc-icon-btn:hover {
+  color: var(--kc-accent);
+  border-color: var(--kc-hair-strong);
+}
+
+.kc-chip {
+  padding: 7px 13px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.kc-chip:hover {
+  border-color: var(--kc-accent);
+  color: var(--kc-accent-strong);
+}
+
+/* Keyboard-focus rings for the interactive chrome (the textarea uses :focus-within on its
+ * card instead). Only shows for keyboard navigation, not mouse clicks. */
+.kc-btn:focus-visible,
+.kc-icon-btn:focus-visible,
+.kc-chip:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ Landing */
+
+.kc-landing {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.kc-landing-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 640px;
+  animation: kc-fadeup 0.4s ease both;
+}
+
+@keyframes kc-fadeup {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kc-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 13px;
+  border: 1px solid var(--kc-hair);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.kc-badge-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--kc-pass);
+}
+
+.kc-hero-title {
+  margin: 18px 0 0;
+  font-family: var(--kc-font-display);
+  font-size: clamp(30px, 4.4vw, 47px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.kc-hero-sub {
+  margin: 14px 0 0;
+  max-width: 30em;
+  color: var(--kc-muted);
+  font-size: 15px;
+  text-wrap: pretty;
+}
+
+.kc-input-card {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  margin-top: 26px;
+  padding: 14px;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-hero);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+/* The textarea suppresses its own outline, so the card carries the keyboard-focus
+ * indicator (accessibility): a clear accent ring whenever the textarea is focused. */
+.kc-input-card:focus-within {
+  border-color: var(--kc-accent);
+  box-shadow: var(--kc-shadow-hero), 0 0 0 3px rgba(200, 98, 58, 0.18);
+}
+
+.kc-input {
+  flex: 1 1 auto;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--kc-ink);
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 6px 4px;
+}
+
+.kc-input::placeholder {
+  color: var(--kc-muted);
+}
+
+.kc-design-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 11px 16px;
+}
+
+.kc-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.kc-examples-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kc-muted);
+}
+
+.kc-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 28px;
+  color: var(--kc-muted);
+  font-size: 12.5px;
+}
+
+.kc-steps span {
+  position: relative;
+}
+
+.kc-steps span + span::before {
+  content: '·';
+  position: absolute;
+  left: -11px;
+  color: var(--kc-hair-strong);
+}
+
+/* ------------------------------------------------------------------ Workspace */
+
+.kc-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--kc-muted);
+}
+
+.kc-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 360px 1fr 392px;
+  /* Single full-height row so the columns (and the viewport card) fill the workspace
+   * instead of collapsing to content height. Mobile overrides this below. */
+  grid-template-rows: 1fr;
+}
+
+@media (max-width: 1320px) {
+  .kc-workspace {
+    grid-template-columns: 330px 1fr 360px;
+  }
+}
+@media (max-width: 1140px) {
+  .kc-workspace {
+    grid-template-columns: 300px 1fr 330px;
+  }
+}
+@media (max-width: 1000px) {
+  .kc-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(240px, 42vh) auto;
+    overflow-y: auto;
+  }
+  .kc-col-left {
+    border-right: 0;
+    border-bottom: 1px solid var(--kc-hair);
+  }
+  .kc-col-right {
+    border-left: 0;
+    border-top: 1px solid var(--kc-hair);
+  }
+}
+
+/* Left column — conversation */
+.kc-col-left {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--kc-surface);
+  border-right: 1px solid var(--kc-hair);
+  overflow: hidden;
+}
+
+.kc-panel-head {
+  padding: 16px 18px 10px;
+}
+
+.kc-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 18px 18px;
+}
+
+.kc-chat-notice {
+  margin: 0;
+  padding: 11px 13px;
+  background: color-mix(in srgb, var(--kc-accent) 9%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-accent) 28%, transparent);
+  border-radius: 13px;
+  color: var(--kc-ink);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+/* Center column — the viewport card */
+.kc-col-center {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+}
+
+.kc-viewport-card {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--kc-viewport-bg);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+}
+
+.kc-viewport-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.kc-viewport-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.kc-viewport-canvas:active {
+  cursor: grabbing;
+}
+
+.kc-viewport-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.kc-viewport-overlay-error {
+  color: #e9a08a;
+}
+
+/* Print-aware viewport affordances: projected W/D/H dimension pills (positioned by KCViewport),
+ * an orientation chip, and a drag hint. */
+.kc-dim-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--kc-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.kc-viewport-chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 10px;
+  border-radius: var(--kc-r-chip);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.kc-viewport-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11.5px;
+  pointer-events: none;
+}
+
+/* Touch targets: on coarse pointers, the interactive chrome is at least ~44px tall. */
+@media (pointer: coarse) {
+  .kc-btn,
+  .kc-icon-btn,
+  .kc-chip,
+  .kc-field select {
+    min-height: 44px;
+  }
+}
+
+/* On narrow screens the hero input stacks (textarea above a full-width button) so neither is
+ * squeezed. */
+@media (max-width: 640px) {
+  .kc-input-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kc-design-btn {
+    justify-content: center;
+  }
+}
+
+/* Respect "reduce motion": no spinners, fade-ups, or transitions for users who opt out (the
+ * viewport's auto-rotate is also disabled in KCViewport). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Right column — parameters + printability */
+.kc-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+  background: var(--kc-bg);
+  border-left: 1px solid var(--kc-hair);
+}
+
+.kc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair);
+  border-radius: var(--kc-r-card);
+}
+
+.kc-card-title {
+  margin: 0;
+  font-family: var(--kc-font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.kc-muted-note {
+  margin: 0;
+  color: var(--kc-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.kc-workspace-loading {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kc-muted);
+  font-size: 14px;
+}
+
+/* --------------------------------------------------- Conversation (Slice 4) */
+
+.kc-chat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kc-msg {
+  max-width: 100%;
+  padding: 10px 13px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.kc-msg-user {
+  align-self: flex-end;
+  margin-left: 28px;
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
+  border-top-right-radius: 5px;
+}
+
+.kc-msg-ai {
+  margin-right: 22px;
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+  border-top-left-radius: 5px;
+  color: var(--kc-ink);
+}
+
+.kc-msg-error {
+  background: color-mix(in srgb, var(--kc-fail) 10%, var(--kc-surface));
+  border-color: color-mix(in srgb, var(--kc-fail) 30%, transparent);
+  color: var(--kc-fail);
+}
+
+.kc-think {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 22px;
+  padding: 11px 13px;
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+  border-radius: 14px;
+  border-top-left-radius: 5px;
+  color: var(--kc-muted);
+  font-size: 13px;
+}
+
+.kc-spin {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--kc-accent) 28%, transparent);
+  border-top-color: var(--kc-accent);
+  animation: kc-spin 0.7s linear infinite;
+}
+
+@keyframes kc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --------------------------------------------------- Parameters + printability (Slice 4) */
+
+.kc-paramlist {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kc-paramrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.kc-paramrow dt {
+  margin: 0;
+  color: var(--kc-muted);
+}
+
+.kc-paramrow dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.kc-param-hint {
+  margin-top: 2px;
+  font-size: 11.5px;
+}
+
+.kc-status-badge {
+  align-self: flex-start;
+  padding: 4px 11px;
+  border-radius: var(--kc-r-chip);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kc-tone-pass {
+  background: color-mix(in srgb, var(--kc-pass) 15%, var(--kc-surface));
+  color: var(--kc-pass);
+}
+.kc-tone-warn {
+  background: color-mix(in srgb, var(--kc-warn-accent) 18%, var(--kc-surface));
+  color: var(--kc-warn);
+}
+.kc-tone-fail {
+  background: color-mix(in srgb, var(--kc-fail) 16%, var(--kc-surface));
+  color: var(--kc-fail);
+}
+.kc-tone-neutral {
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+}
+
+.kc-dims {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.kc-dims th {
+  padding: 4px 6px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kc-muted);
+  border-bottom: 1px solid var(--kc-hair);
+}
+
+.kc-dims td {
+  padding: 5px 6px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--kc-hair);
+}
+
+.kc-dims tr:last-child td {
+  border-bottom: 0;
+}
+
+.kc-dim-off td {
+  color: var(--kc-fail);
+}
+
+.kc-mono {
+  font-family: var(--kc-font-mono);
+  font-size: 12px;
+}
+
+.kc-findings {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kc-finding {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.kc-finding::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kc-muted);
+}
+
+.kc-finding-fail::before,
+.kc-finding-blocker::before,
+.kc-finding-critical::before {
+  background: var(--kc-fail);
+}
+
+.kc-finding-warn::before {
+  background: var(--kc-warn-accent);
+}
+
+/* --------------------------------------------------- Export & print (Slice 5) */
+
+.kc-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.kc-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.kc-status-dot.kc-tone-pass {
+  background: var(--kc-pass);
+}
+.kc-status-dot.kc-tone-warn {
+  background: var(--kc-warn-accent);
+}
+.kc-status-dot.kc-tone-fail {
+  background: var(--kc-fail);
+}
+.kc-status-dot.kc-tone-neutral {
+  background: var(--kc-muted);
+}
+
+.kc-connector-name {
+  font-weight: 600;
+}
+
+.kc-connector-label {
+  color: var(--kc-muted);
+}
+
+.kc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.kc-field > span {
+  font-weight: 600;
+  color: var(--kc-muted);
+}
+
+.kc-field select {
+  padding: 8px 10px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-bg);
+  color: var(--kc-ink);
+  font-size: 13px;
+}
+
+.kc-field select:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+  border-color: var(--kc-accent);
+}
+
+.kc-slice-btn {
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.kc-slice-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kc-download {
+  justify-content: center;
+  text-decoration: none;
+}
+
+.kc-download-model {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kc-accent-strong);
+  text-decoration: none;
+}
+
+.kc-download-model:hover {
+  text-decoration: underline;
+}
+
+.kc-export-error {
+  color: var(--kc-fail);
+}
+
+/* Assistant message rows carry a small cube avatar. */
+.kc-ai-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-right: 22px;
+}
+
+.kc-ai-row .kc-msg-ai,
+.kc-ai-row .kc-think {
+  flex: 1 1 auto;
+  margin-right: 0;
+}
+
+.kc-ava {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: 9px;
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
+}

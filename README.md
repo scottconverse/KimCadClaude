@@ -41,6 +41,11 @@ lumpy neural meshes.
 OpenSCAD and OrcaSlicer are fetched as pinned portable builds into `tools/` by the
 setup step (see below); a system install can be pointed to via `config/local.yaml`.
 
+**No Node.js is needed to *run* KimCad.** The browser UI is a React single-page app whose
+compiled output is committed and served by the Python server, so `kimcad web` works with the
+steps above alone. Node (+ `npm`) is needed only to *rebuild* that UI after changing it:
+`npm --prefix frontend ci && npm --prefix frontend run build` (see `frontend/README.md`).
+
 ## Setup
 
 ```
@@ -124,6 +129,12 @@ The server binds to `127.0.0.1` (your machine only) by default. `--host` can bin
 elsewhere, but do **not** expose it on a public interface without putting your own
 authentication/proxy in front — it runs the pipeline for anyone who can reach it.
 
+The page is a React + TypeScript single-page app, compiled by Vite into `src/kimcad/web/`
+and served as static files by the Python server. **You do not need Node to run KimCad** —
+the built UI is committed, so `kimcad web` works on its own. Node is needed only to *rebuild*
+the UI after changing it: `npm --prefix frontend ci && npm --prefix frontend run build`
+(details in `frontend/README.md`).
+
 Once a part passes the gate you can pick a printer + material and, after an explicit
 confirmation, generate a printable G-code 3MF and download it — slicing runs on the
 already-validated mesh, so confirming a print never re-runs the model. The validated
@@ -160,8 +171,9 @@ labels a no-hardware connection honestly rather than narrating a mock send as a 
   entries for them are commented examples — uncomment and edit). If the printer is
   offline/unreachable, it says so and leaves the G-code on disk; a part that failed the
   printability gate is never sent.
-- **Web:** after a slice, pick a connection and confirm to send. A live **ready / not-ready badge**
-  shows whether the chosen connection is reachable and idle, and the download stays as the fallback.
+- **Web:** after a slice, download the proven G-code or the model, and a live **ready / not-ready
+  badge** shows whether the printer connection is reachable. *(Sending to a printer from the
+  browser is a later stage — today the web UI is status + slice + download; the CLI and MCP send.)*
 - **Agent / MCP:** `python -m kimcad.mcp_server` exposes the printer as MCP tools (list
   connections, status, capabilities, and a confirmation-gated `send_print`) so an agent can drive
   it. Runnable mock servers back each connector for offline testing: `python -m kimcad.mock_printer`

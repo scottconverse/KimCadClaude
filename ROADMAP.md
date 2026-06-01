@@ -34,7 +34,9 @@ tagged `stage-3` @ `96aba02`.** Verification: **400 tests passing** (including 4
 slices) and **`ruff` clean**. The pre-push hook (`.githooks/pre-push` → `scripts/ci.sh` = ruff +
 the FULL pytest incl. live) gates every push. Connectors cover OctoPrint + Moonraker/Klipper +
 PrusaLink/Prusa + a loopback mock + KimCad's own MCP server, with per-printer per-material
-profiles and a ready/not-ready status UI. **Next = Stage 4 (React SPA shell + viewport).**
+profiles and a ready/not-ready status UI. Stage 4 (the React SPA shell + Three.js viewport +
+wired design→gate→slice→download flow) is **done, merged, and tagged `stage-4`**. **Next =
+Stage 5 (deterministic template engine + live sliders — the critical path).**
 
 Still ahead before beta: the React SPA + viewport (Stage 4), the deterministic template engine +
 live sliders (Stage 5 — the critical-path that makes instant sliders possible), the model swap
@@ -99,7 +101,7 @@ ready/not-ready UI works; safety gate guards hold on every send path (CLI/web/MC
 
 ---
 
-## Stage 4 — React SPA shell + viewport  ⬅ NEXT
+## Stage 4 — React SPA shell + viewport  ✅ DONE — merged + tagged `stage-4`
 **Goal:** replace the minimal web UI with the designed app shell, served locally, with a real 3D
 viewport — the §5 design at high fidelity.
 - **React + TypeScript + Vite SPA** compiled to static files and **served by the existing local
