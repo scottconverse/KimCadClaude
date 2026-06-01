@@ -467,11 +467,18 @@ def make_handler(
             ready = bool(st.online) and st.state.value == "operational"
             # `detail` lets the UI distinguish an online-but-faulted printer's cause (e.g.
             # "authentication failed (HTTP 401)") rather than a generic "busy" (UX-002/UX-003).
-            self._json(
-                200,
-                {"name": name, "ready": ready, "online": st.online, "state": st.state.value,
-                 "detail": st.detail, "simulated": simulated},
-            )
+            resp = {"name": name, "ready": ready, "online": st.online, "state": st.state.value,
+                    "detail": st.detail, "simulated": simulated}
+            # QA-001/QA-002: a not-ready live snapshot carries a typed `reason` too (not just the
+            # build/config branch), so a `reason`-only consumer (agent/MCP/future SPA) sees a
+            # uniform contract. The state maps onto the vocabulary; an online-but-faulted printer
+            # (incl. a rejected key, which status() reports as `error`) reads as `error` with
+            # `detail` naming the cause.
+            if not ready:
+                resp["reason"] = {
+                    "offline": "offline", "printing": "busy", "paused": "busy", "error": "error",
+                }.get(st.state.value, "error")
+            self._json(200, resp)
 
         def _handle_send(self, raw_id: str) -> None:
             """Send an already-sliced part (by id) to a configured connector. The POST is

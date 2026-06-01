@@ -167,18 +167,20 @@ filament profile for — e.g. the Elegoo Neptune 4 Max ships no TPU profile, so 
 for it (rather than silently substituting another vendor's profile). The web UI says which
 materials are hidden for the selected printer, and why.
 
-**Connector response reasons.** A send or a status check that isn't "ready" carries a typed
-`reason` (so the UI and any agent can branch on *why*, not on message text) plus a plain-English
-`note`:
+**Connector response reasons.** A send or a not-ready status check carries a typed `reason` (so
+the UI and HTTP-API consumers can branch on *why*, not on message text) plus a plain-English
+`note`. On a live status snapshot the `reason` is derived from the printer's state; an
+online-but-faulted printer (including a rejected credential) reads as `error` with a `detail`
+that names the cause.
 
 | `reason` | Meaning | Appears on |
 |---|---|---|
 | `config` | misconfigured connection (missing credential / `base_url`) | status, send |
 | `unknown` | no configured connection by that name (a typo) | status, send |
-| `auth` | reachable, but the credential was rejected | status, send |
 | `offline` | the printer could not be reached | status, send |
-| `busy` | the printer refused the job because it's busy (retry when idle) | send |
-| `bad_response` | the endpoint answered, but not with the expected JSON (wrong device) | status, send |
+| `busy` | the printer is busy (printing / paused) — retry when idle | status, send |
+| `auth` | reachable, but the credential was rejected | send (status shows `error` + `detail`) |
+| `bad_response` | the endpoint answered, but not with the expected JSON (wrong device) | send (status shows `error`) |
 | `error` | a generic / uncategorized failure | status, send |
 
 > **Running from a source checkout?** Install the package editable first (see [Setup](#setup)) so

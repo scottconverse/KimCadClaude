@@ -573,35 +573,35 @@ function maybeShowSendSection() {
 // slow/unreachable real printer never blocks the page; a simulation is always ready.
 function connectorStatusText(d) {
   if (d.simulated) return "● Simulation — always ready (no real printer is used).";
-  // A typed reason carries an actionable note from the backend — surface it instead of a
-  // generic label, and handle every reason so nothing falls through to "offline" (UX-002).
-  if (d.reason === "config")  return "○ Needs setup — " + (d.note || "not configured.");
+  // A live status snapshot carries `online` + `state` — the UI renders from those (a typed
+  // `reason` also rides along, for agents). A build/config failure has no `online`; render it
+  // by `reason`. Splitting on `online` keeps an online-but-faulted printer reading "Needs
+  // attention" (not the "couldn't check" copy) even though both carry reason="error" (UX-303).
+  if (d.online !== undefined) {
+    if (!d.online) return "○ Offline — not reachable right now. You can still download the G-code.";
+    // Online but reporting a fault (a rejected request, or a printer error) is NOT "busy" (UX-003);
+    // `detail` names the cause so a bad key reads differently from a mechanical fault.
+    if (d.state === "error") return "○ Needs attention — online but reports an error" +
+      (d.detail ? ` (${d.detail})` : "") + ". Check the printer or its API key.";
+    if (d.ready) return "● Ready — online and idle.";
+    return "◐ Online but busy" + (d.state ? ` (${d.state})` : "") + ".";
+  }
   if (d.reason === "unknown") return "○ Unknown connection — " + (d.note || "no connection by that name.");
-  if (d.reason === "auth")    return "○ Rejected — " + (d.note || "the printer rejected the API key.");
-  if (d.reason === "busy")    return "◐ Busy — " + (d.note || "the printer is busy; try again when it's idle.");
-  if (d.reason === "offline") return "○ Offline — " + (d.note || "not reachable right now. You can still download the G-code.");
-  if (d.reason === "error")   return "○ Status unavailable — " + (d.note || "couldn't check this connection.");
-  // Otherwise it's a live status snapshot from the printer.
-  if (!d.online) return "○ Offline — not reachable right now. You can still download the G-code.";
-  // Online but reporting a fault (a rejected request, or a printer error) is NOT "busy" (UX-003);
-  // surface the cause so a bad key reads differently from a mechanical fault.
-  if (d.state === "error") return "○ Needs attention — online but reports an error" +
-    (d.detail ? ` (${d.detail})` : "") + ". Check the printer or its API key.";
-  if (d.ready) return "● Ready — online and idle.";
-  return "◐ Online but busy" + (d.state ? ` (${d.state})` : "") + ".";
+  if (d.reason === "config")  return "○ Needs setup — " + (d.note || "not configured.");
+  return "○ Status unavailable — " + (d.note || "couldn't check this connection.");
 }
 
 // UX-003: map a status to the app's semantic green/amber/red scale. The glyph in the text
 // stays, so colour is never the only indicator.
 function connectorStatusClass(d) {
   if (d.simulated) return "status-ready";
-  if (d.reason === "auth" || d.reason === "error") return "status-error";
-  if (d.reason === "config" || d.reason === "unknown" ||
-      d.reason === "offline" || d.reason === "busy") return "status-warn";
-  if (!d.online) return "status-warn";
-  if (d.state === "error") return "status-error";
-  if (d.ready) return "status-ready";
-  return "status-warn";  // online but busy / printing / paused
+  if (d.online !== undefined) {  // a live snapshot — class from state
+    if (d.ready) return "status-ready";
+    if (d.state === "error") return "status-error";
+    return "status-warn";  // offline / busy / printing / paused
+  }
+  if (d.reason === "config" || d.reason === "unknown") return "status-warn";
+  return "status-error";  // couldn't-check
 }
 
 async function loadConnectorStatus() {

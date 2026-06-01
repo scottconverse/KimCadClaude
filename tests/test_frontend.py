@@ -97,14 +97,16 @@ def test_connector_status_is_an_aria_live_region():
     assert 'aria-live="polite"' in tag and 'role="status"' in tag
 
 
-def test_connector_status_renderer_handles_every_reason_and_state():
-    """UX-002/UX-003: the status renderer must branch on every backend reason and on the
-    online-but-faulted state, so a new value can't fall through to a generic label/colour."""
+def test_connector_status_renderer_handles_live_states_and_build_reasons():
+    """UX-002/UX-003: the status renderer splits a live snapshot (online/state/ready) from a
+    build-failure reason (config/unknown), so nothing falls through to a generic label/colour,
+    and an online-but-faulted printer reads "needs attention", not the couldn't-check copy."""
     assert "d.simulated" in _JS
-    for reason in ("config", "unknown", "auth", "busy", "offline", "error"):
-        assert f'reason === "{reason}"' in _JS, f"status renderer does not branch on '{reason}'"
+    assert "d.online !== undefined" in _JS  # live snapshots render by state, not by reason
     assert 'd.state === "error"' in _JS  # online-but-faulted is NOT "busy"
     assert "d.ready" in _JS
+    for reason in ("config", "unknown"):  # build/config failures render by reason
+        assert f'reason === "{reason}"' in _JS, f"status renderer does not branch on '{reason}'"
 
 
 def test_connector_status_uses_semantic_severity_classes():
