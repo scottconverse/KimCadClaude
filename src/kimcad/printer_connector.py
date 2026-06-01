@@ -23,22 +23,46 @@ emulators on the dev box; no connector talks to physical hardware yet.
 
 from __future__ import annotations
 
+import json
 import threading
+import urllib.error
+import uuid
+import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from kimcad.slicer import GcodeProofFailed, prove_gcode_3mf
+from kimcad.slicer import MAX_GCODE_MEMBER_BYTES, GcodeProofFailed, prove_gcode_3mf
 
 
 class ConnectorError(Exception):
     """Base class for send-to-printer failures.
 
-    Carries a machine-readable ``reason`` (so a caller can branch on *why* a send failed —
-    ``"auth"`` vs ``"offline"`` vs ``"config"`` — instead of string-matching the message)
-    and a ``user_message`` (plain, non-developer phrasing that is safe to show an end user).
-    ``str(self)`` stays the developer-facing detail, which may name an env var, a URL, etc.
+    Carries a machine-readable ``reason`` (so a caller can branch on *why* a send failed
+    instead of string-matching the message) and a ``user_message`` (plain, non-developer
+    phrasing that is safe to show an end user). ``str(self)`` stays the developer-facing
+    detail, which may name an env var, a URL, etc.
+
+    Reason vocabulary — the single source of truth; keep the README "Connector response reasons"
+    table and any client that branches on ``reason`` in sync with this set. (The web UI renders a
+    live status snapshot by its ``state``/``online`` fields and a build failure by ``reason``, so
+    it branches on the relevant subset, not the full enum.):
+
+    - ``"config"``       — misconfigured connection (missing API key / base_url).
+    - ``"unknown"``      — no configured connection by that name (a typo, not a setup task).
+    - ``"auth"``         — reachable but the printer rejected the credentials (bad API key).
+    - ``"offline"``      — the printer could not be reached.
+    - ``"busy"``         — the printer refused the job because it's busy (retry when idle).
+    - ``"bad_response"`` — the endpoint answered but not with the expected JSON (wrong device).
+    - ``"error"``        — generic / uncategorized failure (the base default).
+
+    ``"not_confirmed"`` (``ensure_sendable`` raises it when a send lacks an explicit
+    ``confirm=True``) is an INTERNAL guard — caught before any network call, never returned to a
+    client, so the README "Connector response reasons" table omits it (DOC-001). The response
+    reasons above appear on ``/api/connector-status`` (``config``/``unknown`` from build;
+    ``offline``/``busy``/``error`` from a live status) and on ``/api/send`` soft-failures.
     """
 
     reason = "error"
@@ -77,6 +101,7 @@ class JobState(str, Enum):
     queued = "queued"
     uploading = "uploading"
     printing = "printing"
+    paused = "paused"
     done = "done"
     error = "error"
     cancelled = "cancelled"
@@ -182,6 +207,133 @@ def ensure_sendable(gcode_path: Path, *, confirm: bool) -> None:
         prove_gcode_3mf(gcode_path)
     except GcodeProofFailed as e:
         raise ConnectorError(f"refusing to send a file that isn't a printable slice: {e}") from e
+
+
+def extract_single_plate_gcode(gcode_3mf: Path) -> bytes:
+    """Read the embedded toolpath out of a proven ``*.gcode.3mf`` for upload to a printer.
+
+    Shared by every connector that uploads a flat ``.gcode`` (OctoPrint, Moonraker, …) so the
+    guards live in one place. Refuses a multi-plate archive (we'd otherwise upload only the
+    first plate while the proof validated all of them) and a member larger than the proof's
+    size cap. Only ever *reads* member bytes — never extracts to a path — so a malicious member
+    name (``../../etc/...``) is inert here.
+    """
+    with zipfile.ZipFile(gcode_3mf) as zf:
+        members = [n for n in zf.namelist() if n.lower().endswith(".gcode")]
+        if not members:
+            raise ConnectorError(f"{gcode_3mf.name} has no embedded .gcode to send")
+        if len(members) > 1:
+            raise ConnectorError(
+                f"{gcode_3mf.name} has {len(members)} plates; single-plate send only for now"
+            )
+        info = zf.getinfo(members[0])
+        if info.file_size > MAX_GCODE_MEMBER_BYTES:
+            raise ConnectorError(
+                f"{gcode_3mf.name} G-code is too large to send ({info.file_size} bytes)"
+            )
+        return zf.read(members[0])
+
+
+def read_error_body(e: Any, *, cap: int = 300) -> str:
+    """Best-effort, bounded read of an HTTP error response body as whitespace-collapsed text.
+
+    Shared by connectors so each can parse its own JSON error shape from the bytes without
+    duplicating the read. Never raises; never includes request headers (the API key is a
+    request header, not in the response body), and the result is capped.
+    """
+    try:
+        raw = e.read(cap + 1) or b""
+    except Exception:
+        return ""
+    return " ".join(raw[:cap].decode("utf-8", "replace").split())
+
+
+def decode_json(raw: bytes | None, *, name: str) -> dict[str, Any]:
+    """Parse a printer's JSON response body, or raise a clean :class:`ConnectorError`.
+
+    A device that answers HTTP 200 with a non-JSON body (a captive portal, a proxy, or the
+    wrong device on the configured IP) must not surface as a raw ``JSONDecodeError`` — the
+    connector contract is "never raise an undecorated exception, never a traceback." Callers in
+    ``status()`` / ``job_status()`` catch this and degrade to an error STATUS;
+    ``capabilities()`` / ``send`` let it propagate as the typed ConnectorError it already is.
+    A non-object JSON body (a list or scalar) is treated as ``{}`` so downstream ``.get`` is safe.
+    """
+    try:
+        data = json.loads(raw or b"{}")
+    except ValueError as e:
+        raise ConnectorError(
+            f"{name} returned a non-JSON response: {e}",
+            reason="bad_response",
+            user_message=f"The printer '{name}' returned an unexpected response - it may not "
+            "be the kind of printer server KimCad expects at that address.",
+        ) from e
+    return data if isinstance(data, dict) else {}
+
+
+def auth_error_if_upload_rejected(
+    exc: BaseException,
+    *,
+    request: Callable[..., tuple[int, bytes]],
+    api_key: str | None,
+    name: str,
+    probe_path: str,
+) -> AuthError | None:
+    """Disambiguate a failed upload: an unreachable printer, or a rejected API key?
+
+    When a server rejects auth on an upload it typically sends 401 and closes the socket
+    *before draining the request body*. If the body is larger than the socket send buffer the
+    client's write fails first with a connection reset (a :class:`ConnectionError`, a subclass
+    of ``OSError`` — not a :class:`urllib.error.HTTPError`), so an upload's
+    ``except (URLError, OSError)`` arm would mislabel a bad key as "printer offline" (ENG-001).
+    Only a raw mid-write reset (``ConnectionError``, distinct from a connect-time
+    ``urllib.error.URLError``) with an API key configured is suspect; re-probe the credential
+    with a cheap authenticated GET. A 401/403 there means auth; anything else (including a
+    re-probe that is itself unreachable) falls through to "offline". Returns an
+    :class:`AuthError` to raise, or ``None`` to fall through.
+    """
+    if not (api_key and isinstance(exc, ConnectionError)):
+        return None
+    try:
+        request("GET", probe_path)
+    except urllib.error.HTTPError as probe:
+        if probe.code in (401, 403):
+            return AuthError(
+                f"{name} rejected the API key (HTTP {probe.code})",
+                user_message=f"The printer '{name}' rejected the API key - check that it's "
+                "correct.",
+            )
+    except (urllib.error.URLError, OSError):
+        pass  # genuinely unreachable on the re-probe too -> fall through to offline
+    return None
+
+
+def encode_multipart(
+    fields: dict[str, str], files: dict[str, tuple[str, bytes]]
+) -> tuple[bytes, str]:
+    """Encode form fields + files as ``multipart/form-data``. Returns ``(body, content_type)``.
+
+    Shared by the connectors that upload over multipart (OctoPrint, Moonraker) — PrusaLink uses a
+    raw PUT body and needs none (ENG-002: one copy, not three).
+    """
+    boundary = "----KimCad" + uuid.uuid4().hex
+    out: list[bytes] = []
+    for name, value in fields.items():
+        out += [
+            f"--{boundary}".encode(),
+            f'Content-Disposition: form-data; name="{name}"'.encode(),
+            b"",
+            str(value).encode(),
+        ]
+    for name, (filename, content) in files.items():
+        out += [
+            f"--{boundary}".encode(),
+            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"'.encode(),
+            b"Content-Type: application/octet-stream",
+            b"",
+            content,
+        ]
+    out += [f"--{boundary}--".encode(), b""]
+    return b"\r\n".join(out), f"multipart/form-data; boundary={boundary}"
 
 
 @dataclass

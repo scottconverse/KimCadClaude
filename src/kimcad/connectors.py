@@ -9,22 +9,35 @@ have to import each other.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
+from kimcad.prusalink_connector import PrusaLinkConnector
 
-# Connector types that do NOT drive real hardware (a simulation/loopback). Must stay in
-# sync with each connector's ``drives_hardware`` class attribute; checked by
-# ``connector_is_simulated`` so a UI can be derived from config without building a connector
-# (and without needing an API key just to label a dropdown).
-_SIMULATED_TYPES = frozenset({"loopback"})
+if TYPE_CHECKING:
+    from kimcad.config import ConnectorConfig
+
+# Map a config ``type`` to its connector class. This is the SINGLE source of truth for
+# whether a connection drives real hardware: each class sets ``drives_hardware``, and
+# ``connector_is_simulated`` derives the UI's honest label from that attribute — so the label
+# can never drift from the class (the failure mode behind the Stage 2 UX-001 Critical). The
+# lookup needs no instantiation, so a dropdown can be labeled without an API key.
+_CONNECTOR_CLASSES: dict[str, type] = {
+    "loopback": LoopbackConnector,
+    "octoprint": OctoPrintConnector,
+    "moonraker": MoonrakerConnector,
+    "prusalink": PrusaLinkConnector,
+}
 
 
-def connector_is_simulated(cc: Any) -> bool:
+def connector_is_simulated(cc: ConnectorConfig) -> bool:
     """Whether a :class:`~kimcad.config.ConnectorConfig` names a simulated (no-hardware)
-    connector, derived from its ``type`` alone."""
-    return cc.type in _SIMULATED_TYPES
+    connector, derived from the connector class's ``drives_hardware``. An unknown type is
+    treated as real — the safe direction (never mislabel a real printer as a simulation)."""
+    cls = _CONNECTOR_CLASSES.get(cc.type)
+    return cls is not None and not getattr(cls, "drives_hardware", True)
 
 
 def build_connector(config: Any, name: str) -> PrinterConnector:
@@ -38,7 +51,7 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         known = ", ".join(config.connectors()) or "(none configured)"
         raise ConnectorError(
             f"unknown connector {name!r}; configured connectors: {known}",
-            reason="config",
+            reason="unknown",
             user_message=f"There's no printer connection named '{name}'.",
         )
     cc = config.connector_config(name)
@@ -62,6 +75,35 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
                 "See the README's send-to-printer setup.",
             )
         return OctoPrintConnector(cc.base_url, api_key, name=name)
+
+    if cc.type == "moonraker":
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (moonraker) has no base_url configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address configured.",
+            )
+        # Moonraker often runs unauthenticated on a trusted LAN, so a missing key is NOT an
+        # error here — it just sends no X-Api-Key. A key is used only when configured.
+        api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
+        return MoonrakerConnector(cc.base_url, api_key, name=name)
+
+    if cc.type == "prusalink":
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (prusalink) has no base_url configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address configured.",
+            )
+        api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
+        if not api_key:
+            raise ConnectorError(
+                f"set the {cc.api_key_env} environment variable to send to {name!r}",
+                reason="config",
+                user_message=f"The '{name}' printer needs an API key that isn't set up yet. "
+                "See the README's send-to-printer setup.",
+            )
+        return PrusaLinkConnector(cc.base_url, api_key, name=name, storage=cc.storage or "usb")
 
     raise ConnectorError(
         f"connector {name!r} has unknown type {cc.type!r}",

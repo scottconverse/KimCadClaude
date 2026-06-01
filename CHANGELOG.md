@@ -117,6 +117,31 @@ All notable changes to KimCad are documented here. Format follows
   printer. `send_print` passes the confirm value through to the same `confirm is True`
   gate without coercion — a truthy-but-not-`True` value cannot send.
 
+#### Stage 3 — printer coverage + connector honesty (software-complete, hardware-deferred)
+- Moonraker (Klipper) connector (`moonraker_connector.py`) + a runnable mock Moonraker server
+  (`python -m kimcad.mock_moonraker`) — covers Creality-Klipper / Voron / RatRig / Mainsail /
+  Fluidd. Optional `X-Api-Key`; an unrecognized Klipper state maps to `error`, never a false
+  "ready."
+- PrusaLink (Prusa) connector (`prusalink_connector.py`) + a mock PrusaLink server
+  (`python -m kimcad.mock_prusalink`) — covers MK4 / MK3.9 / MINI / XL. Uploads via
+  `PUT /api/v1/files/<storage>/<name>` with the path segments percent-encoded and
+  `Print-After-Upload`; a 409 surfaces as a typed `busy`. Configurable `storage` (default `usb`).
+- Per-printer, per-material filament profiles, honestly: every printer is offered only the
+  materials it has a verified profile for. The cross-vendor `Generic <MATERIAL>` fallback was
+  **removed** (it silently mis-resolved e.g. Elegoo + TPU to a Bambu profile); the Elegoo
+  Neptune 4 Max genuinely ships no TPU profile, so TPU is reported "not available" for it.
+  `/api/options` reports each printer's available materials, and the web UI explains which are
+  hidden and why.
+- Live **ready / not-ready connection status** (`GET /api/connector-status/<name>`): a badge for
+  ready / busy / offline / needs-setup / simulation that never 5xxes and never leaks a credential.
+- Connection-status + send **honesty hardening** (independent-audit gate fixes): a typed `reason`
+  vocabulary (`config` / `unknown` / `auth` / `offline` / `busy` / `bad_response` / `error`)
+  carried on both `/api/connector-status/<name>` and `/api/send/<id>` soft failures (each with a `simulated`
+  flag); a rejected credential on a large upload is reported as `auth` rather than mislabeled
+  "offline" (a mid-write socket reset is re-probed); a non-JSON HTTP-200 response degrades to an
+  error status instead of raising; and the status line is an ARIA live region mapped onto the
+  app's green/amber/red scale.
+
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable
   and fast there); `gemma3:12b` was too large for the target and is no longer used.

@@ -60,6 +60,29 @@ def test_dim_mismatch_is_reported_per_axis(tmp_path):
     assert mesh_path is not None  # a report (and mesh) is still produced for the user
 
 
+def test_web_refuses_to_slice_a_gate_failed_part(tmp_path):
+    # ENG-001 (Blocker): the web slice endpoint refuses a part that FAILED the printability gate
+    # — mirroring the CLI, which already refuses to send one. No G-code is produced, so it can
+    # never reach a printer; a direct API client can't dispatch a gate-rejected part. (send() is
+    # also guarded server-side as defense-in-depth.)
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([50, 50, 50])), _box_renderer((20, 20, 20)))  # 50 vs 20 = FAIL
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        d = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + "/api/design", data=json.dumps({"prompt": "a block"}).encode(),
+            headers={"Content-Type": "application/json"}), timeout=10))
+        assert d["status"] == "gate_failed"
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        s = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/slice/{rid}", data=json.dumps({"printer": "x", "material": "pla"}).encode(),
+            headers={"Content-Type": "application/json"}), timeout=10))
+    assert s["sliced"] is False and s["reason"] == "gate_failed"
+    assert "gcode_url" not in s  # no G-code was produced for the failed part
+
+
 def test_clarification_payload(tmp_path):
     pipe = _pipeline(
         FakeProvider(_plan(None, open_questions=["What overall size?"])),
@@ -262,6 +285,22 @@ def _design_and_get_content_type(tmp_path, suffix):
         return resp.headers.get("Content-Type")
 
 
+def _trimesh_can_export_3mf() -> bool:
+    """Whether trimesh can export a .3mf in this runtime (it needs a 3MF backend, e.g. lxml).
+    Without it, /api/design 500s on the .3mf path; skip cleanly rather than muddy the gate
+    (TEST-004). The shipped/pinned venv has it, so the test runs and passes there."""
+    import trimesh
+
+    try:
+        trimesh.creation.box(extents=[1, 1, 1]).export(file_type="3mf")
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(
+    not _trimesh_can_export_3mf(), reason="trimesh 3MF export unavailable in this runtime"
+)
 def test_mesh_content_type_is_3mf_for_3mf_file(tmp_path):
     """ENG-010: /api/mesh/<id> serves model/3mf when the served file is a .3mf."""
     assert _design_and_get_content_type(tmp_path / "a", ".3mf") == "model/3mf"
@@ -306,6 +345,17 @@ def test_web_options_lists_printers_with_sliceable_flag():
     assert any(m["key"] == "pla" for m in opts["materials"])
     assert opts["default_printer"] == "bambu_p2s"
     assert opts["default_material"] == "pla"
+
+
+def test_web_options_lists_per_printer_available_materials():
+    # Each printer advertises only the materials it can actually print, so the UI offers
+    # exactly those — the Elegoo Neptune 4 Max has no TPU profile, so TPU isn't listed for it.
+    opts = web_options(Config.load())
+    by_key = {p["key"]: p for p in opts["printers"]}
+    assert set(by_key["bambu_p2s"]["materials"]) == {"pla", "petg", "tpu", "abs"}
+    assert set(by_key["bambu_a1"]["materials"]) == {"pla", "petg", "tpu", "abs"}
+    assert set(by_key["elegoo_neptune_4_max"]["materials"]) == {"pla", "petg", "abs"}
+    assert "tpu" not in by_key["elegoo_neptune_4_max"]["materials"]
 
 
 class _NoProcessConfig:
@@ -441,15 +491,18 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
         assert send["simulated"] is True  # UX-001: the mock is a simulation, flagged as such
         assert send.get("printer_state")  # status flows through
 
-        # an unknown connector is a soft "not sent" (the download still works), not a 5xx,
-        # and carries a typed reason + a user-facing note (ENG-204/UX-003)
+        # an unknown connector is a soft "not sent" (the download still works), not a 5xx, and
+        # carries a typed reason + a user-facing note. An unknown NAME is reason="unknown"
+        # (distinct from a misconfigured "config"), and the soft failure mirrors the status
+        # contract's `simulated` field (QA-003 / ENG-002).
         bad = json.load(urllib.request.urlopen(urllib.request.Request(
             base + f"/api/send/{rid}",
             data=json.dumps({"connector": "no_such"}).encode(),
             headers={"Content-Type": "application/json"},
         ), timeout=30))
         assert bad["sent"] is False and bad["note"]
-        assert bad["reason"] == "config"
+        assert bad["reason"] == "unknown"
+        assert bad["simulated"] is False
 
         # TEST-001: the POST is the confirmation; a body "confirm" field must NOT be able to
         # downgrade the gate. Pin that the web path always calls send(confirm is True), even
@@ -543,6 +596,174 @@ def test_connectors_endpoint_lists_configured_connectors(tmp_path):
     if "octoprint" in by_name:
         assert by_name["octoprint"]["simulated"] is False  # a real connector
     assert data["default"] is not None
+
+
+def test_connector_status_mock_is_ready(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10))
+    assert d["ready"] is True and d["online"] is True
+    assert d["state"] == "operational" and d["simulated"] is True
+
+
+def test_connector_status_missing_key_is_needs_setup(tmp_path, monkeypatch):
+    # The shipped octoprint connector needs OCTOPRINT_API_KEY; unset -> a "needs setup"
+    # status (reason=config), never a 5xx.
+    import json
+    import urllib.request
+
+    monkeypatch.delenv("OCTOPRINT_API_KEY", raising=False)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/octoprint", timeout=10))
+    assert d["ready"] is False and d["reason"] == "config" and d["note"]
+
+
+def test_connector_status_offline_printer_is_not_ready(tmp_path, monkeypatch):
+    import json
+    import urllib.request
+
+    import kimcad.connectors as conn_mod
+    from kimcad.printer_connector import LoopbackConnector
+
+    # A reachable connector whose printer is offline -> ready False, state offline (not a 5xx).
+    monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: LoopbackConnector(online=False))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10))
+    assert d["ready"] is False and d["online"] is False and d["state"] == "offline"
+
+
+def test_connector_status_unknown_name_is_typed_unknown(tmp_path):
+    # QA-003: an unknown connection name reports a distinct reason="unknown" (not "config"), so
+    # the UI can tell a typo'd name from a genuine "needs setup". ENG-003/QA-002: every branch
+    # of the endpoint carries the `simulated` field (no UI fall-through).
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/bogus", timeout=10))
+    assert d["ready"] is False and d["reason"] == "unknown"
+    assert d["simulated"] is False
+
+
+# --- TEST-003 / ENG-002: /api/send soft-failures are symmetric with /api/connector-status ----
+
+
+def _register_stub_gcode(host, port, monkeypatch, gcode_path):
+    """Design a part over HTTP, then register a stub sliced G-code for it WITHOUT running the
+    real slicer (monkeypatching slice_registered_mesh), so send-path tests are fast + offline.
+    Unknown/config sends fail at build_connector and a stubbed loopback send never reaches
+    ensure_sendable, so the registered file only needs to exist. Returns (base_url, rid)."""
+    import json
+    import urllib.request
+
+    monkeypatch.setattr(
+        "kimcad.webapp.slice_registered_mesh",
+        lambda cfg, mesh, printer, material: ({}, gcode_path),
+    )
+    base = f"http://{host}:{port}"
+    d = json.load(urllib.request.urlopen(urllib.request.Request(
+        base + "/api/design", data=json.dumps({"prompt": "a 20mm block"}).encode(),
+        headers={"Content-Type": "application/json"}), timeout=10))
+    rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+    s = json.load(urllib.request.urlopen(urllib.request.Request(
+        base + f"/api/slice/{rid}", data=json.dumps({"printer": "x", "material": "pla"}).encode(),
+        headers={"Content-Type": "application/json"}), timeout=10))
+    assert "gcode_url" in s  # the stub slice registered the G-code
+    return base, rid
+
+
+def _post_send(base, rid, connector):
+    import json
+    import urllib.request
+
+    return json.load(urllib.request.urlopen(urllib.request.Request(
+        base + f"/api/send/{rid}", data=json.dumps({"connector": connector}).encode(),
+        headers={"Content-Type": "application/json"}), timeout=10))
+
+
+def test_send_unknown_connector_is_typed_unknown_not_simulated(tmp_path, monkeypatch):
+    g = tmp_path / "g.gcode.3mf"
+    g.write_bytes(b"stub")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base, rid = _register_stub_gcode(host, port, monkeypatch, g)
+        bad = _post_send(base, rid, "no_such")
+    assert bad["sent"] is False and bad["reason"] == "unknown"
+    assert bad["simulated"] is False and bad["note"]
+
+
+def test_send_simulated_connector_failure_carries_simulated_true(tmp_path, monkeypatch):
+    # ENG-002: a failed send to a SIMULATED connector reports simulated=True, symmetric with
+    # status — the asymmetry that let the stale live send assertion hide.
+    from kimcad.printer_connector import LoopbackConnector, PrinterOffline
+
+    def _boom(self, gcode_path, *, confirm, job_name=None):
+        raise PrinterOffline("mock offline", user_message="The mock connection is offline.")
+
+    monkeypatch.setattr(LoopbackConnector, "send", _boom)
+    g = tmp_path / "g.gcode.3mf"
+    g.write_bytes(b"stub")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base, rid = _register_stub_gcode(host, port, monkeypatch, g)
+        res = _post_send(base, rid, "mock")
+    assert res["sent"] is False and res["reason"] == "offline"
+    assert res["simulated"] is True and res["note"]
+
+
+def test_connector_status_busy_is_online_but_not_ready(tmp_path, monkeypatch):
+    import json
+    import urllib.request
+
+    import kimcad.connectors as conn_mod
+    from kimcad.printer_connector import PrinterState, PrinterStatus
+
+    class _Busy:
+        name = "busy"
+        drives_hardware = True
+
+        def status(self):
+            return PrinterStatus(online=True, state=PrinterState.printing)
+
+    monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: _Busy())
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        d = json.load(urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10))
+    # online + busy (printing) is NOT ready, but IS online — distinct states.
+    assert d["online"] is True and d["ready"] is False and d["state"] == "printing"
+
+
+def test_connector_status_unexpected_error_is_not_5xx(tmp_path, monkeypatch):
+    # A non-ConnectorError failure building/reading a connection is a graceful "error" status,
+    # never a 5xx/dropped connection — and the dev detail isn't leaked into the payload.
+    import json
+    import urllib.request
+
+    import kimcad.connectors as conn_mod
+
+    def _boom(c, n):
+        raise RuntimeError("kaboom-secret")
+
+    monkeypatch.setattr(conn_mod, "build_connector", _boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            f"http://{host}:{port}/api/connector-status/mock", timeout=10)
+        assert resp.status == 200
+        d = json.load(resp)
+    assert d["ready"] is False and d["reason"] == "error"
+    assert "kaboom-secret" not in json.dumps(d)
 
 
 def test_send_before_slice_is_404(tmp_path):

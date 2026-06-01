@@ -69,9 +69,10 @@ class ConnectorConfig:
     time and is never stored in config."""
 
     name: str
-    type: str  # "loopback" | "octoprint" | …
+    type: str  # "loopback" | "octoprint" | "moonraker" | "prusalink" | …
     base_url: str | None = None
     api_key_env: str | None = None
+    storage: str | None = None  # e.g. PrusaLink target storage ("usb" | "local")
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -159,6 +160,7 @@ class Config:
             type=c["type"],
             base_url=c.get("base_url"),
             api_key_env=c.get("api_key_env"),
+            storage=c.get("storage"),
         )
 
     # --- llm ----------------------------------------------------------------

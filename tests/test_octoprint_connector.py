@@ -133,6 +133,15 @@ def test_offline_job_status_returns_error():
     assert job.state is JobState.error
 
 
+def test_job_status_http_error_is_error_not_unreachable():
+    # A 401/403 on job_status is reachable-but-rejected — reported as the HTTP code, NOT
+    # mislabeled "unreachable" (HTTPError must be caught before its URLError superclass).
+    with serve_mock_octoprint(api_key="the-real-key") as (base, _state):
+        job = _connector(base, key="wrong-key").job_status("x")
+    assert job.state is JobState.error
+    assert "HTTP 403" in job.detail and "unreachable" not in job.detail
+
+
 # --- the mock server's own negative paths -------------------------------------
 
 
@@ -230,11 +239,11 @@ def test_capabilities_single_profile_no_default_is_used(monkeypatch):
 
 
 def test_extract_gcode_refuses_oversize_member(tmp_path, monkeypatch):
-    # Shrink ONLY the connector's cap (not the proof gate's, which lives on slicer.*), so the
-    # file proves out as a real slice but the upload-side guard fires. _extract_gcode runs
-    # after ensure_sendable and before any network, so an offline URL is fine.
+    # Shrink ONLY the shared extractor's cap (not the proof gate's, which lives on slicer.*),
+    # so the file proves out as a real slice but the upload-side guard fires.
+    # extract_single_plate_gcode runs after ensure_sendable and before any network.
     g = _write_gcode_3mf(tmp_path / "big.gcode.3mf", gcode="G28\n" + "G1 X1 Y1 E1\n" * 50)
-    monkeypatch.setattr("kimcad.octoprint_connector.MAX_GCODE_MEMBER_BYTES", 10)
+    monkeypatch.setattr("kimcad.printer_connector.MAX_GCODE_MEMBER_BYTES", 10)
     with pytest.raises(ConnectorError, match="too large"):
         _connector("http://127.0.0.1:1").send(g, confirm=True)
 
@@ -281,3 +290,43 @@ def test_auth_error_carries_reason_and_user_message():
         except AuthError as e:
             assert e.reason == "auth"
             assert "API key" in e.user_message
+
+
+# --- QA-001: a garbage HTTP-200 body degrades to an error STATUS, never a raw traceback ----
+
+
+def test_status_garbage_200_is_error_not_raise(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    st = c.status()
+    assert st.state is PrinterState.error and st.online is True
+
+
+def test_job_status_garbage_200_is_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    assert c.job_status("x").state is JobState.error
+
+
+def test_capabilities_garbage_200_raises_clean_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"not json"))
+    with pytest.raises(ConnectorError) as exc:
+        c.capabilities()
+    assert exc.value.reason == "bad_response"
+
+
+# --- ENG-005: a 5xx means the server is faulted, reported as NOT online --------------------
+
+
+def test_status_5xx_reports_not_online(monkeypatch):
+    import urllib.error
+
+    c = _connector("http://x")
+
+    def _boom(*a, **k):
+        raise urllib.error.HTTPError("http://x/api/printer", 500, "boom", {}, None)
+
+    monkeypatch.setattr(c, "_request", _boom)
+    st = c.status()
+    assert st.online is False and st.state is PrinterState.error

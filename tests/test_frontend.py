@@ -84,3 +84,40 @@ def test_status_values_handled_by_frontend():
     """The four PipelineStatus values the backend can return must each be handled."""
     for status_value in ("clarification_needed", "render_failed", "gate_failed", "completed"):
         assert status_value in _JS, f"frontend does not handle status={status_value}"
+
+
+# --- TEST-002 / UX-001 / UX-002 / UX-003: connection-status honesty + accessibility ---------
+
+
+def test_connector_status_is_an_aria_live_region():
+    """UX-001: the connection-status line announces async changes to assistive tech."""
+    m = re.search(r'<p id="connectorStatus"[^>]*>', _MARKUP)
+    assert m, "connectorStatus element should exist in the markup"
+    tag = m.group(0)
+    assert 'aria-live="polite"' in tag and 'role="status"' in tag
+
+
+def test_connector_status_renderer_handles_live_states_and_build_reasons():
+    """UX-002/UX-003: the status renderer splits a live snapshot (online/state/ready) from a
+    build-failure reason (config/unknown), so nothing falls through to a generic label/colour,
+    and an online-but-faulted printer reads "needs attention", not the couldn't-check copy."""
+    assert "d.simulated" in _JS
+    assert "d.online !== undefined" in _JS  # live snapshots render by state, not by reason
+    assert 'd.state === "error"' in _JS  # online-but-faulted is NOT "busy"
+    assert "d.ready" in _JS
+    for reason in ("config", "unknown"):  # build/config failures render by reason
+        assert f'reason === "{reason}"' in _JS, f"status renderer does not branch on '{reason}'"
+
+
+def test_connector_status_uses_semantic_severity_classes():
+    """UX-003: status severity maps to the app's green/amber/red scale (not glyph-only), and
+    every class the JS emits is actually styled."""
+    for cls in ("status-ready", "status-warn", "status-error"):
+        assert cls in _JS, f"connectorStatusClass does not produce '{cls}'"
+        assert f"#connectorStatus.{cls}" in _MARKUP, f"CSS missing a rule for '{cls}'"
+
+
+def test_material_hidden_note_is_present_and_wired():
+    """UX-002: a dedicated note surfaces WHY a material is hidden for the selected printer."""
+    assert 'id="materialHiddenNote"' in _MARKUP
+    assert "materialHiddenNote" in _JS

@@ -97,20 +97,28 @@ yet).
 mock OctoPrint server), or downloaded; status flows through. **Needs:** target box + a mock
 printer (both met on the dev box). **Size:** ~1 week.
 
-## Stage 3 — Printer coverage + ready/not-ready UI (software-complete)
+## Stage 3 — Printer coverage + ready/not-ready UI (software-complete)  🚧 IN PROGRESS
 **Goal:** multi-brand support and live status, all built and mock-tested.
-- MCP coverage for OctoPrint, Klipper/Moonraker, Bambu, Prusa Connect, Creality; per-printer
-  capability/status checks; a "ready / not ready" UI; honest labeling (nothing is
-  hardware-verified until Kim's beta).
-- Tested against each printer-API contract via mocks/emulators.
-- **Per-printer material tuning:** today non-PLA materials slice with the vendor-neutral
-  "Generic <MATERIAL>" filament profile on every printer (fine for PLA, approximate for
-  PETG/TPU/ABS on a non-Bambu machine). Wire per-printer, per-material filament profiles
-  (the Elegoo and Bambu trees both ship them), and verify each printer's build volume
-  against the real machine — the same "config claims what the files/hardware back" check
-  that the Elegoo miss flagged.
-**Exit:** any supported brand selectable with live (emulated) status; the ready/not-ready UI
-works. **Needs:** target box + emulators. **Size:** ~1.5–2 weeks.
+- ✅ **Connector coverage:** OctoPrint (Stage 2) + **Moonraker/Klipper** + **PrusaLink/Prusa**,
+  each a real REST connector over stdlib `urllib` with a runnable mock server, plus KimCad's own
+  MCP server exposing send-to-printer as agent tools. (Bambu-native and the Creality/Prusa-Connect
+  cloud paths are still gaps — see below.)
+- ✅ **Per-printer, per-material filament profiles, honestly:** the cross-vendor
+  "Generic <MATERIAL>" fallback was **removed** (it mis-resolved e.g. Elegoo + TPU to a Bambu
+  profile); each printer is offered only the materials it has a verified profile for (the Elegoo
+  Neptune 4 Max ships no TPU, so TPU is "not available" for it). Every Kim printer × material that
+  *is* offered resolves and live-slices to proven G-code.
+- ✅ **Ready / not-ready connection-status UI:** a per-connection badge (ready / busy / offline /
+  needs-setup / simulation) that never 5xxes and never leaks a credential, with a typed `reason`
+  vocabulary shared across status and send.
+- ✅ Tested against each printer-API contract via mocks/emulators; an independent (Codex) re-audit
+  gate-checked the work.
+- **Still a gap:** a **Bambu-native** connector (the v3.0 spec finishes it via `bambulabs-api`),
+  and the Creality-Connect / Prusa-Connect cloud paths. The stage `audit-team` gate + tag are
+  pending.
+**Exit (met for the shipped connectors):** OctoPrint / Moonraker / PrusaLink selectable with live
+(emulated) status; the ready/not-ready UI works. **Still pending:** a Bambu-native connector and
+the stage `audit-team` gate + tag. **Needs:** target box + emulators. **Size:** ~1.5–2 weeks.
 
 ## Stage 4 — Web UI to a genuinely usable product
 **Goal:** the browser app is a coherent tool end to end.

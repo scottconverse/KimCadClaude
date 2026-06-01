@@ -29,6 +29,7 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from kimcad.printability import dim_tolerance
 
@@ -148,14 +149,23 @@ def web_options(config: Any) -> dict[str, Any]:
     the UI can mark any printer configured without one as not-yet-sliceable instead of
     letting the user pick one that will only refuse. (All three currently configured
     printers — Bambu P2S, Bambu A1, Elegoo Neptune 4 Max — are sliceable.)"""
-    printers = [
-        {
+    def _printer_entry(key: str) -> dict[str, Any]:
+        p = config.printer(key)
+        fp = p.orca_filament_profiles
+        return {
             "key": key,
-            "name": config.printer(key).name,
-            "sliceable": config.printer(key).orca_process_profile is not None,
+            "name": p.name,
+            "sliceable": p.orca_process_profile is not None,
+            # Materials this printer can actually print (has a verified filament profile for),
+            # so the UI offers only what each printer supports — e.g. the Elegoo Neptune 4 Max
+            # has no shipped TPU profile, so it doesn't offer TPU.
+            "materials": list(fp.keys()),
+            # Of those, the ones still using a vendor "Generic <MAT>" profile (vs a tuned,
+            # brand-specific one) — so the UI can honestly flag only the generic combinations.
+            "generic_materials": [m for m, name in fp.items() if name.startswith("Generic")],
         }
-        for key in config.raw.get("printers", {})
-    ]
+
+    printers = [_printer_entry(key) for key in config.raw.get("printers", {})]
     materials = [
         {"key": key, "name": config.material(key).name}
         for key in config.raw.get("materials", {})
@@ -190,13 +200,16 @@ def slice_registered_mesh(
             binary=config.binary_path("orcaslicer"),
             out_dir=mesh_path.parent,
             settings=settings,
-            # ENG-005: a per-(printer,material) basename so slicing the same mesh for a
-            # different printer/material writes a distinct file rather than overwriting.
-            basename=f"{mesh_path.name.split('.')[0]}_{printer.key}_{material.key}",
+            # ENG-005: a per-(printer,material) basename so slicing the same mesh for a different
+            # printer/material writes a distinct file rather than overwriting. The mesh is always
+            # named `part.oriented.<suffix>` by the pipeline, so the segment before the first dot
+            # is the stable base name.
+            basename=f"{mesh_path.name.partition('.')[0]}_{printer.key}_{material.key}",
             timeout_s=config.limit("slice_timeout_s"),
         )
     except OrcaProfileError as e:
-        # Capability gap (printer not yet sliceable) — a known limitation, not an error.
+        # Profile gap (printer has no process profile, or this material isn't available on it)
+        # — a known limitation, not an operational error. The note names the specific cause.
         return {"sliced": False, "reason": "no_profile", "note": str(e)}, None
     except SliceError as e:
         # Operational failure on a sliceable printer (bad slice / timeout).
@@ -231,6 +244,12 @@ def make_handler(
     # ENG-004: bounded LRU-by-insertion registries — oldest entries evicted past the cap.
     registry: "OrderedDict[int, Path]" = OrderedDict()
     gcode_registry: "OrderedDict[int, Path]" = OrderedDict()
+    # ENG-001 (gate safety): the printability verdict per design id, so the web slice/send
+    # endpoints can refuse a gate-FAILED part server-side. The CLI already refuses to send a
+    # gate-failed part; the web orchestrator must too, so a direct API client (not just the
+    # browser, which hides the controls) can't dispatch a part the gate rejected. Evicted in
+    # lockstep with `registry` via `_evict`.
+    gate_status_by_rid: dict[int, str] = {}
     # ENG-003: cache slices by (rid, printer, material) so an identical re-confirm doesn't
     # re-run the (multi-minute, CPU-bound) slicer; serialize actual slices to protect the
     # target box and stop two OrcaSlicer runs racing on disk.
@@ -255,6 +274,7 @@ def make_handler(
         directory, so disk doesn't grow unbounded as the in-memory caps evict. Call under
         ``lock``."""
         gcode_registry.pop(rid, None)
+        gate_status_by_rid.pop(rid, None)
         for k in [k for k in slice_cache if k[0] == rid]:
             slice_cache.pop(k, None)
         shutil.rmtree(web_root / str(rid), ignore_errors=True)
@@ -317,6 +337,12 @@ def make_handler(
                 # default = the first configured connector (config order); on a
                 # no-hardware box that's the built-in "mock" loopback, intentionally.
                 self._json(200, {"connectors": conns, "default": names[0] if names else None})
+                return
+            if self.path.startswith("/api/connector-status/"):
+                # Strip any query string and URL-decode so a name with a space / non-ASCII
+                # char (the client uses encodeURIComponent) matches the configured name.
+                name = unquote(urlsplit(self.path).path.rsplit("/", 1)[-1])
+                self._handle_connector_status(name)
                 return
             if self.path.startswith("/vendor/"):
                 self._serve_vendor(self.path[len("/vendor/") :])
@@ -410,6 +436,52 @@ def make_handler(
                 return
             self._json(404, {"error": "not found"})
 
+        def _handle_connector_status(self, name: str) -> None:
+            """Live readiness of one printer connection: reachable and idle (ready), busy,
+            offline, or not set up. Treats build/config problems (e.g. a missing API key) and
+            status-read failures as non-error STATUSES, never a 5xx — and an offline printer is
+            a normal status, not an error. Queried on demand by the UI (a slow real printer is
+            shown as "checking")."""
+            from kimcad.connectors import build_connector
+            from kimcad.printer_connector import ConnectorError
+
+            simulated = False
+            try:
+                connector = build_connector(get_config(), name)
+                simulated = not getattr(connector, "drives_hardware", True)
+                st = connector.status()
+            except ConnectorError as e:
+                # `simulated` is on every branch so the UI's typed rendering never falls through
+                # (ENG-003/QA-002). A build/config failure is never a loopback, so it's False here.
+                self._json(
+                    200,
+                    {"name": name, "ready": False, "reason": e.reason,
+                     "simulated": simulated, "note": e.user_message},
+                )
+                return
+            except Exception:  # malformed config / unexpected — a non-error status, never 5xx
+                self._json(
+                    200,
+                    {"name": name, "ready": False, "reason": "error", "simulated": simulated,
+                     "note": "couldn't check this connection"},
+                )
+                return
+            ready = bool(st.online) and st.state.value == "operational"
+            # `detail` lets the UI distinguish an online-but-faulted printer's cause (e.g.
+            # "authentication failed (HTTP 401)") rather than a generic "busy" (UX-002/UX-003).
+            resp = {"name": name, "ready": ready, "online": st.online, "state": st.state.value,
+                    "detail": st.detail, "simulated": simulated}
+            # QA-001/QA-002: a not-ready live snapshot carries a typed `reason` too (not just the
+            # build/config branch), so a `reason`-only consumer (agent/MCP/future SPA) sees a
+            # uniform contract. The state maps onto the vocabulary; an online-but-faulted printer
+            # (incl. a rejected key, which status() reports as `error`) reads as `error` with
+            # `detail` naming the cause.
+            if not ready:
+                resp["reason"] = {
+                    "offline": "offline", "printing": "busy", "paused": "busy", "error": "error",
+                }.get(st.state.value, "error")
+            self._json(200, resp)
+
         def _handle_send(self, raw_id: str) -> None:
             """Send an already-sliced part (by id) to a configured connector. The POST is
             the explicit per-send confirmation (the user confirmed in the UI)."""
@@ -426,6 +498,13 @@ def make_handler(
             if gcode_path is None or not gcode_path.exists():
                 self._json(404, {"error": "Slice the part first, then send it to a printer."})
                 return
+            # ENG-001: belt-and-suspenders — a gate-FAILED part is never dispatched even if a
+            # gcode entry somehow exists (the slice guard above already blocks producing one).
+            if gate_status_by_rid.get(rid) == "fail":
+                self._json(200, {"sent": False, "reason": "gate_failed", "simulated": False,
+                                 "note": "This part failed the printability gate; it can't be "
+                                 "sent to a printer."})
+                return
             data = self._read_json_body()
             if data is None:
                 return
@@ -433,22 +512,30 @@ def make_handler(
             if not connector_name:
                 self._json(400, {"error": "No connector chosen."})
                 return
+            simulated = False
             try:
                 connector = build_connector(get_config(), connector_name)
+                simulated = not getattr(connector, "drives_hardware", True)
                 job = connector.send(gcode_path, confirm=True)
             except ConnectorError as e:
-                # not-sent is a soft outcome (offline / auth / refused / config) — the G-code
-                # is still downloadable, so report it without a 5xx. `reason` lets the UI give a
-                # typed next step; `note` is the user-facing message, not the developer detail.
-                self._json(200, {"sent": False, "reason": e.reason, "note": e.user_message})
+                # not-sent is a soft outcome (offline / auth / refused / config / busy / unknown)
+                # — the G-code is still downloadable, so report it without a 5xx. `reason` lets
+                # the UI give a typed next step; `note` is the user-facing message; `simulated`
+                # mirrors the status contract so a failed send is described as honestly as a sent
+                # one (ENG-002).
+                self._json(200, {"sent": False, "reason": e.reason,
+                                 "simulated": simulated, "note": e.user_message})
                 return
-            except Exception as e:  # never leak a traceback
+            except Exception as e:  # never leak a traceback — the class + message only, no stack
+                # QA-003 (re-audit): this last-resort 500 is for a truly UNEXPECTED error (the
+                # connectors raise typed ConnectorErrors for the expected cases). Showing the
+                # exception class + message (never the stack) is the deliberate, tested contract.
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return
             info: dict[str, Any] = {
                 "sent": True,
                 "connector": connector_name,
-                "simulated": not getattr(connector, "drives_hardware", True),
+                "simulated": simulated,
                 "job_id": job.job_id,
                 "state": job.state.value,
             }
@@ -484,6 +571,10 @@ def make_handler(
             if mesh_path is not None:
                 with lock:
                     registry[rid] = mesh_path
+                    # ENG-001: remember the gate verdict so slice/send can refuse a failed part
+                    # (default to "fail" — fail closed — if a report is somehow absent).
+                    rep = payload.get("report") or {}
+                    gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
                     # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
                     while len(registry) > MAX_REGISTRY:
                         old_rid, _ = registry.popitem(last=False)
@@ -516,6 +607,13 @@ def make_handler(
             mesh_path = registry.get(rid)
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "Design the part first, then send it to a printer."})
+                return
+            # ENG-001: a part that FAILED the printability gate is never sliced or sent — mirror
+            # the CLI's "download to inspect, never send" stance server-side (not just a hidden UI).
+            if gate_status_by_rid.get(rid) == "fail":
+                self._json(200, {"sliced": False, "reason": "gate_failed",
+                                 "note": "This part failed the printability gate; download the "
+                                 "model to inspect, but it can't be sliced or sent to a printer."})
                 return
             data = self._read_json_body()
             if data is None:

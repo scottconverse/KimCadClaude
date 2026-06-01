@@ -328,8 +328,10 @@ class Pipeline:
             try:
                 slice_result = self.slicer(mesh_path, out_dir, basename)
             except OrcaProfileError as e:
-                # Capability gap (a printer configured with no process profile) — not an error.
-                slice_error = f"not yet sliceable for this printer: {e}"
+                # A profile gap, not an operational failure: either the printer has no process
+                # profile, or this material isn't available on it. The wrapped message names
+                # which; don't pre-judge it as a printer-only gap.
+                slice_error = f"not sliceable as configured: {e}"
             except SliceError as e:
                 # An operational failure on a sliceable printer (bad slice / timeout).
                 slice_error = f"slicing failed: {e}"

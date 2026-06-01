@@ -66,6 +66,12 @@
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent-bright); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  /* UX-003: connection-status severity on the app's semantic scale (the glyph in the text
+     stays too, so colour is never the only signal). */
+  #connectorStatus.status-ready { color: var(--ok); }
+  /* UX-404: a darker amber than --warn so the small status text clears WCAG AA on the panel. */
+  #connectorStatus.status-warn { color: #946a00; }
+  #connectorStatus.status-error { color: var(--fail); }
 
   /* UX-008: technical error detail is visually subordinate to the friendly message. */
   .error-detail { font-size: 12px; color: var(--muted); margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
@@ -160,8 +166,12 @@
            control that actually sends is the connection picker below. -->
       <button id="prepare" class="secondary">Generate G-code…</button>
     </div>
-    <!-- UX-110: be honest that non-PLA materials currently use a generic profile. -->
-    <p id="materialNote" class="note hidden">Non-PLA materials use a generic filament profile for now.</p>
+    <!-- UX-110: honestly flag only the printer+material combinations that still use a
+         vendor "Generic" filament profile (the per-printer map drives this, not the name). -->
+    <p id="materialNote" class="note hidden">This printer + material uses a generic filament profile (not a tuned, brand-specific one).</p>
+    <!-- UX-002: explain WHY a material is hidden for the selected printer (a missing tuned
+         profile, not a product limitation), instead of silently dropping the option. -->
+    <p id="materialHiddenNote" class="note hidden"></p>
     <p id="printableHint" class="note hidden"></p>
     <!-- UX-105: shown when printer options failed to load, so "print" isn't silently absent. -->
     <p id="printUnavailable" class="note hidden">Printer options couldn't load — reload the page to send this to a printer. Your model download is available above.</p>
@@ -191,6 +201,8 @@
       </div>
       <button id="sendBtn" class="secondary">Send to printer…</button>
     </div>
+    <!-- Live ready/not-ready status of the selected connection (queried on demand). -->
+    <p id="connectorStatus" class="note hidden" role="status" aria-live="polite"></p>
     <div id="confirmSend" class="card hidden" tabindex="-1" style="margin-top: 14px;">
       <p id="confirmSendMsg"></p>
       <div class="row">
@@ -369,9 +381,9 @@ function parseRid(url) { const m = (url || "").match(/\/api\/mesh\/(\d+)/); retu
 function resetPrintUI() {
   stopSliceTimer();
   hide("printSection"); hide("confirmPrint"); hide("printResult"); hide("printableHint");
-  hide("materialNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
+  hide("materialNote"); hide("materialHiddenNote"); hide("printUnavailable"); hide("downloadRow"); hide("sliceCancel");
   hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
-  hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  hide("sendSection"); hide("confirmSend"); hide("sendResult"); hide("connectorStatus");
   sliceReady = false;
   $("printResult").textContent = "";
   $("sendResult").textContent = "";
@@ -384,9 +396,38 @@ async function loadOptions() {
     optionsData = await res.json();
     fillSelect($("printerSel"), optionsData.printers, optionsData.default_printer,
       (p) => p.sliceable ? p.name : p.name + " — no G-code profile yet");
-    fillSelect($("materialSel"), optionsData.materials, optionsData.default_material, (m) => m.name);
+    fillMaterialsForPrinter(optionsData.default_material);
     updatePrintableHint();
   } catch (_) { optionsFailed = true; }  // UX-105: surfaced when a gated part is shown
+}
+
+// Offer only the materials the selected printer can actually print (it has a verified
+// filament profile for them) — e.g. the Elegoo Neptune 4 Max has no TPU profile, so TPU
+// isn't offered for it. Keeps the current material if still available, else picks a default.
+function fillMaterialsForPrinter(preferKey) {
+  const p = selectedPrinter();
+  const all = (optionsData && optionsData.materials) || [];
+  const allow = (p && Array.isArray(p.materials)) ? p.materials : null;
+  const avail = allow ? all.filter((m) => allow.includes(m.key)) : all;
+  const prev = $("materialSel").value;
+  const want = (preferKey && avail.some((m) => m.key === preferKey) && preferKey) ||
+               (avail.some((m) => m.key === prev) && prev) ||
+               (avail[0] && avail[0].key);
+  fillSelect($("materialSel"), avail, want, (m) => m.name);
+  // UX-002: don't silently drop materials this printer can't print — name them and say why
+  // (a missing tuned profile, not a product limitation), so the user can switch printers.
+  const hidden = allow ? all.filter((m) => !allow.includes(m.key)) : [];
+  const note = $("materialHiddenNote");
+  if (p && hidden.length) {
+    const names = hidden.map((m) => m.name).join(", ");
+    const plural = hidden.length > 1;
+    note.textContent = `${p.name} has no tuned profile for ${names} yet, so ` +
+      `${plural ? "they aren't" : "it isn't"} offered — pick another printer to use ` +
+      `${plural ? "them" : "it"}.`;
+    show("materialHiddenNote");
+  } else {
+    hide("materialHiddenNote");
+  }
 }
 
 function fillSelect(sel, items, defKey, labelFn) {
@@ -405,16 +446,22 @@ function selectedPrinter() {
 
 function updatePrintableHint() {
   const p = selectedPrinter();
-  const ok = !p || p.sliceable;
+  const noMaterials = !!(p && Array.isArray(p.materials) && p.materials.length === 0);
+  const ok = (!p || p.sliceable) && !noMaterials;
   $("prepare").disabled = !ok;
   const hint = $("printableHint");
   if (ok) { hide("printableHint"); }
   else {
-    hint.textContent = `${p.name} doesn't have a print (G-code) profile yet — pick another printer to generate G-code. Your validated model is still available above.`;
+    hint.textContent = noMaterials
+      ? `${p.name} has no material profiles configured — pick another printer. Your validated model is still available above.`
+      : `${p.name} doesn't have a print (G-code) profile yet — pick another printer to generate G-code. Your validated model is still available above.`;
     show("printableHint");
   }
-  // UX-110: flag that a non-PLA material falls back to a generic profile.
-  if ($("materialSel").value && $("materialSel").value !== "pla") show("materialNote");
+  // UX-110: flag ONLY the printer+material combinations that actually use a generic profile
+  // (driven by the per-printer generic_materials list, not a blanket "non-PLA" assumption).
+  const mat = $("materialSel").value;
+  const generic = (p && Array.isArray(p.generic_materials)) ? p.generic_materials : [];
+  if (mat && generic.includes(mat)) show("materialNote");
   else hide("materialNote");
 }
 
@@ -453,7 +500,7 @@ async function doSlice() {
   // stale "Sent to X" / send button from the previous slice can't act on the old job.
   sliceReady = false;
   hide("sendHeading"); hide("sendIntro"); hide("sendEmpty");
-  hide("sendSection"); hide("confirmSend"); hide("sendResult");
+  hide("sendSection"); hide("confirmSend"); hide("sendResult"); hide("connectorStatus");
   $("sendResult").textContent = "";
   if (lastRid === null) return;
   const printer = $("printerSel").value, material = $("materialSel").value;
@@ -489,7 +536,7 @@ async function doSlice() {
       // capability gap of a printer configured without a process profile.
       $("printResult").textContent = "Slicing failed — please try again. " + (data.note || "");
     } else {
-      $("printResult").textContent = "Can't generate G-code for this printer yet: " + (data.note || "no profile.");
+      $("printResult").textContent = "Can't generate G-code for this combination: " + (data.note || "no profile.");
     }
   } catch (e) {
     stopSliceTimer();
@@ -515,10 +562,71 @@ function maybeShowSendSection() {
   if (!sliceReady || !connectorsData) return;
   if (connectorEntries().length) {
     show("sendHeading"); show("sendIntro"); hide("sendEmpty"); show("sendSection");
+    loadConnectorStatus();  // show the selected connection's live ready/not-ready status
   } else {
     // UX-006: a slice succeeded but no connections are configured — say so explicitly
     // instead of silently never showing the feature.
     show("sendHeading"); hide("sendIntro"); show("sendEmpty"); hide("sendSection");
+  }
+}
+
+// Live ready/not-ready status of the selected connection (Stage 3). Queried on demand so a
+// slow/unreachable real printer never blocks the page; a simulation is always ready.
+function connectorStatusText(d) {
+  if (d.simulated) return "● Simulation — always ready (no real printer is used).";
+  // A live status snapshot carries `online` + `state` — the UI renders from those (a typed
+  // `reason` also rides along, for agents). A build/config failure has no `online`; render it
+  // by `reason`. Splitting on `online` keeps an online-but-faulted printer reading "Needs
+  // attention" (not the "couldn't check" copy) even though both carry reason="error" (UX-303).
+  if (d.online !== undefined) {
+    if (!d.online) return "○ Offline — not reachable right now. You can still download the G-code.";
+    // Online but reporting a fault (a rejected request, or a printer error) is NOT "busy" (UX-003);
+    // `detail` names the cause so a bad key reads differently from a mechanical fault.
+    if (d.state === "error") return "○ Needs attention — online but reports an error" +
+      (d.detail ? ` (${d.detail})` : "") + ". Check the printer or its API key.";
+    if (d.ready) return "● Ready — online and idle.";
+    // Online, not ready, not faulted -> printing/paused. Name the state only when it's a
+    // recognized busy state (never the contradictory "(operational)") (UX-403).
+    const busy = (d.state === "printing" || d.state === "paused") ? ` (${d.state})` : "";
+    return "◐ Online but busy" + busy + ".";
+  }
+  if (d.reason === "unknown") return "○ Unknown connection — " + (d.note || "no connection by that name.");
+  if (d.reason === "config")  return "○ Needs setup — " + (d.note || "not configured.");
+  return "○ Status unavailable — " + (d.note || "couldn't check this connection.");
+}
+
+// UX-003: map a status to the app's semantic green/amber/red scale. The glyph in the text
+// stays, so colour is never the only indicator.
+function connectorStatusClass(d) {
+  if (d.simulated) return "status-ready";
+  if (d.online !== undefined) {  // a live snapshot — class from state
+    if (d.ready) return "status-ready";
+    if (d.state === "error") return "status-error";
+    return "status-warn";  // offline / busy / printing / paused
+  }
+  if (d.reason === "config" || d.reason === "unknown") return "status-warn";
+  return "status-error";  // couldn't-check
+}
+
+async function loadConnectorStatus() {
+  const name = $("connectorSel").value;
+  const el = $("connectorStatus");
+  if (!name) { hide("connectorStatus"); return; }
+  show("connectorStatus");
+  // UX-401: clear any prior severity colour before each check, so "Checking…" or a failure
+  // doesn't keep wearing a stale green/red class.
+  el.classList.remove("status-ready", "status-warn", "status-error");
+  el.textContent = `Checking ${name}…`;
+  try {
+    const res = await fetch("/api/connector-status/" + encodeURIComponent(name));
+    const d = await res.json();
+    el.textContent = connectorStatusText(d);
+    el.classList.add(connectorStatusClass(d));
+  } catch (_) {
+    // UX-402: match the server-driven copy's shape (glyph + the download reassurance).
+    el.textContent = "○ Status unavailable — couldn't check this connection. " +
+      "You can still download the G-code.";
+    el.classList.add("status-error");
   }
 }
 
@@ -543,6 +651,9 @@ async function loadConnectors() {
 
 async function doSend() {
   hide("confirmSend");
+  // UX-302: the on-demand readiness badge is a pre-send check; hide it once a send starts so a
+  // stale "● Ready" doesn't sit above the send result.
+  hide("connectorStatus");
   if (lastRid === null) return;
   const connector = $("connectorSel").value;
   $("sendBtn").disabled = true;
@@ -635,7 +746,11 @@ function showModel(url) {
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b0d11);
     camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 5000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(w, h); el.appendChild(renderer.domElement);
+    renderer.setSize(w, h);
+    // UX-407: label the WebGL canvas for assistive tech (it's otherwise an opaque element).
+    renderer.domElement.setAttribute("role", "img");
+    renderer.domElement.setAttribute("aria-label", "3D preview of the generated part");
+    el.appendChild(renderer.domElement);
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444455, 1.1));
     const dir = new THREE.DirectionalLight(0xffffff, 0.7); dir.position.set(1, 1, 2); scene.add(dir);
     if (THREE.OrbitControls) { controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; }
@@ -714,7 +829,7 @@ $("goAnswer").addEventListener("click", () => {
 $("cancel").addEventListener("click", () => { if (controller) controller.abort(); });
 
 // Send-to-printer: select printer/material, confirm explicitly, then slice.
-$("printerSel").addEventListener("change", updatePrintableHint);
+$("printerSel").addEventListener("change", () => { fillMaterialsForPrinter(); updatePrintableHint(); });
 $("materialSel").addEventListener("change", updatePrintableHint);  // UX-110 material note
 $("prepare").addEventListener("click", () => {
   // UX-101: clear any prior "Print job ready" before re-confirming (no stale download link).
@@ -753,6 +868,7 @@ $("sendBtn").addEventListener("click", () => {
   const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("confirmSend").scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
 });
+$("connectorSel").addEventListener("change", loadConnectorStatus);  // refresh status on switch
 $("confirmSendNo").addEventListener("click", () => { hide("confirmSend"); $("sendBtn").focus(); });
 $("confirmSendYes").addEventListener("click", doSend);
 

@@ -16,8 +16,6 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-import uuid
-import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -30,9 +28,13 @@ from kimcad.printer_connector import (
     PrinterState,
     PrinterStatus,
     PrintJob,
+    auth_error_if_upload_rejected,
+    decode_json,
+    encode_multipart,
     ensure_sendable,
+    extract_single_plate_gcode,
+    read_error_body,
 )
-from kimcad.slicer import MAX_GCODE_MEMBER_BYTES
 
 _ERR_BODY_CAP = 300  # bound the server error reason we surface, in chars
 
@@ -42,14 +44,9 @@ def _http_error_detail(e: urllib.error.HTTPError) -> str:
 
     OctoPrint returns a JSON ``{"error": "..."}`` body on most rejections (busy, wrong file
     type, not operational) — exactly the actionable detail a user needs. Returns a short
-    ``" — <reason>"`` suffix or ``""``. Never raises, never includes request headers (the
-    ``X-Api-Key`` is a request header, not part of the response body).
+    ``" — <reason>"`` suffix or ``""``.
     """
-    try:
-        raw = e.read(_ERR_BODY_CAP + 1) or b""
-    except Exception:
-        return ""
-    text = raw[:_ERR_BODY_CAP].decode("utf-8", "replace").strip()
+    text = read_error_body(e, cap=_ERR_BODY_CAP)
     if not text:
         return ""
     try:
@@ -58,55 +55,8 @@ def _http_error_detail(e: urllib.error.HTTPError) -> str:
             text = str(parsed["error"])
     except ValueError:
         pass
-    text = " ".join(text.split())
+    text = " ".join(text.split())  # collapse internal whitespace in the extracted reason too
     return f" — {text[:_ERR_BODY_CAP]}" if text else ""
-
-
-def _encode_multipart(
-    fields: dict[str, str], files: dict[str, tuple[str, bytes]]
-) -> tuple[bytes, str]:
-    """Encode form fields + files as ``multipart/form-data``. Returns ``(body, content_type)``."""
-    boundary = "----KimCad" + uuid.uuid4().hex
-    out: list[bytes] = []
-    for name, value in fields.items():
-        out += [
-            f"--{boundary}".encode(),
-            f'Content-Disposition: form-data; name="{name}"'.encode(),
-            b"",
-            str(value).encode(),
-        ]
-    for name, (filename, content) in files.items():
-        out += [
-            f"--{boundary}".encode(),
-            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"'.encode(),
-            b"Content-Type: application/octet-stream",
-            b"",
-            content,
-        ]
-    out += [f"--{boundary}--".encode(), b""]
-    return b"\r\n".join(out), f"multipart/form-data; boundary={boundary}"
-
-
-def _extract_gcode(gcode_3mf: Path) -> bytes:
-    """Read the embedded toolpath out of a ``*.gcode.3mf`` (already proven by the gate).
-
-    Refuses a multi-plate archive (we'd otherwise upload only the first plate while the
-    proof validated all of them) and a member larger than the proof's size cap.
-    """
-    with zipfile.ZipFile(gcode_3mf) as zf:
-        members = [n for n in zf.namelist() if n.lower().endswith(".gcode")]
-        if not members:
-            raise ConnectorError(f"{gcode_3mf.name} has no embedded .gcode to send")
-        if len(members) > 1:
-            raise ConnectorError(
-                f"{gcode_3mf.name} has {len(members)} plates; single-plate send only for now"
-            )
-        info = zf.getinfo(members[0])
-        if info.file_size > MAX_GCODE_MEMBER_BYTES:
-            raise ConnectorError(
-                f"{gcode_3mf.name} G-code is too large to send ({info.file_size} bytes)"
-            )
-        return zf.read(members[0])
 
 
 class OctoPrintConnector:
@@ -139,7 +89,7 @@ class OctoPrintConnector:
 
     def _get_json(self, path: str) -> dict[str, Any]:
         _status, raw = self._request("GET", path)
-        return json.loads(raw or b"{}")
+        return decode_json(raw, name=self.name)
 
     # --- connector contract -------------------------------------------------
     def capabilities(self) -> PrinterCapabilities:
@@ -150,7 +100,7 @@ class OctoPrintConnector:
             if e.code in (401, 403):
                 raise AuthError(
                     f"{self.name} rejected the API key (HTTP {e.code}){detail}",
-                    user_message=f"The printer '{self.name}' rejected the API key — "
+                    user_message=f"The printer '{self.name}' rejected the API key - "
                     "check that it's correct.",
                 ) from e
             raise ConnectorError(
@@ -187,13 +137,21 @@ class OctoPrintConnector:
         try:
             data = self._get_json("/api/printer")
         except urllib.error.HTTPError as e:
-            # reachable but not usable as configured — distinct from offline
+            # reachable but not usable as configured — distinct from offline. But a 5xx means
+            # the server itself is faulted, not "reachable but rejected" — keep `online` honest.
             label = "authentication failed" if e.code in (401, 403) else "request rejected"
             return PrinterStatus(
-                online=True, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
+                online=e.code < 500, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
             )
-        except (urllib.error.URLError, OSError) as e:
-            return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
+        except (urllib.error.URLError, OSError):
+            # QA-003: a clean detail, not the raw urllib/WinError string (noisy for agents).
+            return PrinterStatus(
+                online=False, state=PrinterState.offline, detail="could not connect"
+            )
+        except ConnectorError:
+            return PrinterStatus(
+                online=True, state=PrinterState.error, detail="unexpected response from printer"
+            )
         flags = (data.get("state") or {}).get("flags") or {}
         if flags.get("printing"):
             state = PrinterState.printing
@@ -214,10 +172,10 @@ class OctoPrintConnector:
 
     def send(self, gcode_path: Path, *, confirm: bool, job_name: str | None = None) -> PrintJob:
         ensure_sendable(gcode_path, confirm=confirm)
-        gcode = _extract_gcode(gcode_path)
+        gcode = extract_single_plate_gcode(gcode_path)
         base = job_name or gcode_path.name.removesuffix(".gcode.3mf")
         upload_name = base + ".gcode"
-        body, content_type = _encode_multipart(
+        body, content_type = encode_multipart(
             {"select": "true", "print": "true"}, {"file": (upload_name, gcode)}
         )
         try:
@@ -229,7 +187,7 @@ class OctoPrintConnector:
             if e.code in (401, 403):
                 raise AuthError(
                     f"{self.name} rejected the API key (HTTP {e.code}){detail}",
-                    user_message=f"The printer '{self.name}' rejected the API key — "
+                    user_message=f"The printer '{self.name}' rejected the API key - "
                     "check that it's correct.",
                 ) from e
             # The bounded server reason stays in the developer message (str(e)); the
@@ -237,10 +195,22 @@ class OctoPrintConnector:
             # common causes in plain English.
             raise ConnectorError(
                 f"{self.name} rejected the upload (HTTP {e.code}){detail}",
-                user_message=f"The printer '{self.name}' refused the job — it may be busy or "
+                user_message=f"The printer '{self.name}' refused the job - it may be busy or "
                 "the file type unsupported. Try again when it's idle.",
             ) from e
         except (urllib.error.URLError, OSError) as e:
+            # A bad API key on a large upload can surface as a mid-write connection reset (the
+            # server 401/403s and closes before draining the body) rather than the HTTPError
+            # above; re-probe the credential so it's reported as auth, not "offline" (ENG-001).
+            auth_err = auth_error_if_upload_rejected(
+                e,
+                request=self._request,
+                api_key=self._key,
+                name=self.name,
+                probe_path="/api/version",
+            )
+            if auth_err is not None:
+                raise auth_err from e
             raise PrinterOffline(
                 f"{self.name} unreachable: {e}",
                 user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
@@ -256,8 +226,14 @@ class OctoPrintConnector:
     def job_status(self, job_id: str) -> PrintJob:
         try:
             data = self._get_json("/api/job")
+        except urllib.error.HTTPError as e:
+            # HTTPError is a subclass of URLError, so it MUST be caught first — a 401/403 is a
+            # reachable-but-rejected printer, not "unreachable" (the same FIND-001 ordering fix).
+            return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
         except (urllib.error.URLError, OSError) as e:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
+        except ConnectorError:
+            return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
         completion = (data.get("progress") or {}).get("completion")
         if completion is None:
             return PrintJob(job_id=job_id, state=JobState.queued, progress=0.0)

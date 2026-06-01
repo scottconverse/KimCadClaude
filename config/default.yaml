@@ -51,9 +51,11 @@ defaults:
 
 # Build volume = [x, y, z] in mm. nozzle_diameter in mm.
 # OrcaSlicer profile names below are verified against the pinned shipped build
-# (v2.4.0-alpha resources/profiles/). A material with no entry in orca_filament_profiles
-# falls back to that material's vendor-neutral "Generic <MATERIAL>" filament. Kim's three
-# printers — Bambu P2S, Bambu A1, and the Elegoo Neptune 4 Max — are all fully sliceable.
+# (v2.4.0-alpha resources/profiles/) — each per-material filament profile is checked to
+# resolve, be compatible with the machine, and live-slice. orca_filament_profiles is the
+# SOLE source of truth per printer: a material with no entry is honestly "not available" on
+# that printer (no cross-vendor generic fallback, which could mis-slice on the wrong machine).
+# Kim's three printers — Bambu P2S, Bambu A1, and the Elegoo Neptune 4 Max — are all sliceable.
 printers:
   bambu_p2s:
     name: "Bambu Lab P2S"
@@ -61,8 +63,12 @@ printers:
     nozzle_diameter: 0.4
     orca_machine_profile: "Bambu Lab P2S 0.4 nozzle"
     orca_process_profile: "0.20mm Standard @BBL P2S"
+    # Per-material filament profiles, each verified to live-slice on this machine.
     orca_filament_profiles:
       pla: "Bambu PLA Basic @BBL P2S"
+      petg: "Generic PETG @BBL P2S"
+      tpu: "Bambu TPU 95A @BBL P2S"
+      abs: "Bambu ABS @BBL P2S"
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
   bambu_a1:
     name: "Bambu Lab A1"
@@ -73,6 +79,9 @@ printers:
     orca_process_profile: "0.20mm Standard @BBL A1"
     orca_filament_profiles:
       pla: "Bambu PLA Basic @BBL A1"
+      petg: "Bambu PETG Basic @BBL A1"
+      tpu: "Bambu TPU 95A @BBL A1"
+      abs: "Bambu ABS @BBL A1"
     reference_hardware: true          # Kim's; validated in the final beta, not yet
   elegoo_neptune_4_max:
     name: "Elegoo Neptune 4 Max"
@@ -84,6 +93,11 @@ printers:
     orca_process_profile: "0.20mm Standard @Elegoo Neptune4Max (0.4 nozzle)"
     orca_filament_profiles:
       pla: "Generic PLA @Elegoo"
+      petg: "Generic PETG @Elegoo"
+      abs: "Generic ABS @Elegoo"
+      # No TPU entry: the shipped OrcaSlicer has no TPU filament profile compatible with the
+      # Neptune 4 Max, so TPU is honestly NOT offered for this printer rather than silently
+      # mapped to an incompatible (Bambu) generic. (Verified: no Elegoo TPU profile ships.)
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
 
 # Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
@@ -93,9 +107,10 @@ printers:
 # the *Printability Gate* (wall-thickness check), not the slice. At slice time the
 # material only selects the OrcaSlicer *filament profile* — which carries its own
 # temps/flow — so changing nozzle_temp here does not change the sliced temperatures.
-# Non-PLA materials currently fall back to the vendor-neutral "Generic <MATERIAL>"
-# filament (BBL-authored) on every printer; per-printer-tuned non-PLA profiles are a
-# Stage 3 (printer-coverage) item, validated against real hardware at Kim's.
+# Each printer maps every material it can print to a verified filament profile (see
+# orca_filament_profiles above) — Bambu-branded where one exists, an Elegoo/Generic profile
+# otherwise. A few combinations still use a vendor "Generic <MATERIAL>" profile (e.g. P2S
+# PETG, the Elegoo's PLA/PETG/ABS); the UI flags those as generic.
 materials:
   pla:   { name: "PLA",     nozzle_temp: 210, bed_temp: 55,  wall_multiplier: 2.0, shrinkage: 0.002 }
   petg:  { name: "PETG",    nozzle_temp: 240, bed_temp: 75,  wall_multiplier: 2.5, shrinkage: 0.004 }
@@ -113,6 +128,20 @@ connectors:
     type: octoprint
     base_url: http://127.0.0.1:5000   # your OctoPrint instance
     api_key_env: OCTOPRINT_API_KEY    # set this env var to your OctoPrint API key
+  # Klipper printers (via Moonraker): Creality w/ Klipper, Voron, RatRig, Mainsail/Fluidd.
+  # Uncomment + point base_url at your printer. The API key is OPTIONAL (Moonraker often runs
+  # unauthenticated on a trusted LAN); set api_key_env only if your [authorization] requires it.
+  # moonraker:
+  #   type: moonraker
+  #   base_url: http://127.0.0.1:7125
+  #   api_key_env: MOONRAKER_API_KEY
+  # Prusa printers (via PrusaLink): MK4 / MK3.9 / MINI / XL. The API key is in the printer's
+  # PrusaLink settings; set it in the named env var. base_url is the printer's IP.
+  # prusalink:
+  #   type: prusalink
+  #   base_url: http://192.168.0.50
+  #   api_key_env: PRUSALINK_API_KEY
+  #   storage: usb        # target storage; "usb" (MK4/XL default) or "local" (e.g. MINI/SD)
 
 limits:
   openscad_timeout_simple_s: 30

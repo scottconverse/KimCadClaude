@@ -18,8 +18,9 @@ the config references profiles by *name* (e.g. "Bambu Lab P2S 0.4 nozzle"). The
 shipped build keeps those JSONs under ``<binary_dir>/resources/profiles/<Vendor>/
 {machine,filament,process}/<name>.json``. :func:`resolve_slice_settings` maps a
 configured :class:`~kimcad.config.Printer` + :class:`~kimcad.config.Material` to the
-three on-disk JSONs :func:`slice_model` needs, falling back to the generic
-``Generic <MATERIAL>`` filament when a printer has no material-specific entry.
+three on-disk JSONs :func:`slice_model` needs. The printer's per-material filament map is
+the sole source of truth: a material with no entry is "not available" on that printer
+(no cross-vendor generic fallback that could mis-slice on the wrong machine).
 """
 
 from __future__ import annotations
@@ -90,7 +91,11 @@ class GcodeProofFailed(SliceFailed):
 
 
 # Proof bounds (ENG-002): a sliced 3MF is the slicer's own output, but a pathological or
-# zip-bomb archive must not be able to pin a core / exhaust memory during the proof.
+# zip-bomb archive must not be able to pin a core / exhaust memory during the proof. NOTE
+# (ENG-004): this caps members for the zip-bomb guard, but the send path
+# (`extract_single_plate_gcode`) accepts a SINGLE plate only — KimCad produces single-plate
+# slices today, so a >1-plate archive would prove OK yet be refused at send. Keep the two
+# layers aligned: if multi-plate slicing ever ships, teach the connectors to upload N files.
 _MAX_GCODE_MEMBERS = 64
 MAX_GCODE_MEMBER_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed per .gcode member
 
@@ -292,15 +297,6 @@ def _scan_estimate(line: str, est: dict[str, Any]) -> None:
 
 # --- profile name -> on-disk JSON resolution ----------------------------------
 
-# Materials with no printer-specific filament entry fall back to the shipped
-# vendor-neutral generic for that material. Keys match config material keys.
-_GENERIC_FILAMENT = {
-    "pla": "Generic PLA",
-    "petg": "Generic PETG",
-    "tpu": "Generic TPU",
-    "abs": "Generic ABS",
-}
-
 
 def _find_profile_json(root: Path, kind: str, name: str) -> Path:
     """Locate ``<name>.json`` of a given ``kind`` ('machine' | 'process' | 'filament')
@@ -356,13 +352,15 @@ def resolve_slice_settings(
             f"printer {printer.key!r} ({printer.name}) has no OrcaSlicer process "
             "profile configured — slicing is not wired for this printer yet"
         )
-    filament_name = printer.orca_filament_profiles.get(material.key) or _GENERIC_FILAMENT.get(
-        material.key
-    )
+    # The per-printer map is the sole source of truth: a material a printer can't print
+    # (no compatible, verified filament profile) is honestly "not available" rather than
+    # silently mapped to an incompatible vendor-neutral generic (which would slice plausible
+    # but wrong G-code on the wrong machine). Each configured name is verified to live-slice.
+    filament_name = printer.orca_filament_profiles.get(material.key)
     if not filament_name:
         raise OrcaProfileError(
-            f"no filament profile configured for material {material.key!r} on printer "
-            f"{printer.key!r}, and no generic fallback is known"
+            f"material {material.key!r} is not available on printer {printer.name!r} "
+            f"({printer.key!r}): no filament profile is configured for it on this printer"
         )
     return SliceSettings(
         machine=_find_profile_json(profiles_root, "machine", printer.orca_machine_profile),
