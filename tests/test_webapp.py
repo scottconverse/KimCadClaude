@@ -60,6 +60,29 @@ def test_dim_mismatch_is_reported_per_axis(tmp_path):
     assert mesh_path is not None  # a report (and mesh) is still produced for the user
 
 
+def test_web_refuses_to_slice_a_gate_failed_part(tmp_path):
+    # ENG-001 (Blocker): the web slice endpoint refuses a part that FAILED the printability gate
+    # — mirroring the CLI, which already refuses to send one. No G-code is produced, so it can
+    # never reach a printer; a direct API client can't dispatch a gate-rejected part. (send() is
+    # also guarded server-side as defense-in-depth.)
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([50, 50, 50])), _box_renderer((20, 20, 20)))  # 50 vs 20 = FAIL
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        d = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + "/api/design", data=json.dumps({"prompt": "a block"}).encode(),
+            headers={"Content-Type": "application/json"}), timeout=10))
+        assert d["status"] == "gate_failed"
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        s = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/slice/{rid}", data=json.dumps({"printer": "x", "material": "pla"}).encode(),
+            headers={"Content-Type": "application/json"}), timeout=10))
+    assert s["sliced"] is False and s["reason"] == "gate_failed"
+    assert "gcode_url" not in s  # no G-code was produced for the failed part
+
+
 def test_clarification_payload(tmp_path):
     pipe = _pipeline(
         FakeProvider(_plan(None, open_questions=["What overall size?"])),
