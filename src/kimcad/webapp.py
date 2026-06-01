@@ -442,9 +442,12 @@ def make_handler(
                 simulated = not getattr(connector, "drives_hardware", True)
                 st = connector.status()
             except ConnectorError as e:
+                # `simulated` is on every branch so the UI's typed rendering never falls through
+                # (ENG-003/QA-002). A build/config failure is never a loopback, so it's False here.
                 self._json(
                     200,
-                    {"name": name, "ready": False, "reason": e.reason, "note": e.user_message},
+                    {"name": name, "ready": False, "reason": e.reason,
+                     "simulated": simulated, "note": e.user_message},
                 )
                 return
             except Exception:  # malformed config / unexpected — a non-error status, never 5xx
@@ -455,10 +458,12 @@ def make_handler(
                 )
                 return
             ready = bool(st.online) and st.state.value == "operational"
+            # `detail` lets the UI distinguish an online-but-faulted printer's cause (e.g.
+            # "authentication failed (HTTP 401)") rather than a generic "busy" (UX-002/UX-003).
             self._json(
                 200,
                 {"name": name, "ready": ready, "online": st.online, "state": st.state.value,
-                 "simulated": simulated},
+                 "detail": st.detail, "simulated": simulated},
             )
 
         def _handle_send(self, raw_id: str) -> None:

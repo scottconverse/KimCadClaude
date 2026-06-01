@@ -51,7 +51,7 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         known = ", ".join(config.connectors()) or "(none configured)"
         raise ConnectorError(
             f"unknown connector {name!r}; configured connectors: {known}",
-            reason="config",
+            reason="unknown",
             user_message=f"There's no printer connection named '{name}'.",
         )
     cc = config.connector_config(name)

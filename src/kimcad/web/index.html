@@ -551,9 +551,20 @@ function maybeShowSendSection() {
 // slow/unreachable real printer never blocks the page; a simulation is always ready.
 function connectorStatusText(d) {
   if (d.simulated) return "● Simulation — always ready (no real printer is used).";
-  if (d.reason === "config") return "○ Needs setup — " + (d.note || "not configured.");
-  if (d.reason === "error") return "○ Status unavailable — " + (d.note || "couldn't check.");
+  // A typed reason carries an actionable note from the backend — surface it instead of a
+  // generic label, and handle every reason so nothing falls through to "offline" (UX-002).
+  if (d.reason === "config")  return "○ Needs setup — " + (d.note || "not configured.");
+  if (d.reason === "unknown") return "○ Unknown connection — " + (d.note || "no connection by that name.");
+  if (d.reason === "auth")    return "○ Rejected — " + (d.note || "the printer rejected the API key.");
+  if (d.reason === "busy")    return "◐ Busy — " + (d.note || "the printer is busy; try again when it's idle.");
+  if (d.reason === "offline") return "○ Offline — " + (d.note || "not reachable right now. You can still download the G-code.");
+  if (d.reason === "error")   return "○ Status unavailable — " + (d.note || "couldn't check this connection.");
+  // Otherwise it's a live status snapshot from the printer.
   if (!d.online) return "○ Offline — not reachable right now. You can still download the G-code.";
+  // Online but reporting a fault (a rejected request, or a printer error) is NOT "busy" (UX-003);
+  // surface the cause so a bad key reads differently from a mechanical fault.
+  if (d.state === "error") return "○ Needs attention — online but reports an error" +
+    (d.detail ? ` (${d.detail})` : "") + ". Check the printer or its API key.";
   if (d.ready) return "● Ready — online and idle.";
   return "◐ Online but busy" + (d.state ? ` (${d.state})` : "") + ".";
 }

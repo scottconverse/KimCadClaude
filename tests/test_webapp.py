@@ -598,7 +598,10 @@ def test_connector_status_offline_printer_is_not_ready(tmp_path, monkeypatch):
     assert d["ready"] is False and d["online"] is False and d["state"] == "offline"
 
 
-def test_connector_status_unknown_is_needs_setup(tmp_path):
+def test_connector_status_unknown_name_is_typed_unknown(tmp_path):
+    # QA-003: an unknown connection name reports a distinct reason="unknown" (not "config"), so
+    # the UI can tell a typo'd name from a genuine "needs setup". ENG-003/QA-002: every branch
+    # of the endpoint carries the `simulated` field (no UI fall-through).
     import json
     import urllib.request
 
@@ -606,7 +609,8 @@ def test_connector_status_unknown_is_needs_setup(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         d = json.load(urllib.request.urlopen(
             f"http://{host}:{port}/api/connector-status/bogus", timeout=10))
-    assert d["ready"] is False and d["reason"] == "config"
+    assert d["ready"] is False and d["reason"] == "unknown"
+    assert d["simulated"] is False
 
 
 def test_connector_status_busy_is_online_but_not_ready(tmp_path, monkeypatch):
