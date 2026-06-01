@@ -132,21 +132,57 @@ that can't yet produce G-code.
 ### Send to a printer
 
 A sliced job can be sent to a **printer connection** through a swappable connector. Every
-send requires explicit confirmation and refuses anything that isn't a proven slice; no
-real hardware is driven yet (that's the final beta at Kim's), so a built-in **`mock`**
-loopback and a runnable mock OctoPrint server let you exercise the whole path on the dev
-box. Configure connections under `connectors:` in `config/default.yaml` (the shipped ones
-are `mock` and an `octoprint` whose API key is read from an env var, never stored).
+send requires explicit confirmation and refuses anything that isn't a proven slice. **No real
+hardware is driven yet** (that's the final beta at Kim's) — every connector is exercised against
+a runnable mock server on the dev box, so the path is *software-complete and mock-tested*, not
+hardware-verified.
 
-- **CLI:** `kimcad design "a cable clip" --send mock` slices and sends (the `--send` flag
-  is the explicit confirmation). A real printer: `--send octoprint` (with
-  `OCTOPRINT_API_KEY` set). If the printer is offline/unreachable, it says so and leaves
-  the G-code on disk.
-- **Web:** after a slice, pick a connection and confirm to send; the result shows the job
-  + printer status, and the download stays as the fallback.
-- **Agent / MCP:** `python -m kimcad.mock_printer` runs a mock printer, and
-  `python -m kimcad.mcp_server` exposes the printer as MCP tools (list connections, status,
-  capabilities, and a confirmation-gated `send_print`) so an agent can drive it.
+**Supported connections** (configure them under `connectors:` in `config/default.yaml`):
+
+| Type | Printers | Config fields |
+|---|---|---|
+| `loopback` | the built-in **`mock`** simulation (no hardware) | — |
+| `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
+| `moonraker` | Klipper via Moonraker — Creality-Klipper, Voron, RatRig, Mainsail/Fluidd | `base_url`, optional `api_key_env` (Moonraker often runs unauthenticated on a trusted LAN) |
+| `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
+
+A connection's credential is always read from an **environment variable** (named by
+`api_key_env`), never stored in config and never logged. Each connection is flagged `simulated`,
+so the UI labels a no-hardware connection honestly rather than narrating a mock send as a real
+print.
+
+- **CLI:** `kimcad design "a cable clip" --send mock` slices and sends (the `--send` flag is the
+  explicit confirmation). A real connection: `--send octoprint` / `--send moonraker` /
+  `--send prusalink`. If the printer is offline/unreachable, it says so and leaves the G-code on
+  disk; a part that failed the printability gate is never sent.
+- **Web:** after a slice, pick a connection and confirm to send. A live **ready / not-ready badge**
+  shows whether the chosen connection is reachable and idle, and the download stays as the fallback.
+- **Agent / MCP:** `python -m kimcad.mcp_server` exposes the printer as MCP tools (list
+  connections, status, capabilities, and a confirmation-gated `send_print`) so an agent can drive
+  it. Runnable mock servers back each connector for offline testing: `python -m kimcad.mock_printer`
+  (OctoPrint), `python -m kimcad.mock_moonraker`, and `python -m kimcad.mock_prusalink`.
+
+**Materials are per-printer-honest.** A printer is only offered the materials it has a verified
+filament profile for — e.g. the Elegoo Neptune 4 Max ships no TPU profile, so TPU is *not* offered
+for it (rather than silently substituting another vendor's profile). The web UI says which
+materials are hidden for the selected printer, and why.
+
+**Connector response reasons.** A send or a status check that isn't "ready" carries a typed
+`reason` (so the UI and any agent can branch on *why*, not on message text) plus a plain-English
+`note`:
+
+| `reason` | Meaning | Appears on |
+|---|---|---|
+| `config` | misconfigured connection (missing credential / `base_url`) | status, send |
+| `unknown` | no configured connection by that name (a typo) | status, send |
+| `auth` | reachable, but the credential was rejected | status, send |
+| `offline` | the printer could not be reached | status, send |
+| `busy` | the printer refused the job because it's busy (retry when idle) | send |
+| `bad_response` | the endpoint answered, but not with the expected JSON (wrong device) | status, send |
+| `error` | a generic / uncategorized failure | status, send |
+
+> **Running from a source checkout?** Install the package editable first (see [Setup](#setup)) so
+> the `kimcad` command and the `python -m kimcad.*` modules resolve; otherwise set `PYTHONPATH=src`.
 
 To try the OctoPrint path with no hardware (the mock defaults to port `5000`, matching the
 shipped `octoprint` connector's `base_url`):

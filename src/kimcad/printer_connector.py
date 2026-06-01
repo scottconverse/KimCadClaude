@@ -39,10 +39,26 @@ from kimcad.slicer import MAX_GCODE_MEMBER_BYTES, GcodeProofFailed, prove_gcode_
 class ConnectorError(Exception):
     """Base class for send-to-printer failures.
 
-    Carries a machine-readable ``reason`` (so a caller can branch on *why* a send failed —
-    ``"auth"`` vs ``"offline"`` vs ``"config"`` — instead of string-matching the message)
-    and a ``user_message`` (plain, non-developer phrasing that is safe to show an end user).
-    ``str(self)`` stays the developer-facing detail, which may name an env var, a URL, etc.
+    Carries a machine-readable ``reason`` (so a caller can branch on *why* a send failed
+    instead of string-matching the message) and a ``user_message`` (plain, non-developer
+    phrasing that is safe to show an end user). ``str(self)`` stays the developer-facing
+    detail, which may name an env var, a URL, etc.
+
+    Reason vocabulary (ENG-003 — the single source of truth; keep the web UI's
+    ``connectorStatusText`` and any MCP/agent consumers exhaustive against this set, and the
+    README "Connector response reasons" table in sync):
+
+    - ``"config"``       — misconfigured connection (missing API key / base_url).
+    - ``"unknown"``      — no configured connection by that name (a typo, not a setup task).
+    - ``"auth"``         — reachable but the printer rejected the credentials (bad API key).
+    - ``"offline"``      — the printer could not be reached.
+    - ``"busy"``         — the printer refused the job because it's busy (retry when idle).
+    - ``"bad_response"`` — the endpoint answered but not with the expected JSON (wrong device).
+    - ``"not_confirmed"``— a send was attempted without the explicit per-send confirmation.
+    - ``"error"``        — generic / uncategorized failure (the base default).
+
+    ``reason`` appears on ``/api/connector-status`` (``config``/``unknown`` from build, or a
+    live status) and on ``/api/send`` soft-failures (any of the above).
     """
 
     reason = "error"
