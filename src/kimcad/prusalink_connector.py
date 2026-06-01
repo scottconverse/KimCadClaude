@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,8 @@ from kimcad.printer_connector import (
     PrinterState,
     PrinterStatus,
     PrintJob,
+    auth_error_if_upload_rejected,
+    decode_json,
     ensure_sendable,
     extract_single_plate_gcode,
     read_error_body,
@@ -115,7 +118,7 @@ class PrusaLinkConnector:
 
     def _get_json(self, path: str) -> dict[str, Any]:
         _status, raw = self._request("GET", path)
-        return json.loads(raw or b"{}")
+        return decode_json(raw, name=self.name)
 
     # --- connector contract -------------------------------------------------
     def capabilities(self) -> PrinterCapabilities:
@@ -155,11 +158,17 @@ class PrusaLinkConnector:
             printer = self._printer_block()
         except urllib.error.HTTPError as e:
             label = "authentication failed" if e.code in (401, 403) else "request rejected"
+            # A 5xx means the server itself is faulted, not "reachable but rejected" — keep
+            # `online` honest by reporting it as not-online.
             return PrinterStatus(
-                online=True, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
+                online=e.code < 500, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
             )
         except (urllib.error.URLError, OSError) as e:
             return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
+        except ConnectorError:
+            return PrinterStatus(
+                online=True, state=PrinterState.error, detail="unexpected response from printer"
+            )
         raw = str(printer.get("state") or "").lower()
         # Unknown beats wrong: an UNRECOGNIZED non-empty state (e.g. a future firmware state)
         # reports as `error` (needs attention), never silently as "ready". An empty/missing
@@ -178,7 +187,12 @@ class PrusaLinkConnector:
         gcode = extract_single_plate_gcode(gcode_path)
         base = job_name or gcode_path.name.removesuffix(".gcode.3mf")
         upload_name = base + ".gcode"
-        path = f"/api/v1/files/{self._storage}/{upload_name}"
+        # Percent-encode each path segment so a job name with a space / # / ? / % produces a
+        # well-formed request target that round-trips through the server's unquote (ENG-002).
+        path = (
+            f"/api/v1/files/{urllib.parse.quote(self._storage, safe='')}"
+            f"/{urllib.parse.quote(upload_name, safe='')}"
+        )
         try:
             status, _raw = self._request(
                 "PUT",
@@ -200,8 +214,10 @@ class PrusaLinkConnector:
                 ) from e
             if e.code == 409:
                 # PrusaLink returns 409 Conflict when it's busy / can't accept the job now.
+                # A typed `busy` reason lets a UI offer a "retry when idle" affordance (QA-005).
                 raise ConnectorError(
                     f"{self.name} is busy and refused the upload (HTTP 409){detail}",
+                    reason="busy",
                     user_message=f"The printer '{self.name}' is busy. Try again when it's idle.",
                 ) from e
             raise ConnectorError(
@@ -210,6 +226,18 @@ class PrusaLinkConnector:
                 "the file type unsupported. Try again when it's idle.",
             ) from e
         except (urllib.error.URLError, OSError) as e:
+            # A bad API key on a large upload can surface as a mid-write connection reset (the
+            # server 401s and closes before draining the body) rather than the HTTPError above;
+            # re-probe the credential so it's reported as auth, not "offline" (ENG-001).
+            auth_err = auth_error_if_upload_rejected(
+                e,
+                request=self._request,
+                api_key=self._key,
+                name=self.name,
+                probe_path="/api/v1/info",
+            )
+            if auth_err is not None:
+                raise auth_err from e
             raise PrinterOffline(
                 f"{self.name} unreachable: {e}",
                 user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
@@ -228,6 +256,8 @@ class PrusaLinkConnector:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
         except (urllib.error.URLError, OSError) as e:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
+        except ConnectorError:
+            return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
         printer = data.get("printer") or {}
         prusa_state = str(printer.get("state") or "").lower()
         job = data.get("job") or {}

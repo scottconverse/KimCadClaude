@@ -37,6 +37,8 @@ from kimcad.printer_connector import (
     PrinterState,
     PrinterStatus,
     PrintJob,
+    auth_error_if_upload_rejected,
+    decode_json,
     ensure_sendable,
     extract_single_plate_gcode,
     read_error_body,
@@ -138,7 +140,7 @@ class MoonrakerConnector:
         """`GET /printer/objects/query?obj1&obj2` -> the ``result.status`` dict."""
         qs = "&".join(urllib.parse.quote(o) for o in objects)
         _status, raw = self._request("GET", f"/printer/objects/query?{qs}")
-        data = json.loads(raw or b"{}")
+        data = decode_json(raw, name=self.name)
         return (data.get("result") or {}).get("status") or {}
 
     # --- connector contract -------------------------------------------------
@@ -185,11 +187,17 @@ class MoonrakerConnector:
             status = self._query("print_stats", "extruder", "heater_bed")
         except urllib.error.HTTPError as e:
             label = "authentication failed" if e.code in (401, 403) else "request rejected"
+            # A 5xx means the server itself is faulted (Klipper down / no upstream), not
+            # "reachable but rejected" — keep `online` honest by reporting it as not-online.
             return PrinterStatus(
-                online=True, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
+                online=e.code < 500, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
             )
         except (urllib.error.URLError, OSError) as e:
             return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
+        except ConnectorError:
+            return PrinterStatus(
+                online=True, state=PrinterState.error, detail="unexpected response from printer"
+            )
         print_stats = status.get("print_stats") or {}
         raw = str(print_stats.get("state") or "").lower()
         # Unknown beats wrong: an unrecognized non-empty Klipper state reports as `error`
@@ -231,6 +239,18 @@ class MoonrakerConnector:
                 "the file type unsupported. Try again when it's idle.",
             ) from e
         except (urllib.error.URLError, OSError) as e:
+            # A bad API key on a large upload can surface as a mid-write connection reset (the
+            # server 401s and closes before draining the body) rather than the HTTPError above;
+            # re-probe the credential so it's reported as auth, not "offline" (ENG-001).
+            auth_err = auth_error_if_upload_rejected(
+                e,
+                request=self._request,
+                api_key=self._key,
+                name=self.name,
+                probe_path="/printer/objects/query?webhooks",
+            )
+            if auth_err is not None:
+                raise auth_err from e
             raise PrinterOffline(
                 f"{self.name} unreachable: {e}",
                 user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
@@ -253,6 +273,8 @@ class MoonrakerConnector:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
         except (urllib.error.URLError, OSError) as e:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
+        except ConnectorError:
+            return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
         print_stats = status.get("print_stats") or {}
         klip_state = str(print_stats.get("state") or "").lower()
         progress = (status.get("virtual_sdcard") or {}).get("progress")

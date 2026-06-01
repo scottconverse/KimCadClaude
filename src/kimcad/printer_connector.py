@@ -23,8 +23,11 @@ emulators on the dev box; no connector talks to physical hardware yet.
 
 from __future__ import annotations
 
+import json
 import threading
+import urllib.error
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -223,6 +226,65 @@ def read_error_body(e: Any, *, cap: int = 300) -> str:
     except Exception:
         return ""
     return " ".join(raw[:cap].decode("utf-8", "replace").split())
+
+
+def decode_json(raw: bytes | None, *, name: str) -> dict[str, Any]:
+    """Parse a printer's JSON response body, or raise a clean :class:`ConnectorError`.
+
+    A device that answers HTTP 200 with a non-JSON body (a captive portal, a proxy, or the
+    wrong device on the configured IP) must not surface as a raw ``JSONDecodeError`` — the
+    connector contract is "never raise an undecorated exception, never a traceback." Callers in
+    ``status()`` / ``job_status()`` catch this and degrade to an error STATUS;
+    ``capabilities()`` / ``send`` let it propagate as the typed ConnectorError it already is.
+    A non-object JSON body (a list or scalar) is treated as ``{}`` so downstream ``.get`` is safe.
+    """
+    try:
+        data = json.loads(raw or b"{}")
+    except ValueError as e:
+        raise ConnectorError(
+            f"{name} returned a non-JSON response: {e}",
+            reason="bad_response",
+            user_message=f"The printer '{name}' returned an unexpected response - it may not "
+            "be the kind of printer server KimCad expects at that address.",
+        ) from e
+    return data if isinstance(data, dict) else {}
+
+
+def auth_error_if_upload_rejected(
+    exc: BaseException,
+    *,
+    request: Callable[..., tuple[int, bytes]],
+    api_key: str | None,
+    name: str,
+    probe_path: str,
+) -> AuthError | None:
+    """Disambiguate a failed upload: an unreachable printer, or a rejected API key?
+
+    When a server rejects auth on an upload it typically sends 401 and closes the socket
+    *before draining the request body*. If the body is larger than the socket send buffer the
+    client's write fails first with a connection reset (a :class:`ConnectionError`, a subclass
+    of ``OSError`` — not a :class:`urllib.error.HTTPError`), so an upload's
+    ``except (URLError, OSError)`` arm would mislabel a bad key as "printer offline" (ENG-001).
+    Only a raw mid-write reset (``ConnectionError``, distinct from a connect-time
+    ``urllib.error.URLError``) with an API key configured is suspect; re-probe the credential
+    with a cheap authenticated GET. A 401/403 there means auth; anything else (including a
+    re-probe that is itself unreachable) falls through to "offline". Returns an
+    :class:`AuthError` to raise, or ``None`` to fall through.
+    """
+    if not (api_key and isinstance(exc, ConnectionError)):
+        return None
+    try:
+        request("GET", probe_path)
+    except urllib.error.HTTPError as probe:
+        if probe.code in (401, 403):
+            return AuthError(
+                f"{name} rejected the API key (HTTP {probe.code})",
+                user_message=f"The printer '{name}' rejected the API key - check that it's "
+                "correct.",
+            )
+    except (urllib.error.URLError, OSError):
+        pass  # genuinely unreachable on the re-probe too -> fall through to offline
+    return None
 
 
 @dataclass

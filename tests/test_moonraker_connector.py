@@ -184,3 +184,60 @@ def test_api_key_never_appears_in_error(tmp_path):
         with pytest.raises(AuthError) as exc:
             c.send(g, confirm=True)
         assert secret not in str(exc.value)
+
+
+# --- QA-001: a garbage HTTP-200 body degrades to an error STATUS, never a raw traceback ----
+
+
+def test_status_garbage_200_is_error_not_raise(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    st = c.status()
+    assert st.state is PrinterState.error and st.online is True
+
+
+def test_job_status_garbage_200_is_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    assert c.job_status("x").state is JobState.error
+
+
+def test_capabilities_garbage_200_raises_clean_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"not json"))
+    with pytest.raises(ConnectorError) as exc:
+        c.capabilities()
+    assert exc.value.reason == "bad_response"
+
+
+# --- ENG-005: a 5xx means the server is faulted, reported as NOT online --------------------
+
+
+def test_status_5xx_reports_not_online(monkeypatch):
+    import urllib.error
+
+    c = _connector("http://x")
+
+    def _boom(*a, **k):
+        raise urllib.error.HTTPError("http://x/q", 503, "klipper down", {}, None)
+
+    monkeypatch.setattr(c, "_request", _boom)
+    st = c.status()
+    assert st.online is False and st.state is PrinterState.error
+
+
+# --- ENG-001: a bad key on a LARGE upload is AuthError (mid-write reset), not "offline" -----
+
+
+def test_large_upload_with_wrong_key_is_auth_not_offline(tmp_path):
+    # A multi-MB body lets the server's 401-then-close race the client's write, surfacing as a
+    # connection reset rather than an HTTPError — the bug that mislabeled a bad key "offline".
+    # The connector must still report AuthError. (Outcome is AuthError whether or not the reset
+    # fires, so the assertion is stable; the deterministic probe-logic proof is in
+    # tests/test_connectors.py::test_upload_reset_with_rejected_probe_is_auth.)
+    big = "G28\n" + "G1 X1 Y1 E1\n" * 320_000  # ~4 MB of motion-bearing G-code
+    g = _write_gcode_3mf(tmp_path / "big.gcode.3mf", gcode=big)
+    with serve_mock_moonraker(api_key="the-real-key") as (base, _state):
+        c = _connector(base, key="wrong-key")
+        with pytest.raises(AuthError):
+            c.send(g, confirm=True)

@@ -290,3 +290,43 @@ def test_auth_error_carries_reason_and_user_message():
         except AuthError as e:
             assert e.reason == "auth"
             assert "API key" in e.user_message
+
+
+# --- QA-001: a garbage HTTP-200 body degrades to an error STATUS, never a raw traceback ----
+
+
+def test_status_garbage_200_is_error_not_raise(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    st = c.status()
+    assert st.state is PrinterState.error and st.online is True
+
+
+def test_job_status_garbage_200_is_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    assert c.job_status("x").state is JobState.error
+
+
+def test_capabilities_garbage_200_raises_clean_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"not json"))
+    with pytest.raises(ConnectorError) as exc:
+        c.capabilities()
+    assert exc.value.reason == "bad_response"
+
+
+# --- ENG-005: a 5xx means the server is faulted, reported as NOT online --------------------
+
+
+def test_status_5xx_reports_not_online(monkeypatch):
+    import urllib.error
+
+    c = _connector("http://x")
+
+    def _boom(*a, **k):
+        raise urllib.error.HTTPError("http://x/api/printer", 500, "boom", {}, None)
+
+    monkeypatch.setattr(c, "_request", _boom)
+    st = c.status()
+    assert st.online is False and st.state is PrinterState.error

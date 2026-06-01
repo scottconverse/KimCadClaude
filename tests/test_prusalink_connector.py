@@ -100,8 +100,9 @@ def test_send_while_printing_is_busy_conflict(tmp_path):
     with serve_mock_prusalink(step=5.0) as (base, _state):
         c = _connector(base)
         c.send(g, confirm=True)  # now printing
-        with pytest.raises(ConnectorError, match="busy"):
+        with pytest.raises(ConnectorError, match="busy") as exc:
             c.send(g, confirm=True)  # PrusaLink returns 409 while printing
+        assert exc.value.reason == "busy"  # QA-005: typed reason enables a "retry when idle" UI
 
 
 def test_wrong_api_key_is_auth_error_not_offline(tmp_path):
@@ -215,3 +216,55 @@ def test_status_temps_while_printing(tmp_path):
         st = c.status()
     assert st.state is PrinterState.printing
     assert st.nozzle_temp_c == 215.0 and st.bed_temp_c == 60.0
+
+
+# --- ENG-002: a job name with a space / # is percent-encoded and round-trips --------------
+
+
+def test_upload_filename_is_percent_encoded(tmp_path):
+    # The PrusaLink upload puts the filename in the URL path; a space/#/? must be percent-encoded
+    # so the request target is well-formed and the server's unquote recovers the real name.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_prusalink() as (base, state):
+        _connector(base).send(g, confirm=True, job_name="a b#c")
+    assert state["files"] == ["a b#c.gcode"]
+
+
+# --- QA-001: a garbage HTTP-200 body degrades to an error STATUS, never a raw traceback ----
+
+
+def test_status_garbage_200_is_error_not_raise(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    st = c.status()
+    assert st.state is PrinterState.error and st.online is True
+
+
+def test_job_status_garbage_200_is_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"<html>not json</html>"))
+    assert c.job_status("x").state is JobState.error
+
+
+def test_capabilities_garbage_200_raises_clean_error(monkeypatch):
+    c = _connector("http://x")
+    monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"not json"))
+    with pytest.raises(ConnectorError) as exc:
+        c.capabilities()
+    assert exc.value.reason == "bad_response"
+
+
+# --- ENG-005: a 5xx means the server is faulted, reported as NOT online --------------------
+
+
+def test_status_5xx_reports_not_online(monkeypatch):
+    import urllib.error
+
+    c = _connector("http://x")
+
+    def _boom(*a, **k):
+        raise urllib.error.HTTPError("http://x/status", 502, "no upstream", {}, None)
+
+    monkeypatch.setattr(c, "_request", _boom)
+    st = c.status()
+    assert st.online is False and st.state is PrinterState.error

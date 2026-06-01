@@ -29,6 +29,8 @@ from kimcad.printer_connector import (
     PrinterState,
     PrinterStatus,
     PrintJob,
+    auth_error_if_upload_rejected,
+    decode_json,
     ensure_sendable,
     extract_single_plate_gcode,
     read_error_body,
@@ -112,7 +114,7 @@ class OctoPrintConnector:
 
     def _get_json(self, path: str) -> dict[str, Any]:
         _status, raw = self._request("GET", path)
-        return json.loads(raw or b"{}")
+        return decode_json(raw, name=self.name)
 
     # --- connector contract -------------------------------------------------
     def capabilities(self) -> PrinterCapabilities:
@@ -160,13 +162,18 @@ class OctoPrintConnector:
         try:
             data = self._get_json("/api/printer")
         except urllib.error.HTTPError as e:
-            # reachable but not usable as configured — distinct from offline
+            # reachable but not usable as configured — distinct from offline. But a 5xx means
+            # the server itself is faulted, not "reachable but rejected" — keep `online` honest.
             label = "authentication failed" if e.code in (401, 403) else "request rejected"
             return PrinterStatus(
-                online=True, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
+                online=e.code < 500, state=PrinterState.error, detail=f"{label} (HTTP {e.code})"
             )
         except (urllib.error.URLError, OSError) as e:
             return PrinterStatus(online=False, state=PrinterState.offline, detail=str(e))
+        except ConnectorError:
+            return PrinterStatus(
+                online=True, state=PrinterState.error, detail="unexpected response from printer"
+            )
         flags = (data.get("state") or {}).get("flags") or {}
         if flags.get("printing"):
             state = PrinterState.printing
@@ -214,6 +221,18 @@ class OctoPrintConnector:
                 "the file type unsupported. Try again when it's idle.",
             ) from e
         except (urllib.error.URLError, OSError) as e:
+            # A bad API key on a large upload can surface as a mid-write connection reset (the
+            # server 401/403s and closes before draining the body) rather than the HTTPError
+            # above; re-probe the credential so it's reported as auth, not "offline" (ENG-001).
+            auth_err = auth_error_if_upload_rejected(
+                e,
+                request=self._request,
+                api_key=self._key,
+                name=self.name,
+                probe_path="/api/version",
+            )
+            if auth_err is not None:
+                raise auth_err from e
             raise PrinterOffline(
                 f"{self.name} unreachable: {e}",
                 user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
@@ -235,6 +254,8 @@ class OctoPrintConnector:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
         except (urllib.error.URLError, OSError) as e:
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
+        except ConnectorError:
+            return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
         completion = (data.get("progress") or {}).get("completion")
         if completion is None:
             return PrintJob(job_id=job_id, state=JobState.queued, progress=0.0)

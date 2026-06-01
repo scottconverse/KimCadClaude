@@ -1,4 +1,6 @@
-"""Tests for the connector factory (Stage 2, Slice 4)."""
+"""Tests for the connector factory (Stage 2, Slice 4) + shared connector helpers (Stage 3)."""
+
+import urllib.error
 
 import pytest
 
@@ -6,7 +8,13 @@ from kimcad.config import Config
 from kimcad.connectors import build_connector, connector_is_simulated
 from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
-from kimcad.printer_connector import ConnectorError, LoopbackConnector
+from kimcad.printer_connector import (
+    AuthError,
+    ConnectorError,
+    LoopbackConnector,
+    auth_error_if_upload_rejected,
+    decode_json,
+)
 from kimcad.prusalink_connector import PrusaLinkConnector
 
 
@@ -133,3 +141,118 @@ def test_unknown_connector_name_errors():
 def test_unknown_connector_type_errors():
     with pytest.raises(ConnectorError, match="unknown type"):
         build_connector(_config({"weird": {"type": "telepathy"}}), "weird")
+
+
+# --- decode_json: a non-JSON HTTP-200 body raises a clean ConnectorError (QA-001) ---------
+
+
+def test_decode_json_parses_object():
+    assert decode_json(b'{"a": 1}', name="x") == {"a": 1}
+
+
+def test_decode_json_empty_is_empty_dict():
+    assert decode_json(b"", name="x") == {}
+    assert decode_json(None, name="x") == {}
+
+
+def test_decode_json_non_object_is_empty_dict():
+    # A JSON list/scalar is coerced to {} so downstream `.get` is safe (a printer that answers
+    # 200 with `[]` must not become an AttributeError later).
+    assert decode_json(b"[1, 2, 3]", name="x") == {}
+    assert decode_json(b"42", name="x") == {}
+
+
+def test_decode_json_garbage_raises_clean_connector_error():
+    # A captive portal / wrong device answering 200 with HTML must surface as a typed, clean
+    # ConnectorError — never a raw JSONDecodeError traceback.
+    with pytest.raises(ConnectorError) as exc:
+        decode_json(b"<html>not json</html>", name="my-printer")
+    assert exc.value.reason == "bad_response"
+    assert "my-printer" in exc.value.user_message
+    assert "unexpected response" in exc.value.user_message
+
+
+# --- auth_error_if_upload_rejected: a mid-upload reset on a bad key -> AuthError (ENG-001) --
+#
+# A server that rejects auth on an upload sends 401 and closes before draining the body; on a
+# large body the client's write fails first with a connection RESET (a ConnectionError, not an
+# HTTPError), which would otherwise be mislabeled "offline". These cover the disambiguation
+# logic deterministically, without depending on OS socket-buffer timing.
+
+
+def _request_raising(exc):
+    def _request(method, path, **kw):
+        raise exc
+
+    return _request
+
+
+def _request_returning(status):
+    def _request(method, path, **kw):
+        return status, b""
+
+    return _request
+
+
+def _http_error(code):
+    return urllib.error.HTTPError("http://x", code, "rejected", {}, None)
+
+
+@pytest.mark.parametrize("code", [401, 403])
+def test_upload_reset_with_rejected_probe_is_auth(code):
+    err = auth_error_if_upload_rejected(
+        ConnectionResetError("reset"),
+        request=_request_raising(_http_error(code)),
+        api_key="k",
+        name="p",
+        probe_path="/probe",
+    )
+    assert isinstance(err, AuthError) and err.reason == "auth"
+
+
+def test_upload_reset_with_ok_probe_is_not_auth():
+    # The re-probe succeeds -> the reset wasn't auth; fall through to offline.
+    err = auth_error_if_upload_rejected(
+        ConnectionAbortedError("reset"),
+        request=_request_returning(200),
+        api_key="k",
+        name="p",
+        probe_path="/probe",
+    )
+    assert err is None
+
+
+def test_upload_reset_with_unreachable_probe_is_not_auth():
+    err = auth_error_if_upload_rejected(
+        ConnectionResetError("reset"),
+        request=_request_raising(urllib.error.URLError("down")),
+        api_key="k",
+        name="p",
+        probe_path="/probe",
+    )
+    assert err is None
+
+
+def test_non_connection_oserror_is_not_probed():
+    # A connect-time URLError (printer off) is NOT the ambiguous mid-write case -> stays offline,
+    # even though a probe would 401. Only a raw ConnectionError triggers the re-probe.
+    err = auth_error_if_upload_rejected(
+        urllib.error.URLError("refused"),
+        request=_request_raising(_http_error(401)),
+        api_key="k",
+        name="p",
+        probe_path="/probe",
+    )
+    assert err is None
+
+
+def test_no_api_key_is_not_probed():
+    # No configured key -> a reset can't be an auth rejection -> stays offline.
+    err = auth_error_if_upload_rejected(
+        ConnectionResetError("reset"),
+        request=_request_raising(_http_error(401)),
+        api_key=None,
+        name="p",
+        probe_path="/probe",
+    )
+    assert err is None
