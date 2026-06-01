@@ -42,7 +42,23 @@ text-bearing fill); **UX-001** viewport lacks the design's dimension pills + bbo
 README/ARCHITECTURE overclaim a browser "send to printer" that doesn't exist — **DESCOPE the doc** (send is
 Stage 10), don't build it; **DOC-402** no CHANGELOG Stage-4 entry (+ stale vanilla-UI lines); **ENG-401**
 CI should assert committed build == fresh build. **NOT merged/tagged — the 0/0/0/0/0 bar is not met.**
-(This was a context-forced stop after completing all 5 slices + the gate — not a chosen checkpoint.)
+
+**FIX PROGRESS — 10 of 34 done + pushed** (head `d39a9ee`): batch 1 (`2603566`) = **TEST-001** (the
+spell-checker contract test — now strips comments + requires `.field`/quoted literals, proven to bite),
+**DOC-401** (descoped the browser-"send" overclaim in README + ARCHITECTURE), **DOC-402** (CHANGELOG
+Stage-4 entry), DOC-403/404 (frontend/README), DOC-406 (App comment). Batch 2 (`d39a9ee`) = **ENG-401**
+(ci.sh now asserts committed SPA build == fresh build), ENG-408 (frontend release gate), TEST-004 (code-
+split now fingerprints three.js IN the chunk / ABSENT from the entry), TEST-003 (vitest branch cases, 14).
+**All 4 doc/test/CI Majors done.** **REMAINING (24): 2 Majors — UX-003** (primary-button text contrast
+< WCAG-AA: white on `#c8623a` = 3.99:1; darken the text-bearing fill) **+ UX-001** (viewport lacks the
+design's dimension pills + bbox + drag hint) — plus the UX Minor/Nit batch (UX-002 wireframe, UX-004
+touch-targets, UX-005 mobile hero stack, UX-006 inert gear, UX-007 reduced-motion, UX-008 badge copy,
+UX-009 dynamic aria-label, UX-010/011/012) which need a rebuild + a fresh RENDERED visual recheck; the
+webapp.py polish (ENG-402 lock the reads, ENG-405 doc the fallback, QA-001 HEAD→200, QA-002 cache headers,
+QA-003 orphan-dir cleanup, QA-004 413 keep-alive) which need full-pytest re-runs; DOC-405, TEST-002
+(component-render tests or a justified deferral), TEST-005/006, ENG-403/404/406/407 (404 + 407 = verified
+no-action). **Then re-audit → 0/0/0/0/0 → merge + tag.** Each finding's detail is in the per-role deep-dives.
+(This was a context-forced stop after completing all 5 slices + the gate + 10/34 fixes — not a chosen checkpoint.)
 
 **Carried watch items:** W1 optional shared `resolve()`-containment hardening for `/assets/` + `/vendor/`;
 W2 reinstate field-contract tests (Slice 4/5); W3 DONE (prebuild clean); W4 pixel visual review at the
