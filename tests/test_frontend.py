@@ -102,15 +102,18 @@ def _strip_ts_comments(src: str) -> str:
 
 
 # "Consumer" source = the components/logic that USE the wire fields, COMMENTS STRIPPED, with the
-# api.ts type declaration + *.test.ts excluded (declaring/naming a field is not consuming it).
-# The field checks below require a real property ACCESS (`.<field>`) or a quoted literal — so a
-# className like `kc-dims`, a JSDoc mention, or a test reference can NOT satisfy the contract.
-# (Hardened after the Stage-4 audit-team mutation-proved the prior bare-substring grep was a
-# spell-checker: deleting the whole printability panel left it green except `headline`.)
+# api.ts type declaration, the *.test.ts files, AND the `viewport/` 3D-engine module excluded.
+# (Declaring/naming a field is not consuming it; and `viewport/KCViewport.ts` has a three.js
+# bounding-box member `this.dims` whose `.dims` access is unrelated to the backend `report.dims`
+# — a cross-module name collision that would let `dims` false-pass, caught by the re-audit.) The
+# field checks below require a real property ACCESS (`.<field>`) or a quoted literal, so a
+# className like `kc-dims`, a JSDoc mention, a test reference, or the viewport's own `.dims` can
+# NOT satisfy the contract. (Hardened after the audit-team mutation-proved the prior bare-substring
+# grep was a spell-checker: deleting the whole printability panel left it green except `headline`.)
 _TS_CONSUMERS = "\n".join(
     _strip_ts_comments(p.read_text(encoding="utf-8"))
     for p in _TS_FILES
-    if p.name != "api.ts" and ".test." not in p.name
+    if p.name != "api.ts" and ".test." not in p.name and p.parent.name != "viewport"
 )
 
 

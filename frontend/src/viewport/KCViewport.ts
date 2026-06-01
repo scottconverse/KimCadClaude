@@ -308,6 +308,13 @@ export class KCViewport {
     window.addEventListener('resize', onWinResize)
     this.cleanups.push(() => window.removeEventListener('resize', onWinResize))
 
+    // Robustness: if the WebGL context is lost (a driver hiccup, or too many live contexts after
+    // repeated reloads), prevent the default teardown so the browser can RESTORE it — the rAF
+    // loop then resumes rendering. Without this a lost context silently freezes the viewport.
+    const onContextLost = (e: Event) => e.preventDefault()
+    canvas.addEventListener('webglcontextlost', onContextLost, false)
+    this.cleanups.push(() => canvas.removeEventListener('webglcontextlost', onContextLost))
+
     let px = 0
     let py = 0
     const move = (e: PointerEvent) => {
