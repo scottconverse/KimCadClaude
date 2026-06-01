@@ -1,5 +1,6 @@
 import type { DesignResponse } from '../api'
 import { gateLabel, gateTone } from '../designStatus'
+import ExportPanel from './ExportPanel'
 
 // Right column — parameters + printability, rendered from the design result.
 // Parameters are READ-ONLY in Stage 4 (live sliders are Stage 5). The printability card shows
@@ -100,6 +101,7 @@ export default function RightPanel({ result }: { result: DesignResponse | null }
     <aside className="kc-col-right">
       <ParametersCard result={result} />
       <PrintabilityCard result={result} />
+      <ExportPanel result={result} />
     </aside>
   )
 }

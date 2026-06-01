@@ -762,3 +762,99 @@ input {
 .kc-finding-warn::before {
   background: var(--kc-warn-accent);
 }
+
+/* --------------------------------------------------- Export & print (Slice 5) */
+
+.kc-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.kc-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.kc-status-dot.kc-tone-pass {
+  background: var(--kc-pass);
+}
+.kc-status-dot.kc-tone-warn {
+  background: var(--kc-warn-accent);
+}
+.kc-status-dot.kc-tone-fail {
+  background: var(--kc-fail);
+}
+.kc-status-dot.kc-tone-neutral {
+  background: var(--kc-muted);
+}
+
+.kc-connector-name {
+  font-weight: 600;
+}
+
+.kc-connector-label {
+  color: var(--kc-muted);
+}
+
+.kc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.kc-field > span {
+  font-weight: 600;
+  color: var(--kc-muted);
+}
+
+.kc-field select {
+  padding: 8px 10px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-bg);
+  color: var(--kc-ink);
+  font-size: 13px;
+}
+
+.kc-field select:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+  border-color: var(--kc-accent);
+}
+
+.kc-slice-btn {
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.kc-slice-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kc-download {
+  justify-content: center;
+  text-decoration: none;
+}
+
+.kc-download-model {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kc-accent);
+  text-decoration: none;
+}
+
+.kc-download-model:hover {
+  text-decoration: underline;
+}
+
+.kc-export-error {
+  color: var(--kc-fail);
+}

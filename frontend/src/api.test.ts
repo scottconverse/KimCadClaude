@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { postDesign } from './api'
+import { designIdFromMeshUrl, getOptions, postDesign, postSlice } from './api'
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
 function mockFetch(impl: () => Promise<unknown>) {
-  vi.stubGlobal('fetch', vi.fn(impl))
+  const fn = vi.fn(impl)
+  vi.stubGlobal('fetch', fn)
+  return fn
 }
 
 describe('postDesign', () => {
@@ -39,5 +41,44 @@ describe('postDesign', () => {
       },
     }))
     await expect(postDesign('x')).rejects.toThrow(/unreadable/i)
+  })
+})
+
+describe('designIdFromMeshUrl', () => {
+  it('extracts the trailing id, or null when there is no usable id', () => {
+    expect(designIdFromMeshUrl('/api/mesh/7')).toBe(7)
+    expect(designIdFromMeshUrl('/api/mesh/42')).toBe(42)
+    expect(designIdFromMeshUrl(undefined)).toBeNull()
+    expect(designIdFromMeshUrl('/api/mesh/not-a-number')).toBeNull()
+  })
+})
+
+describe('getOptions / postSlice', () => {
+  it('getOptions parses the printer/material options', async () => {
+    mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        printers: [{ key: 'p2s', name: 'P2S', sliceable: true, materials: ['pla'], generic_materials: [] }],
+        materials: [{ key: 'pla', name: 'PLA' }],
+        default_printer: 'p2s',
+        default_material: 'pla',
+      }),
+    }))
+    const options = await getOptions()
+    expect(options.printers[0].sliceable).toBe(true)
+    expect(options.default_printer).toBe('p2s')
+  })
+
+  it('postSlice POSTs to /api/slice/<id> and returns the slice result', async () => {
+    const fetchMock = mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ sliced: true, gcode_url: '/api/gcode/7', estimate: '~1h' }),
+    }))
+    const result = await postSlice(7, 'p2s', 'pla')
+    expect(result.sliced).toBe(true)
+    expect(result.gcode_url).toBe('/api/gcode/7')
+    expect(fetchMock).toHaveBeenCalledWith('/api/slice/7', expect.objectContaining({ method: 'POST' }))
   })
 })

@@ -136,6 +136,16 @@ def test_frontend_source_handles_every_pipeline_status():
         assert status_value in _TS_CONSUMERS, f"frontend does not handle status={status_value}"
 
 
+def test_frontend_source_consumes_connector_status_fields():
+    """The connection-status UI (Slice 5) consumes the typed readiness snapshot the server sends
+    (ready / online / state / reason / simulated), so the honest readiness badge can't silently
+    drop a field — and a loopback connection is shown as simulated, not narrated as real."""
+    for field in ("ready", "online", "state", "reason", "simulated"):
+        assert re.search(rf"\b{re.escape(field)}\b", _TS_CONSUMERS), (
+            f"connector-status UI does not reference '{field}'"
+        )
+
+
 def test_viewport_chunk_is_code_split_from_the_entry():
     """Stage 4 Slice 3: three.js (the 3D viewport) is lazy-loaded, so it lands in a separate
     chunk (Workspace.js) rather than bloating the initial entry bundle. The committed build
