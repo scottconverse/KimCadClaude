@@ -78,7 +78,7 @@ template engine (Stage 5) is the critical path, and UX-first + architecture-firs
   localhost-browser is the zero-dep fallback; Tauri later for one cross-OS shell.
 - Wire the existing text→plan→gate→slice→download flow through the new UI (read-only first; real
   sliders need the template engine = Stage 5).
-- First action: branch `stage-4-react-spa` off `main`, then build per the §6 process.
+- First action: branch `stage-4-react-spa-shell` off `main`, then build per the §6 process.
 
 ## 6. THE PROCESS (manual)
 

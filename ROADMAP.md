@@ -1,213 +1,212 @@
-# KimCad — Full Plan to Finished Product (reworked for the real target)
+# KimCad — Full Plan to Finished Product (v3.0 Windows beta)
 
 Every stage is a **complete, shippable deliverable** — it ends with the product working,
 tested, and committed, not a half-built slice. Each lists full scope, exit criteria,
 dependencies, and an honest size. Where something genuinely can't be proven yet, it says so.
 
+**Numbering note:** stages below use the **repo tag numbering** (`stage-0` … `stage-11`), which
+is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Windows-beta plan**
+(Stage 3 is done; Stages 4–11 are ahead). The canonical product spec is in-repo at
+`docs/design/KimCad-Unified-Product-Spec-v3.0.md` (+ the design handoff under `docs/design/`).
+
 ## The target (this is the whole game)
 - **Hardware: a 32 GB-RAM machine with an AMD 780M integrated GPU — no discrete GPU.**
   This is *both* the development target and the deployment target. If it doesn't run well
   here, it doesn't ship. There is no GPU box coming; "wait for the GPU" is off the table.
-- **Model: `gemma4:e4b`** — a small (~4B-effective) on-device model that fits and runs fast
-  on this class of machine. `gemma3:12b` was the wrong call: too big, slow, and it crashed
-  the server repeatedly. The competitor is getting real results with the small model; we
-  match the constraint instead of fighting it. **Switched in `config/default.yaml` already.**
-  The upside is huge: the benchmark/dev loop goes from ~2 h and unstable to minutes and
-  stable, so iteration stops being the bottleneck.
-- **Printers live at Kim's house, not here. Kim is the beta tester.** So *all* real-hardware
-  validation — every real print, every live printer connection — happens **only in the final
-  beta phase (Stage 10)**. Everything before that is built and tested against mocked/emulated
-  printers. **Kim's printers: several Elegoo machines + Bambu Lab P2S and A1.** So the
-  connector/profile build order in Stages 1–3 is **Bambu (P2S + A1) and Elegoo first**; other
-  brands follow as API-only coverage.
+- **Model (current): `gemma4:e4b`** — a small (~4B-effective) on-device model via local Ollama
+  that fits and runs fast on this class of machine. `gemma3:12b` was the wrong call (too big,
+  slow, crashed the server). **Stage 6 swaps the default to `Qwen2.5-Coder 1.5B`** (benchmarked
+  on the target box first) with `gemma4:e4b` kept as the non-China alternative + vision fallback,
+  per spec §7.5. Local-first; cloud is opt-in via `config/local.yaml`.
+- **Printers live at Kim's house, not here.** So *all* real-hardware validation — every real
+  print, every live printer connection — happens **only after Stage 11**: once the beta gate
+  ships the installable v3.0 Windows beta, **Kim runs that beta on her real hardware** as the
+  first real-world tester. Everything before that is built and tested against mocked/emulated
+  printers. **Kim's printers: Bambu Lab P2S + A1, and Elegoo Neptune 4 Max.**
 
 ## Confirmed deviations (do not re-add)
 P2S not P1S; code-signing dropped (unsigned beta); recruited usability study replaced by
 in-app telemetry + public beta feedback.
 
-## Current baseline (honest, as of Stage 2)
-Phase-1 pipeline + the web UI are built and tested (291 tests, ruff clean). The done-gate has
-passed **on `gemma4:e4b`** (≥ 8/10). **Stage 1** wired slicing into the normal flow behind the
-confirm gate, with a proven G-code 3MF per run (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max all
-slice live). **Stage 2** built the send-to-printer path — connector abstraction, OctoPrint
-connector + mock server, capability reconciliation, CLI `--send`, web send, and an MCP server —
-all software-complete and mock-tested. Still ahead: a one-click installer, image input, and a
-**real print on physical hardware** (Stage 10, at Kim's — nothing here has driven real hardware
-yet).
+## Current baseline (honest, as of Stage 3 — DONE, merged, tagged)
+The Phase-1 pipeline + the local web UI are built and tested. **Stage 3 is merged to `main` and
+tagged `stage-3` @ `96aba02`.** Verification: **400 tests passing** (including 4 live OrcaSlicer
+slices) and **`ruff` clean**. The pre-push hook (`.githooks/pre-push` → `scripts/ci.sh` = ruff +
+the FULL pytest incl. live) gates every push. Connectors cover OctoPrint + Moonraker/Klipper +
+PrusaLink/Prusa + a loopback mock + KimCad's own MCP server, with per-printer per-material
+profiles and a ready/not-ready status UI. **Next = Stage 4 (React SPA shell + viewport).**
 
-> Earlier snapshot (pre-Stage-1, kept for history): "Phase-1 pipeline built + unit-tested (119
-> tests); slicing proven on one part, not wired in; no printer connectivity; no real print."
-> Superseded by Stages 1–2 above.
+Still ahead before beta: the React SPA + viewport (Stage 4), the deterministic template engine +
+live sliders (Stage 5 — the critical-path that makes instant sliders possible), the model swap
+(Stage 6), Smart Mesh + PrintProof3D (Stage 7), CadQuery (Stage 8), image on-ramp (Stage 9),
+direct-print UI + Bambu-native (Stage 10), and the Windows installer + beta gate (Stage 11).
+**No part has driven real hardware yet — that's after Stage 11, at Kim's.**
 
 ---
 
-## Stage 0 — Refit to the target model and close Phase 1 *(immediate)*
-**Goal:** the pipeline works on `gemma4:e4b` on the target box, and clears the done-gate there.
-- Validate the planner + codegen on `gemma4:e4b`; a smaller model needs tighter prompts, so
-  expect to simplify the design-plan and codegen prompts and lean harder on the library
-  modules (picking a module + filling parameters is exactly what a small model does well).
-- Re-run the 10-prompt benchmark **on e4b** to a real number; reach **≥ 8/10**. Fast now, so
-  this is hours-with-tuning, not days.
-- Update `CHANGELOG.md`; self-audit; commit + push.
-**Exit:** `kimcad bench --min-success-rate 0.8` passes on `gemma4:e4b`, on the target hardware.
-**Needs:** the target box only. **Size:** ~2–4 days incl. prompt tuning.
+## Stage 0 — Refit to the target model and close Phase 1  ✅ DONE
+**Goal:** the pipeline works on `gemma4:e4b` on the target box and clears the done-gate there.
+- ✅ Planner + codegen validated on `gemma4:e4b`; prompts simplified for the smaller model.
+- ✅ 10-prompt benchmark re-run on e4b to a real number, ≥ 8/10 on the target hardware.
+**Exit (met):** `kimcad bench --min-success-rate 0.8` passes on `gemma4:e4b`, on the target box.
 
 ## Stage 1 — Gated export: a real, validated print file  ✅ DONE
 **Goal:** any validated part → confirmed → a verified G-code/3MF file. *(No printer needed.)*
-- ✅ Full printer/material/profile model; resolve profile **names → on-disk profile files**
-  (the known gap, now closed) with a generic-filament fallback; explicit material/profile
-  confirmation (CLI `--slice`, web printer/material select + confirm); OrcaSlicer wired into
-  the normal flow behind the confirmation gate.
+- ✅ Printer/material/profile model; profile names → on-disk profile files; explicit
+  material/profile confirmation (CLI `--slice`, web select + confirm); OrcaSlicer wired behind
+  the confirmation gate.
 - ✅ **G-code proof per run:** the exported 3MF is opened and verified to carry real
-  motion-bearing toolpaths (G0/G1/G2/G3), and the slicer's own estimate — total time, layer
-  count, filament used (mm / cm³) — is parsed out and surfaced; empty/garbage fails loudly.
-- ✅ **Manifold3D:** pre-slice hardening round-trips the oriented mesh into a guaranteed
-  2-manifold and *surfaces* what it did (never silent); optional at runtime; the gate still
-  hard-fails defects upstream.
-- ✅ Download/export is the delivery path (web "Download 3D model" fallback + G-code 3MF
-  download). Tests incl. a live render→harden→slice→prove→download path on the real binary
-  (the model/codegen step is stubbed with a fake provider; everything after it is live).
-**Exit:** ✅ confirm a part → verified non-empty G-code with an estimate, multiple part types.
-**Needs:** target box. **Size:** ~1 week.
-> **All three of Kim's printers are sliceable and proven** (Bambu P2S, Bambu A1, Elegoo
-> Neptune 4 Max), each via a live end-to-end slice through the bundled OrcaSlicer. (Earlier
-> notes here wrongly called the Elegoo unsliceable; that was a profile-name search miss —
-> OrcaSlicer names the Elegoo's process profiles `Neptune4Max` without spaces while the
-> machine profile uses `Neptune 4 Max` with spaces. The profiles ship; they're now wired.)
+  motion-bearing toolpaths (G0/G1/G2/G3); the slicer's time/layer/filament estimate is parsed
+  and surfaced; empty/garbage fails loudly.
+- ✅ **Manifold3D** pre-slice hardening (round-trips to a guaranteed 2-manifold, never silent;
+  optional at runtime); download/export delivery path.
+**Exit (met):** confirm a part → verified non-empty G-code with an estimate, multiple part types.
+> All three of Kim's printers are sliceable and proven (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max)
+> via a live end-to-end slice through the bundled OrcaSlicer.
 
-## Stage 2 — Send-to-printer connector + MCP (software-complete, hardware-deferred)  ✅ DONE
-**Goal:** the full send path exists and is tested — live printing waits for Kim's beta.
-- ✅ **`PrinterConnector` abstraction** (a `Protocol`): capabilities / status / send /
-  job-status, with a swappable connector per printer connection. A built-in **`mock`**
-  loopback connector exercises the whole path with no hardware.
-- ✅ **OctoPrint connector** (stdlib `urllib`, API key from env only — never stored/logged)
-  plus a **runnable mock OctoPrint server** (`python -m kimcad.mock_printer`) so the real
-  REST path is tested end-to-end offline.
-- ✅ **Capability reconciliation:** a printer's reported build volume / nozzle / materials
-  auto-fills a blank profile field and flags any config-vs-printer mismatch (config stays
-  authoritative, but the disagreement is surfaced).
-- ✅ **Explicit per-send confirmation** everywhere: `confirm is True` (not merely truthy) —
-  and the file must prove out as a real motion-bearing slice — or nothing is sent. Surfaced
-  in the CLI (`--send <connector>`), the web UI (pick a connection → confirm), and **MCP**.
-- ✅ **MCP server** (`python -m kimcad.mcp_server`, dependency-free JSON-RPC 2.0 over stdio):
-  `list_connectors` / `printer_status` / `printer_capabilities` / `send_print`, so an agent
-  can drive the printer behind the same confirmation gate.
-- ✅ Download/export stays the fallback. **No real print here — that's Stage 10 at Kim's.**
-**Exit:** ✅ confirmed part → "sent" through a connector to a mock printer (loopback or the
-mock OctoPrint server), or downloaded; status flows through. **Needs:** target box + a mock
-printer (both met on the dev box). **Size:** ~1 week.
+## Stage 2 — Send-to-printer connector + MCP (software-complete)  ✅ DONE
+**Goal:** the full send path exists and is tested — live printing waits for the real-hardware phase at Kim's (after Stage 11).
+- ✅ **`PrinterConnector` abstraction** (a `Protocol`): capabilities / status / send / job-status,
+  swappable per connection; a built-in **`mock`** loopback connector exercises the whole path.
+- ✅ **OctoPrint connector** (stdlib `urllib`, API key env-only — never stored/logged) + a runnable
+  mock OctoPrint server so the real REST path is tested offline.
+- ✅ **Capability reconciliation** (printer-reported build volume / nozzle / materials auto-fills a
+  blank profile field and flags config-vs-printer mismatch; config stays authoritative).
+- ✅ **Explicit per-send confirmation** everywhere — `confirm is True` (not merely truthy), and the
+  file must prove out as a real motion-bearing slice — in CLI (`--send`), web, and **MCP**.
+- ✅ **MCP server** (dependency-free JSON-RPC 2.0 over stdio): `list_connectors` / `printer_status`
+  / `printer_capabilities` / `send_print`.
+**Exit (met):** confirmed part → "sent" through a connector to a mock printer; status flows through.
 
-## Stage 3 — Printer coverage + ready/not-ready UI (software-complete)  🚧 IN PROGRESS
+## Stage 3 — Printer coverage + ready/not-ready UI (software-complete)  ✅ DONE — tagged `stage-3` @ `96aba02`
 **Goal:** multi-brand support and live status, all built and mock-tested.
-- ✅ **Connector coverage:** OctoPrint (Stage 2) + **Moonraker/Klipper** + **PrusaLink/Prusa**,
-  each a real REST connector over stdlib `urllib` with a runnable mock server, plus KimCad's own
-  MCP server exposing send-to-printer as agent tools. (Bambu-native and the Creality/Prusa-Connect
-  cloud paths are still gaps — see below.)
-- ✅ **Per-printer, per-material filament profiles, honestly:** the cross-vendor
-  "Generic <MATERIAL>" fallback was **removed** (it mis-resolved e.g. Elegoo + TPU to a Bambu
-  profile); each printer is offered only the materials it has a verified profile for (the Elegoo
-  Neptune 4 Max ships no TPU, so TPU is "not available" for it). Every Kim printer × material that
-  *is* offered resolves and live-slices to proven G-code.
+- ✅ **Connector coverage:** OctoPrint + **Moonraker/Klipper** + **PrusaLink/Prusa**, each a real
+  REST connector over stdlib `urllib` with a runnable mock server, + KimCad's MCP server.
+- ✅ **Per-printer, per-material filament profiles, honestly:** the cross-vendor "Generic
+  <MATERIAL>" fallback was **removed** (it mis-resolved e.g. Elegoo + TPU to a Bambu profile);
+  each printer is offered only the materials it has a verified profile for (the Elegoo Neptune 4
+  Max ships no TPU → TPU is "not available" for it, and the UI explains why).
 - ✅ **Ready / not-ready connection-status UI:** a per-connection badge (ready / busy / offline /
   needs-setup / simulation) that never 5xxes and never leaks a credential, with a typed `reason`
-  vocabulary shared across status and send.
-- ✅ Tested against each printer-API contract via mocks/emulators; an independent (Codex) re-audit
-  gate-checked the work.
-- **Still a gap:** a **Bambu-native** connector (the v3.0 spec finishes it via `bambulabs-api`),
-  and the Creality-Connect / Prusa-Connect cloud paths. The stage `audit-team` gate + tag are
-  pending.
-**Exit (met for the shipped connectors):** OctoPrint / Moonraker / PrusaLink selectable with live
-(emulated) status; the ready/not-ready UI works. **Still pending:** a Bambu-native connector and
-the stage `audit-team` gate + tag. **Needs:** target box + emulators. **Size:** ~1.5–2 weeks.
-
-## Stage 4 — Web UI to a genuinely usable product
-**Goal:** the browser app is a coherent tool end to end.
-- Async job + progress (the model call runs in the background; the page never freezes); live
-  parameter sliders (drag → re-render); smarter one-question clarify flow; the full print-loop
-  UI surfaced (printer select, confirm, send, status); **vendor three.js** for offline 3D.
-- Tests + a real run-through on the running app.
-**Exit:** describe → preview → tweak → validate → print/send, offline-capable, on the target box.
-**Needs:** target box. **Size:** ~2–3 weeks.
-
-## Stage 5 — One-click installable build (for a machine like this one)
-**Goal:** double-click installer → working KimCad on a 32 GB/780M Windows box, no terminal.
-- Electron wrap; electron-builder → a single `KimCad-Setup.exe` (NSIS); bundle OpenSCAD +
-  OrcaSlicer + the Python core; first-run setup that detects Ollama + pulls **`gemma4:e4b`**
-  with a progress UI; unsigned (SmartScreen documented).
-- Tested on a clean Windows profile on this hardware class.
-**Exit:** clean install → working app from the `.exe`, zero command line. (This is the
-competitor's "installable, testable" — built to actually run on Kim's-class hardware.)
-**Needs:** target box + a clean test profile. **Size:** ~1.5–2.5 weeks.
-
-## Stage 6 — Printability & part-quality hardening (Phase 3)
-**Goal:** the gate catches real print-quality problems, not just size/watertightness.
-- Overhang/support detection; true wall-thickness measured from the mesh; fix the
-  multiple-shells false-flag on hollow containers; real snap-fit/lid geometry (the deferred
-  shortcut, paid back); a library quality pass. Tests per check.
-**Exit:** passing parts are genuinely print-ready. **Needs:** target box. **Size:** ~2–3 weeks.
-
-## Stage 7 — Model + benchmark + telemetry, tuned *for the target* (Phase 4)
-**Goal:** provably good on the target hardware, with a real benchmark suite.
-- Tune `gemma4:e4b` hard for this task; also bench the other small local options already on the
-  box (e.g. `deepseek-coder:6.7b`) and pick the best **on-target** default with data — no
-  "bigger model on a GPU" escape; the constraint is the point.
-- Validate the cloud fallbacks (DeepSeek/OpenRouter) as an opt-in only.
-- Grow the benchmark well past 10 prompts; **richer 3-axis grading** (slices-clean /
-  matches-request / correct-dimensions) instead of pass-if-it-completes.
-- **Telemetry:** in-app metrics vs the §4.2 thresholds + a public beta feedback loop (the
-  confirmed replacement for the recruited study).
-**Exit:** a strict suite, a data-backed on-target model choice, live quality instrumentation.
-**Needs:** target box. **Size:** ~2–3 weeks.
-
-## Stage 8 — Image & sketch → DesignPlan (experimental, honest about the hardware)
-**Goal:** a photo of a part, or a dimensioned sketch, seeds an editable, validated plan —
-*if it can run acceptably on a 780M box.*
-- **Sketch path first (more feasible):** a small vision model reads the sketch's shape + written
-  dimensions straight into the DesignPlan — no 3D reconstruction, lighter weight.
-- **Photo path (experimental):** the smallest viable image-to-3D model → reference mesh →
-  Trimesh measures bbox + rough features → seeds the plan. **Honest caveat:** TripoSG/TRELLIS-
-  class models are heavy; on a 780M iGPU they may be too slow to be usable. This path is
-  best-effort — we try the smallest/quantized variant, measure it on the target, and **descope
-  it if it can't run acceptably** rather than pretend. Lowest priority (you already said so).
-- Trust boundary enforced throughout: image output is untrusted, flows into the validated
-  schema, never printed raw.
-**Exit:** sketch→plan working on-target; photo→plan working *or* honestly marked not-viable
-on this hardware. **Needs:** target box (this is the constraint, not a missing GPU).
-**Size:** sketch ~1–2 weeks; photo unknown until measured on-target.
-
-## Stage 9 — CadQuery parallel renderer + richer export (long-term)
-**Goal:** a second, type-safe CAD backend and real CAD export formats.
-- `kimcad.cadquery` parallel to `kimcad.openscad`; CadQuery module library + prompts;
-  **STEP/BREP export** (editable CAD for sharing/interop, not just mesh/STL); renderer choice in
-  config, parity-validated. Tests.
-**Exit:** optional CadQuery backend with STEP/BREP, switchable in config.
-**Needs:** target box; OpenCASCADE is a heavy dep — confirm it installs cleanly on this class
-of machine before committing. Revisit only if OpenSCAD's limits bite. **Size:** ~3–4 weeks.
-
-## Stage 10 — Beta with Kim: real hardware, real prints, release (FINAL)
-**Goal:** the one and only real-hardware phase — everything printer-physical happens here.
-- **Kim is the beta tester.** On her actual printer(s), validate the *whole* loop live: the
-  connectors and status from Stages 2–3, real slicing, real sends, and **real printed parts**.
-- Fix whatever only shows up on real hardware (it always does).
-- User docs: install guide, usage, supported-printer matrix (now with real "verified on metal"
-  marks for Kim's printers, API-only for the rest).
-- Beta release (OSS, unsigned, beta posture); re-enable hosted CI; tag a release.
-**Exit:** a shipped beta that has produced real printed parts on Kim's hardware.
-**Needs:** Kim + her printers. **Size:** ~1–2 weeks + print iteration.
+  vocabulary shared across status and send; the **web `/api/slice` + `/api/send` refuse a
+  gate-FAILED part server-side**, mirroring the CLI.
+- ✅ Tested against each printer-API contract via mocks/emulators; passed the `audit-team` gate at
+  **0/0/0/0/0** across all five roles + an independent Codex spot-check, then merged + tagged.
+**Exit (met):** OctoPrint / Moonraker / PrusaLink selectable with live (emulated) status; the
+ready/not-ready UI works; safety gate guards hold on every send path (CLI/web/MCP).
+> **Still a gap (folded into later stages):** a **Bambu-native** connector (Stage 10, via
+> `bambulabs-api`) and the Creality-Connect / Prusa-Connect cloud paths.
 
 ---
 
-## What changed from the first draft, and what didn't
-- **Removed entirely:** the "GPU box" assumption. Everything targets the 32 GB/780M machine.
-  Model work (Stage 7) and image-to-3D (Stage 8) are constrained to what runs *here* — a smaller
-  model where needed, and image-to-3D honestly flagged as maybe-not-viable rather than deferred
-  to imaginary hardware.
-- **Moved:** all real-printer validation out of the mid-stages into the single final beta with
-  Kim (Stage 10). Stages 2–3 now build and mock-test the software with no hardware dependency.
-- **Foundational fix:** the model is now `gemma4:e4b`, which makes the dev loop fast and stable
-  and matches what the competitor proved works.
-- **Still nothing dropped:** print loop, gated export, G-code proof, send abstraction, MCP,
-  download fallback, Manifold3D, multi-brand coverage, ready/not-ready UI, photo **and** sketch
-  intake, CadQuery **and** STEP/BREP — each is in a stage above.
-- **One open question I'm not glossing:** which printer(s) Kim has — that decides which connector
-  and profile to build first.
+## Stage 4 — React SPA shell + viewport  ⬅ NEXT
+**Goal:** replace the minimal web UI with the designed app shell, served locally, with a real 3D
+viewport — the §5 design at high fidelity.
+- **React + TypeScript + Vite SPA** compiled to static files and **served by the existing local
+  Python server** (Node/Vite are build-time only; they never ship). The built SPA is byte-identical
+  across Win/Mac/Linux.
+- **Workshop design system baseline** from `docs/design/` (warm sand `#f0ebe0` / terracotta
+  `#c8623a` / dark viewport `#14171c`; Bricolage Grotesque / Hanken Grotesk / JetBrains Mono).
+- **Dark Three.js viewport foundation** using **vanilla Three.js** (port `KCViewport` from
+  `docs/design/prototype/jsx/preview.jsx` behind a thin React wrapper — not react-three-fiber).
+- **Wire the existing text → plan → gate → slice → download flow** through the new UI (read-only
+  first; real live sliders need the Stage 5 template engine, so only non-functional / read-only
+  slider scaffolding here if any).
+- Tests + a real run-through on the running app.
+**Exit:** the existing flow works end-to-end through the new React UI; the viewport renders; the
+Workshop baseline is in place; the built SPA is served as static files by the Python server.
+**Needs:** target box + Node (build-time only). **Size:** ~2–3 weeks.
+
+## Stage 5 — Deterministic template engine + live sliders
+**Goal:** the **critical-path** `templates/` module — parametric, deterministic templates that
+re-render in **<1s with no LLM call** — which is what makes true live sliders possible.
+- A `templates/` engine of named parametric families; the planner picks a template + fills named
+  parameters; re-render is a pure deterministic pass (no model in the loop).
+- **Named live sliders** wired to template parameters: drag → re-render instantly, fully local.
+- The LLM-writes-OpenSCAD path stays as the fallback for prompts no template covers (tiered).
+**Exit:** named parameter sliders drag → re-render in <1s with no model call across the template
+families; the tiered template→LLM fallback is proven. **Needs:** target box. **Size:** ~2–3 weeks.
+
+## Stage 6 — Model swap (Qwen default) + tiered fallback
+**Goal:** swap the default model to `Qwen2.5-Coder 1.5B`, benchmarked on the target box, with a
+tiered fallback chain.
+- Benchmark `Qwen2.5-Coder 1.5B` on the 780M box; make it the default if it clears the bar; keep
+  `gemma4:e4b` as the non-China alternative + vision fallback. No "bigger model on a GPU" escape.
+- Tiered fallback (template → primary model → alt model); cloud (DeepSeek/OpenRouter) opt-in only.
+- Grow the benchmark past 10 prompts; richer 3-axis grading (slices-clean / matches-request /
+  correct-dimensions).
+**Exit:** a data-backed on-target default model + a proven fallback chain. **Needs:** target box.
+**Size:** ~2–3 weeks.
+
+## Stage 7 — Smart Mesh + PrintProof3D + readiness report
+**Goal:** real print-quality validation surfaced as a designed report.
+- **Smart Mesh** readiness (overhang/support detection, true wall-thickness from the mesh, fix the
+  multiple-shells false-flag on hollow containers); the **PrintProof3D** validation harness wired
+  in; a print-readiness **report card** matching the design (not a raw text panel).
+- Tests per check; the gate hard-fails real defects, not just size/watertightness.
+**Exit:** a part produces a Smart Mesh readiness report; PrintProof3D integration validated;
+passing parts are genuinely print-ready. **Needs:** target box. **Size:** ~2–3 weeks.
+
+## Stage 8 — CadQuery parallel backend
+**Goal:** a second, type-safe CAD backend and real CAD export.
+- `kimcad.cadquery` parallel to `kimcad.openscad`, **real OCCT on Python 3.13** (CadQuery supports
+  3.9–3.13 — pin 3.13; not a trimesh stub); a CadQuery module library + prompts; **STEP/BREP
+  export**; renderer choice in config, parity-validated.
+- Tests; confirm OpenCASCADE installs cleanly on this class of machine before committing.
+**Exit:** an optional, real CadQuery backend with STEP/BREP export, switchable in config.
+**Needs:** target box (Python 3.13 venv). **Size:** ~3–4 weeks.
+
+## Stage 9 — Image & sketch on-ramp (opt-in, experimental)
+**Goal:** a photo or dimensioned sketch seeds an editable, validated plan — **opt-in only**, honest
+about the hardware.
+- **Sketch path first** (a small vision model reads shape + written dimensions into the DesignPlan;
+  no 3D reconstruction). **Photo path experimental** (smallest viable image-to-3D, e.g.
+  TripoSG/OpenRouter → reference mesh → Trimesh measures bbox/features → seeds the plan); descope
+  honestly if it can't run acceptably on the 780M.
+- **Trust boundary enforced:** image output is untrusted, flows into the validated schema, never
+  printed raw.
+**Exit:** sketch→plan working on-target; photo→plan working *or* honestly marked not-viable on this
+hardware. **Needs:** target box. **Size:** sketch ~1–2 weeks; photo unknown until measured.
+
+## Stage 10 — Direct-print UI + Bambu-native + first-run wizard
+**Goal:** the full direct-print experience in the SPA, plus the missing connector and onboarding.
+- **Direct-print UI** surfaced in the React app (printer select → confirm → send → live status),
+  behind the same `confirm is True` gate.
+- **Bambu-native connector** (`bambulabs-api`) for the P2S + A1 (the gap left from Stage 3), plus
+  the remaining cloud paths as feasible.
+- **First-run setup wizard:** detect Ollama, pull the default model with a progress UI, pick a
+  printer connection.
+**Exit:** Bambu-native send path works (mock-tested); the first-run wizard onboards a clean profile;
+direct-print UI is wired. **Needs:** target box + emulators. **Size:** ~2–3 weeks.
+
+## Stage 11 — Windows installer + beta gate (FINAL pre-beta)
+**Goal:** double-click installer → working KimCad on a 32 GB/780M Windows box, no terminal, then the
+beta gate.
+- **Windows shell via WebView2** (controlled render engine); package the built SPA + Python core +
+  bundled OpenSCAD + OrcaSlicer; a single installer; unsigned (SmartScreen documented).
+- First-run setup on a clean Windows profile; re-enable hosted CI; the **beta gate** (the full
+  `audit-team` at 0/0/0/0/0 on the release).
+- User docs: install guide, usage, supported-printer matrix (API-only until verified on metal).
+**Exit:** clean install → working app from the installer, zero command line; beta gate passed; a
+tagged beta release. **Needs:** target box + a clean test profile. **Size:** ~1.5–2.5 weeks.
+
+---
+
+## The beta on real hardware — at Kim's (post-Stage-11; the one and only physical phase)
+Everything printer-physical happens here, after Stage 11 ships the installable v3.0 Windows beta.
+**Kim runs that beta on her real hardware** as the first real-world tester; on her actual printers
+(Bambu P2S + A1, Elegoo Neptune 4 Max) the *whole* loop is validated live — connectors, status, real
+slicing, real sends, **real printed parts** — and whatever only shows up on real metal gets fixed.
+Final-level library breadth lands here too. **Needs:** Kim + her printers.
+
+## What this plan locks in
+- **No "GPU box" assumption** — everything targets the 32 GB/780M machine; model work (Stage 6) and
+  image-to-3D (Stage 9) are constrained to what runs *here*.
+- **All real-printer validation happens after Stage 11** (once the beta ships), at Kim's; Stages
+  2–10 build and mock-test with no hardware dependency.
+- **Stage 5 (template engine) is the critical path** — instant sliders are impossible on the
+  LLM-writes-OpenSCAD engine alone; UX-first and architecture-first converge there.
+- **Nothing dropped:** print loop, gated export, G-code proof, send abstraction, MCP, download
+  fallback, Manifold3D, multi-brand + Bambu-native coverage, ready/not-ready UI, template engine +
+  live sliders, Smart Mesh + PrintProof3D, CadQuery + STEP/BREP, sketch **and** photo intake, the
+  Windows installer — each is in a stage above.
