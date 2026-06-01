@@ -9,9 +9,10 @@ const Workspace = lazy(() => import('./components/Workspace'))
 
 // KimCad SPA — application shell + the design flow.
 //
-// Stage 4: landing → describe → the part renders in the Three.js viewport (Slice 3) while the
-// conversation, plan, and printability report fill in from /api/design (Slice 4). Live sliders
-// (Stage 5) and the printer/slice/send controls (Slice 5) come next.
+// Stage 4: landing → describe → the part renders in the Three.js viewport (Slice 3); the
+// conversation, plan, and printability report fill in from /api/design (Slice 4); and the
+// printer/material → slice → download + connector status panel is wired (Slice 5). Live
+// parameter sliders are Stage 5 (the deterministic template engine); browser send is Stage 10.
 export default function App() {
   const [view, setView] = useState<'landing' | 'workspace'>('landing')
   const [prompt, setPrompt] = useState('')

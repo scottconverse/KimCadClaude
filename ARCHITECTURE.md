@@ -126,12 +126,13 @@ serves a fixed sample part with no model call. Once a part passes the gate, the 
 picks a printer + material and, after an explicit confirmation, `POST /api/slice/<id>`
 slices the already-validated mesh (idempotent and serialized, so a re-confirm doesn't
 re-run the model or the slicer) and `GET /api/gcode/<id>` downloads the proven 3MF;
-`GET /api/options` feeds the printer/material pickers. After a successful slice the page
-can also **send** the job to a printer connection: `GET /api/connectors` lists the
-configured connections (each flagged `simulated` so the UI labels a no-hardware connection
-honestly rather than narrating a mock send as a real print) and `POST /api/send/<id>` sends
-behind an explicit confirm step, returning the job + printer status (and `simulated`). A send
-failure (offline/unreachable printer, bad key, misconfig) is a soft result, not an error — it
+`GET /api/options` feeds the printer/material pickers. The page also shows a **read-only
+ready/not-ready connection badge** (`GET /api/connectors` + `GET /api/connector-status/<name>`,
+each flagged `simulated` so a no-hardware connection is labelled honestly rather than narrated
+as a real print). **Sending to a printer from the browser is a later stage**; the
+`POST /api/send/<id>` endpoint exists and is driven today by the CLI (`--send`) and the MCP
+server, behind an explicit confirm step that refuses anything but a proven, gate-passed slice.
+A send failure (offline/unreachable, bad key, misconfig) is a soft result, not an error — it
 carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
 download stays as the fallback, as does the validated model itself.
 

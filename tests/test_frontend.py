@@ -90,12 +90,25 @@ def test_workshop_fonts_are_bundled_for_offline_use():
 
 _FRONTEND_SRC = WEB_DIR.parents[2] / "frontend" / "src"
 _TS_FILES = sorted(_FRONTEND_SRC.rglob("*.ts*"))
-# "Consumer" source = the components/logic that actually USE the wire fields. The api.ts type
-# declaration is excluded (declaring a field in the interface is not consuming it — a field
-# rendered nowhere should still trip the test), and the *.test.ts files are excluded (a field
-# named only in a test must not satisfy the contract).
+
+
+def _strip_ts_comments(src: str) -> str:
+    """Remove `/* */` and `//` comments so a field/status NAMED ONLY IN A COMMENT can't satisfy
+    the contract. (Good enough for our own source — no `//` appears inside its string literals;
+    API paths use single slashes.)"""
+    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.DOTALL)
+    src = re.sub(r"//[^\n]*", " ", src)
+    return src
+
+
+# "Consumer" source = the components/logic that USE the wire fields, COMMENTS STRIPPED, with the
+# api.ts type declaration + *.test.ts excluded (declaring/naming a field is not consuming it).
+# The field checks below require a real property ACCESS (`.<field>`) or a quoted literal — so a
+# className like `kc-dims`, a JSDoc mention, or a test reference can NOT satisfy the contract.
+# (Hardened after the Stage-4 audit-team mutation-proved the prior bare-substring grep was a
+# spell-checker: deleting the whole printability panel left it green except `headline`.)
 _TS_CONSUMERS = "\n".join(
-    p.read_text(encoding="utf-8")
+    _strip_ts_comments(p.read_text(encoding="utf-8"))
     for p in _TS_FILES
     if p.name != "api.ts" and ".test." not in p.name
 )
@@ -125,24 +138,31 @@ def test_frontend_source_consumes_documented_response_fields():
         "dims",
         "findings",
     ]
-    missing = [f for f in required_fields if not re.search(rf"\b{re.escape(f)}\b", _TS_CONSUMERS)]
-    assert not missing, f"frontend consumer source does not reference backend fields: {missing}"
+    # Require a real property ACCESS (`.<field>`), not a bare substring, so deleting a field's
+    # RENDERING — not just its name — trips the test.
+    missing = [f for f in required_fields if not re.search(rf"\.{re.escape(f)}\b", _TS_CONSUMERS)]
+    assert not missing, (
+        f"frontend consumer source does not ACCESS backend fields "
+        f"(a className/comment doesn't count): {missing}"
+    )
 
 
 def test_frontend_source_handles_every_pipeline_status():
-    """Each PipelineStatus value the backend can return must be branched on in the consumer
-    source (not merely named in a comment or a test)."""
+    """Each PipelineStatus value must appear as a QUOTED LITERAL (a real branch), not merely
+    named in a comment or a test, in the consumer source."""
     for status_value in ("clarification_needed", "render_failed", "gate_failed", "completed"):
-        assert status_value in _TS_CONSUMERS, f"frontend does not handle status={status_value}"
+        assert re.search(rf"""['"]{re.escape(status_value)}['"]""", _TS_CONSUMERS), (
+            f"frontend does not branch on status={status_value}"
+        )
 
 
 def test_frontend_source_consumes_connector_status_fields():
-    """The connection-status UI (Slice 5) consumes the typed readiness snapshot the server sends
-    (ready / online / state / reason / simulated), so the honest readiness badge can't silently
-    drop a field — and a loopback connection is shown as simulated, not narrated as real."""
+    """The connection-status UI (Slice 5) ACCESSES the typed readiness snapshot the server sends
+    (ready / online / state / reason / simulated) as properties — a comment naming them doesn't
+    count — so the honest readiness badge can't silently drop a field."""
     for field in ("ready", "online", "state", "reason", "simulated"):
-        assert re.search(rf"\b{re.escape(field)}\b", _TS_CONSUMERS), (
-            f"connector-status UI does not reference '{field}'"
+        assert re.search(rf"\.{re.escape(field)}\b", _TS_CONSUMERS), (
+            f"connector-status UI does not access '{field}'"
         )
 
 

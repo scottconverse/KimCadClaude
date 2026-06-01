@@ -166,8 +166,9 @@ labels a no-hardware connection honestly rather than narrating a mock send as a 
   entries for them are commented examples — uncomment and edit). If the printer is
   offline/unreachable, it says so and leaves the G-code on disk; a part that failed the
   printability gate is never sent.
-- **Web:** after a slice, pick a connection and confirm to send. A live **ready / not-ready badge**
-  shows whether the chosen connection is reachable and idle, and the download stays as the fallback.
+- **Web:** after a slice, download the proven G-code or the model, and a live **ready / not-ready
+  badge** shows whether the printer connection is reachable. *(Sending to a printer from the
+  browser is a later stage — today the web UI is status + slice + download; the CLI and MCP send.)*
 - **Agent / MCP:** `python -m kimcad.mcp_server` exposes the printer as MCP tools (list
   connections, status, capabilities, and a confirmation-gated `send_print`) so an agent can drive
   it. Runnable mock servers back each connector for offline testing: `python -m kimcad.mock_printer`
