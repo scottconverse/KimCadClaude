@@ -302,3 +302,15 @@ def test_status_no_printer_block_is_error(monkeypatch):
     c = _connector("http://x")
     monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"{}"))
     assert c.status().state is PrinterState.error
+
+
+def test_large_upload_with_wrong_key_is_auth_not_offline(tmp_path):
+    # TEST-001 / ENG-001: a bad key on a LARGE upload surfaces as a mid-write reset (not an
+    # HTTPError) — the connector must still report AuthError. The deterministic probe-logic proof
+    # is in test_connectors.py; this is the PrusaLink end-to-end analogue of the Moonraker one.
+    big = "G28\n" + "G1 X1 Y1 E1\n" * 320_000  # ~4 MB of motion-bearing G-code
+    g = _write_gcode_3mf(tmp_path / "big.gcode.3mf", gcode=big)
+    with serve_mock_prusalink(api_key="the-real-key") as (base, _state):
+        c = _connector(base, key="wrong-key")
+        with pytest.raises(AuthError):
+            c.send(g, confirm=True)

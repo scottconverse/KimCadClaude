@@ -642,6 +642,9 @@ async function loadConnectors() {
 
 async function doSend() {
   hide("confirmSend");
+  // UX-302: the on-demand readiness badge is a pre-send check; hide it once a send starts so a
+  // stale "● Ready" doesn't sit above the send result.
+  hide("connectorStatus");
   if (lastRid === null) return;
   const connector = $("connectorSel").value;
   $("sendBtn").disabled = true;

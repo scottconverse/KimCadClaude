@@ -1,5 +1,6 @@
 """Tests for the connector factory (Stage 2, Slice 4) + shared connector helpers (Stage 3)."""
 
+import io
 import urllib.error
 
 import pytest
@@ -14,6 +15,7 @@ from kimcad.printer_connector import (
     LoopbackConnector,
     auth_error_if_upload_rejected,
     decode_json,
+    read_error_body,
 )
 from kimcad.prusalink_connector import PrusaLinkConnector
 
@@ -256,3 +258,30 @@ def test_no_api_key_is_not_probed():
         probe_path="/probe",
     )
     assert err is None
+
+
+# --- read_error_body: bounded, whitespace-collapsed, never raises (TEST-002) ----------------
+
+
+class _FakeErr:
+    def __init__(self, data):
+        self._d = io.BytesIO(data)
+
+    def read(self, n):
+        return self._d.read(n)
+
+
+def test_read_error_body_collapses_whitespace():
+    assert read_error_body(_FakeErr(b"  hello   world\n  ")) == "hello world"
+
+
+def test_read_error_body_is_capped():
+    assert len(read_error_body(_FakeErr(b"x" * 1000), cap=10)) == 10
+
+
+def test_read_error_body_never_raises_on_a_failing_read():
+    class _Boom:
+        def read(self, n):
+            raise OSError("boom")
+
+    assert read_error_body(_Boom()) == ""
