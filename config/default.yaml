@@ -12,6 +12,10 @@ llm:
   # Active backend: one of the keys under `backends`.
   # Local-first: no cloud calls. Cloud backends remain defined for later opt-in.
   active: local
+  # Optional fallback backend key. When set, a primary connection/timeout/model-not-found
+  # error transparently retries against this backend instead of failing immediately.
+  # Example: set to cloud_deepseek in local.yaml to fall back to cloud when Ollama is down.
+  alt_backend: null
 
   backends:
     cloud_deepseek:

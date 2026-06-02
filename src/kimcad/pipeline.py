@@ -26,7 +26,7 @@ from typing import Any
 from kimcad.config import Config, Material, Printer
 from kimcad.hardening import HardenReport, harden_mesh
 from kimcad.ir import DesignPlan, first_clarification
-from kimcad.llm_provider import LLMProvider
+from kimcad.llm_provider import Provider
 from kimcad.openscad_runner import (
     BlockedCodeError,
     RenderError,
@@ -214,7 +214,7 @@ class Pipeline:
         config: Config,
         printer: Printer,
         material: Material,
-        provider: LLMProvider,
+        provider: Provider,
         *,
         renderer: Renderer | None = None,
         slicer: Slicer | None = None,

@@ -133,12 +133,15 @@ def _normalize_argv(argv: list[str]) -> list[str]:
 
 
 def _build_pipeline(config: Config, args: argparse.Namespace):
-    from kimcad.llm_provider import LLMProvider
+    from kimcad.llm_provider import FallbackProvider, LLMProvider
     from kimcad.pipeline import Pipeline
 
     printer = config.printer(args.printer)
     material = config.material(args.material)
-    provider = LLMProvider(config.llm_backend(args.backend))
+    primary = LLMProvider(config.llm_backend(args.backend))
+    alt_cfg = config.llm_alt_backend()
+    alt = LLMProvider(alt_cfg) if alt_cfg is not None else None
+    provider = FallbackProvider(primary, alt) if alt is not None else primary
     return Pipeline(config, printer, material, provider)
 
 

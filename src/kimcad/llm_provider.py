@@ -9,6 +9,11 @@ OpenAI-compatible chat-completions format. Two jobs:
 
 The long system prompt is reused across a conversation to maximize prefix-cache hits
 (§7.1). The OpenAI client is injectable so the assembly logic is testable offline.
+
+``FallbackProvider`` wraps a primary ``LLMProvider`` with an optional alt backend.
+On a connection, timeout, or model-not-found error from the primary, the call is
+retried against the alt. Thread-local stickiness keeps a falling-back request on alt
+for its remaining calls, avoiding re-trying a dead primary on every codegen retry.
 """
 
 from __future__ import annotations
@@ -16,6 +21,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Protocol
@@ -36,6 +43,28 @@ class ChatClient(Protocol):
 
     @property
     def chat(self) -> Any: ...
+
+
+class Provider(Protocol):
+    """What the pipeline needs from an LLM provider: a design-plan generator and an
+    OpenSCAD generator. Both :class:`LLMProvider` and :class:`FallbackProvider` satisfy
+    this structurally (no inheritance), so the pipeline can be wired with either."""
+
+    def generate_design_plan(
+        self,
+        prompt: str,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> DesignPlan: ...
+
+    def generate_openscad(
+        self,
+        plan: DesignPlan,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> str: ...
 
 
 def _load_prompt(name: str) -> str:
@@ -172,3 +201,80 @@ class LLMProvider:
             {"role": "user", "content": "Design plan:\n" + plan.model_dump_json(indent=2)}
         )
         return _strip_fences(self._complete(messages, json_mode=False))
+
+
+class FallbackProvider:
+    """Transparent primary-to-alt LLM fallback chain.
+
+    On a connection error, timeout, or model-not-found (404) error from the primary,
+    the call is retried against the alt backend (if one is configured). If no alt is
+    configured, the primary error propagates unchanged.
+
+    Thread-local stickiness: once a thread falls back to alt (e.g. during
+    ``generate_design_plan``), subsequent calls on that thread (e.g. the
+    ``generate_openscad`` retries in the codegen loop) go directly to alt without
+    re-trying the dead primary. This avoids eating the primary's full retry budget
+    (up to max_attempts * retry_wait_s) on every call.
+
+    With an alt configured, ``primary.max_attempts`` is reduced to 1 so a dead primary
+    (Ollama down, model unloaded) hands off quickly rather than waiting e.g. 3 minutes
+    for 6 * 30 s of retries to exhaust first.
+    """
+
+    def __init__(self, primary: LLMProvider, alt: LLMProvider | None = None) -> None:
+        self.primary = primary
+        self.alt = alt
+        if alt is not None:
+            # Fail fast on primary so alt kicks in without waiting out the full retry budget.
+            # NOTE: this mutates the passed-in primary in place. Safe because the pipeline
+            # builders construct a fresh LLMProvider per FallbackProvider; don't reuse one
+            # primary across constructions or the reduction compounds.
+            self.primary.max_attempts = 1
+        # Thread-local stickiness: _local.on_alt is set when we switch to alt on a thread.
+        # It is never reset, so a thread that fell back stays on alt for its lifetime — the
+        # right behaviour for a dead primary (a fresh thread/request retries primary). On a
+        # long-lived thread-pool WSGI worker, a recovered primary isn't retried until the
+        # process recycles; acceptable for this power-user opt-in path.
+        self._local = threading.local()
+
+    @property
+    def _on_alt(self) -> bool:
+        return getattr(self._local, "on_alt", False)
+
+    def _call(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
+        from openai import APIConnectionError, APITimeoutError, NotFoundError
+
+        # Once switched on this thread, stay on alt for the rest of the request.
+        if self._on_alt and self.alt is not None:
+            return getattr(self.alt, method_name)(*args, **kwargs)
+
+        try:
+            return getattr(self.primary, method_name)(*args, **kwargs)
+        except (APIConnectionError, APITimeoutError, NotFoundError) as exc:
+            if self.alt is None:
+                raise
+            self._local.on_alt = True
+            print(
+                f"[kimcad] primary model failed ({type(exc).__name__}); "
+                f"switching to alt backend '{self.alt.backend.key}'",
+                file=sys.stderr,
+            )
+            return getattr(self.alt, method_name)(*args, **kwargs)
+
+    def generate_design_plan(
+        self,
+        prompt: str,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> DesignPlan:
+        return self._call("generate_design_plan", prompt, printer, material, history=history)
+
+    def generate_openscad(
+        self,
+        plan: DesignPlan,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> str:
+        return self._call("generate_openscad", plan, printer, material, history=history)

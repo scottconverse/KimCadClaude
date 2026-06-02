@@ -176,9 +176,12 @@ def build_web_pipeline(*, demo: bool = False, backend: str | None = None) -> Any
 
 
 def _real_provider(config: Any, backend: str | None) -> Any:
-    from kimcad.llm_provider import LLMProvider
+    from kimcad.llm_provider import FallbackProvider, LLMProvider
 
-    return LLMProvider(config.llm_backend(backend))
+    primary = LLMProvider(config.llm_backend(backend))
+    alt_cfg = config.llm_alt_backend()
+    alt = LLMProvider(alt_cfg) if alt_cfg is not None else None
+    return FallbackProvider(primary, alt) if alt is not None else primary
 
 
 def web_options(config: Any) -> dict[str, Any]:
