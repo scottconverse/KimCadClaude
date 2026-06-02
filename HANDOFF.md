@@ -1,12 +1,13 @@
-# KimCad — Handoff (2026-06-02 — Stage 5: Slices 1–5 complete, stage gate passing, pending merge+tag)
+# KimCad — Handoff (2026-06-02 — Stage 5 DONE: deterministic template engine + live sliders, merged + tagged)
 
 ## ⛔ READ FIRST
 
-- **🔨 STAGE 5 — ALL FIVE SLICES COMPLETE on branch `stage-5-template-engine`, NOT yet merged/tagged.**
-  Slices 1–5 (engine, pipeline tiering, re-render API, live sliders, benchmark+docs) are each through
-  the real `audit-lite` skill to 0/0/0/0/0, and the full `audit-team` stage gate has run + been
-  remediated to 0/0/0/0/0 (package in `docs/audits/stage-5/audit-team-stage-5-2026-06-02/`). **NEXT =
-  the final native Windows gate → merge to `main` → tag `stage-5`.** See the "Stage 5" section below.
+- **✅ STAGE 5 IS DONE — merged to `main` (merge commit `14896d6`) and tagged `stage-5`** (the tag was
+  advanced past the merge to this docs-DONE commit so the tagged artifact's docs say "done", not
+  "pending" — the Stage-4 lesson). Slices 1–5 (engine, pipeline tiering, re-render API, live sliders,
+  benchmark+docs) each passed the real `audit-lite` to 0/0/0/0/0, then the full `audit-team` stage
+  gate + re-audit closed at 0/0/0/0/0 (`docs/audits/stage-5/audit-team-stage-5-2026-06-02/` +
+  `…-reaudit/`). **NEXT = Stage 6 (model swap — Qwen default + tiered fallback; see ROADMAP).**
 - **Stage 4 is DONE — merged to `main` (merge commit `dcbcd1a`) and tagged `stage-4`** (the `stage-4`
   tag was advanced past the merge to the docs-consistency commit — see "Tag provenance" below — so
   the tag and the `main` head are the same commit, `181115e`).
@@ -18,12 +19,11 @@
 
 ---
 
-## 🔨 Stage 5 — Slices 1–5 complete; stage gate passing; pending merge + tag (deterministic template engine + live sliders — the critical path)
+## ✅ Stage 5 — DONE (merged to `main`, merge commit `14896d6`, tagged `stage-5`) — deterministic template engine + live sliders
 
-**Branch `stage-5-template-engine`, ahead of `main`, NOT merged/tagged.** Stage 5 makes the headline
-UX real: drag a parameter slider → re-render in **<1 s with NO model call** (measured 0.13–0.45 s per
-family; proof in `docs/benchmarks/stage-5-template-families.md`). On the old LLM-writes-OpenSCAD
-engine that was impossible (every change round-tripped the model).
+**Merged + tagged.** Stage 5 makes the headline UX real: drag a parameter slider → re-render in
+**<1 s with NO model call** (per-family timings in `docs/benchmarks/stage-5-template-families.md`).
+On the old LLM-writes-OpenSCAD engine that was impossible (every change round-tripped the model).
 
 **DONE — all five slices, each through the real `audit-lite` skill to 0/0/0/0/0 (reports committed in
 `docs/audits/stage-5/`):**
@@ -57,15 +57,14 @@ intact). All 31 were remediated, then re-audited to **0/0/0/0/0**. Authoritative
 `docs/audits/stage-5/audit-team-stage-5-2026-06-02/` (`00-executive-audit.md` + 5 deep-dives +
 `sprint-punchlist.md` + `next-sprint-watchlist.md`).
 
-**Verified at remediation head:** **`pytest` full suite green incl. live OrcaSlicer**; ruff clean;
-**vitest green**; SPA build byte-reproducible; `npm audit` 0. (Run `scripts/ci.sh` / the pre-push hook
-for the authoritative count; do NOT hand-copy a number here that can go stale — that was DOC-001.)
+**Native Windows gate (passed before merge):** ruff clean; full `pytest` green **incl. live
+OrcaSlicer**; **vitest** green; SPA build byte-reproducible (the pre-push hook's `committed == fresh
+build` check passed); `npm audit` 0. (Run `scripts/ci.sh` / the pre-push hook for the authoritative
+count; do NOT hand-copy a number here that can go stale — that was DOC-001.)
 
-**➡️ NEXT = the stage gate's tail:** native Windows gate (ruff + full pytest incl. live + vitest +
-`npm run build` reproducibility + `npm audit` 0) → merge to `main` → tag `stage-5` at the final
-artifact → flip this section + ROADMAP to DONE → report to Scott. (Tag pushes have been DENIED by the
-out-of-context Agent Pipeline hook before — if the `stage-5` tag push is blocked, surface it to Scott
-as the one authorization needed.)
+**➡️ NEXT = Stage 6 (model swap):** benchmark `Qwen2.5-Coder 1.5B` on the target box; make it the
+default if it clears the bar; keep `gemma4:e4b` as the non-China alternative + vision fallback; a
+tiered fallback chain (template → primary → alt; cloud opt-in). See ROADMAP §"Stage 6".
 
 ---
 

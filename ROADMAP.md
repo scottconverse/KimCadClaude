@@ -42,10 +42,10 @@ an environment mismatch, not a code defect; a Linux `npm ci` would install it.) 
 OctoPrint + Moonraker/Klipper + PrusaLink/Prusa + a loopback mock + KimCad's own MCP server, with
 per-printer per-material profiles and a ready/not-ready status UI. The React SPA (Workshop design
 system, vanilla Three.js viewport, wired design→gate→slice→download flow) replaced the minimal web
-UI. **Stage 5 (deterministic template engine + live sliders — the critical path) is implemented on
-`stage-5-template-engine`** (the engine, the tiered pipeline, the `/api/render` re-render API, the
-live SPA sliders, and a deterministic-family benchmark proving <1 s no-model re-render); it is
-**pending the stage gate** (audit-full → native gate → merge → tag). **Next after that = Stage 6
+UI. **Stage 5 (deterministic template engine + live sliders — the critical path) is DONE** — merged
+to `main` (merge commit `14896d6`) and tagged `stage-5` (the engine, the tiered pipeline, the
+`/api/render` re-render API, the live SPA sliders, and a deterministic-family benchmark proving the
+<1 s no-model re-render; through the full `audit-team` gate + re-audit at 0/0/0/0/0). **Next = Stage 6
 (model swap).**
 
 Still ahead before beta: the model swap (Stage 6), Smart Mesh + PrintProof3D (Stage 7), CadQuery
@@ -128,8 +128,9 @@ Workshop baseline is in place; the built SPA is served as static files by the Py
 **Needs:** target box + Node (build-time only). **Size:** ~2–3 weeks.
 
 ## Stage 5 — Deterministic template engine + live sliders
-**Status: implemented on `stage-5-template-engine` (Slices 1–5); pending the stage gate
-(audit-full → native Windows gate → merge → tag `stage-5`).**
+**Status: DONE — merged to `main` (merge commit `14896d6`) and tagged `stage-5`. Slices 1–5 each
+passed `audit-lite` at 0/0/0/0/0; the full `audit-team` stage gate + re-audit closed at 0/0/0/0/0;
+native Windows gate green.**
 **Goal:** the **critical-path** `templates.py` module — parametric, deterministic templates that
 re-render in **<1 s with no LLM call** — which is what makes true live sliders possible.
 - ✅ A `templates.py` engine of seven named parametric families (`snap_box`, `box`, `enclosure`,

@@ -6,8 +6,9 @@ All notable changes to KimCad are documented here. Format follows
 ## [Unreleased]
 
 > The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
-> **Stage 1 (gated G-code export) tagged `stage-1` on 2026-05-30.**
-> New runtime dependency this stage: **`manifold3d>=3.0`** — installed by default
+> **Stages 1–5 are tagged (`stage-1` … `stage-5`); Stage 5 (deterministic template engine +
+> live sliders) merged + tagged 2026-06-02.** These sections accumulate toward the `0.1.0` release.
+> New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
