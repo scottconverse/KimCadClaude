@@ -102,6 +102,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="If set, exit non-zero unless the batch meets this pass rate (§4.2).",
     )
+    b.add_argument(
+        "--slice",
+        action="store_true",
+        help="Also slice each part (real OrcaSlicer) to grade the slices-clean axis. "
+        "Slower; off by default. The matches-request and correct-dimensions axes are "
+        "graded either way.",
+    )
 
     m = sub.add_parser(
         "models",
@@ -259,7 +266,9 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
     pipeline = _build_pipeline(config, args)
     cases = load_cases(prompts_path)
     out_dir = Path(args.out)
-    summary = run_benchmark(cases, make_case_runner(pipeline, out_dir))
+    summary = run_benchmark(
+        cases, make_case_runner(pipeline, out_dir, slice_for_grade=args.slice)
+    )
     text = summary.to_text(min_success_rate=args.min_success_rate)
     # Persist the verdict before printing: a batch is minutes of CPU, and a
     # console-encoding error at print time must never discard the result.

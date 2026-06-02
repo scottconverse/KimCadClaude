@@ -9,11 +9,12 @@
 # Done-gate threshold (spec §4.2): a first-time user reaches a dimensionally-correct,
 # sliceable result on >= 8 / 10 of these. Run the batch with `--min-success-rate 0.8`.
 #
-# `expect_object_type` and `max_bbox_mm` are grading hints (build-volume ceiling and
-# the spec's "matches-request" axis). The current harness scores on pipeline
-# completion through the Printability Gate; the hints document expected geometry and
-# feed richer per-axis grading (slices-clean / matches-request / correct-dimensions)
-# when that is wired.
+# `expect_object_type` and `max_bbox_mm` are grading inputs. `--min-success-rate` gates
+# on pipeline completion through the Printability Gate (the coarse done-gate). The
+# harness ALSO grades each case on the spec's three axes — matches-request (object_type
+# vs expect_object_type), correct-dimensions (the gate's per-axis dim check + the
+# max_bbox_mm ceiling), and slices-clean (a real slice; only when `kimcad bench --slice`
+# is passed). The 3-axis rollup is what the model bake-off compares between models.
 
 cases:
   - id: b01
