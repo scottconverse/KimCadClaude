@@ -155,6 +155,11 @@ class DemoProvider:
         )
 
     def generate_openscad(self, plan, printer, material, history=None):  # noqa: ANN001
+        # ENG-506: in demo mode this is now SHADOWED by the template tier — object_type "box"
+        # matches the snap_box family, so the geometry is emitted deterministically and this
+        # never runs. Kept as the documented LLM-codegen contract shape (and exercised by the
+        # LLM-path tests via FakeProvider); it would run only if the demo plan named a
+        # non-template object_type.
         return "use <library/containers.scad>;\nsnap_box(width=80, depth=60, height=40, wall=2);"
 
 
@@ -299,6 +304,9 @@ def make_handler(
     slice_lock = threading.Lock()
     # Stage 5: serialize live-slider re-renders so two rapid drags can't interleave writes to the
     # same per-design output dir (mirrors slice_lock). Re-renders are sub-second; the latest wins.
+    # A single global lock (not per-id) is intentional: the web UI is single-user/loopback, so
+    # contention across different designs is nil; key it by rid only if a multi-client mode lands
+    # (ENG-503).
     render_lock = threading.Lock()
     # Stage 5: per-design re-render state for the live-slider endpoint — the base plan + the
     # matched template family name, so /api/render/<id> can deterministically rebuild the
@@ -421,7 +429,7 @@ def make_handler(
             if self.path.startswith("/api/gcode/"):
                 self._serve_gcode(urlsplit(self.path).path.rsplit("/", 1)[-1])
                 return
-            self._json(404, {"error": "not found"})
+            self._json(404, {"error": "Not found."})
 
         def _serve_gcode(self, raw_id: str) -> None:
             try:
@@ -463,11 +471,11 @@ def make_handler(
             # separator or traversal is rejected before touching the filesystem (mirrors
             # _serve_asset's guard exactly).
             if not name or "/" in name or "\\" in name or ".." in name:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             path = WEB_DIR / "vendor" / name
             if not path.is_file():
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             ctype = (
                 "text/javascript; charset=utf-8"
@@ -484,11 +492,11 @@ def make_handler(
             # emits the mapped types), and the type map (`_ASSET_CONTENT_TYPES`) is the single
             # source for the asset content types.
             if not name or "/" in name or "\\" in name or ".." in name:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             path = WEB_DIR / "assets" / name
             if not path.is_file():
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             ctype = _ASSET_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
             self._serve_static(path, ctype)
@@ -554,7 +562,7 @@ def make_handler(
             if self.path.startswith("/api/send/"):
                 self._handle_send(self.path.rsplit("/", 1)[-1])
                 return
-            self._json(404, {"error": "not found"})
+            self._json(404, {"error": "Not found."})
 
         def _handle_connector_status(self, name: str) -> None:
             """Live readiness of one printer connection: reachable and idle (ready), busy,
@@ -611,7 +619,7 @@ def make_handler(
             try:
                 rid = int(raw_id)
             except ValueError:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             # ENG-402: read the shared registries together under the lock (consistent snapshot).
             with lock:
@@ -728,7 +736,7 @@ def make_handler(
             try:
                 rid = int(raw_id)
             except ValueError:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             # ENG-402: read the shared registries together under the lock (consistent snapshot).
             with lock:
@@ -783,14 +791,19 @@ def make_handler(
             try:
                 rid = int(raw_id)
             except ValueError:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             with lock:
                 state = template_state.get(rid)
+                known = rid in registry
             if state is None:
-                # Unknown id, or an LLM-backed part with no adjustable parameters — either
-                # way there are no sliders to drive here.
-                self._json(404, {"error": "This design has no adjustable parameters."})
+                # QA-002: distinguish a genuinely-unknown id from a known LLM-backed design that
+                # simply has no template parameters — so an API consumer isn't sent debugging the
+                # wrong thing. Both are 404 (no sliders to drive either way).
+                if not known:
+                    self._json(404, {"error": "Design not found."})
+                else:
+                    self._json(404, {"error": "This design has no adjustable parameters."})
                 return
             data = self._read_json_body()
             if data is None:
@@ -822,8 +835,10 @@ def make_handler(
                         slice_cache.pop(k, None)
                     if result.template is not None:  # refresh the (bbox-aligned) base plan
                         template_state[rid] = (result.plan, result.template.family.name)
-                # A unique suffix busts the browser's cache so the viewport fetches the new mesh.
-                payload["mesh_url"] = f"/api/mesh/{rid}?v={next(version_counter)}"
+                    # A unique suffix busts the browser's cache so the viewport fetches the new
+                    # mesh. Taken under `lock` for consistency with the other counter reads
+                    # (ENG-502) — uniqueness is all the cache-buster needs.
+                    payload["mesh_url"] = f"/api/mesh/{rid}?v={next(version_counter)}"
             self._json(200, payload)
 
     return Handler

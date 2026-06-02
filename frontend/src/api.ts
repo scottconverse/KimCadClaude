@@ -35,6 +35,9 @@ export interface ParamSpec {
   step: number
   unit: string
   integer: boolean
+  // X/Y/Z for a dimensional parameter (ties the slider to the viewport's W/D/H pills); absent
+  // for non-dimensional params like wall thickness.
+  axis?: string
 }
 
 export interface DesignResponse {

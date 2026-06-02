@@ -1216,6 +1216,57 @@ def test_render_endpoint_rejects_bad_values(tmp_path):
     assert "parameter values" in body["error"]
 
 
+def test_render_endpoint_unknown_id_is_design_not_found(tmp_path):
+    # QA-002 / TEST-006: a genuinely-unknown id is "Design not found.", distinct from a known
+    # LLM-backed id ("no adjustable parameters", above) — so an API consumer can tell them apart.
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    with _serve(pipe, tmp_path) as (host, port):
+        status, body = _req_json(host, port, "POST", "/api/render/999999", {"values": {"width": 50}})
+    assert status == 404
+    assert "not found" in body["error"].lower()
+    assert "no adjustable parameters" not in body["error"]
+
+
+def test_rerender_into_a_gate_failed_shape_blocks_slice_and_send(tmp_path, monkeypatch):
+    # TEST-001 — the live-slider feature's single most important safety property: a part that
+    # PASSES the gate, gets sliced, then is re-rendered into a gate-FAILING shape must become both
+    # non-sliceable AND non-sendable, so the old good G-code can never ship. The stub renderer is
+    # fixed at 80x60x40, so the defaults pass but a width=120 re-render (expected_bbox X=120 vs the
+    # rendered 80) trips dim.mismatch -> gate FAIL. No binary needed.
+    import kimcad.webapp as webapp_mod
+
+    def _fake_slice(config, mesh_path, printer, material):
+        gp = mesh_path.parent / "part.gcode.3mf"
+        gp.write_bytes(b"PK\x03\x04")
+        return {"sliced": True}, gp
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", _fake_slice)
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        assert d["report"]["gate_status"] == "pass"
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        # The passing part slices fine.
+        _s, s1 = _req_json(host, port, "POST", f"/api/slice/{rid}",
+                           {"printer": "bambu_p2s", "material": "pla"})
+        assert s1.get("gcode_url"), "the passing part should slice"
+        # Re-render into a gate-FAILING shape (expects width 120, the stub still renders 80).
+        _s, r = _req_json(host, port, "POST", f"/api/render/{rid}",
+                          {"values": {"width": 120, "depth": 60, "height": 40, "wall": 2}})
+        assert r["report"]["gate_status"] == "fail", "the re-rendered shape must fail the gate"
+        # The stale slice is gone, and the now-invalid part can be neither sliced nor sent.
+        s_gcode, _ = _req_json(host, port, "GET", f"/api/gcode/{rid}", None)
+        assert s_gcode == 404, "the stale slice must be invalidated"
+        _s, s2 = _req_json(host, port, "POST", f"/api/slice/{rid}",
+                           {"printer": "bambu_p2s", "material": "pla"})
+        assert s2["sliced"] is False and s2["reason"] == "gate_failed"
+        assert "gcode_url" not in s2
+        # And it can't be SENT: the re-render dropped the slice, so send refuses (whether via the
+        # "slice first" 404 or the gate-fail branch — either way `sent` is never True).
+        _s, snd = _req_json(host, port, "POST", f"/api/send/{rid}", {"connector": "mock"})
+        assert snd.get("sent") is not True, "a gate-failed re-rendered part must not be sendable"
+
+
 def _openscad_present() -> bool:
     try:
         return Config.load().binary_path("openscad").exists()
@@ -1291,16 +1342,26 @@ def test_concurrent_rerenders_are_serialized(tmp_path):
 
     intervals = []
     ilock = threading.Lock()
+    # TEST-005: a jitter-free invariant alongside the wall-clock interval check — the count of
+    # renders *currently inside* the body must never exceed 1 if render_lock is serializing them.
+    state = {"inside": 0, "max": 0}
 
     def slow_render(scad, out_dir, basename):
-        t0 = time.monotonic()
-        time.sleep(0.3)
-        p = out_dir / f"{basename}.stl"
-        trimesh.creation.box(extents=(80, 60, 40)).export(str(p))
         with ilock:
-            intervals.append((t0, time.monotonic()))
-        return RenderResult(output_path=p, output_format="stl", stdout="", stderr="",
-                            duration_s=0.3, sanitize=SanitizeResult(code=scad, removed=[]))
+            state["inside"] += 1
+            state["max"] = max(state["max"], state["inside"])
+        try:
+            t0 = time.monotonic()
+            time.sleep(0.3)
+            p = out_dir / f"{basename}.stl"
+            trimesh.creation.box(extents=(80, 60, 40)).export(str(p))
+            with ilock:
+                intervals.append((t0, time.monotonic()))
+            return RenderResult(output_path=p, output_format="stl", stdout="", stderr="",
+                                duration_s=0.3, sanitize=SanitizeResult(code=scad, removed=[]))
+        finally:
+            with ilock:
+                state["inside"] -= 1
 
     pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()), renderer=slow_render)
     results = {}
@@ -1322,5 +1383,8 @@ def test_concurrent_rerenders_are_serialized(tmp_path):
 
     assert len(intervals) == 2 and results.get("a") and results.get("b")
     assert results["a"][0] == 200 and results["b"][0] == 200
+    # Jitter-free invariant: the two re-renders were never inside the renderer simultaneously.
+    assert state["max"] == 1, "two re-renders ran concurrently — render_lock is not serializing"
+    # Belt-and-suspenders: their wall-clock intervals also don't overlap.
     (a0, a1), (b0, b1) = sorted(intervals)
     assert a1 <= b0 + 0.001, "re-renders overlapped — render_lock is not serializing them"

@@ -33,7 +33,10 @@ function SliderRow({
   return (
     <div className="kc-prow">
       <div className="kc-plabel">
-        <span>{spec.label}</span>
+        <span>
+          {spec.label}
+          {spec.axis && <i className="kc-axis">{spec.axis}</i>}
+        </span>
         <span className="kc-pval">
           {formatValue(value, spec)}
           {spec.unit && <i>{spec.unit}</i>}
@@ -108,7 +111,7 @@ function ParametersCard({
         <h2 className="kc-card-title">Parameters</h2>
         {rerendering && (
           <span className="kc-param-updating" role="status">
-            Updating…
+            Re-rendering…
           </span>
         )}
       </div>
@@ -130,7 +133,8 @@ function ParametersCard({
           </div>
           {rerenderError && (
             <p className="kc-muted-note kc-param-error" role="alert">
-              Couldn&rsquo;t re-render: {rerenderError}. Adjust a slider to try again.
+              That change didn&rsquo;t render — your last version is still here. Nudge a slider to
+              try again. <span className="kc-error-detail">({rerenderError})</span>
             </p>
           )}
         </>
@@ -151,8 +155,9 @@ function ParametersCard({
             )}
           </dl>
           <p className="kc-muted-note kc-param-hint">
-            This part was written by the model, so it has no adjustable template parameters. You
-            can still slice and download it.
+            This part was generated directly rather than from a parametric template, so it has no
+            preset sliders — but you can still slice and download it, or describe a change to start
+            a new version.
           </p>
         </>
       ) : (

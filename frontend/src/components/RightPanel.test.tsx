@@ -97,7 +97,7 @@ describe('RightPanel', () => {
     stubFetch()
     renderPanel({ result: passResult })
     expect(screen.queryAllByRole('slider')).toHaveLength(0)
-    expect(screen.getByText(/written by the model/i)).toBeTruthy()
+    expect(screen.getByText(/generated directly/i)).toBeTruthy()
   })
 })
 
@@ -116,7 +116,7 @@ describe('RightPanel live sliders', () => {
     expect(screen.getByRole('slider', { name: 'Height' })).toBeTruthy()
     // The drag hint replaces the read-only note.
     expect(screen.getByText(/re-renders locally/i)).toBeTruthy()
-    expect(screen.queryByText(/written by the model/i)).toBeNull()
+    expect(screen.queryByText(/generated directly/i)).toBeNull()
   })
 
   it('calls onRerender with the merged values after the debounce settles', () => {
@@ -184,34 +184,59 @@ describe('RightPanel live sliders', () => {
     expect(slider.getAttribute('aria-valuetext')).toBe('2 mm')
   })
 
-  it('shows a quiet updating note while a re-render is in flight', () => {
+  it('shows a quiet re-rendering note while a re-render is in flight', () => {
     stubFetch()
     renderPanel({
       result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
       rerendering: true,
     })
-    expect(screen.getByText('Updating…')).toBeTruthy()
+    expect(screen.getByText('Re-rendering…')).toBeTruthy()
   })
 
-  it('hides the updating note when not re-rendering (the note is purely prop-driven)', () => {
+  it('hides the re-rendering note when not re-rendering (the note is purely prop-driven)', () => {
     stubFetch()
     renderPanel({
       result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
       rerendering: false,
     })
-    expect(screen.queryByText('Updating…')).toBeNull()
+    expect(screen.queryByText('Re-rendering…')).toBeNull()
   })
 
-  it('surfaces a re-render error with a recoverable next action', () => {
+  it('surfaces a re-render error with a recoverable next action and reassurance', () => {
     stubFetch()
     renderPanel({
       result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
       rerenderError: 'KimCad couldn’t re-render this part.',
     })
     const alert = screen.getByRole('alert')
-    expect(alert.textContent).toMatch(/couldn.t re-render/i)
-    expect(alert.textContent).toMatch(/adjust a slider to try again/i)
+    expect(alert.textContent).toMatch(/didn.t render/i)
+    expect(alert.textContent).toMatch(/last version is still here/i)
+    expect(alert.textContent).toMatch(/nudge a slider to try again/i)
     // Controls are never stuck disabled after an error.
     expect((screen.getByRole('slider', { name: 'Width' }) as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('renders the per-axis chip for a dimensional slider', () => {
+    stubFetch()
+    renderPanel({
+      result: templateResult([
+        param({ name: 'width', label: 'Width', value: 80, max: 200, axis: 'X' }),
+      ]),
+    })
+    expect(screen.getByText('X')).toBeTruthy()
+  })
+
+  it('does not fire the debounced re-render after the panel unmounts', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props, unmount } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    fireEvent.change(screen.getByRole('slider', { name: 'Width' }), { target: { value: '120' } })
+    unmount()
+    act(() => {
+      vi.advanceTimersByTime(150)
+    })
+    expect(props.onRerender).not.toHaveBeenCalled()
   })
 })

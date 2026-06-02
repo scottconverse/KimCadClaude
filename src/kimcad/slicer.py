@@ -72,7 +72,17 @@ class SliceFailed(SliceError):
     def __init__(self, returncode: int, stderr: str):
         self.returncode = returncode
         self.stderr = stderr
-        super().__init__(f"orca-slicer exited {returncode}: {stderr.strip()[:500]}")
+        # QA-003: a Windows native exit code comes back unsigned (e.g. 4294967246); show its
+        # signed value (-50) so the message reads sanely, and when the process left no stderr,
+        # give a plain-English hint instead of a bare dangling colon.
+        signed = returncode - 2**32 if returncode is not None and returncode > 2**31 else returncode
+        detail = stderr.strip()[:500]
+        if not detail:
+            detail = (
+                "no slicer output — the part may be too large or too solid for this "
+                "printer/profile; try a smaller or thinner-walled part."
+            )
+        super().__init__(f"orca-slicer exited {signed}: {detail}")
 
 
 class GcodeProofFailed(SliceFailed):

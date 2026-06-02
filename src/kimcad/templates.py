@@ -170,21 +170,23 @@ class TemplateMatch:
 
     def parameters(self) -> list[dict]:
         """The slider snapshot: each parameter's spec plus its current value, as plain
-        JSON-able dicts (the shape the web UI consumes)."""
+        JSON-able dicts (the shape the web UI consumes). A dimensional parameter also carries
+        its ``axis`` (X/Y/Z), so the UI can tag the slider to the viewport's W/D/H pills."""
         out = []
         for p in self.family.params:
-            out.append(
-                {
-                    "name": p.name,
-                    "label": p.label,
-                    "value": self.values[p.name],
-                    "min": p.min,
-                    "max": p.max,
-                    "step": p.step,
-                    "unit": p.unit,
-                    "integer": p.integer,
-                }
-            )
+            entry = {
+                "name": p.name,
+                "label": p.label,
+                "value": self.values[p.name],
+                "min": p.min,
+                "max": p.max,
+                "step": p.step,
+                "unit": p.unit,
+                "integer": p.integer,
+            }
+            if p.bbox_axis is not None:
+                entry["axis"] = ("X", "Y", "Z")[p.bbox_axis]
+            out.append(entry)
         return out
 
 
@@ -212,12 +214,24 @@ def _apply_gaps(family: TemplateFamily, values: dict[str, float]) -> dict[str, f
     return values
 
 
+def _finalize(family: TemplateFamily, raw: dict[str, float]) -> dict[str, float]:
+    """The shared value tail for both entry points: per parameter, coerce the raw value to a
+    finite number (non-numeric/NaN/inf → the family default), clamp it into the parameter's
+    range, back-fill any missing key with its default, drop unknown keys, then honor the
+    ordering constraints. The single guarantee that only finite, in-range, geometrically-valid
+    numbers reach :func:`emit_scad`."""
+    out: dict[str, float] = {}
+    for p in family.params:
+        out[p.name] = _clamp(_coerce_finite(raw.get(p.name, p.default), p.default), p.min, p.max)
+    return _apply_gaps(family, out)
+
+
 def derive_values(family: TemplateFamily, plan: DesignPlan) -> dict[str, float]:
     """Map a plan onto the family's parameters: prefer a named ``dimensions`` key, fall
     back to the matching ``bounding_box_mm`` axis, then the family default — and clamp
     every result into the parameter's range (and honor ordering constraints) so a wild or
     non-finite model number can't escape the slider bounds."""
-    out: dict[str, float] = {}
+    raw: dict[str, float] = {}
     for p in family.params:
         value: float | None = None
         for key in p.dim_keys:
@@ -226,9 +240,9 @@ def derive_values(family: TemplateFamily, plan: DesignPlan) -> dict[str, float]:
                 break
         if value is None and p.bbox_axis is not None and plan.bounding_box_mm is not None:
             value = plan.bounding_box_mm[p.bbox_axis]
-        coerced = p.default if value is None else _coerce_finite(value, p.default)
-        out[p.name] = _clamp(coerced, p.min, p.max)
-    return _apply_gaps(family, out)
+        if value is not None:  # else _finalize back-fills the family default
+            raw[p.name] = value
+    return _finalize(family, raw)
 
 
 def clamp_values(family: TemplateFamily, values: dict[str, float]) -> dict[str, float]:
@@ -236,10 +250,7 @@ def clamp_values(family: TemplateFamily, values: dict[str, float]) -> dict[str, 
     into range, ignoring unknown keys, back-filling any missing parameter with its
     default, dropping non-finite input, and honoring ordering constraints. Guarantees a
     complete, in-range, geometrically-valid value set for :func:`emit_scad`."""
-    out: dict[str, float] = {}
-    for p in family.params:
-        out[p.name] = _clamp(_coerce_finite(values.get(p.name, p.default), p.default), p.min, p.max)
-    return _apply_gaps(family, out)
+    return _finalize(family, values)
 
 
 class TemplateRegistry:
@@ -381,7 +392,12 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         params=(
             ParamSpec(name="plate_w", label="Plate width", default=25.0, min=12.0, max=120.0, step=1.0,
                       dim_keys=("width", "plate_w"), bbox_axis=0),
-            ParamSpec(name="plate_h", label="Plate height", default=60.0, min=20.0, max=200.0, step=1.0,
+            # min=24 (not 20): below 24 the module's arm floor max(2,(plate_h-arm_rise)/2)+arm_rise
+            # lifts the true Z top above plate_h, so the analytic (linear) bbox_z would under-report
+            # and the gate would fail-closed on an otherwise-fine part (ENG-501). 24 keeps the
+            # linear bbox exact across the whole slider range (a 20 mm plate with a 20 mm arm rise
+            # is a degenerate hook anyway).
+            ParamSpec(name="plate_h", label="Plate height", default=60.0, min=24.0, max=200.0, step=1.0,
                       dim_keys=("height", "plate_h"), bbox_axis=2),
             ParamSpec(name="arm_proj", label="Arm reach", default=35.0, min=10.0, max=120.0, step=1.0,
                       dim_keys=("arm_proj", "projection", "reach", "depth")),

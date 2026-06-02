@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { DesignResponse } from './api'
 import App from './App'
@@ -18,12 +18,15 @@ vi.mock('./components/Workspace', () => ({
   default: ({
     rerendering,
     onRerender,
+    result,
   }: {
     rerendering: boolean
     onRerender: (values: Record<string, number>) => void
+    result: DesignResponse | null
   }) => (
     <div>
       <span data-testid="rerendering">{String(rerendering)}</span>
+      <span data-testid="mesh-url">{result?.mesh_url ?? ''}</span>
       <button type="button" onClick={() => onRerender({ width: 1 })}>
         do-rerender
       </button>
@@ -82,5 +85,36 @@ describe('App live-slider lifecycle', () => {
 
     // Without the fix the abandoned re-render leaves the flag stuck true on the new design.
     expect(flag2.textContent).toBe('false')
+  })
+
+  it('discards a stale (out-of-order) re-render response so the newer one wins', async () => {
+    // TEST-002: render A (slow) and render B (fast) both fire; B resolves first, A resolves last.
+    // The renderSeq guard must drop A's late result so the viewport doesn't snap back to a stale
+    // shape. Manually-resolved promises keep the ordering deterministic (no timers).
+    const api = await import('./api')
+    ;(api.postDesign as Mock).mockResolvedValueOnce(templateResult('/api/mesh/1'))
+    const resolvers: Array<(v: DesignResponse) => void> = []
+    ;(api.postRender as Mock).mockImplementation(
+      () => new Promise<DesignResponse>((resolve) => resolvers.push(resolve)),
+    )
+
+    render(<App />)
+    await designFrom('a box')
+
+    // Two overlapping re-renders: A (first) then B (second).
+    fireEvent.click(screen.getByRole('button', { name: 'do-rerender' }))
+    fireEvent.click(screen.getByRole('button', { name: 'do-rerender' }))
+    expect(resolvers).toHaveLength(2)
+
+    // Resolve the NEWER (B) first, then the STALE (A) last.
+    await act(async () => {
+      resolvers[1](templateResult('/api/mesh/1?v=new'))
+    })
+    await act(async () => {
+      resolvers[0](templateResult('/api/mesh/1?v=stale'))
+    })
+
+    // The stale response is discarded; the newer geometry stands.
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/1?v=new')
   })
 })

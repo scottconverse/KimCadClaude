@@ -18,6 +18,7 @@ from kimcad.config import Config
 from kimcad.template_bench import (
     BBOX_TOLERANCE_MM,
     RERENDER_CEILING_S,
+    RERENDER_TARGET_S,
     BenchReport,
     FamilyBench,
     _NoModelProvider,
@@ -158,3 +159,15 @@ def test_every_family_re_renders_deterministically_under_budget():
         assert f.deterministic_emit, f.name
         assert f.bbox_error_mm <= BBOX_TOLERANCE_MM, f"{f.name}: bbox err {f.bbox_error_mm}"
         assert f.rerender_s <= RERENDER_CEILING_S, f"{f.name}: re-render {f.rerender_s:.3f}s"
+    # TEST-003 / NEW-001: assert the <1 s interactive headline on REAL renders, but via the
+    # MEDIAN family — not every family. A single family can momentarily straddle 1.0 s under load
+    # (wall_hook/tube sit ~0.7–1.0 s on the reference box), so a hard per-family <1 s gate would
+    # flake; the median (~0.3 s) is jitter-resistant and is the honest "a typical drag re-renders
+    # in under a second" claim. RERENDER_CEILING_S above is still the hard per-family correctness
+    # gate; the committed proof carries the exact per-family numbers.
+    times = sorted(f.rerender_s for f in report.families)
+    median = times[len(times) // 2]
+    assert median < RERENDER_TARGET_S, (
+        f"median re-render {median:.3f}s exceeds the <1 s interactive target; "
+        f"per-family: {[(f.name, round(f.rerender_s, 3)) for f in report.families]}"
+    )

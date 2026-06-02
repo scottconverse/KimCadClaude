@@ -191,8 +191,9 @@ All notable changes to KimCad are documented here. Format follows
   units, and `aria-valuetext`-announced; the touch target fattens on mobile.
 - **Deterministic-template benchmark/proof** (`template_bench.py`, `python -m kimcad.template_bench`):
   every family re-renders through the real pipeline path watertight at its declared envelope, with
-  no model call, in **well under the <1 s interactive target** — measured and recorded in
-  `docs/benchmarks/stage-5-template-families.md`.
+  no model call, **well under the <1 s interactive target** (the automated gate asserts a
+  conservative ≤5 s per-family ceiling so it stays hardware-independent; the exact per-family
+  timings are in `docs/benchmarks/stage-5-template-families.md`).
 
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable

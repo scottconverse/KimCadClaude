@@ -102,6 +102,17 @@ def test_slice_failed_on_nonzero(tmp_path, monkeypatch):
         )
 
 
+def test_slice_failed_message_is_user_legible():
+    # QA-003: a Windows unsigned exit code is shown signed, and an empty stderr gets a
+    # plain-English hint instead of a bare dangling colon.
+    msg = str(SliceFailed(4294967246, ""))
+    assert "4294967246" not in msg  # not the raw unsigned value
+    assert "-50" in msg  # the signed equivalent
+    assert "too large or too solid" in msg  # the plain-English hint (no dangling colon)
+    # A real stderr is preserved (signed code still applied).
+    assert "bad profile" in str(SliceFailed(2, "bad profile"))
+
+
 def test_slice_timeout(tmp_path, monkeypatch):
     def _run(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 1))

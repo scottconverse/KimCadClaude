@@ -7,6 +7,10 @@ import { designIdFromMeshUrl, postDesign, postRender, type DesignResponse } from
 // without the 3D bundle; three is fetched the first time a part is designed.
 const Workspace = lazy(() => import('./components/Workspace'))
 
+// Minimum time the "Re-rendering…" note stays up, so a sub-second render reads as a deliberate
+// signal rather than a flicker (UX-003).
+const RERENDER_MIN_DWELL_MS = 350
+
 // KimCad SPA — application shell + the design flow.
 //
 // Stage 4: landing → describe → the part renders in the Three.js viewport (Slice 3); the
@@ -55,6 +59,7 @@ export default function App() {
     const designId = designIdFromMeshUrl(resultRef.current?.mesh_url)
     if (designId == null) return
     const seq = ++renderSeq.current
+    const startedAt = performance.now()
     setRerendering(true)
     setRerenderError(null)
     try {
@@ -65,7 +70,18 @@ export default function App() {
         setRerenderError(err instanceof Error ? err.message : 'Re-render failed.')
       }
     } finally {
-      if (seq === renderSeq.current) setRerendering(false)
+      // UX-003: hold the "Re-rendering…" note for a minimum dwell so a sub-second render reads as
+      // a deliberate signal, not a flicker. Only the latest re-render clears the flag (seq guard).
+      if (seq === renderSeq.current) {
+        const remaining = RERENDER_MIN_DWELL_MS - (performance.now() - startedAt)
+        if (remaining > 0) {
+          window.setTimeout(() => {
+            if (seq === renderSeq.current) setRerendering(false)
+          }, remaining)
+        } else {
+          setRerendering(false)
+        }
+      }
     }
   }
 

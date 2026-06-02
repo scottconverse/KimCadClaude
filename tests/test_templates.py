@@ -23,6 +23,8 @@ from kimcad.templates import (
     TemplateFamily,
     TemplateRegistry,
     _fmt,
+    _normalize,
+    _singular,
     clamp_values,
     default_registry,
     derive_values,
@@ -230,6 +232,33 @@ def test_match_parameters_snapshot_is_in_range_and_typed():
     assert params["wall"]["unit"] == "mm" and params["wall"]["step"] == 0.2
 
 
+def test_parameters_snapshot_exposes_axis_for_dimensional_params():
+    # UX-004: a dimensional parameter carries its X/Y/Z axis so the slider can tag to the
+    # viewport's W/D/H pills; a non-dimensional one (wall thickness) carries no axis.
+    params = {p["name"]: p for p in default_registry().match(_plan("box")).parameters()}
+    assert params["width"]["axis"] == "X"
+    assert params["depth"]["axis"] == "Y"
+    assert params["height"]["axis"] == "Z"
+    assert "axis" not in params["wall"]
+
+
+def test_singular_stripping_never_collides_across_families():
+    # ENG-504: the conservative -s plural stripper must not let one family's alias singularize
+    # onto a DIFFERENT family's alias (which would silently mis-match). Holds for all built-ins.
+    reg = default_registry()
+    alias_owner: dict[str, str] = {}
+    for fam in reg.families():
+        for alias in fam.object_types:
+            alias_owner[_normalize(alias)] = fam.name
+    for norm, owner in alias_owner.items():
+        singular = _singular(norm)
+        if singular != norm and singular in alias_owner:
+            assert alias_owner[singular] == owner, (
+                f"'{norm}' ({owner}) singularizes to '{singular}' owned by "
+                f"'{alias_owner[singular]}' — a cross-family collision"
+            )
+
+
 def test_unknown_bbox_ref_raises():
     fam = TemplateFamily(
         name="x", summary="", object_types=("x",), library_file="containers.scad", module="snap_box",
@@ -277,3 +306,36 @@ def test_family_renders_watertight_with_its_declared_bbox(name):
     assert report.watertight, f"{name} should render watertight"
     for axis, got, exp in zip("XYZ", report.bounding_box_mm, expected):
         assert abs(got - exp) <= 0.01, f"{name} {axis}: got {got:.4f}, declared {exp:.4f}"
+
+
+@pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
+def test_wall_hook_bbox_is_exact_at_the_plate_height_minimum():
+    """ENG-501: at the plate_h slider minimum the module's arm floor used to lift the true Z top
+    2 mm above the analytic plate_h, failing the gate at that one slider end. With the min raised
+    to 24 the linear bbox_z equals the rendered envelope across the whole range — verify at the
+    minimum (the formerly-drifting boundary)."""
+    from kimcad.openscad_runner import render_scad
+    from kimcad.validation import load_mesh, validate_mesh
+
+    fam = default_registry().family("wall_hook")
+    plate_h_min = next(p.min for p in fam.params if p.name == "plate_h")
+    values = clamp_values(fam, {"plate_h": plate_h_min})
+    assert values["plate_h"] == plate_h_min  # the slider is actually at its minimum
+    scad = emit_scad(fam, values)
+    expected = fam.expected_bbox(values)
+    cfg = Config.load()
+    with tempfile.TemporaryDirectory() as td:
+        r = render_scad(
+            scad,
+            binary=cfg.binary_path("openscad"),
+            out_dir=Path(td),
+            basename="t",
+            output_format=cfg.default_output_format(),
+            timeout_s=cfg.limit("openscad_timeout_simple_s"),
+            max_output_bytes=cfg.limit("max_output_bytes"),
+        )
+        _mesh, report = validate_mesh(load_mesh(r.output_path))
+    for axis, got, exp in zip("XYZ", report.bounding_box_mm, expected):
+        assert abs(got - exp) <= 0.05, (
+            f"wall_hook@plate_h_min {axis}: got {got:.4f}, declared {exp:.4f} (ENG-501 regression)"
+        )

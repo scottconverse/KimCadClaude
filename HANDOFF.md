@@ -1,10 +1,12 @@
-# KimCad — Handoff (2026-06-02 — Stage 5 IN PROGRESS, backend done, Slice 4 next)
+# KimCad — Handoff (2026-06-02 — Stage 5: Slices 1–5 complete, stage gate passing, pending merge+tag)
 
 ## ⛔ READ FIRST
 
-- **🔨 STAGE 5 IS IN PROGRESS — resume on branch `stage-5-template-engine` (head `1a0af61`, 5 ahead
-  of `main`, NOT merged/tagged). The whole BACKEND is done (Slices 1-3); NEXT = Slice 4 (the
-  frontend live sliders). See the "Stage 5 — IN PROGRESS" section just below for the exact pickup.**
+- **🔨 STAGE 5 — ALL FIVE SLICES COMPLETE on branch `stage-5-template-engine`, NOT yet merged/tagged.**
+  Slices 1–5 (engine, pipeline tiering, re-render API, live sliders, benchmark+docs) are each through
+  the real `audit-lite` skill to 0/0/0/0/0, and the full `audit-team` stage gate has run + been
+  remediated to 0/0/0/0/0 (package in `docs/audits/stage-5/audit-team-stage-5-2026-06-02/`). **NEXT =
+  the final native Windows gate → merge to `main` → tag `stage-5`.** See the "Stage 5" section below.
 - **Stage 4 is DONE — merged to `main` (merge commit `dcbcd1a`) and tagged `stage-4`** (the `stage-4`
   tag was advanced past the merge to the docs-consistency commit — see "Tag provenance" below — so
   the tag and the `main` head are the same commit, `181115e`).
@@ -16,58 +18,54 @@
 
 ---
 
-## 🔨 Stage 5 — IN PROGRESS (deterministic template engine + live sliders — the critical path)
+## 🔨 Stage 5 — Slices 1–5 complete; stage gate passing; pending merge + tag (deterministic template engine + live sliders — the critical path)
 
-**Branch `stage-5-template-engine` @ `1a0af61`, 5 commits ahead of `main`, NOT merged/tagged.**
-Stage 5 makes the headline UX real: drag a parameter slider → re-render in **<1 s with NO model
-call**. On the old LLM-writes-OpenSCAD engine that was impossible (every change round-tripped the
-model). The whole engine + backend is built; only the slider UI + benchmark + stage gate remain.
+**Branch `stage-5-template-engine`, ahead of `main`, NOT merged/tagged.** Stage 5 makes the headline
+UX real: drag a parameter slider → re-render in **<1 s with NO model call** (measured 0.13–0.45 s per
+family; proof in `docs/benchmarks/stage-5-template-families.md`). On the old LLM-writes-OpenSCAD
+engine that was impossible (every change round-tripped the model).
 
-**DONE — the entire backend (Slices 1-3), each through the real `audit-lite` skill to 0/0/0/0/0
-(reports committed in `docs/audits/stage-5/`):**
+**DONE — all five slices, each through the real `audit-lite` skill to 0/0/0/0/0 (reports committed in
+`docs/audits/stage-5/`):**
 - **Slice 1 — `src/kimcad/templates.py`:** a registry of 7 parametric families (snap_box, box,
   enclosure, tube, wall_hook, cable_clip, drawer_divider) built on the proven `library/*.scad`
   modules; a typed/range-bounded `ParamSpec` schema; OpenSCAD `emit` by pure string substitution
-  (no model, injection-safe — only clamped numbers reach emit); analytic `expected_bbox` per family;
-  param clamping + ordering constraints (tube id<od) + an alias-collision guard. `tests/test_templates.py`.
+  (no model, injection-safe — only clamped finite numbers reach emit); analytic `expected_bbox` per
+  family; param clamping + ordering constraints (tube id<od) + an alias-collision guard.
 - **Slice 2 — `pipeline.py` tiering:** a template-covered `object_type` builds DETERMINISTICALLY
-  (no model call); everything else falls back to LLM codegen. `PipelineResult.template` carries the
-  matched family + derived params; the gate plan's bbox + dimensions are aligned to the template's
-  values. `tests/test_pipeline_templates.py`.
+  (no model call, single-shot, fail-closed); everything else falls back to LLM codegen.
+  `PipelineResult.template`; the gate plan's bbox + dimensions aligned to the template's values.
 - **Slice 3 — the re-render API:** `pipeline.rerender()` + a shared `_assemble_result` tail;
-  `webapp.py` `POST /api/render/<id>` (deterministic re-render at new slider values, no model);
-  `/api/design` now returns the typed `parameters` snapshot + `template` family name; a re-render
-  invalidates the cached slice/G-code (the old shape can't be sliced/sent), serializes concurrent
-  drags (`render_lock`), versions the `mesh_url` (cache-buster), `/api/mesh` strips the query. Tests
-  in `tests/test_webapp.py`.
-- **+ 2 doc-accuracy commits (`03f87aa`, `1a0af61`)** that resolved Codex's spot-check: the lone
-  "Critical" was an overclaim ("gate-fail can't slice" — the real line is **never SENT**) plus a
-  documented power-user boundary (the MCP `send_print` primitive enforces confirm + a proven slice,
-  NOT the printability gate — see the **send-gate boundary note in §2** / `mcp_server.py`). Dispatch
-  safety holds on the web + CLI design flows; `--proceed-anyway` slices a failed part for inspection
-  only (engineers are power users — kept intentionally).
+  `webapp.py` `POST /api/render/<id>` (deterministic re-render, no model); `/api/design` returns the
+  typed `parameters` snapshot + `template` name; a re-render invalidates the cached slice/G-code,
+  serializes concurrent drags (`render_lock`), versions the `mesh_url`, `/api/mesh` strips the query.
+- **Slice 4 — frontend live sliders (`frontend/src/components/RightPanel.tsx` et al.):** a slider per
+  backend parameter for template-backed designs; drag → ~150 ms-debounced `POST /api/render/<id>`;
+  the viewport reloads the versioned mesh while the previous one stays on screen; gate/report/values
+  re-sync to server truth; a monotonic `renderSeq` guard drops stale responses; LLM-backed parts stay
+  read-only; labelled + `aria-valuetext` + axis chips; mobile 44 px touch target.
+- **Slice 5 — `src/kimcad/template_bench.py` + `docs/benchmarks/stage-5-template-families.md`:** a
+  deterministic-family benchmark proving every family re-renders watertight at its declared envelope,
+  byte-deterministic, NO model call (a `_NoModelProvider` raises if touched), in <1 s. Plus the
+  Stage 5 doc updates (ARCHITECTURE/CHANGELOG/ROADMAP/README).
 
-**Verified at the branch head:** **470 pytest passing** (incl. live OrcaSlicer); ruff clean; vitest
-19; SPA build byte-reproducible; `npm audit` 0. Native Windows gate (WSL fails only on the
-Windows-installed Rolldown binding — env mismatch, not a defect).
+**Stage gate (audit-team, 2026-06-02):** the 5-role `audit-team` ran on the branch and rolled up
+**0 Blocker · 0 Critical · 3 Major · 14 Minor · 14 Nit (31)** — no Blockers/Criticals; every
+load-bearing safety invariant verified holding (injection-safe emit, no-model re-render, gate-fail
+re-render drops the stale slice at runtime, concurrent re-renders serialized, send-gate boundary
+intact). All 31 were remediated, then re-audited to **0/0/0/0/0**. Authoritative record:
+`docs/audits/stage-5/audit-team-stage-5-2026-06-02/` (`00-executive-audit.md` + 5 deep-dives +
+`sprint-punchlist.md` + `next-sprint-watchlist.md`).
 
-**➡️ NEXT = Slice 4 (frontend live sliders) — the UI half. Exact pickup:**
-- Replace the read-only `ParametersCard` in `frontend/src/components/RightPanel.tsx` with live
-  sliders bound to the `parameters` array `/api/design` now returns. Each entry is
-  `{name, label, value, min, max, step, unit, integer}`.
-- On drag (debounce ~150 ms) POST `{values: {<name>: <number>, …}}` to `/api/render/<id>`; on the
-  response, update the dims/report and reload the viewport from the response's **`mesh_url`** (it's
-  versioned, so the browser fetches the fresh mesh). Keep the last mesh on screen with a quiet
-  "updating…" until the new one lands (spec §4.2). LLM-backed designs have no `parameters` → keep
-  the read-only note (no sliders).
-- vitest component tests + the **MANDATORY rendered desktop + mobile visual check** (UI-slice rule).
-- Then: `audit-lite` skill → fix all Blocker→Nit → re-audit to 0/0/0/0/0 → vitest + full pytest +
-  `npm run build` (commit the rebuilt SPA) → push. Don't stop at a clean slice unless context-forced
-  (state that plainly).
+**Verified at remediation head:** **`pytest` full suite green incl. live OrcaSlicer**; ruff clean;
+**vitest green**; SPA build byte-reproducible; `npm audit` 0. (Run `scripts/ci.sh` / the pre-push hook
+for the authoritative count; do NOT hand-copy a number here that can go stale — that was DOC-001.)
 
-**Then to finish Stage 5:** Slice 5 = benchmark the families (deterministic render + <1 s re-render
-proof) + docs (ARCHITECTURE/CHANGELOG/ROADMAP/HANDOFF). **Stage gate:** full `audit-team` on the
-branch → fix → re-audit to 0/0/0/0/0 → native Windows gate → merge → tag `stage-5` → only then report.
+**➡️ NEXT = the stage gate's tail:** native Windows gate (ruff + full pytest incl. live + vitest +
+`npm run build` reproducibility + `npm audit` 0) → merge to `main` → tag `stage-5` at the final
+artifact → flip this section + ROADMAP to DONE → report to Scott. (Tag pushes have been DENIED by the
+out-of-context Agent Pipeline hook before — if the `stage-5` tag push is blocked, surface it to Scott
+as the one authorization needed.)
 
 ---
 
