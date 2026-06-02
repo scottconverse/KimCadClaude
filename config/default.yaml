@@ -39,6 +39,18 @@ llm:
       max_tokens: 8192
       supports_structured_output: false     # Ollama: rely on JSON-instructed prompt
 
+    local_qwen:
+      provider: openai_compatible
+      base_url: http://localhost:11434/v1   # same Ollama; the Stage 6 bake-off challenger
+      model_name: qwen2.5-coder:1.5b        # candidate default — a small code model. Pull with
+                                            # `ollama pull qwen2.5-coder:1.5b`, then compare vs
+                                            # `local` (gemma) with `kimcad bakeoff`. Becomes the
+                                            # default only if it clears the bar (Scott's call).
+      api_key_env: null
+      temperature: 0.2
+      max_tokens: 8192
+      supports_structured_output: false
+
     custom_openrouter:
       provider: openai_compatible
       base_url: https://openrouter.ai/api/v1

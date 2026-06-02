@@ -27,7 +27,7 @@ from typing import Any
 
 from kimcad.config import Config
 
-_SUBCOMMANDS = {"design", "bench", "web", "models"}
+_SUBCOMMANDS = {"design", "bench", "web", "models", "bakeoff"}
 
 
 def _force_utf8_output(stream: Any) -> None:
@@ -120,6 +120,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ollama base URL to query for installed models (default: the configured "
         "local backend, else http://localhost:11434/v1).",
     )
+
+    bo = sub.add_parser(
+        "bakeoff",
+        help="Run the benchmark across two+ model backends and compare them (Stage 6).",
+    )
+    bo.add_argument(
+        "--backends",
+        default="local_qwen,local",
+        help="Comma-separated config backend keys to compare (default: local_qwen,local "
+        "= qwen vs gemma). Each must be defined under llm.backends.",
+    )
+    bo.add_argument("--prompts", default="bench/prompts.yaml", help="Benchmark prompt YAML.")
+    bo.add_argument("--out", default="output/bakeoff", help="Output directory.")
+    bo.add_argument("--printer", default=None, help="Printer key (default from config).")
+    bo.add_argument("--material", default=None, help="Material key (default from config).")
+    bo.add_argument(
+        "--no-slice",
+        action="store_true",
+        help="Skip slicing (drops the slices-clean axis from the comparison). Slicing is "
+        "on by default for a bake-off so all three axes are compared.",
+    )
     return parser
 
 
@@ -149,6 +170,17 @@ def _build_pipeline(config: Config, args: argparse.Namespace):
     alt_cfg = config.llm_alt_backend()
     alt = LLMProvider(alt_cfg) if alt_cfg is not None else None
     provider = FallbackProvider(primary, alt) if alt is not None else primary
+    return Pipeline(config, printer, material, provider)
+
+
+def _pipeline_for_backend(config: Config, backend_key: str, printer: Any, material: Any):
+    """Build a pipeline pinned to one backend, with NO fallback chain — the bake-off
+    measures each model in isolation, so a silent fallback would contaminate the
+    comparison by swapping in the other model mid-run."""
+    from kimcad.llm_provider import LLMProvider
+    from kimcad.pipeline import Pipeline
+
+    provider = LLMProvider(config.llm_backend(backend_key))
     return Pipeline(config, printer, material, provider)
 
 
@@ -280,6 +312,56 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_bakeoff(config: Config, args: argparse.Namespace) -> int:
+    from kimcad.bakeoff import run_bakeoff
+    from kimcad.benchmark import load_cases
+
+    prompts_path = Path(args.prompts)
+    if not prompts_path.exists():
+        print(
+            f"No benchmark prompts at {prompts_path}.\n"
+            "Copy bench/prompts.example.yaml to bench/prompts.yaml and fill in the "
+            "Appendix B prompts."
+        )
+        return 2
+
+    backends = [b.strip() for b in args.backends.split(",") if b.strip()]
+    if len(backends) < 2:
+        print("bakeoff needs at least two backends, e.g. --backends local_qwen,local")
+        return 2
+    # Validate every backend resolves before running — a bake-off is many minutes of CPU
+    # per backend, so fail fast on a typo'd key rather than after the first batch.
+    known_backends = config.raw.get("llm", {}).get("backends", {})
+    for key in backends:
+        if key not in known_backends:
+            names = ", ".join(known_backends) or "(none configured)"
+            print(f"Unknown backend '{key}'. Configured backends: {names}")
+            return 2
+
+    printer = config.printer(args.printer)
+    material = config.material(args.material)
+    incumbent = config.raw["llm"]["active"]
+    cases = load_cases(prompts_path)
+    out_dir = Path(args.out)
+
+    bakeoff = run_bakeoff(
+        backends,
+        make_pipeline=lambda key: _pipeline_for_backend(config, key, printer, material),
+        model_name_for=lambda key: config.llm_backend(key).model_name,
+        cases=cases,
+        out_root=out_dir,
+        slice_for_grade=not args.no_slice,
+        incumbent=incumbent,
+    )
+    text = bakeoff.to_text()
+    # Persist before printing: a bake-off is a long CPU run, and a console-encoding
+    # error at print time must never discard the result.
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "bakeoff.txt").write_text(text, encoding="utf-8")
+    print(text)
+    return 0
+
+
 def _cmd_web(args: argparse.Namespace) -> int:
     from kimcad.webapp import serve
 
@@ -356,6 +438,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_design(config, args)
         if args.command == "bench":
             return _cmd_bench(config, args)
+        if args.command == "bakeoff":
+            return _cmd_bakeoff(config, args)
         if args.command == "models":
             return _cmd_models(config, args)
     except RuntimeError as e:
