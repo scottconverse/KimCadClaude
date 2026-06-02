@@ -1,13 +1,21 @@
-# KimCad — Handoff (2026-06-02 — Stage 5 DONE: deterministic template engine + live sliders, merged + tagged)
+# KimCad — Handoff (2026-06-02 — Stage 6 IN PROGRESS: model swap — Slices 1 & 2 done, on branch `stage-6-model-swap`)
 
 ## ⛔ READ FIRST
 
+- **🔧 STAGE 6 IS IN PROGRESS on branch `stage-6-model-swap`** (pushed, head `0448f03`; NOT merged/tagged
+  — no `audit-team` stage gate run yet). **Slice 1** (hardware/availability-aware, choosable model
+  advisor — `kimcad models`) and **Slice 2** (tiered LLM fallback chain — `FallbackProvider`) are DONE,
+  each through the real `audit-lite` skill to **0/0/0/0/0** (reports in `docs/audits/stage-6/`).
+  **RESUME HERE = Slice 3** (expanded 3-axis benchmark grading). See the "🔧 Stage 6 — IN PROGRESS"
+  section just below for the full slice plan + the bake-off hand-off note. The pre-push CI hook gates
+  every push (ruff + full pytest incl. live + vitest + build-reproducibility); branch is **535 pytest
+  + 36 vitest green**.
 - **✅ STAGE 5 IS DONE — merged to `main` (merge commit `14896d6`) and tagged `stage-5`** (the tag was
   advanced past the merge to this docs-DONE commit so the tagged artifact's docs say "done", not
   "pending" — the Stage-4 lesson). Slices 1–5 (engine, pipeline tiering, re-render API, live sliders,
   benchmark+docs) each passed the real `audit-lite` to 0/0/0/0/0, then the full `audit-team` stage
   gate + re-audit closed at 0/0/0/0/0 (`docs/audits/stage-5/audit-team-stage-5-2026-06-02/` +
-  `…-reaudit/`). **NEXT = Stage 6 (model swap — Qwen default + tiered fallback; see ROADMAP).**
+  `…-reaudit/`).
 - **Stage 4 is DONE — merged to `main` (merge commit `dcbcd1a`) and tagged `stage-4`** (the `stage-4`
   tag was advanced past the merge to the docs-consistency commit — see "Tag provenance" below — so
   the tag and the `main` head are the same commit, `181115e`).
@@ -16,6 +24,54 @@
 - **The agent-pipeline skill is DEAD for this project.** Scott killed it (it can't run from the
   wrong cwd / an uninitialized repo). This project runs the **manual process** in §6. Do NOT
   re-invoke `agent-pipeline-claude:run`.
+
+---
+
+## 🔧 Stage 6 — IN PROGRESS (branch `stage-6-model-swap`, head `0448f03`) — model swap + tiered fallback + bake-off
+
+**Scope (the "roadmap scope" Scott chose):** swap the default model from `gemma4:e4b` toward
+`qwen2.5-coder:1.5b` *if it clears a bake-off on the target box*, behind a tiered fallback chain, with
+expanded benchmark grading to judge the swap. **Standing constraint (Scott, verbatim):** *"the model
+must be choosable, not hardwired. The code should examine the hardware then make a recommendation based
+on what's available."* The model was ALREADY choosable (config `backends` + per-machine `config/local.yaml`
+override + `--backend`); Slice 1 added the missing hardware/availability probe + recommendation.
+
+**Slices done (each through the real `audit-lite` skill → 0/0/0/0/0; reports in `docs/audits/stage-6/`):**
+
+- **Slice 1 — hardware/availability-aware, choosable model advisor** (`src/kimcad/model_advisor.py` +
+  `kimcad models` CLI). Best-effort probes (RAM via ctypes/`/proc`/sysctl; CPU; NVIDIA GPU+VRAM via
+  `nvidia-smi` — all degrade to `None`, never raise) + Ollama `/api/tags` installed-model probe. A pure
+  `recommend()` → best installed-and-fitting LOCAL model wins; names an `upgrade` the box could pull;
+  surfaces a non-China alternative **only when the primary is China-origin** (preferring an installed one);
+  cloud is never primary when a local model fits; unknown RAM does NOT claim a local fit. **Advisory ONLY
+  — it never rewrites config or auto-switches; the model stays selectable.** `_installed_match` requires an
+  EXACT tag (a `:1.5b` install must NOT satisfy a `:7b` spec — a real false-positive bug, found+fixed+regression-tested).
+  Report: `docs/audits/stage-6/audit-lite-slice-1-model-advisor-2026-06-02.md`.
+- **Slice 2 — tiered LLM fallback chain** (`src/kimcad/llm_provider.py` `FallbackProvider` + a `Provider`
+  Protocol). On a connection/timeout/model-not-found (404) error from the primary backend, the call
+  transparently retries against an optional **alt** backend; with no alt configured (the default), behaviour
+  is UNCHANGED (the primary error propagates). Thread-local stickiness keeps a falling-back request on alt
+  for its remaining codegen calls; `primary.max_attempts` drops to 1 when an alt exists so a dead primary
+  hands off fast. Config: `Config.llm_alt_backend()` reads `llm.alt_backend` (default `null`, opt-in via
+  `config/local.yaml`, e.g. `cloud_deepseek`). Wired in `cli.py _build_pipeline` + `webapp.py _real_provider`
+  (both: bare provider when no alt, `FallbackProvider` when set). `pipeline.py` now annotates `provider:
+  Provider` (the structural contract — `generate_design_plan` + `generate_openscad` — satisfied by both
+  `LLMProvider` and `FallbackProvider`). 18 tests in `tests/test_fallback_provider.py`.
+  Report: `docs/audits/stage-6/audit-lite-slice-2-fallback-provider-2026-06-02.md`.
+
+**REMAINING:**
+- **Slice 3 (RESUME HERE) — expanded 3-axis benchmark grading.** `src/kimcad/benchmark.py` currently scores
+  on pipeline completion through the Printability Gate only; the spec's richer **3-axis grading
+  (slices-clean / matches-request / correct-dimensions)** is not yet wired. Build it so the bake-off can
+  judge Qwen-vs-gemma on more than "did it complete."
+- **Slice 4 — Qwen-vs-gemma bake-off.** Run the expanded benchmark with `qwen2.5-coder:1.5b` vs `gemma4:e4b`
+  on the target box. **HAND-OFF STEP: this needs Scott's box with Ollama up and BOTH models pulled — I
+  wire the machinery + the runner, but I cannot run the live bake-off myself.** Make qwen the default in
+  `config/default.yaml` only if it clears the bar; otherwise keep gemma and record why. Keep gemma as the
+  non-China alternative + vision fallback regardless.
+- **Stage 6 stage-end gate.** After Slice 4: push → full **`audit-team`** on the branch → fix EVERY finding
+  (Blocker→Nit) → re-audit → **0/0/0/0/0** → native Windows gate → **merge + tag `stage-6` MYSELF** → report.
+  (I own the re-audit + merge + tag; do not hand it back.)
 
 ---
 
