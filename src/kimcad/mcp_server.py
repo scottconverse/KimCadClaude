@@ -177,6 +177,18 @@ class PrinterMCPServer:
             return json.dumps(_caps_dict(connector.capabilities()))
         if name == "send_print":
             connector = build_connector(self._config, _require(args, "connector"))
+            # SEND-GATE BOUNDARY (documented decision, 2026): send_print is a low-level
+            # transport primitive. It enforces explicit confirmation + (in the connector) a
+            # proven, motion-bearing slice — but it does NOT re-check the Printability Gate,
+            # because it receives only a file path and has no design context to know the
+            # verdict. The "don't dispatch a gate-FAILED part" block lives in the DESIGN FLOWS
+            # that do know it: the web (/api/slice + /api/send) and the CLI (--send). So a
+            # power user who deliberately slices a gate-failed part with `--proceed-anyway`
+            # and then explicitly send_prints that file (with confirm) CAN dispatch it — two
+            # deliberate overrides, treated as clear intent on an engineering tool, not a
+            # footgun. If a universal "a failed part never prints" guarantee is ever wanted,
+            # tag failed slices so the connector layer can refuse them (revisit with the
+            # Stage-10 export/print UI).
             # Pass the raw confirm value through — the connector's `confirm is not True`
             # gate decides. (Do NOT bool()-coerce here: bool("no") is True, which would
             # let a stringy/truthy non-true value defeat the explicit-confirmation gate.)

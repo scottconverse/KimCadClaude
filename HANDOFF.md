@@ -31,9 +31,11 @@ are committed under `docs/audits/stage-4/`.
 
 **Gate: PASSED at 0/0/0/0/0.** The 5-role `audit-team` (rendered + runtime) ran 2026-06-01 on the
 branch and rolled up **0 Blocker · 0 Critical · 6 Major · 19 Minor · 9 Nit (34)** — no
-Blockers/Criticals; every safety invariant verified clean (gate-fail-can't-slice in 3 layers +
-tested; no traversal bypass; no XSS; no credential leak; build byte-reproducible; runtime green
-end-to-end with a real OrcaSlicer slice). All 34 were fixed, then a 5-role **re-audit** surfaced 3
+Blockers/Criticals; every safety invariant verified clean (a gate-failed part is never *sent* to a
+printer by the web/CLI design flows — web blocks slice+send, CLI `--send` refuses, `--proceed-anyway`
+slices for inspection only; see the send-gate boundary note in §2) — all tested; plus no traversal
+bypass; no XSS; no credential leak; build byte-reproducible; runtime green
+end-to-end with a real OrcaSlicer slice. All 34 were fixed, then a 5-role **re-audit** surfaced 3
 more (UX-R01 dimension-pills harness-artifact, NEW-T01 contract-test cross-module collision, UX-R02
 touch-target verification gap) — all resolved — converging to **0/0/0/0/0**, then merged + tagged.
 Authoritative record is committed in-repo:
@@ -102,6 +104,17 @@ slice + download; the CLI (`--send`) and MCP are the send paths today.
   `simulated` symmetric on `/api/connector-status` AND `/api/send`; **the WEB GATE GUARD** — the
   Blocker both prior audits missed: `/api/slice` + `/api/send` now refuse a gate-FAILED part
   server-side (`gate_status_by_rid` in `webapp.py`), mirroring the CLI.
+- **Send-gate boundary (documented decision, 2026):** the "don't dispatch a gate-FAILED part"
+  block lives in the DESIGN FLOWS that know the verdict — the web (`/api/slice` + `/api/send`,
+  no override) and the CLI (`--send`, which refuses). `--proceed-anyway` slices a failed part for
+  **inspection only** (a real diagnostic for an engineer; never auto-sent). The MCP `send_print`
+  primitive enforces explicit confirm + a proven motion-bearing slice but **NOT** the printability
+  gate (it only gets a file path, no design context) — so a power user can deliberately override
+  the gate (`--proceed-anyway` slice) and then explicitly `send_print` that file, two deliberate
+  acts treated as clear intent on an engineering tool. Kept intentionally (3D-printer owners are
+  power users); a universal "a failed part never prints" guarantee, if ever wanted, means tagging
+  failed slices so connectors refuse them — revisit with the Stage-10 export/print UI. The code
+  comment lives at `mcp_server.py` `send_print`.
 - Real prints happen only at Kim's, the final stage (Stage 10 in the v3.0 plan). Kim's printers:
   Bambu **P2S** + A1, Elegoo Neptune 4 Max.
 
