@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DesignResponse } from './api'
-import { assistantMessage, gateLabel, gateTone } from './designStatus'
+import { assistantMessage, gateLabel, gateTone, isFailureStatus } from './designStatus'
 
 const base: DesignResponse = {
   status: 'completed',
@@ -17,6 +17,17 @@ describe('gateTone', () => {
     expect(gateTone('fail')).toBe('fail')
     expect(gateTone(undefined)).toBe('neutral')
     expect(gateTone('something-new')).toBe('neutral')
+  })
+})
+
+describe('isFailureStatus', () => {
+  it('marks plan/render/gate failures, not success / clarification / idle', () => {
+    expect(isFailureStatus('plan_failed')).toBe(true)
+    expect(isFailureStatus('render_failed')).toBe(true)
+    expect(isFailureStatus('gate_failed')).toBe(true)
+    expect(isFailureStatus('completed')).toBe(false)
+    expect(isFailureStatus('clarification_needed')).toBe(false)
+    expect(isFailureStatus(undefined)).toBe(false)
   })
 })
 

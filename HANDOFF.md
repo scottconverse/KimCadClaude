@@ -1,9 +1,10 @@
-# KimCad — Handoff (2026-06-02 — Stage 6 IN PROGRESS: model swap — Slices 1 & 2 done, on branch `stage-6-model-swap`)
+# KimCad — Handoff (2026-06-02 — Stage 6 ALL 5 SLICES DONE on `stage-6-model-swap`, pending the stage gate)
 
 ## ⛔ READ FIRST
 
-- **🔧 STAGE 6 — ALL 5 SLICES DONE on branch `stage-6-model-swap`** (pushed, head `1928e13`; NOT
-  merged/tagged — the stage-end `audit-team` gate is the one remaining step). Slices, each through
+- **🔧 STAGE 6 — ALL 5 SLICES DONE on branch `stage-6-model-swap`** (pushed at the branch tip; NOT
+  merged/tagged — the stage-end `audit-team` gate is the one remaining step, and it ran 2026-06-02:
+  0B/1C/6Maj/13Min/11Nit, all remediated — see `docs/audits/stage-6/audit-team-stage-6-2026-06-02/`). Slices, each through
   the real `audit-lite` skill to **0/0/0/0/0** (reports in `docs/audits/stage-6/`): **(1)** hardware-aware
   advisor `kimcad models`; **(2)** tiered fallback `FallbackProvider`; **(3)** 3-axis benchmark grading;
   **(4)** the `kimcad bakeoff` machinery; **(5)** plan-failure robustness. **Bake-off verdict — run LIVE
@@ -30,7 +31,7 @@
 
 ---
 
-## 🔧 Stage 6 — ALL 5 SLICES DONE (branch `stage-6-model-swap`, head `1928e13`) — model layer, pending the stage gate
+## 🔧 Stage 6 — ALL 5 SLICES DONE (branch `stage-6-model-swap`, at the branch tip) — model layer, pending the stage gate
 
 **Scope (the "roadmap scope" Scott chose):** evaluate swapping the default from `gemma4:e4b` to
 `qwen2.5-coder:1.5b` *if it clears a bake-off*, behind a tiered fallback, with richer grading to judge it.
@@ -120,9 +121,9 @@ OrcaSlicer**; **vitest** green; SPA build byte-reproducible (the pre-push hook's
 build` check passed); `npm audit` 0. (Run `scripts/ci.sh` / the pre-push hook for the authoritative
 count; do NOT hand-copy a number here that can go stale — that was DOC-001.)
 
-**➡️ NEXT = Stage 6 (model swap):** benchmark `Qwen2.5-Coder 1.5B` on the target box; make it the
-default if it clears the bar; keep `gemma4:e4b` as the non-China alternative + vision fallback; a
-tiered fallback chain (template → primary → alt; cloud opt-in). See ROADMAP §"Stage 6".
+**➡️ Stage 6 is now done on the branch (model decision settled: `gemma4:e4b` stays, the `Qwen2.5-Coder
+1.5B` candidate was evaluated and rejected) — see the authoritative "Stage 6" section at the TOP of this
+doc, not this older Stage-5 "next" note.**
 
 ---
 
@@ -316,8 +317,8 @@ spot-checks, NOT a gate I hand back to him.
 
 ## 9. Environment / pins
 
-- **Model:** `gemma4:e4b` via local Ollama (`localhost:11434`, OpenAI-compatible). ~9 min/prompt on
-  the 32 GB / **AMD 780M iGPU, CPU-only** box — stable. **NOT `gemma3:12b`** (OOM). Local-first;
+- **Model:** `gemma4:e4b` via local Ollama (`localhost:11434`, OpenAI-compatible). ~10 min/prompt on
+  the 32 GB / **AMD 780M iGPU, CPU-only** box — stable (the live bake-off measured 595.7 s mean). **NOT `gemma3:12b`** (OOM). Local-first;
   cloud opt-in via `config/local.yaml`. *(Stage 6 evaluated the spec's `Qwen2.5-Coder 1.5B` candidate
   via the live bake-off and REJECTED it — 0/10, it can't produce a design plan — so `gemma4:e4b` stays
   the default. A `local_qwen` backend remains defined and selectable via `--backend`. Spec reference

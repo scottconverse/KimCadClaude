@@ -21,11 +21,13 @@ matter for Scott's "keep a non-China alternative" requirement.
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit, urlunsplit
 
 
 @dataclass(frozen=True)
@@ -202,8 +204,6 @@ def _probe_nvidia_gpu() -> tuple[str | None, float | None]:
 
 def probe_hardware() -> HardwareProfile:
     """Probe the local machine. Best-effort: every field degrades to None on failure."""
-    import os
-
     gpu_name, vram_gb = _probe_nvidia_gpu()
     return HardwareProfile(
         os_label=f"{platform.system()} {platform.release()}".strip(),
@@ -215,9 +215,29 @@ def probe_hardware() -> HardwareProfile:
 
 
 def _ollama_tags_url(base_url: str) -> str:
-    """Map an OpenAI-compatible base_url (...:11434/v1) to Ollama's native tags endpoint."""
+    """Map an OpenAI-compatible base_url (...:11434/v1) to Ollama's native, host-rooted
+    ``/api/tags`` endpoint -- preserving scheme + host[:port] and discarding the whole path
+    (``/v1``, or a proxied sub-path like ``/ollama/v1``), so a base_url with a path tail
+    can't leak into the tags URL."""
+    parts = urlsplit(base_url)
+    if parts.scheme and parts.netloc:
+        return urlunsplit((parts.scheme, parts.netloc, "/api/tags", "", ""))
+    # No scheme/netloc (a bare host or odd input): fall back to the host-prefix split.
     host = base_url.split("/v1", 1)[0].rstrip("/")
     return f"{host}/api/tags"
+
+
+def friendly_label(installed_name: str, catalog: tuple[ModelSpec, ...] = MODEL_CATALOG) -> str | None:
+    """The catalog's friendly label for an installed Ollama tag, matched by family (exact, or
+    the catalog name followed by a quant/variant suffix -- e.g. ``gemma4:e4b-it-q4_K_M`` ->
+    ``"Gemma E4B"``). Returns None when no catalog entry matches. Prefers the longest (most
+    specific) matching catalog name so a sibling tag can't shadow the right one."""
+    best: ModelSpec | None = None
+    for spec in catalog:
+        if installed_name == spec.name or installed_name.startswith(spec.name + "-"):
+            if best is None or len(spec.name) > len(best.name):
+                best = spec
+    return best.label if best is not None else None
 
 
 def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[InstalledModel]:
@@ -303,8 +323,9 @@ def recommend(
         )
         if upgrade:
             reason += (
-                f" Your hardware could also run {upgrade.label} -- pull it for a step up in"
-                " quality."
+                f" Your hardware could also run {upgrade.label} -- a larger model that may"
+                " plan better; run `kimcad bakeoff` to confirm before switching (the tiers"
+                " here are heuristics, not measured)."
             )
         nc, nc_installed = _non_china_escape(primary, fitting_local, installed)
         return Recommendation(

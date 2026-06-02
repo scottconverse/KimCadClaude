@@ -36,7 +36,7 @@ class ModelRun:
 
 
 @dataclass
-class Recommendation:
+class BakeoffDecision:
     best: str  # backend key with the best quality (graded rate, then completion, then speed)
     incumbent: str | None  # the current default backend key, if it was in the bake-off
     switch: bool  # whether the bake-off recommends switching the default to `best`
@@ -50,7 +50,7 @@ def _rank_key(run: ModelRun) -> tuple[float, float, float]:
     return (s.graded_success_rate, s.success_rate, -s.mean_duration_s)
 
 
-def compare_runs(runs: list[ModelRun], incumbent: str | None) -> Recommendation:
+def compare_runs(runs: list[ModelRun], incumbent: str | None) -> BakeoffDecision:
     """Pick the best backend and decide whether to switch the default to it.
 
     Best = highest 3-axis graded rate; ties (within an epsilon) break on completion rate,
@@ -64,28 +64,28 @@ def compare_runs(runs: list[ModelRun], incumbent: str | None) -> Recommendation:
     best = max(runs, key=_rank_key)
 
     if incumbent is None or incumbent == best.backend:
-        return Recommendation(
+        return BakeoffDecision(
             best=best.backend,
             incumbent=incumbent,
             switch=False,
             reason=(
                 f"{best.backend} ({best.model_name}) scored highest"
                 if incumbent is None
-                else f"the incumbent {best.backend} ({best.model_name}) is already the best"
+                else f"the current default {best.backend} ({best.model_name}) is already the best"
             ),
         )
 
     inc = next((r for r in runs if r.backend == incumbent), None)
     if inc is None:
         # The incumbent wasn't part of this bake-off — report the winner, don't auto-switch.
-        return Recommendation(
+        return BakeoffDecision(
             best=best.backend,
             incumbent=incumbent,
             switch=False,
             reason=(
-                f"{best.backend} ({best.model_name}) scored highest, but the incumbent "
+                f"{best.backend} ({best.model_name}) scored highest, but the current default "
                 f"'{incumbent}' was not in this bake-off, so there's nothing to compare it "
-                "against -- run the bake-off with the incumbent included before switching"
+                "against -- run the bake-off with the current default included before switching"
             ),
         )
 
@@ -94,7 +94,7 @@ def compare_runs(runs: list[ModelRun], incumbent: str | None) -> Recommendation:
     faster = b.mean_duration_s < i.mean_duration_s
 
     if graded_gain > _GRADED_TIE_EPS:
-        return Recommendation(
+        return BakeoffDecision(
             best=best.backend,
             incumbent=incumbent,
             switch=True,
@@ -107,7 +107,7 @@ def compare_runs(runs: list[ModelRun], incumbent: str | None) -> Recommendation:
             ),
         )
     if abs(graded_gain) <= _GRADED_TIE_EPS and faster:
-        return Recommendation(
+        return BakeoffDecision(
             best=best.backend,
             incumbent=incumbent,
             switch=True,
@@ -117,14 +117,14 @@ def compare_runs(runs: list[ModelRun], incumbent: str | None) -> Recommendation:
                 f"({b.mean_duration_s:.0f}s vs {i.mean_duration_s:.0f}s mean/prompt)"
             ),
         )
-    return Recommendation(
+    return BakeoffDecision(
         best=best.backend,
         incumbent=incumbent,
         switch=False,
         reason=(
             f"the challenger did not clear the bar -- {incumbent} ({inc.model_name}) is as good "
             f"or better on the 3-axis graded rate ({i.graded_passed}/{i.total} vs "
-            f"{b.graded_passed}/{b.total}); keep the incumbent"
+            f"{b.graded_passed}/{b.total}); keep the current default"
         ),
     )
 
@@ -134,35 +134,50 @@ class Bakeoff:
     runs: list[ModelRun]
     incumbent: str | None = None
 
-    def recommendation(self) -> Recommendation:
+    def recommendation(self) -> BakeoffDecision:
         return compare_runs(self.runs, self.incumbent)
 
     def to_text(self) -> str:
         """A side-by-side ASCII table (cp1252-safe) + the recommendation line."""
         n_cases = self.runs[0].summary.total if self.runs else 0
         lines = [f"Bake-off: {len(self.runs)} model(s), {n_cases} case(s) each"]
+        # Backend column width: fit the widest tag (a key + " (default)") so the data columns
+        # always line up under the header, whatever the configured default backend is named.
+        tags = [
+            f"{r.backend}{' (default)' if r.backend == self.incumbent else ''}" for r in self.runs
+        ]
+        bw = max(14, *(len(t) for t in tags)) if tags else 14
         header = (
-            f"  {'backend':<14} {'model':<22} {'completed':>9} {'graded':>7} "
+            f"  {'backend':<{bw}} {'model':<22} {'completed':>9} {'graded':>7} "
             f"{'match':>6} {'dims':>6} {'slice':>6} {'mean_s':>8}"
         )
         lines.append(header)
-        for r in self.runs:
+        zero_completion: list[str] = []
+        for r, tag in zip(self.runs, tags):
             s = r.summary
             mr_p, mr_n = s.axis_tally("matches_request")
             cd_p, cd_n = s.axis_tally("correct_dimensions")
             sc_p, sc_n = s.axis_tally("slices_clean")
-            tag = f"{r.backend}{' (def)' if r.backend == self.incumbent else ''}"
             # Format each cell as a whole token first, then pad it to the header's width +
             # alignment, so the data columns line up under their headers.
             completed = f"{s.passed}/{s.total}"
             graded = f"{s.graded_passed}/{s.total}"
-            match = f"{mr_p}/{mr_n}"
-            dims = f"{cd_p}/{cd_n}"
-            slc = f"{sc_p}/{sc_n}"
+            # An axis with nothing assessed reads "n/a", not a misleading "0/0" (which scans
+            # as a 0 score). mean_s is "n/a" for a model that completed nothing -- it never
+            # timed any real work, so a "0.0" would falsely read as "instant/fast".
+            match = f"{mr_p}/{mr_n}" if mr_n else "n/a"
+            dims = f"{cd_p}/{cd_n}" if cd_n else "n/a"
+            slc = f"{sc_p}/{sc_n}" if sc_n else "n/a"
+            mean_s = f"{s.mean_duration_s:.1f}" if s.passed else "n/a"
             lines.append(
-                f"  {tag:<14} {r.model_name:<22} {completed:>9} {graded:>7} "
-                f"{match:>6} {dims:>6} {slc:>6} {s.mean_duration_s:>8.1f}"
+                f"  {tag:<{bw}} {r.model_name:<22} {completed:>9} {graded:>7} "
+                f"{match:>6} {dims:>6} {slc:>6} {mean_s:>8}"
             )
+            if s.passed == 0:
+                zero_completion.append(
+                    f"  note: {r.backend} completed 0/{s.total} cases -- no axes could be graded"
+                )
+        lines.extend(zero_completion)
         rec = self.recommendation()
         verb = f"SWITCH default to {rec.best}" if rec.switch else f"KEEP default {rec.incumbent or rec.best}"
         lines.append(f"Recommendation: {verb} -- {rec.reason}.")

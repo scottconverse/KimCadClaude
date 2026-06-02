@@ -54,3 +54,14 @@ No escalation needed. The decision logic — the part that actually matters for 
 - **BAKE-002 (Nit) — FIXED.** `to_text` now formats each cell as a whole token (`completed`, `graded`, `match`, `dims`, `slc`) and pads it to the header's width + right-justification, so the data columns line up under their headers. Verified live: the rendered table is column-aligned.
 
 Verified after the fixes: `tests/test_bakeoff.py` **14 passed**; ruff clean; `to_text` output is ASCII and column-aligned. **Roll-up: 0/0/0/0/0.**
+
+---
+
+**Note added 2026-06-02 (post live run) — re: the "Honest, accurate hand-off doc" credit above.** That
+line was correct when written: the doc accurately described how to *run* a then-unrun comparison. The
+bake-off was then run live and `qwen2.5-coder:1.5b` was rejected (0/10), and the stage-end `audit-team`
+flagged that the hand-off doc had gone stale (it still framed the swap as open and showed an illustrative
+table where Qwen *won*) — finding **DOC-001** in
+`docs/audits/stage-6/audit-team-stage-6-2026-06-02/`. `docs/benchmarks/stage-6-model-bakeoff.md` has since
+been re-framed to lead with the verdict (gemma stays). This historical Slice-4 report is left as-is; the
+re-framed doc supersedes the "accurate" credit.

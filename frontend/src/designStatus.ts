@@ -33,6 +33,16 @@ export function gateLabel(gateStatus: string | undefined): string {
   }
 }
 
+/** The statuses where the backend produced no usable part — the design attempt failed. The UI
+ * uses this to give the chat bubble an error tone and the right-panel cards a "failed" message
+ * (distinct from the never-tried-yet idle placeholder). `gate_failed` is included: a part that
+ * fails the printability gate is not a usable result on the design surface. */
+const FAILURE_STATUSES = new Set(['plan_failed', 'render_failed', 'gate_failed'])
+
+export function isFailureStatus(status: string | undefined): boolean {
+  return status !== undefined && FAILURE_STATUSES.has(status)
+}
+
 /** The assistant's reply for a design result, branched on every PipelineStatus the backend
  * can return (clarification_needed / plan_failed / render_failed / gate_failed / completed). */
 export function assistantMessage(result: DesignResponse): string {

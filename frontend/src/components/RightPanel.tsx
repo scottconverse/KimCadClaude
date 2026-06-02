@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import type { DesignResponse, ParamSpec } from '../api'
-import { gateLabel, gateTone } from '../designStatus'
+import { gateLabel, gateTone, isFailureStatus } from '../designStatus'
 import ExportPanel from './ExportPanel'
 
 // Right column — parameters + printability, rendered from the design result.
@@ -160,6 +160,11 @@ function ParametersCard({
             a new version.
           </p>
         </>
+      ) : isFailureStatus(result?.status) ? (
+        <p className="kc-muted-note kc-param-error" role="status">
+          No part was produced, so there&rsquo;s nothing to adjust. Try describing it a little
+          differently on the left.
+        </p>
       ) : (
         <p className="kc-muted-note">
           The part&rsquo;s adjustable parameters will appear here once it&rsquo;s designed.
@@ -215,6 +220,10 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
             </ul>
           )}
         </>
+      ) : isFailureStatus(result?.status) ? (
+        <p className="kc-muted-note" role="status">
+          No part to check — the last attempt didn&rsquo;t produce a model.
+        </p>
       ) : (
         <p className="kc-muted-note">
           The printability check — dimensions, wall thickness, build-volume fit — appears here

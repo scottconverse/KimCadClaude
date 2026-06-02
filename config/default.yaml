@@ -42,10 +42,11 @@ llm:
     local_qwen:
       provider: openai_compatible
       base_url: http://localhost:11434/v1   # same Ollama; the Stage 6 bake-off challenger
-      model_name: qwen2.5-coder:1.5b        # candidate default — a small code model. Pull with
-                                            # `ollama pull qwen2.5-coder:1.5b`, then compare vs
-                                            # `local` (gemma) with `kimcad bakeoff`. Becomes the
-                                            # default only if it clears the bar (Scott's call).
+      model_name: qwen2.5-coder:1.5b        # Stage 6 candidate — evaluated via the live bake-off
+                                            # 2026-06-02 and REJECTED (0/10: a code model can't
+                                            # produce a design plan), so `local` (gemma) stays the
+                                            # default. Retained as a selectable `--backend` to
+                                            # re-run the comparison (`kimcad bakeoff`).
       api_key_env: null
       temperature: 0.2
       max_tokens: 8192

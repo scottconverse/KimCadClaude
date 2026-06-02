@@ -398,3 +398,92 @@ def test_models_command_handles_no_ollama(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert "none detected" in out
+
+
+# --- TEST-007: `kimcad bakeoff` front-door validation (fail fast, exit 2) --------
+
+def _write_prompts(tmp_path):
+    p = tmp_path / "prompts.yaml"
+    p.write_text('cases:\n  - id: b01\n    prompt: "a box"\n', encoding="utf-8")
+    return p
+
+
+def test_bakeoff_missing_prompts_file_exit_2(capsys, tmp_path):
+    code = main(["bakeoff", "--prompts", str(tmp_path / "nope.yaml")])
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "No benchmark prompts" in out
+
+
+def test_bakeoff_needs_two_backends_exit_2(capsys, tmp_path):
+    # A real prompts file (so we reach the backend check), one backend -> exit 2.
+    code = main(["bakeoff", "--backends", "local", "--prompts", str(_write_prompts(tmp_path))])
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "at least two backends" in out
+
+
+def test_bakeoff_unknown_backend_exit_2_lists_configured(capsys, tmp_path):
+    code = main(
+        ["bakeoff", "--backends", "nope,local", "--prompts", str(_write_prompts(tmp_path))]
+    )
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "Unknown backend 'nope'" in out
+    assert "local" in out  # the error lists the configured backends
+
+
+# --- TEST-002: a bake-off run never mutates config ------------------------------
+
+def test_bakeoff_does_not_mutate_config(monkeypatch, tmp_path):
+    import copy
+
+    from kimcad.config import Config
+
+    backend = {
+        "provider": "x", "base_url": "http://localhost", "model_name": "m",
+        "api_key_env": None, "temperature": 0.2, "max_tokens": 512,
+        "supports_structured_output": False,
+    }
+    cfg = Config({
+        "llm": {"active": "a", "backends": {"a": dict(backend), "b": dict(backend)}},
+        "printers": {"p": {"name": "P", "build_volume": [200, 200, 200], "nozzle_diameter": 0.4}},
+        "materials": {"m": {"name": "PLA", "nozzle_temp": 210, "bed_temp": 55,
+                            "wall_multiplier": 2.0, "shrinkage": 0.002}},
+        "defaults": {"printer": "p", "material": "m", "output_format": "3mf"},
+        "binaries": {"openscad": "x", "orcaslicer": "y"},
+        "limits": {"openscad_timeout_simple_s": 30, "openscad_timeout_complex_s": 120,
+                   "max_output_bytes": 1024, "slice_timeout_s": 60},
+        "connectors": {},
+    })
+
+    class _Status:
+        value = "completed"
+
+    class _Result:
+        status = _Status()
+        plan = gate = report = template = mesh_report = None
+        render_attempts = 1
+        error = slice_error = None
+
+    class _FakePipeline:
+        def run(self, prompt, out_dir, **kw):
+            out_dir.mkdir(parents=True, exist_ok=True)
+            return _Result()
+
+    monkeypatch.setattr(
+        cli, "_pipeline_for_backend",
+        lambda config, key, printer, material: _FakePipeline(),
+    )
+
+    class _Args:
+        backends = "a,b"
+        prompts = str(_write_prompts(tmp_path))
+        out = str(tmp_path / "out")
+        printer = material = None
+        no_slice = True
+
+    before = copy.deepcopy(cfg.raw)
+    code = cli._cmd_bakeoff(cfg, _Args())
+    assert code == 0
+    assert cfg.raw == before  # the bake-off only reads + recommends; it never writes config

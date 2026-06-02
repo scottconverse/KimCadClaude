@@ -121,6 +121,32 @@ def test_generate_design_plan_raises_plan_parse_error_on_bad_json():
         assert isinstance(e.original, json.JSONDecodeError)
 
 
+def test_generate_design_plan_does_not_wrap_a_connection_error_as_plan_parse_error():
+    # The network call (_complete) sits OUTSIDE the parse try, so a transport error must
+    # escape as itself, NOT be wrapped as PlanParseError (which would mask an outage as a
+    # "model too small" plan failure and stop the fallback chain from firing).
+    import httpx
+    from openai import APIConnectionError
+
+    from kimcad.llm_provider import PlanParseError
+
+    class _ConnDownClient:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+        def _create(self, **kwargs):
+            raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
+
+    provider = LLMProvider(BACKEND, client=_ConnDownClient(), max_attempts=2, retry_wait_s=0)
+    try:
+        provider.generate_design_plan("a box", BAMBU, PLA)
+        raise AssertionError("expected APIConnectionError")
+    except PlanParseError as e:  # noqa: TRY203 - we are asserting this does NOT happen
+        raise AssertionError("connection error was wrongly wrapped as PlanParseError") from e
+    except APIConnectionError:
+        pass  # correct: the transport error escaped un-wrapped
+
+
 def test_generate_openscad_strips_fences_and_sends_plan():
     plan = DesignPlan(
         object_type="cube",

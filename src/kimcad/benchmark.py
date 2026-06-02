@@ -251,7 +251,7 @@ class BenchSummary:
 
         for o in self.outcomes:
             mark = "ok " if o.passed else "XX "
-            extra = f" — {o.error}" if o.error else ""
+            extra = f" -- {o.error}" if o.error else ""
             axes = (
                 f" {{req={self._axis_mark(o.matches_request)},"
                 f" dim={self._axis_mark(o.correct_dimensions)},"

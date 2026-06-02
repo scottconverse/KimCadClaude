@@ -141,6 +141,9 @@ def test_installed_match(installed_name, spec_name, expected):
     ("http://localhost:11434/v1", "http://localhost:11434/api/tags"),
     ("http://localhost:11434/v1/", "http://localhost:11434/api/tags"),
     ("http://192.168.0.5:11434/v1", "http://192.168.0.5:11434/api/tags"),
+    # ENG-601: a proxied sub-path (or any path tail) is discarded, not leaked into the URL.
+    ("http://proxy/ollama/v1", "http://proxy/api/tags"),
+    ("https://host:11434/v1/extra", "https://host:11434/api/tags"),
 ])
 def test_ollama_tags_url(base, expected):
     assert _ollama_tags_url(base) == expected
@@ -174,6 +177,69 @@ def test_probe_installed_models_returns_empty_when_ollama_is_down(monkeypatch):
 
     monkeypatch.setattr("kimcad.model_advisor.urllib.request.urlopen", _boom)
     assert probe_installed_models("http://localhost:11434/v1") == []
+
+
+# TEST-004: a 200-OK-but-garbage body (Ollama drift / a proxy error page) must never raise.
+@pytest.mark.parametrize("body", [
+    b"[1, 2, 3]",                     # valid JSON, but a list not a dict
+    b'{"models": [{"size": 5}]}',     # a model entry with no name -> skipped
+    b"<html>502 Bad Gateway</html>",  # non-JSON 200 body
+    b'{"no_models_key": true}',       # dict without "models"
+])
+def test_probe_installed_models_tolerates_a_malformed_body(monkeypatch, body):
+    class _Resp(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    monkeypatch.setattr(
+        "kimcad.model_advisor.urllib.request.urlopen",
+        lambda url, timeout=3.0: _Resp(body),
+    )
+    # Never raises; a malformed/garbage body yields [] (the nameless entry is skipped).
+    assert probe_installed_models("http://localhost:11434/v1") == []
+
+
+# --- friendly_label (UX-007) ----------------------------------------------------
+
+@pytest.mark.parametrize("installed,expected", [
+    ("gemma4:e4b", "Gemma E4B"),
+    ("gemma4:e4b-it-q4_K_M", "Gemma E4B"),                       # quant/variant suffix
+    ("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B"),
+    ("novaforgeai/deepseek-coder:6.7b-optimized", None),         # not a catalog family
+    ("totally-unknown:1b", None),
+])
+def test_friendly_label(installed, expected):
+    from kimcad.model_advisor import friendly_label
+    assert friendly_label(installed) == expected
+
+
+# --- TEST-006: degenerate / GPU-present branches --------------------------------
+
+def test_recommend_returns_no_primary_when_nothing_fits_and_no_cloud():
+    # A catalog with only an un-fitting local model and no cloud entry -> primary is None.
+    spec = ModelSpec("huge:999b", "Huge", 999.0, min_ram_gb=999, tier=9, origin="x", non_china=True)
+    rec = recommend(_hw(ram_gb=8), installed=[], catalog=(spec,))
+    assert rec.primary is None
+
+
+def test_fits_and_summary_with_a_discrete_gpu_present():
+    spec = next(s for s in MODEL_CATALOG if s.name == "qwen2.5-coder:7b")  # 18 GB floor
+    hw = HardwareProfile(os_label="Linux", cpu_count=16, ram_gb=None, gpu_name="RTX 4090", vram_gb=24.0)
+    # RAM gates the fit; unknown RAM is never a claimed fit even with a big discrete GPU.
+    assert spec.fits(hw) is False
+    summary = hw.summary()
+    assert "RTX 4090" in summary  # the GPU branch renders
+    assert summary.isascii()      # and stays cp1252-safe
+
+
+# --- TEST-007: advisor printed strings are cp1252-safe --------------------------
+
+def test_advisor_printed_strings_are_console_safe():
+    hw = _hw(ram_gb=32)
+    rec = recommend(hw, _installed("gemma4:e4b"))
+    for s in (hw.summary(), rec.reason):
+        s.encode("cp1252")   # must not raise on a Windows cp1252 console
+        assert s.isascii()
 
 
 # --- probe_hardware smoke (real machine, must never raise) -----------------------

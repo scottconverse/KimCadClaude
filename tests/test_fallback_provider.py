@@ -393,3 +393,56 @@ def test_real_provider_uses_bare_provider_when_no_alt():
     with patch("kimcad.llm_provider.LLMProvider._build_client", return_value=MagicMock()):
         provider = webapp._real_provider(cfg, None)
     assert isinstance(provider, LLMProvider)  # bare, not wrapped
+
+
+# ---------------------------------------------------------------------------
+# TEST-001: an arbitrary (non-transport) primary error must NOT trigger fallback
+# ---------------------------------------------------------------------------
+
+def test_arbitrary_primary_error_propagates_and_skips_alt():
+    # FallbackProvider falls back ONLY on transport errors (connection/timeout/404). An
+    # arbitrary exception (a real bug) must propagate with alt NEVER touched -- otherwise a
+    # broaden-to-`except Exception` refactor would silently retry a bug on the alt model
+    # (a cost/privacy surprise) and ship green past the positive-only fallback tests.
+    primary = _mock_provider(error=RuntimeError("a real bug, not a transport failure"))
+    alt = _mock_provider(return_val="alt_ok")
+    fp = FallbackProvider(primary, alt)
+    with pytest.raises(RuntimeError):
+        fp.generate_design_plan("p", MagicMock(), MagicMock())
+    alt.generate_design_plan.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TEST-003: the bake-off's per-backend pipeline is BARE (no fallback contamination)
+# ---------------------------------------------------------------------------
+
+def test_pipeline_for_backend_is_bare_even_with_alt_configured():
+    # The bake-off measures each model in isolation: _pipeline_for_backend must build a BARE
+    # LLMProvider (never FallbackProvider) even when an alt_backend IS configured -- a silent
+    # fallback would swap in the other model mid-run and corrupt the head-to-head comparison.
+    from kimcad.config import Config
+    import kimcad.cli as cli_mod
+
+    backends = {
+        "local": {"provider": "x", "base_url": "http://localhost", "model_name": "m",
+                  "api_key_env": None, "temperature": 0.2, "max_tokens": 512,
+                  "supports_structured_output": False},
+        "cloud": {"provider": "y", "base_url": "https://api.example.com/v1", "model_name": "c",
+                  "api_key_env": None, "temperature": 0.2, "max_tokens": 512,
+                  "supports_structured_output": True},
+    }
+    cfg = Config({"llm": {"active": "local", "alt_backend": "cloud", "backends": backends}})
+
+    captured = []
+
+    class _FakePipeline:
+        def __init__(self, config, printer, material, provider):
+            captured.append(provider)
+
+    with patch("kimcad.pipeline.Pipeline", _FakePipeline), \
+         patch("kimcad.llm_provider.LLMProvider._build_client", return_value=MagicMock()):
+        cli_mod._pipeline_for_backend(cfg, "local", MagicMock(), MagicMock())
+
+    assert len(captured) == 1
+    assert isinstance(captured[0], LLMProvider)
+    assert not isinstance(captured[0], FallbackProvider)  # the alt is deliberately ignored

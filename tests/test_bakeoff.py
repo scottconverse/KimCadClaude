@@ -153,7 +153,7 @@ def test_to_text_table_and_recommendation_are_console_safe():
     assert "gemma4:e4b" in text and "qwen2.5-coder:1.5b" in text
     assert "Recommendation:" in text
     assert "SWITCH default to local_qwen" in text
-    assert "(def)" in text  # the incumbent is tagged
+    assert "(default)" in text  # the incumbent is tagged
 
 
 def test_to_text_keep_recommendation():

@@ -1,11 +1,13 @@
 """Command-line interface — the Phase-1 user surface (spec §5).
 
-Three subcommands:
+Five subcommands:
 
     kimcad "a wall bracket for a 25mm pipe"     # design a part (default verb)
     kimcad design "..." [--printer ... --material ...] [--slice]
-    kimcad bench [--prompts bench/prompts.yaml] [--min-success-rate 0.7]
+    kimcad bench [--prompts bench/prompts.yaml] [--min-success-rate 0.7] [--slice]
     kimcad web [--host ... --port ... --demo]   # local browser UI (Phase 2)
+    kimcad models                               # advise a model for this machine (Stage 6)
+    kimcad bakeoff [--backends a,b]             # compare models on the benchmark (Stage 6)
 
 ``--slice`` is the explicit print confirmation: only with it does a passing part get
 sliced into a printable G-code 3MF for the chosen printer + material.
@@ -128,8 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
     bo.add_argument(
         "--backends",
         default="local_qwen,local",
-        help="Comma-separated config backend keys to compare (default: local_qwen,local "
-        "= qwen vs gemma). Each must be defined under llm.backends.",
+        help="Comma-separated config backend keys to compare (default: local_qwen,local). "
+        "Each must be defined under llm.backends; each backend's model_name is what runs.",
     )
     bo.add_argument("--prompts", default="bench/prompts.yaml", help="Benchmark prompt YAML.")
     bo.add_argument("--out", default="output/bakeoff", help="Output directory.")
@@ -377,7 +379,12 @@ def _cmd_web(args: argparse.Namespace) -> int:
 def _cmd_models(config: Config, args: argparse.Namespace) -> int:
     """Probe the machine + the installed Ollama models and print a recommendation. Purely
     advisory — it never rewrites config; the model stays choosable (config / --backend)."""
-    from kimcad.model_advisor import probe_hardware, probe_installed_models, recommend
+    from kimcad.model_advisor import (
+        friendly_label,
+        probe_hardware,
+        probe_installed_models,
+        recommend,
+    )
 
     base_url = args.base_url
     if base_url is None:
@@ -405,7 +412,9 @@ def _cmd_models(config: Config, args: argparse.Namespace) -> int:
     if installed:
         for m in installed:
             size = f"  ({m.size_gb:.1f} GB)" if m.size_gb else ""
-            print(f"  - {m.name}{size}")
+            label = friendly_label(m.name)
+            tag = f"  -- {label}" if label else ""
+            print(f"  - {m.name}{size}{tag}")
     else:
         print("  (none detected -- is Ollama running, with models pulled?)")
     print()
