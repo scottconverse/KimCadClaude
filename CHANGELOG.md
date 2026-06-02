@@ -6,16 +6,16 @@ All notable changes to KimCad are documented here. Format follows
 ## [Unreleased]
 
 > The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
-> **Stages 1–5 are tagged (`stage-1` … `stage-5`); Stage 5 (deterministic template engine +
-> live sliders) merged + tagged 2026-06-02.** **Stage 6 (the model layer) is implemented on
-> `stage-6-model-swap`, pending the stage gate — NOT yet merged/tagged.** These sections
-> accumulate toward the `0.1.0` release.
+> **Stages 1–6 are tagged (`stage-1` … `stage-6`).** Stage 5 (deterministic template engine +
+> live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
+> bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
+> `audit-team` gate + remediation at 0/0/0/0/0). These sections accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
-- **Stage 6 — model layer (on `stage-6-model-swap`, pending the gate):**
+- **Stage 6 — model layer (merged + tagged `stage-6`):**
   - `kimcad models` — a hardware/availability-aware model advisor: probes RAM/CPU/GPU and the
     installed Ollama models and recommends the best one that fits, names an upgrade to pull, and
     surfaces a non-China alternative when the pick is China-origin. Advisory only — it never

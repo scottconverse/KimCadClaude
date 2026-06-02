@@ -48,9 +48,10 @@ UI. **Stage 5 (deterministic template engine + live sliders — the critical pat
 to `main` (merge commit `14896d6`) and tagged `stage-5` (the engine, the tiered pipeline, the
 `/api/render` re-render API, the live SPA sliders, and a deterministic-family benchmark proving the
 <1 s no-model re-render; through the full `audit-team` gate + re-audit at 0/0/0/0/0). **Stage 6 (the
-model layer — hardware-aware advisor, tiered fallback, 3-axis grading, and the model bake-off) is
-implemented on `stage-6-model-swap`, pending the stage gate.** Its data-backed verdict: keep
-`gemma4:e4b` (the Qwen candidate failed the bake-off).
+model layer — hardware-aware advisor, tiered fallback, 3-axis grading, model bake-off, and plan-failure
+robustness) is DONE — merged to `main` and tagged `stage-6`** (through the full `audit-team` gate +
+remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
+bake-off). **Next = Stage 7 (Smart Mesh + PrintProof3D).**
 
 Still ahead before beta: Smart Mesh + PrintProof3D (Stage 7), CadQuery
 (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
@@ -151,7 +152,7 @@ re-render in **<1 s with no LLM call** — which is what makes true live sliders
 **Exit:** named parameter sliders drag → re-render in <1 s with no model call across the template
 families; the tiered template→LLM fallback is proven. **Needs:** target box. **Size:** ~2–3 weeks.
 
-## Stage 6 — Model layer: hardware-aware advisor + tiered fallback + bake-off (implemented, pending gate)
+## Stage 6 — Model layer: hardware-aware advisor + tiered fallback + bake-off (DONE — merged + tagged `stage-6`)
 **Goal:** a data-backed default model on the target box, with the machinery to choose, fall back, and
 compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evaluated and **rejected** —
 `gemma4:e4b` stays the default.
@@ -173,8 +174,8 @@ compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evalu
   working local option, so it remains the default. A larger Qwen is bigger than gemma → slower on
   CPU → fails the "faster default" premise. (Bigger benchmark prompt set is deferred to a later
   stage; the 10 Appendix-B prompts remain the done-gate.)
-**Exit:** a data-backed on-target default (`gemma4:e4b`, confirmed) + a proven fallback/advisor/bake-off
-toolchain. **Size:** done on the branch; pending the stage gate.
+**Exit (met):** a data-backed on-target default (`gemma4:e4b`, confirmed) + a proven
+fallback/advisor/bake-off toolchain. **Status:** DONE — merged to `main`, tagged `stage-6`.
 
 ## Stage 7 — Smart Mesh + PrintProof3D + readiness report
 **Goal:** real print-quality validation surfaced as a designed report.

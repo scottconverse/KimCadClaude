@@ -1,10 +1,14 @@
-# KimCad — Handoff (2026-06-02 — Stage 6 ALL 5 SLICES DONE on `stage-6-model-swap`, pending the stage gate)
+# KimCad — Handoff (2026-06-02 — Stage 6 DONE: model layer, merged to `main` + tagged `stage-6`)
 
 ## ⛔ READ FIRST
 
-- **🔧 STAGE 6 — ALL 5 SLICES DONE on branch `stage-6-model-swap`** (pushed at the branch tip; NOT
-  merged/tagged — the stage-end `audit-team` gate is the one remaining step, and it ran 2026-06-02:
-  0B/1C/6Maj/13Min/11Nit, all remediated — see `docs/audits/stage-6/audit-team-stage-6-2026-06-02/`). Slices, each through
+- **✅ STAGE 6 IS DONE — merged to `main` and tagged `stage-6`** (the tag was advanced past the merge to
+  this docs-DONE commit so the tagged artifact's docs say "done", not "pending" — the Stage-4/5 lesson).
+  All 5 slices (advisor, fallback, 3-axis grading, bake-off, plan-failure robustness) passed the real
+  `audit-lite` to 0/0/0/0/0, then the full `audit-team` stage gate ran 2026-06-02 (0B/1C/6Maj/13Min/11Nit)
+  and was remediated to **0/0/0/0/0** — package at `docs/audits/stage-6/audit-team-stage-6-2026-06-02/`
+  (+ `REMEDIATION.md`). **The model decision is settled: `gemma4:e4b` stays; `qwen2.5-coder:1.5b` was
+  evaluated via the live bake-off and rejected (0/10).** **NEXT = Stage 7 (Smart Mesh + PrintProof3D).** Slices, each through
   the real `audit-lite` skill to **0/0/0/0/0** (reports in `docs/audits/stage-6/`): **(1)** hardware-aware
   advisor `kimcad models`; **(2)** tiered fallback `FallbackProvider`; **(3)** 3-axis benchmark grading;
   **(4)** the `kimcad bakeoff` machinery; **(5)** plan-failure robustness. **Bake-off verdict — run LIVE
@@ -31,7 +35,7 @@
 
 ---
 
-## 🔧 Stage 6 — ALL 5 SLICES DONE (branch `stage-6-model-swap`, at the branch tip) — model layer, pending the stage gate
+## ✅ Stage 6 — DONE (merged to `main`, tagged `stage-6`) — model layer
 
 **Scope (the "roadmap scope" Scott chose):** evaluate swapping the default from `gemma4:e4b` to
 `qwen2.5-coder:1.5b` *if it clears a bake-off*, behind a tiered fallback, with richer grading to judge it.
@@ -70,11 +74,12 @@ schema instead of an instance; confirmed not a config artifact — fails identic
 for the NL→structured-plan step; a bigger qwen is larger than gemma → slower → fails the "faster" goal. So
 `gemma4:e4b` STAYS the default — no config change.** Hand-off doc (how to re-run it live): `docs/benchmarks/stage-6-model-bakeoff.md`.
 
-**REMAINING — the one step left:**
-- **Stage 6 stage-end gate.** Run the full **`audit-team`** on the branch → fix EVERY finding (Blocker→Nit)
-  → re-audit → **0/0/0/0/0** → native Windows gate → **merge + tag `stage-6` MYSELF** → report. (I own the
-  re-audit + merge + tag; do not hand it back.) The model decision is SETTLED (gemma stays; qwen ruled out) —
-  do NOT reopen it.
+**STAGE GATE — DONE.** The full 5-role `audit-team` ran 2026-06-02 (0 Blocker · 1 Critical · 6 Major ·
+13 Minor · 11 Nit = 31; the Critical was a stale bake-off doc showing qwen winning, the inverse of the
+verdict). Every finding was remediated to **0/0/0/0/0** (`REMEDIATION.md`), the native Windows gate passed
+(ruff; **609 pytest incl. live OrcaSlicer**; **37 vitest**; SPA build reproducible), and the branch was
+merged to `main` + tagged `stage-6`. The model decision is SETTLED (gemma stays; qwen rejected) — do NOT
+reopen it. **NEXT = Stage 7 (Smart Mesh + PrintProof3D + readiness report).**
 
 ---
 
@@ -246,10 +251,9 @@ slice + download; the CLI (`--send`) and MCP are the send paths today.
 ## 4. The stage plan (9 stages to the v3.0 Windows beta; Stages 3–4 done)
 
 3 ✅ printer coverage · 4 ✅ React SPA shell + viewport · 5 ✅ deterministic template engine +
-live sliders · **6 = model layer (advisor + fallback + grading + bake-off; gemma stays, qwen ruled
-out) — done on the branch, pending the gate** · 7 = Smart Mesh + PrintProof3D + report · 8 = CadQuery
-parallel backend · 9 = image on-ramp (opt-in) · 10 = direct-print UI + Bambu + first-run wizard ·
-11 = Windows installer + beta gate. (Final-level breadth + real-hardware =
+live sliders · 6 ✅ model layer (advisor + fallback + grading + bake-off; gemma stays, qwen ruled
+out) · **7 = Smart Mesh + PrintProof3D + report** · 8 = CadQuery parallel backend · 9 = image on-ramp
+(opt-in) · 10 = direct-print UI + Bambu + first-run wizard · 11 = Windows installer + beta gate. (Final-level breadth + real-hardware =
 post-beta.) **KEY INSIGHT:** the instant-slider UX (re-render <1s, no LLM) is impossible on the
 current **LLM-writes-OpenSCAD** engine — there is **no `templates/` module**; the deterministic
 template engine (Stage 5) is the critical path, and UX-first + architecture-first converge there.
