@@ -88,6 +88,13 @@ local model or a cloud fallback (DeepSeek / any OpenAI-compatible endpoint), set
 active backend and its key in `config/local.yaml`; see `config/default.yaml` for the
 shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends.
 
+Not sure which model fits your machine? `kimcad models` examines your hardware (RAM,
+CPU, a discrete GPU if present) and which models Ollama has pulled, then recommends one
+— it only advises, it never changes your config. The model stays choosable via
+`config/local.yaml` or `--backend`. (`gemma4:e4b` is the default; a `qwen2.5-coder:1.5b`
+candidate was evaluated with the `kimcad bakeoff` comparison and rejected — it can't
+produce a design plan on this pipeline — so gemma stays.)
+
 ## Usage
 
 A bare prompt is treated as the `design` verb:
@@ -227,6 +234,12 @@ kimcad bench --min-success-rate 0.8
 ```
 
 It exits non-zero when the batch misses the threshold, so it doubles as a CI check.
+
+To compare two models head to head on that benchmark — completion, the three quality
+axes (matches-request / correct-dimensions / slices-clean), and speed — run
+`kimcad bakeoff --backends <a>,<b>`. It runs the benchmark once per backend (each model
+measured in isolation) and recommends whether to switch the default; it only recommends
+— flipping the configured default is a manual choice, never automatic.
 
 ### Local development checks
 

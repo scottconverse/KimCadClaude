@@ -179,6 +179,18 @@ class Config:
             timeout_s=float(b.get("timeout_s", 1200.0)),
         )
 
+    def llm_alt_backend(self) -> LLMBackend | None:
+        """Return the configured alt/fallback LLM backend, or None if not set.
+
+        Set ``llm.alt_backend`` in ``config/local.yaml`` to a backend key (e.g.
+        ``cloud_deepseek``) to enable the tiered fallback chain; leave it null (the
+        default) to keep the single-backend behaviour.
+        """
+        key = self._d.get("llm", {}).get("alt_backend")
+        if not key:
+            return None
+        return self.llm_backend(key)
+
     # --- limits / misc ------------------------------------------------------
     def limit(self, name: str) -> int:
         return int(self._d["limits"][name])

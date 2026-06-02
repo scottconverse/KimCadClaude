@@ -7,12 +7,29 @@ All notable changes to KimCad are documented here. Format follows
 
 > The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
 > **Stages 1–5 are tagged (`stage-1` … `stage-5`); Stage 5 (deterministic template engine +
-> live sliders) merged + tagged 2026-06-02.** These sections accumulate toward the `0.1.0` release.
+> live sliders) merged + tagged 2026-06-02.** **Stage 6 (the model layer) is implemented on
+> `stage-6-model-swap`, pending the stage gate — NOT yet merged/tagged.** These sections
+> accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 6 — model layer (on `stage-6-model-swap`, pending the gate):**
+  - `kimcad models` — a hardware/availability-aware model advisor: probes RAM/CPU/GPU and the
+    installed Ollama models and recommends the best one that fits, names an upgrade to pull, and
+    surfaces a non-China alternative when the pick is China-origin. Advisory only — it never
+    rewrites config; the model stays choosable.
+  - Tiered LLM fallback (`FallbackProvider`): a primary connection/timeout/model-not-found error
+    transparently retries an opt-in alt backend (`llm.alt_backend`, off by default).
+  - Richer 3-axis benchmark grading (slices-clean / matches-request / correct-dimensions) layered
+    on the completion done-gate, and `kimcad bakeoff` — a model bake-off that runs the benchmark
+    per backend and recommends switch-or-keep (recommend only; flipping the default is a human call).
+  - Plan-failure robustness: a model returning un-parseable output fails clean (`plan_failed`,
+    CLI exit 6) instead of a raw traceback.
+  - **Decision:** the `Qwen2.5-Coder 1.5B` candidate was evaluated via the live bake-off and
+    **rejected** (0/10 — it can't produce a design plan); **`gemma4:e4b` stays the default.**
+    A `local_qwen` backend is defined for the comparison and remains selectable via `--backend`.
 - Project scaffold: src-layout package, configuration loader, dependency manifest,
   cross-platform line-ending normalization.
 - Default configuration with Bambu P2S (reference) and Elegoo Neptune 4 Max printer

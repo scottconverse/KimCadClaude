@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { DesignResponse } from '../api'
-import { assistantMessage } from '../designStatus'
+import { assistantMessage, isFailureStatus } from '../designStatus'
 
 // Left column — the design conversation. Renders the user's prompt, a thinking state while the
 // design runs, then the assistant's reply (clarifying question, built summary, or build error).
@@ -64,7 +64,11 @@ export default function ChatPanel({
         )}
         {!busy && error !== null && <AssistantRow tone="error">{error}</AssistantRow>}
         {!busy && error === null && result !== null && (
-          <AssistantRow>{assistantMessage(result)}</AssistantRow>
+          // A status-based failure (plan/render/gate) gets the error tone too, so the bubble
+          // reads as a failure rather than sitting in the same neutral grey as a success.
+          <AssistantRow tone={isFailureStatus(result.status) ? 'error' : undefined}>
+            {assistantMessage(result)}
+          </AssistantRow>
         )}
       </div>
     </aside>

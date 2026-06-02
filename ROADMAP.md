@@ -13,11 +13,13 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
 - **Hardware: a 32 GB-RAM machine with an AMD 780M integrated GPU — no discrete GPU.**
   This is *both* the development target and the deployment target. If it doesn't run well
   here, it doesn't ship. There is no GPU box coming; "wait for the GPU" is off the table.
-- **Model (current): `gemma4:e4b`** — a small (~4B-effective) on-device model via local Ollama
-  that fits and runs fast on this class of machine. `gemma3:12b` was the wrong call (too big,
-  slow, crashed the server). **Stage 6 swaps the default to `Qwen2.5-Coder 1.5B`** (benchmarked
-  on the target box first) with `gemma4:e4b` kept as the non-China alternative + vision fallback,
-  per spec §7.5. Local-first; cloud is opt-in via `config/local.yaml`.
+- **Model: `gemma4:e4b`** — a small (~4B-effective) on-device model via local Ollama that fits and
+  runs fast on this class of machine. `gemma3:12b` was the wrong call (too big, slow, crashed the
+  server). **Stage 6 evaluated `Qwen2.5-Coder 1.5B` as a candidate default and ruled it out** — the
+  live bake-off showed it can't produce a design plan at all (a code-completion model echoes the
+  JSON schema instead of an instance), so **gemma4:e4b stays the default**. A bigger Qwen would be
+  larger than gemma and therefore slower on this CPU box, defeating the speed goal. Local-first;
+  cloud is opt-in via `config/local.yaml`.
 - **Printers live at Kim's house, not here.** So *all* real-hardware validation — every real
   print, every live printer connection — happens **only after Stage 11**: once the beta gate
   ships the installable v3.0 Windows beta, **Kim runs that beta on her real hardware** as the
@@ -45,10 +47,12 @@ system, vanilla Three.js viewport, wired design→gate→slice→download flow) 
 UI. **Stage 5 (deterministic template engine + live sliders — the critical path) is DONE** — merged
 to `main` (merge commit `14896d6`) and tagged `stage-5` (the engine, the tiered pipeline, the
 `/api/render` re-render API, the live SPA sliders, and a deterministic-family benchmark proving the
-<1 s no-model re-render; through the full `audit-team` gate + re-audit at 0/0/0/0/0). **Next = Stage 6
-(model swap).**
+<1 s no-model re-render; through the full `audit-team` gate + re-audit at 0/0/0/0/0). **Stage 6 (the
+model layer — hardware-aware advisor, tiered fallback, 3-axis grading, and the model bake-off) is
+implemented on `stage-6-model-swap`, pending the stage gate.** Its data-backed verdict: keep
+`gemma4:e4b` (the Qwen candidate failed the bake-off).
 
-Still ahead before beta: the model swap (Stage 6), Smart Mesh + PrintProof3D (Stage 7), CadQuery
+Still ahead before beta: Smart Mesh + PrintProof3D (Stage 7), CadQuery
 (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
 installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
 at Kim's.**
@@ -147,16 +151,30 @@ re-render in **<1 s with no LLM call** — which is what makes true live sliders
 **Exit:** named parameter sliders drag → re-render in <1 s with no model call across the template
 families; the tiered template→LLM fallback is proven. **Needs:** target box. **Size:** ~2–3 weeks.
 
-## Stage 6 — Model swap (Qwen default) + tiered fallback
-**Goal:** swap the default model to `Qwen2.5-Coder 1.5B`, benchmarked on the target box, with a
-tiered fallback chain.
-- Benchmark `Qwen2.5-Coder 1.5B` on the 780M box; make it the default if it clears the bar; keep
-  `gemma4:e4b` as the non-China alternative + vision fallback. No "bigger model on a GPU" escape.
-- Tiered fallback (template → primary model → alt model); cloud (DeepSeek/OpenRouter) opt-in only.
-- Grow the benchmark past 10 prompts; richer 3-axis grading (slices-clean / matches-request /
-  correct-dimensions).
-**Exit:** a data-backed on-target default model + a proven fallback chain. **Needs:** target box.
-**Size:** ~2–3 weeks.
+## Stage 6 — Model layer: hardware-aware advisor + tiered fallback + bake-off (implemented, pending gate)
+**Goal:** a data-backed default model on the target box, with the machinery to choose, fall back, and
+compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evaluated and **rejected** —
+`gemma4:e4b` stays the default.
+- **Hardware/availability advisor** (`kimcad models`): probes RAM/CPU/GPU + installed Ollama models
+  and recommends one — advisory only, never rewrites config; the model stays choosable (config
+  backends + `config/local.yaml` + `--backend`). Surfaces a non-China alternative when the pick is
+  China-origin.
+- **Tiered fallback** (`FallbackProvider`): a primary connection/timeout/model-not-found error
+  transparently retries an opt-in alt backend (`llm.alt_backend`); off by default. Cloud
+  (DeepSeek/OpenRouter) opt-in only.
+- **Richer 3-axis benchmark grading** (slices-clean / matches-request / correct-dimensions) layered
+  on the completion done-gate, plus a **model bake-off** (`kimcad bakeoff`) that runs the benchmark
+  per backend and recommends switch-or-keep (it recommends only — flipping the default is a human
+  call).
+- **Plan-failure robustness:** a model returning un-parseable output fails clean (`plan_failed`)
+  instead of a raw traceback.
+- **Bake-off verdict (run live on the target box):** `Qwen2.5-Coder 1.5B` scored **0/10** — it fails
+  the design-plan step (echoes the schema), even with JSON mode forced. `gemma4:e4b` is the only
+  working local option, so it remains the default. A larger Qwen is bigger than gemma → slower on
+  CPU → fails the "faster default" premise. (Bigger benchmark prompt set is deferred to a later
+  stage; the 10 Appendix-B prompts remain the done-gate.)
+**Exit:** a data-backed on-target default (`gemma4:e4b`, confirmed) + a proven fallback/advisor/bake-off
+toolchain. **Size:** done on the branch; pending the stage gate.
 
 ## Stage 7 — Smart Mesh + PrintProof3D + readiness report
 **Goal:** real print-quality validation surfaced as a designed report.

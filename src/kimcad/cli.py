@@ -1,11 +1,13 @@
 """Command-line interface — the Phase-1 user surface (spec §5).
 
-Three subcommands:
+Five subcommands:
 
     kimcad "a wall bracket for a 25mm pipe"     # design a part (default verb)
     kimcad design "..." [--printer ... --material ...] [--slice]
-    kimcad bench [--prompts bench/prompts.yaml] [--min-success-rate 0.7]
+    kimcad bench [--prompts bench/prompts.yaml] [--min-success-rate 0.7] [--slice]
     kimcad web [--host ... --port ... --demo]   # local browser UI (Phase 2)
+    kimcad models                               # advise a model for this machine (Stage 6)
+    kimcad bakeoff [--backends a,b]             # compare models on the benchmark (Stage 6)
 
 ``--slice`` is the explicit print confirmation: only with it does a passing part get
 sliced into a printable G-code 3MF for the chosen printer + material.
@@ -27,7 +29,7 @@ from typing import Any
 
 from kimcad.config import Config
 
-_SUBCOMMANDS = {"design", "bench", "web"}
+_SUBCOMMANDS = {"design", "bench", "web", "models", "bakeoff"}
 
 
 def _force_utf8_output(stream: Any) -> None:
@@ -102,6 +104,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="If set, exit non-zero unless the batch meets this pass rate (§4.2).",
     )
+    b.add_argument(
+        "--slice",
+        action="store_true",
+        help="Also slice each part (real OrcaSlicer) to grade the slices-clean axis. "
+        "Slower; off by default. The matches-request and correct-dimensions axes are "
+        "graded either way.",
+    )
+
+    m = sub.add_parser(
+        "models",
+        help="Examine this machine + your installed models and recommend one (advisory).",
+    )
+    m.add_argument(
+        "--base-url",
+        default=None,
+        help="Ollama base URL to query for installed models (default: the configured "
+        "local backend, else http://localhost:11434/v1).",
+    )
+
+    bo = sub.add_parser(
+        "bakeoff",
+        help="Run the benchmark across two+ model backends and compare them (Stage 6).",
+    )
+    bo.add_argument(
+        "--backends",
+        default="local_qwen,local",
+        help="Comma-separated config backend keys to compare (default: local_qwen,local). "
+        "Each must be defined under llm.backends; each backend's model_name is what runs.",
+    )
+    bo.add_argument("--prompts", default="bench/prompts.yaml", help="Benchmark prompt YAML.")
+    bo.add_argument("--out", default="output/bakeoff", help="Output directory.")
+    bo.add_argument("--printer", default=None, help="Printer key (default from config).")
+    bo.add_argument("--material", default=None, help="Material key (default from config).")
+    bo.add_argument(
+        "--no-slice",
+        action="store_true",
+        help="Skip slicing (drops the slices-clean axis from the comparison). Slicing is "
+        "on by default for a bake-off so all three axes are compared.",
+    )
     return parser
 
 
@@ -122,12 +163,26 @@ def _normalize_argv(argv: list[str]) -> list[str]:
 
 
 def _build_pipeline(config: Config, args: argparse.Namespace):
-    from kimcad.llm_provider import LLMProvider
+    from kimcad.llm_provider import FallbackProvider, LLMProvider
     from kimcad.pipeline import Pipeline
 
     printer = config.printer(args.printer)
     material = config.material(args.material)
-    provider = LLMProvider(config.llm_backend(args.backend))
+    primary = LLMProvider(config.llm_backend(args.backend))
+    alt_cfg = config.llm_alt_backend()
+    alt = LLMProvider(alt_cfg) if alt_cfg is not None else None
+    provider = FallbackProvider(primary, alt) if alt is not None else primary
+    return Pipeline(config, printer, material, provider)
+
+
+def _pipeline_for_backend(config: Config, backend_key: str, printer: Any, material: Any):
+    """Build a pipeline pinned to one backend, with NO fallback chain — the bake-off
+    measures each model in isolation, so a silent fallback would contaminate the
+    comparison by swapping in the other model mid-run."""
+    from kimcad.llm_provider import LLMProvider
+    from kimcad.pipeline import Pipeline
+
+    provider = LLMProvider(config.llm_backend(backend_key))
     return Pipeline(config, printer, material, provider)
 
 
@@ -203,6 +258,11 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     if result.status is PipelineStatus.clarification_needed:
         print(f"I need one detail before building:\n  {result.clarification}")
         return 3
+    if result.status is PipelineStatus.plan_failed:
+        # Distinct exit code from gate_failed (5): a plan failure means the model produced
+        # nothing buildable, so there's nothing to --proceed-anyway with.
+        print(result.error or "The model didn't return a usable design plan.")
+        return 6
     if result.status is PipelineStatus.render_failed:
         print(f"Could not produce a valid model after retries.\n  {result.error}")
         return 4
@@ -245,7 +305,9 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
     pipeline = _build_pipeline(config, args)
     cases = load_cases(prompts_path)
     out_dir = Path(args.out)
-    summary = run_benchmark(cases, make_case_runner(pipeline, out_dir))
+    summary = run_benchmark(
+        cases, make_case_runner(pipeline, out_dir, slice_for_grade=args.slice)
+    )
     text = summary.to_text(min_success_rate=args.min_success_rate)
     # Persist the verdict before printing: a batch is minutes of CPU, and a
     # console-encoding error at print time must never discard the result.
@@ -257,10 +319,119 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_bakeoff(config: Config, args: argparse.Namespace) -> int:
+    from kimcad.bakeoff import run_bakeoff
+    from kimcad.benchmark import load_cases
+
+    prompts_path = Path(args.prompts)
+    if not prompts_path.exists():
+        print(
+            f"No benchmark prompts at {prompts_path}.\n"
+            "Copy bench/prompts.example.yaml to bench/prompts.yaml and fill in the "
+            "Appendix B prompts."
+        )
+        return 2
+
+    backends = [b.strip() for b in args.backends.split(",") if b.strip()]
+    if len(backends) < 2:
+        print("bakeoff needs at least two backends, e.g. --backends local_qwen,local")
+        return 2
+    # Validate every backend resolves before running — a bake-off is many minutes of CPU
+    # per backend, so fail fast on a typo'd key rather than after the first batch.
+    known_backends = config.raw.get("llm", {}).get("backends", {})
+    for key in backends:
+        if key not in known_backends:
+            names = ", ".join(known_backends) or "(none configured)"
+            print(f"Unknown backend '{key}'. Configured backends: {names}")
+            return 2
+
+    printer = config.printer(args.printer)
+    material = config.material(args.material)
+    incumbent = config.raw["llm"]["active"]
+    cases = load_cases(prompts_path)
+    out_dir = Path(args.out)
+
+    bakeoff = run_bakeoff(
+        backends,
+        make_pipeline=lambda key: _pipeline_for_backend(config, key, printer, material),
+        model_name_for=lambda key: config.llm_backend(key).model_name,
+        cases=cases,
+        out_root=out_dir,
+        slice_for_grade=not args.no_slice,
+        incumbent=incumbent,
+    )
+    text = bakeoff.to_text()
+    # Persist before printing: a bake-off is a long CPU run, and a console-encoding
+    # error at print time must never discard the result.
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "bakeoff.txt").write_text(text, encoding="utf-8")
+    print(text)
+    return 0
+
+
 def _cmd_web(args: argparse.Namespace) -> int:
     from kimcad.webapp import serve
 
     serve(host=args.host, port=args.port, demo=args.demo, backend=args.backend)
+    return 0
+
+
+def _cmd_models(config: Config, args: argparse.Namespace) -> int:
+    """Probe the machine + the installed Ollama models and print a recommendation. Purely
+    advisory — it never rewrites config; the model stays choosable (config / --backend)."""
+    from kimcad.model_advisor import (
+        friendly_label,
+        probe_hardware,
+        probe_installed_models,
+        recommend,
+    )
+
+    base_url = args.base_url
+    if base_url is None:
+        # ADV-003: probe the active backend's URL if it looks local, else the conventional
+        # `local` backend, else the standard Ollama default.
+        for key in (None, "local"):
+            try:
+                candidate = config.llm_backend(key).base_url
+            except Exception:
+                continue
+            if "localhost" in candidate or "127.0.0.1" in candidate:
+                base_url = candidate
+                break
+        if base_url is None:
+            base_url = "http://localhost:11434/v1"
+
+    hw = probe_hardware()
+    installed = probe_installed_models(base_url)
+    rec = recommend(hw, installed)
+
+    print("Hardware")
+    print(f"  {hw.summary()}")
+    print()
+    print(f"Installed models (Ollama @ {base_url})")
+    if installed:
+        for m in installed:
+            size = f"  ({m.size_gb:.1f} GB)" if m.size_gb else ""
+            label = friendly_label(m.name)
+            tag = f"  -- {label}" if label else ""
+            print(f"  - {m.name}{size}{tag}")
+    else:
+        print("  (none detected -- is Ollama running, with models pulled?)")
+    print()
+    print("Recommendation")
+    if rec.primary is not None:
+        state = "installed" if rec.installed else "NOT installed -- pull it first"
+        print(f"  -> {rec.primary.label}  [{rec.primary.name}]  ({state})")
+    print(f"  {rec.reason}")
+    if rec.upgrade is not None:
+        print(f"  Upgrade you could run: {rec.upgrade.label}  (ollama pull {rec.upgrade.name})")
+    if rec.non_china_alternative is not None:
+        alt = rec.non_china_alternative
+        state = "installed" if rec.non_china_installed else f"not installed -- ollama pull {alt.name}"
+        print(f"  Non-China local option: {alt.label}  [{alt.name}]  ({state})")
+    print()
+    print("The model is never hardwired. To choose one: set `llm.active` (or a backend's")
+    print("`model_name`) in config/local.yaml, or pass `--backend <key>` to design/web/bench.")
     return 0
 
 
@@ -281,6 +452,10 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_design(config, args)
         if args.command == "bench":
             return _cmd_bench(config, args)
+        if args.command == "bakeoff":
+            return _cmd_bakeoff(config, args)
+        if args.command == "models":
+            return _cmd_models(config, args)
     except RuntimeError as e:
         # e.g. a configured backend whose API key env var is unset.
         print(f"Error: {e}", file=sys.stderr)
