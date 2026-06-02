@@ -166,6 +166,35 @@ All notable changes to KimCad are documented here. Format follows
   frontend↔backend field-contract tests against the TypeScript source, and a build that the
   Python server-side tests gate (shell + `/assets/` serving + traversal rejection).
 
+#### Stage 5 — deterministic template engine + live sliders
+- **Deterministic template engine** (`templates.py`): a registry of seven parametric families
+  (`snap_box`, `box`, `enclosure`, `tube`, `wall_hook`, `cable_clip`, `drawer_divider`) over the
+  proven `library/` modules. A template-covered `object_type` builds **with no model call** — the
+  OpenSCAD is emitted by pure, injection-safe string substitution and the gate target is the
+  family's analytic bounding box. Typed, range-bounded parameters; values clamped to range with
+  ordering constraints (a tube's bore stays inside its wall); alias/plural/case-normalized matching
+  with a duplicate-alias guard. LLM-written OpenSCAD stays the fallback for uncovered types.
+- **Pipeline tiering + the re-render path** (`pipeline.py`): a template match builds in one shot
+  (no retry, no model — a too-wrong part fails closed, fixed by a parameter not by regenerating).
+  `Pipeline.rerender(base_plan, family, values, …)` re-emits + renders + gates at new values with
+  no model and no prompt, sharing the orient/harden/export tail with `run`.
+- **Live re-render API** (`webapp.py`): `/api/design` now returns the `template` family name + the
+  typed `parameters` snapshot; `POST /api/render/<id>` deterministically re-renders at new
+  `{values}` (no model), returns the clamped values + a **versioned** (cache-busted) `mesh_url`,
+  **invalidates** the cached slice/G-code for that id, and serializes concurrent re-renders — so a
+  stale shape can never be sliced or sent.
+- **Live parameter sliders in the SPA** (`RightPanel.tsx` et al.): a slider per backend parameter
+  for template-backed designs; a drag updates immediately and debounces (~150 ms) a re-render, then
+  the viewport reloads the versioned mesh while the previous one stays on screen and the
+  gate/report/values update from server truth (a stale response can't clobber newer geometry).
+  LLM-backed parts have no parameters and stay read-only. Sliders are labelled, mono-valued with
+  units, and `aria-valuetext`-announced; the touch target fattens on mobile.
+- **Deterministic-template benchmark/proof** (`template_bench.py`, `python -m kimcad.template_bench`):
+  every family re-renders through the real pipeline path watertight at its declared envelope, with
+  no model call, **well under the <1 s interactive target** (the automated gate asserts a
+  conservative ≤5 s per-family ceiling so it stays hardware-independent; the exact per-family
+  timings are in `docs/benchmarks/stage-5-template-families.md`).
+
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable
   and fast there); `gemma3:12b` was too large for the target and is no longer used.

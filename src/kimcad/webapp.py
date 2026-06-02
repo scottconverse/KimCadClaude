@@ -95,27 +95,43 @@ def _report_payload(report: Any) -> dict[str, Any]:
     }
 
 
-def design_response(pipeline: Any, prompt: str, out_dir: Path) -> tuple[dict[str, Any], Path | None]:
-    """Run one prompt through the pipeline and shape the result for the UI.
-
-    Pure mapping over a :class:`PipelineResult`; returns the JSON-able payload plus the
-    rendered mesh path (or None) so the HTTP layer can expose it for the 3D preview.
-    """
-    result = pipeline.run(prompt, out_dir)
-    payload: dict[str, Any] = {"status": result.status.value, "prompt": prompt}
-
+def _result_to_payload(result: Any) -> dict[str, Any]:
+    """Shape a :class:`PipelineResult` into the JSON the UI consumes — shared by the initial
+    design response and the live-slider re-render so both expose an identical contract:
+    status, plan, report, and (for a template-backed part) the `template` family name plus
+    the typed, range-bounded `parameters` snapshot the sliders bind to."""
+    payload: dict[str, Any] = {"status": result.status.value}
     if result.clarification:
         payload["clarification"] = result.clarification
     if result.plan is not None:
         payload["plan"] = _plan_payload(result.plan)
     if result.report is not None:
         payload["report"] = _report_payload(result.report)
+    if result.template is not None:
+        # A deterministic, instantly re-renderable part: advertise its family and the typed,
+        # range-bounded parameters the live sliders drive.
+        payload["template"] = result.template.family.name
+        payload["parameters"] = result.template.parameters()
     if result.error:
         payload["error"] = result.error
+    payload["has_mesh"] = bool(result.mesh_path and result.mesh_path.exists())
+    return payload
 
+
+def design_response(
+    pipeline: Any, prompt: str, out_dir: Path
+) -> tuple[dict[str, Any], Path | None, Any]:
+    """Run one prompt through the pipeline and shape the result for the UI.
+
+    Returns the JSON-able payload, the rendered mesh path (or None) for the 3D preview, and
+    the :class:`PipelineResult` itself so the HTTP layer can register per-design re-render
+    state (the base plan + template family) for the live-slider endpoint.
+    """
+    result = pipeline.run(prompt, out_dir)
+    payload = _result_to_payload(result)
+    payload["prompt"] = prompt
     mesh_path = result.mesh_path if (result.mesh_path and result.mesh_path.exists()) else None
-    payload["has_mesh"] = mesh_path is not None
-    return payload, mesh_path
+    return payload, mesh_path, result
 
 
 class DemoProvider:
@@ -139,6 +155,11 @@ class DemoProvider:
         )
 
     def generate_openscad(self, plan, printer, material, history=None):  # noqa: ANN001
+        # ENG-506: in demo mode this is now SHADOWED by the template tier — object_type "box"
+        # matches the snap_box family, so the geometry is emitted deterministically and this
+        # never runs. Kept as the documented LLM-codegen contract shape (and exercised by the
+        # LLM-path tests via FakeProvider); it would run only if the demo plan named a
+        # non-template object_type.
         return "use <library/containers.scad>;\nsnap_box(width=80, depth=60, height=40, wall=2);"
 
 
@@ -281,7 +302,19 @@ def make_handler(
         OrderedDict()
     )
     slice_lock = threading.Lock()
+    # Stage 5: serialize live-slider re-renders so two rapid drags can't interleave writes to the
+    # same per-design output dir (mirrors slice_lock). Re-renders are sub-second; the latest wins.
+    # A single global lock (not per-id) is intentional: the web UI is single-user/loopback, so
+    # contention across different designs is nil; key it by rid only if a multi-client mode lands
+    # (ENG-503).
+    render_lock = threading.Lock()
+    # Stage 5: per-design re-render state for the live-slider endpoint — the base plan + the
+    # matched template family name, so /api/render/<id> can deterministically rebuild the
+    # part at new parameter values with no model call. Only template-backed designs are
+    # registered here (an LLM-backed part has no adjustable parameters). Evicted via _evict.
+    template_state: dict[int, tuple[Any, str]] = {}
     counter = itertools.count(1)
+    version_counter = itertools.count(1)  # cache-busting suffix for re-rendered meshes
     lock = threading.Lock()
     index_html = (WEB_DIR / "index.html").read_bytes()
     config_box: dict[str, Any] = {"config": config}
@@ -299,6 +332,7 @@ def make_handler(
         ``lock``."""
         gcode_registry.pop(rid, None)
         gate_status_by_rid.pop(rid, None)
+        template_state.pop(rid, None)
         for k in [k for k in slice_cache if k[0] == rid]:
             slice_cache.pop(k, None)
         shutil.rmtree(web_root / str(rid), ignore_errors=True)
@@ -388,12 +422,14 @@ def make_handler(
                 self._serve_asset(urlsplit(self.path).path[len("/assets/") :])
                 return
             if self.path.startswith("/api/mesh/"):
-                self._serve_mesh(self.path.rsplit("/", 1)[-1])
+                # urlsplit drops any ?v=<n> cache-buster (the live-slider re-render appends one
+                # so the browser fetches the fresh mesh) before parsing the id.
+                self._serve_mesh(urlsplit(self.path).path.rsplit("/", 1)[-1])
                 return
             if self.path.startswith("/api/gcode/"):
-                self._serve_gcode(self.path.rsplit("/", 1)[-1])
+                self._serve_gcode(urlsplit(self.path).path.rsplit("/", 1)[-1])
                 return
-            self._json(404, {"error": "not found"})
+            self._json(404, {"error": "Not found."})
 
         def _serve_gcode(self, raw_id: str) -> None:
             try:
@@ -435,11 +471,11 @@ def make_handler(
             # separator or traversal is rejected before touching the filesystem (mirrors
             # _serve_asset's guard exactly).
             if not name or "/" in name or "\\" in name or ".." in name:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             path = WEB_DIR / "vendor" / name
             if not path.is_file():
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             ctype = (
                 "text/javascript; charset=utf-8"
@@ -456,11 +492,11 @@ def make_handler(
             # emits the mapped types), and the type map (`_ASSET_CONTENT_TYPES`) is the single
             # source for the asset content types.
             if not name or "/" in name or "\\" in name or ".." in name:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             path = WEB_DIR / "assets" / name
             if not path.is_file():
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             ctype = _ASSET_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
             self._serve_static(path, ctype)
@@ -520,10 +556,13 @@ def make_handler(
             if self.path.startswith("/api/slice/"):
                 self._handle_slice(self.path.rsplit("/", 1)[-1])
                 return
+            if self.path.startswith("/api/render/"):
+                self._handle_render(self.path.rsplit("/", 1)[-1])
+                return
             if self.path.startswith("/api/send/"):
                 self._handle_send(self.path.rsplit("/", 1)[-1])
                 return
-            self._json(404, {"error": "not found"})
+            self._json(404, {"error": "Not found."})
 
         def _handle_connector_status(self, name: str) -> None:
             """Live readiness of one printer connection: reachable and idle (ready), busy,
@@ -580,7 +619,7 @@ def make_handler(
             try:
                 rid = int(raw_id)
             except ValueError:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             # ENG-402: read the shared registries together under the lock (consistent snapshot).
             with lock:
@@ -655,7 +694,7 @@ def make_handler(
             with lock:
                 rid = next(counter)
             try:
-                payload, mesh_path = design_response(pipeline, prompt, web_root / str(rid))
+                payload, mesh_path, result = design_response(pipeline, prompt, web_root / str(rid))
             except Exception as e:  # never leak a traceback to the browser
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return
@@ -666,6 +705,10 @@ def make_handler(
                     # (default to "fail" — fail closed — if a report is somehow absent).
                     rep = payload.get("report") or {}
                     gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
+                    # Stage 5: register the re-render context for a template-backed part so the
+                    # live-slider endpoint can rebuild it deterministically at new values.
+                    if result.template is not None:
+                        template_state[rid] = (result.plan, result.template.family.name)
                     # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
                     while len(registry) > MAX_REGISTRY:
                         old_rid, _ = registry.popitem(last=False)
@@ -693,7 +736,7 @@ def make_handler(
             try:
                 rid = int(raw_id)
             except ValueError:
-                self._json(404, {"error": "not found"})
+                self._json(404, {"error": "Not found."})
                 return
             # ENG-402: read the shared registries together under the lock (consistent snapshot).
             with lock:
@@ -739,6 +782,64 @@ def make_handler(
                         while len(slice_cache) > MAX_REGISTRY:
                             slice_cache.popitem(last=False)
             self._respond_slice(rid, info, gcode_path)
+
+        def _handle_render(self, raw_id: str) -> None:
+            """Stage 5 live-slider re-render: rebuild a template-backed part (by id) at new
+            parameter values — deterministically, with NO model call. The fresh geometry
+            replaces the design's mesh and INVALIDATES any cached slice/G-code for it, so a
+            stale slice of the previous shape can never be served, sliced, or sent."""
+            try:
+                rid = int(raw_id)
+            except ValueError:
+                self._json(404, {"error": "Not found."})
+                return
+            with lock:
+                state = template_state.get(rid)
+                known = rid in registry
+            if state is None:
+                # QA-002: distinguish a genuinely-unknown id from a known LLM-backed design that
+                # simply has no template parameters — so an API consumer isn't sent debugging the
+                # wrong thing. Both are 404 (no sliders to drive either way).
+                if not known:
+                    self._json(404, {"error": "Design not found."})
+                else:
+                    self._json(404, {"error": "This design has no adjustable parameters."})
+                return
+            data = self._read_json_body()
+            if data is None:
+                return
+            values = data.get("values")
+            if not isinstance(values, dict):
+                self._json(400, {"error": "Provide the parameter values to re-render."})
+                return
+            base_plan, family_name = state
+            try:
+                # RENDER-001: serialize the geometry write so concurrent drags can't corrupt
+                # the shared per-design output dir (same discipline as the slice path).
+                with render_lock:
+                    result = pipeline.rerender(base_plan, family_name, values, web_root / str(rid))
+            except Exception as e:  # never leak a traceback to the browser
+                self._json(500, {"error": f"{type(e).__name__}: {e}"})
+                return
+            payload = _result_to_payload(result)
+            if result.mesh_path is not None and result.mesh_path.exists():
+                with lock:
+                    registry[rid] = result.mesh_path
+                    registry.move_to_end(rid)  # an actively re-rendered design stays LRU-fresh
+                    rep = payload.get("report") or {}
+                    gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
+                    # Geometry changed: drop any cached slice + G-code for this id so the old
+                    # shape can't be downloaded or sent after the part was re-shaped (safety).
+                    gcode_registry.pop(rid, None)
+                    for k in [k for k in slice_cache if k[0] == rid]:
+                        slice_cache.pop(k, None)
+                    if result.template is not None:  # refresh the (bbox-aligned) base plan
+                        template_state[rid] = (result.plan, result.template.family.name)
+                    # A unique suffix busts the browser's cache so the viewport fetches the new
+                    # mesh. Taken under `lock` for consistency with the other counter reads
+                    # (ENG-502) — uniqueness is all the cache-buster needs.
+                    payload["mesh_url"] = f"/api/mesh/{rid}?v={next(version_counter)}"
+            self._json(200, payload)
 
     return Handler
 

@@ -3,11 +3,12 @@
 **AI-assisted parametric design for functional 3D prints.**
 
 Describe a functional or mechanical part in plain English; KimCad turns it into a
-printer-ready file through a conversation. An LLM writes parametric
-[OpenSCAD](https://openscad.org/) code, OpenSCAD renders manifold geometry, a
-validation-and-printability pipeline checks it against your printer and material,
-and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output. No
-CAD skills required, and the core path runs CPU-only — no discrete GPU.
+printer-ready file through a conversation. For common shapes a **deterministic template
+engine** emits parametric [OpenSCAD](https://openscad.org/) directly — no model — and an
+LLM writes the OpenSCAD for anything a template doesn't cover. OpenSCAD renders manifold
+geometry, a validation-and-printability pipeline checks it against your printer and
+material, and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output.
+No CAD skills required, and the core path runs CPU-only — no discrete GPU.
 
 > Status: **early development.** The deterministic pipeline, the gated G-code export
 > (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
@@ -25,7 +26,10 @@ prompt → design plan (JSON) → OpenSCAD → render → mesh validation
 
 The engine is deterministic where it counts. Parametric CSG produces closed,
 manifold geometry by construction, so output is dimensionally meaningful — not
-lumpy neural meshes.
+lumpy neural meshes. For template-backed parts the browser UI shows **live
+parameter sliders**: drag one and the part re-renders locally in well under a
+second with no model call (the `templates.py` engine; proof in
+`docs/benchmarks/stage-5-template-families.md`).
 
 ## Requirements
 

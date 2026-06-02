@@ -33,3 +33,6 @@ Thumbs.db
 config/local.yaml
 .env
 *.key
+
+# Session/preview tooling (Claude Code) — never commit machine-specific launch configs
+.claude/

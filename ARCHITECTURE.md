@@ -2,8 +2,17 @@
 
 KimCad turns a plain-English request into a printer-ready part by driving a
 **deterministic pipeline** around a single LLM-shaped step. The model writes a
-structured plan and OpenSCAD code; everything that decides whether the result is
-dimensionally correct and printable is ordinary, testable code — not the model.
+structured plan and, for anything off the beaten path, the OpenSCAD code; everything
+that decides whether the result is dimensionally correct and printable is ordinary,
+testable code — not the model.
+
+For the common shapes (boxes, enclosures, tubes, hooks, clips, dividers) the geometry
+isn't model-written at all: a **deterministic template engine** (Stage 5) maps the plan's
+`object_type` to a parametric family over the proven module library and emits the OpenSCAD
+by pure substitution. That tier is what makes **live parameter sliders** real — dragging a
+slider re-renders locally in **well under a second with no model call** (measured per
+family in `docs/benchmarks/stage-5-template-families.md`). LLM-written OpenSCAD remains the
+fallback for object types no template covers, never the live-slider path.
 
 ## The pipeline
 
@@ -11,7 +20,8 @@ dimensionally correct and printable is ordinary, testable code — not the model
 prompt
   → design plan (JSON IR)            # LLM: structured intent, validated before geometry
   → [clarify?]                       # ask at most one question if the part can't be sized
-  → OpenSCAD codegen                 # LLM: writes OpenSCAD, composing the module library
+  → geometry                         # template-covered object_type → DETERMINISTIC emit (no
+                                     #   model); otherwise LLM writes OpenSCAD from the library
   → sandboxed render                 # untrusted code is sanitized, then OpenSCAD shells out
   → mesh validation                  # load mesh, check watertight, conservative repair
   → Printability Gate                # pass / warn / fail vs the chosen printer + material
@@ -67,7 +77,9 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | `orientation.py` | Auto-orientation: compute stable resting poses via the convex hull, rotate the part so the most probable resting face sits at Z = 0, and drop it to the bed. The chosen pose and its stability are surfaced in the report. |
 | `hardening.py` | Pre-slice mesh hardening: round-trips the oriented mesh through **Manifold3D** into a guaranteed 2-manifold before it is exported and sliced (watertight is necessary but not sufficient — a watertight mesh can still carry non-manifold edges a slicer mis-handles). Best-effort and optional at runtime: if Manifold3D is absent or rejects the mesh, the already-validated mesh is passed through unchanged with a note. Never raises. |
 | `slicer.py` | OrcaSlicer CLI integration: turns a validated mesh into a sliced, G-code-bearing 3MF. Resolves config profile *names* to the shipped on-disk profile JSONs (`resolve_slice_settings`, fail-loud on a missing/ambiguous name), runs OrcaSlicer as an argv list (no shell), and **proves** the result — the 3MF must carry a real motion-bearing toolpath (`prove_gcode_3mf`), which also yields the print estimate. Never called without confirmation (enforced upstream in the pipeline). |
-| `pipeline.py` | The orchestrator described above: wires every stage, owns the render/gate retry loop, builds the `PrintReport`, and enforces the confirm-before-slice rule. |
+| `pipeline.py` | The orchestrator described above: wires every stage, owns the render/gate retry loop, builds the `PrintReport`, and enforces the confirm-before-slice rule. Tiered: a template-covered `object_type` builds deterministically in one shot (no model, no retry — a too-wrong part fails closed, fixed by a parameter not by regenerating); everything else falls back to LLM codegen. `rerender(base_plan, family, values, …)` is the live-slider path — re-emit + render + gate at new values with no model and no prompt, sharing the orient/harden/export/slice tail with `run`. |
+| `templates.py` | The **deterministic template engine** (Stage 5). A registry of seven parametric families (`snap_box`, `box`, `enclosure`, `tube`, `wall_hook`, `cable_clip`, `drawer_divider`) over the proven `library/` modules. Each family is pure data: a typed, range-bounded `ParamSpec` set (the live-slider schema), the library module to call, fixed args, and an analytic bounding box. `match(plan)` resolves an `object_type` (alias/plural/separator-normalized, collision-checked) to a family and derives its values from the plan; `emit_scad` produces OpenSCAD by **pure string substitution** — only clamped, finite numbers reach emit, so it's injection-safe and byte-deterministic. Values are clamped to range with ordering constraints (a tube's bore stays inside its wall). |
+| `template_bench.py` | The deterministic-template **proof/benchmark** — the counterpart to `benchmark.py`. Renders + re-renders every family through the real `Pipeline.rerender` path and measures it: watertight at the declared envelope, byte-deterministic emit, **no model call** (it wires a provider that *raises* if invoked), and the re-render time. `python -m kimcad.template_bench [--write PATH]` writes the markdown proof. |
 | `printer_connector.py` | The send-to-printer **abstraction**: the `PrinterConnector` `Protocol` (capabilities / status / send / job-status), the frozen `PrinterCapabilities` / `PrinterStatus` / `PrintJob` models, the `ConnectorError` family, and the shared `ensure_sendable()` gate — it sends only when `confirm is True` (not merely truthy) **and** the file proves out as a real motion-bearing slice, otherwise nothing is sent. Ships a thread-safe in-memory `LoopbackConnector` (the `mock` connector) so the whole path is testable with no hardware. |
 | `octoprint_connector.py` | A real OctoPrint REST connector over stdlib `urllib` (`X-Api-Key` header). The API key comes from the environment only — never stored in config, never logged. A reachable-but-rejected printer (401/403) raises a distinct `AuthError` rather than masquerading as offline; single-plate G-code is extracted with a hard size cap. |
 | `mock_printer.py` | A runnable mock OctoPrint server (stdlib `http.server`) — version / printerprofiles / printer / files / job endpoints with API-key auth — so the OctoPrint connector is exercised end-to-end offline. `python -m kimcad.mock_printer`. |
@@ -143,6 +155,16 @@ its bundles at `/assets/<file>` behind the same traversal guard as `/vendor/`), 
 runs with no Node toolchain on the target box. The JSON endpoints above are the unchanged
 contract between the SPA and the pipeline. Rebuild the UI with
 `npm --prefix frontend ci && npm --prefix frontend run build` (see `frontend/README.md`).
+
+**Live parameter sliders (Stage 5).** For a template-backed design, `/api/design` returns the
+family name plus the typed `parameters` snapshot, and the SPA renders a slider per parameter.
+Dragging one debounces a `POST /api/render/<id>` with the new `{values}`; the server re-renders
+deterministically (the `Pipeline.rerender` path — no model), returns the clamped values + a
+**versioned** `mesh_url` (cache-busted), and the viewport reloads while the previous mesh stays
+on screen. A re-render **invalidates the cached slice/G-code** for that id and is serialized
+against concurrent drags, so a stale shape can never be sliced or sent; an LLM-backed part has
+no `parameters` and stays read-only. The slider ranges are the family's own bounds, so a part
+that the gate would reject can't even be dialed in.
 
 ## Local-first and the injectable seam
 

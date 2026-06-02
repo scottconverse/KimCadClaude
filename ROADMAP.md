@@ -42,13 +42,16 @@ an environment mismatch, not a code defect; a Linux `npm ci` would install it.) 
 OctoPrint + Moonraker/Klipper + PrusaLink/Prusa + a loopback mock + KimCad's own MCP server, with
 per-printer per-material profiles and a ready/not-ready status UI. The React SPA (Workshop design
 system, vanilla Three.js viewport, wired design→gate→slice→download flow) replaced the minimal web
-UI. **Next = Stage 5 (deterministic template engine + live sliders — the critical path).**
+UI. **Stage 5 (deterministic template engine + live sliders — the critical path) is implemented on
+`stage-5-template-engine`** (the engine, the tiered pipeline, the `/api/render` re-render API, the
+live SPA sliders, and a deterministic-family benchmark proving <1 s no-model re-render); it is
+**pending the stage gate** (audit-full → native gate → merge → tag). **Next after that = Stage 6
+(model swap).**
 
-Still ahead before beta: the deterministic template engine + live sliders (Stage 5 — the
-critical-path that makes instant sliders possible), the model swap (Stage 6), Smart Mesh +
-PrintProof3D (Stage 7), CadQuery (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native
-(Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware
-yet — that's after Stage 11, at Kim's.**
+Still ahead before beta: the model swap (Stage 6), Smart Mesh + PrintProof3D (Stage 7), CadQuery
+(Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
+installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
+at Kim's.**
 
 ---
 
@@ -118,21 +121,29 @@ viewport — the §5 design at high fidelity.
 - **Dark Three.js viewport foundation** using **vanilla Three.js** (port `KCViewport` from
   `docs/design/prototype/jsx/preview.jsx` behind a thin React wrapper — not react-three-fiber).
 - **Wire the existing text → plan → gate → slice → download flow** through the new UI (read-only
-  first; real live sliders need the Stage 5 template engine, so only non-functional / read-only
-  slider scaffolding here if any).
+  parameters in Stage 4; the real live sliders arrived with the Stage 5 template engine, below).
 - Tests + a real run-through on the running app.
 **Exit:** the existing flow works end-to-end through the new React UI; the viewport renders; the
 Workshop baseline is in place; the built SPA is served as static files by the Python server.
 **Needs:** target box + Node (build-time only). **Size:** ~2–3 weeks.
 
 ## Stage 5 — Deterministic template engine + live sliders
-**Goal:** the **critical-path** `templates/` module — parametric, deterministic templates that
-re-render in **<1s with no LLM call** — which is what makes true live sliders possible.
-- A `templates/` engine of named parametric families; the planner picks a template + fills named
-  parameters; re-render is a pure deterministic pass (no model in the loop).
-- **Named live sliders** wired to template parameters: drag → re-render instantly, fully local.
-- The LLM-writes-OpenSCAD path stays as the fallback for prompts no template covers (tiered).
-**Exit:** named parameter sliders drag → re-render in <1s with no model call across the template
+**Status: implemented on `stage-5-template-engine` (Slices 1–5); pending the stage gate
+(audit-full → native Windows gate → merge → tag `stage-5`).**
+**Goal:** the **critical-path** `templates.py` module — parametric, deterministic templates that
+re-render in **<1 s with no LLM call** — which is what makes true live sliders possible.
+- ✅ A `templates.py` engine of seven named parametric families (`snap_box`, `box`, `enclosure`,
+  `tube`, `wall_hook`, `cable_clip`, `drawer_divider`) over the proven `library/` modules; the
+  planner's `object_type` picks a family and its named parameters are filled from the plan;
+  re-render is a pure deterministic emit + render (no model in the loop).
+- ✅ **Named live sliders** wired to template parameters: drag → debounced `POST /api/render/<id>`
+  → re-render locally, viewport reloads, gate/report/values update from server truth; stale
+  slices invalidated. LLM-backed parts stay read-only.
+- ✅ The LLM-writes-OpenSCAD path stays as the fallback for prompts no template covers (tiered).
+- ✅ A deterministic-family **benchmark** (`python -m kimcad.template_bench`) proving every family
+  renders watertight at its declared envelope, no-model, in <1 s — recorded in
+  `docs/benchmarks/stage-5-template-families.md`.
+**Exit:** named parameter sliders drag → re-render in <1 s with no model call across the template
 families; the tiered template→LLM fallback is proven. **Needs:** target box. **Size:** ~2–3 weeks.
 
 ## Stage 6 — Model swap (Qwen default) + tiered fallback

@@ -15,6 +15,11 @@ export default function Viewport({ meshUrl, busy }: { meshUrl: string | null; bu
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dims, setDims] = useState<Dimensions | null>(null)
+  // Whether a part is currently framed on screen. KCViewport.loadMesh swaps the mesh atomically
+  // (it awaits the new geometry, THEN replaces the old one), so during a live-slider re-render the
+  // previous part stays visible. While a model is shown we suppress the full-cover "Rendering…"
+  // overlay — the swap is quiet (the parameters card shows the "Updating…" note instead).
+  const [hasModel, setHasModel] = useState(false)
 
   useEffect(() => {
     if (!stageRef.current || !canvasRef.current) return
@@ -37,6 +42,7 @@ export default function Viewport({ meshUrl, busy }: { meshUrl: string | null; bu
       vp.clearModel()
       setError(null)
       setDims(null)
+      setHasModel(false)
       return
     }
     let cancelled = false
@@ -47,27 +53,36 @@ export default function Viewport({ meshUrl, busy }: { meshUrl: string | null; bu
         if (!cancelled) {
           setLoading(false)
           setDims(vp.getDimensions())
+          setHasModel(true)
         }
       })
       .catch(() => {
         if (!cancelled) {
           setLoading(false)
-          setError('Could not load the 3D preview.')
+          // The previous mesh is still on screen (the swap only happens on a successful load), so
+          // only surface a blocking error when there's nothing to fall back to.
+          if (!hasModel) setError('Could not load the 3D preview.')
         }
       })
     return () => {
       cancelled = true
     }
+    // Keyed on `meshUrl` only. `hasModel` is read in the failure branch but deliberately omitted
+    // from the deps — re-running on a model landing would reload the same mesh; the closure's
+    // captured value (set by the prior load, guarded by `cancelled`) is correct here.
   }, [meshUrl])
 
-  const showModel = !busy && !loading && error === null && meshUrl !== null
+  const showModel = hasModel && !busy && error === null
+  // The full-cover overlay is for when there's NO model to show: the initial design call, the
+  // first render, a hard load error, or the empty state. A re-render (model already framed) swaps
+  // quietly underneath — no overlay.
   const overlay = busy
     ? 'Designing your part…'
-    : loading
+    : loading && !hasModel
       ? 'Rendering…'
-      : error
+      : error && !hasModel
         ? error
-        : !meshUrl
+        : !meshUrl && !hasModel
           ? 'Your 3D preview appears here.'
           : null
   const ariaLabel = dims
