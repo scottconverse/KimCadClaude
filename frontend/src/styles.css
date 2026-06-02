@@ -754,6 +754,131 @@ input {
   font-size: 11.5px;
 }
 
+/* Live parameter sliders (Stage 5) — the deterministic re-render controls. */
+.kc-card-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kc-card-sub {
+  margin: 0 0 2px;
+  color: var(--kc-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.kc-param-updating {
+  flex: 0 0 auto;
+  font-family: var(--kc-font-mono);
+  font-size: 11.5px;
+  color: var(--kc-accent-strong);
+}
+
+.kc-params {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.kc-prow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kc-plabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.kc-plabel > span:first-child {
+  color: var(--kc-ink);
+  font-weight: 500;
+}
+
+.kc-pval {
+  flex: 0 0 auto;
+  font-family: var(--kc-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+
+.kc-pval i {
+  margin-left: 2px;
+  color: var(--kc-muted);
+  font-style: normal;
+  font-size: 11px;
+}
+
+/* The track fill follows the thumb via the inline --pct custom property. */
+.kc-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--kc-accent) var(--pct, 50%),
+    var(--kc-hair-strong) var(--pct, 50%)
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.kc-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--kc-surface);
+  border: 2px solid var(--kc-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+  cursor: grab;
+}
+
+.kc-range::-moz-range-thumb {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--kc-surface);
+  border: 2px solid var(--kc-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+  cursor: grab;
+}
+
+.kc-range:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 4px;
+}
+
+.kc-param-error {
+  margin-top: 4px;
+  color: var(--kc-fail);
+}
+
+/* Touch: fatten the track + thumb so a finger-drag has a comfortable target. */
+@media (max-width: 640px) {
+  .kc-range {
+    height: 9px;
+  }
+  .kc-range::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+  }
+  .kc-range::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+}
+
 .kc-status-badge {
   align-self: flex-start;
   padding: 4px 11px;

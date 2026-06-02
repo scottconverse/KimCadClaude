@@ -23,6 +23,20 @@ export interface ReportPayload {
   orientation?: string
 }
 
+// One typed, range-bounded parameter — a single live slider. Mirrors the backend's
+// TemplateMatch.parameters() snapshot (src/kimcad/templates.py): the spec plus its CURRENT
+// value. `integer` means the slider only ever sends whole numbers.
+export interface ParamSpec {
+  name: string
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  unit: string
+  integer: boolean
+}
+
 export interface DesignResponse {
   status: string
   prompt?: string
@@ -32,6 +46,10 @@ export interface DesignResponse {
   error?: string
   has_mesh: boolean
   mesh_url?: string
+  // Template-backed (deterministic) designs carry their family name + the live-slider params.
+  // LLM-backed parts have neither — there are no parametric sliders to drive.
+  template?: string
+  parameters?: ParamSpec[]
 }
 
 export interface PrinterOption {
@@ -119,6 +137,16 @@ export function postDesign(prompt: string): Promise<DesignResponse> {
   return postJson<DesignResponse>('/api/design', { prompt })
 }
 
+/** Deterministically re-render a template-backed design at new slider values — no model call.
+ * Returns the same payload shape as `postDesign`, with a versioned `mesh_url` (cache-busted) and
+ * the server's clamped/validated `parameters` (the source of truth the sliders re-sync to). */
+export function postRender(
+  designId: number,
+  values: Record<string, number>,
+): Promise<DesignResponse> {
+  return postJson<DesignResponse>(`/api/render/${designId}`, { values })
+}
+
 export function getOptions(): Promise<OptionsResponse> {
   return getJson<OptionsResponse>('/api/options')
 }
@@ -139,11 +167,14 @@ export function postSlice(
   return postJson<SliceResponse>(`/api/slice/${designId}`, { printer, material })
 }
 
-/** The design id is the trailing segment of mesh_url (`/api/mesh/<id>`); slicing + g-code
- * download key off the same id. Returns null when there's no mesh (nothing to slice). */
+/** The design id is the trailing path segment of mesh_url (`/api/mesh/<id>`); slicing + g-code
+ * download + re-render all key off the same id. A re-render returns a cache-busted, versioned
+ * URL (`/api/mesh/<id>?v=2`), so strip any query string before reading the id. Returns null when
+ * there's no mesh (nothing to slice). */
 export function designIdFromMeshUrl(meshUrl: string | undefined): number | null {
   if (!meshUrl) return null
-  const seg = meshUrl.split('/').pop()
+  const path = meshUrl.split('?')[0]
+  const seg = path.split('/').pop()
   const id = seg ? Number.parseInt(seg, 10) : Number.NaN
   return Number.isNaN(id) ? null : id
 }
