@@ -2,14 +2,17 @@
 
 ## ⛔ READ FIRST
 
-- **🔧 STAGE 6 IS IN PROGRESS on branch `stage-6-model-swap`** (pushed, head `0448f03`; NOT merged/tagged
-  — no `audit-team` stage gate run yet). **Slice 1** (hardware/availability-aware, choosable model
-  advisor — `kimcad models`) and **Slice 2** (tiered LLM fallback chain — `FallbackProvider`) are DONE,
-  each through the real `audit-lite` skill to **0/0/0/0/0** (reports in `docs/audits/stage-6/`).
-  **RESUME HERE = Slice 3** (expanded 3-axis benchmark grading). See the "🔧 Stage 6 — IN PROGRESS"
-  section just below for the full slice plan + the bake-off hand-off note. The pre-push CI hook gates
-  every push (ruff + full pytest incl. live + vitest + build-reproducibility); branch is **535 pytest
-  + 36 vitest green**.
+- **🔧 STAGE 6 — ALL 5 SLICES DONE on branch `stage-6-model-swap`** (pushed, head `1928e13`; NOT
+  merged/tagged — the stage-end `audit-team` gate is the one remaining step). Slices, each through
+  the real `audit-lite` skill to **0/0/0/0/0** (reports in `docs/audits/stage-6/`): **(1)** hardware-aware
+  advisor `kimcad models`; **(2)** tiered fallback `FallbackProvider`; **(3)** 3-axis benchmark grading;
+  **(4)** the `kimcad bakeoff` machinery; **(5)** plan-failure robustness. **Bake-off verdict — run LIVE
+  on THIS box (both models are pulled here; the earlier "needs Scott's box / hand-off" note was a wrong
+  assumption I corrected): `qwen2.5-coder:1.5b` = 0/10 (it can't produce a design plan — a code model
+  echoes the JSON schema instead of an instance, even with JSON mode forced). So `gemma4:e4b` STAYS the
+  default — no config change.** **RESUME HERE = the Stage 6 stage-end `audit-team` gate** on the branch
+  → fix to 0/0/0/0/0 → merge + tag `stage-6`. Branch green: **588 pytest (incl. live) + 36 vitest**; the
+  pre-push CI hook gates every push.
 - **✅ STAGE 5 IS DONE — merged to `main` (merge commit `14896d6`) and tagged `stage-5`** (the tag was
   advanced past the merge to this docs-DONE commit so the tagged artifact's docs say "done", not
   "pending" — the Stage-4 lesson). Slices 1–5 (engine, pipeline tiering, re-render API, live sliders,
@@ -27,51 +30,50 @@
 
 ---
 
-## 🔧 Stage 6 — IN PROGRESS (branch `stage-6-model-swap`, head `0448f03`) — model swap + tiered fallback + bake-off
+## 🔧 Stage 6 — ALL 5 SLICES DONE (branch `stage-6-model-swap`, head `1928e13`) — model layer, pending the stage gate
 
-**Scope (the "roadmap scope" Scott chose):** swap the default model from `gemma4:e4b` toward
-`qwen2.5-coder:1.5b` *if it clears a bake-off on the target box*, behind a tiered fallback chain, with
-expanded benchmark grading to judge the swap. **Standing constraint (Scott, verbatim):** *"the model
-must be choosable, not hardwired. The code should examine the hardware then make a recommendation based
-on what's available."* The model was ALREADY choosable (config `backends` + per-machine `config/local.yaml`
-override + `--backend`); Slice 1 added the missing hardware/availability probe + recommendation.
+**Scope (the "roadmap scope" Scott chose):** evaluate swapping the default from `gemma4:e4b` to
+`qwen2.5-coder:1.5b` *if it clears a bake-off*, behind a tiered fallback, with richer grading to judge it.
+**Outcome: the swap was rejected — qwen can't produce a plan; `gemma4:e4b` stays the default.** Standing
+constraint (Scott, verbatim): *"the model must be choosable, not hardwired. The code should examine the
+hardware then make a recommendation based on what's available."* (Already choosable via config backends +
+`config/local.yaml` + `--backend`; Slice 1 added the missing hardware/availability probe.)
 
-**Slices done (each through the real `audit-lite` skill → 0/0/0/0/0; reports in `docs/audits/stage-6/`):**
+**All 5 slices done (each through the real `audit-lite` skill → 0/0/0/0/0; reports in `docs/audits/stage-6/`):**
 
-- **Slice 1 — hardware/availability-aware, choosable model advisor** (`src/kimcad/model_advisor.py` +
-  `kimcad models` CLI). Best-effort probes (RAM via ctypes/`/proc`/sysctl; CPU; NVIDIA GPU+VRAM via
-  `nvidia-smi` — all degrade to `None`, never raise) + Ollama `/api/tags` installed-model probe. A pure
-  `recommend()` → best installed-and-fitting LOCAL model wins; names an `upgrade` the box could pull;
-  surfaces a non-China alternative **only when the primary is China-origin** (preferring an installed one);
-  cloud is never primary when a local model fits; unknown RAM does NOT claim a local fit. **Advisory ONLY
-  — it never rewrites config or auto-switches; the model stays selectable.** `_installed_match` requires an
-  EXACT tag (a `:1.5b` install must NOT satisfy a `:7b` spec — a real false-positive bug, found+fixed+regression-tested).
-  Report: `docs/audits/stage-6/audit-lite-slice-1-model-advisor-2026-06-02.md`.
-- **Slice 2 — tiered LLM fallback chain** (`src/kimcad/llm_provider.py` `FallbackProvider` + a `Provider`
-  Protocol). On a connection/timeout/model-not-found (404) error from the primary backend, the call
-  transparently retries against an optional **alt** backend; with no alt configured (the default), behaviour
-  is UNCHANGED (the primary error propagates). Thread-local stickiness keeps a falling-back request on alt
-  for its remaining codegen calls; `primary.max_attempts` drops to 1 when an alt exists so a dead primary
-  hands off fast. Config: `Config.llm_alt_backend()` reads `llm.alt_backend` (default `null`, opt-in via
-  `config/local.yaml`, e.g. `cloud_deepseek`). Wired in `cli.py _build_pipeline` + `webapp.py _real_provider`
-  (both: bare provider when no alt, `FallbackProvider` when set). `pipeline.py` now annotates `provider:
-  Provider` (the structural contract — `generate_design_plan` + `generate_openscad` — satisfied by both
-  `LLMProvider` and `FallbackProvider`). 18 tests in `tests/test_fallback_provider.py`.
-  Report: `docs/audits/stage-6/audit-lite-slice-2-fallback-provider-2026-06-02.md`.
+- **Slice 1 — hardware/availability-aware advisor** (`model_advisor.py` + `kimcad models`). Best-effort
+  RAM/CPU/GPU + Ollama `/api/tags` probes (degrade to None, never raise); a pure `recommend()` (best
+  installed-and-fitting local wins; names an upgrade; non-China alternative only when the pick is
+  China-origin; unknown RAM never claims a fit). **Advisory ONLY — never rewrites config.** `_installed_match`
+  requires an exact tag (a `:1.5b` install must NOT satisfy a `:7b` spec — a real bug, fixed+regression-tested).
+- **Slice 2 — tiered fallback** (`llm_provider.py` `FallbackProvider` + a `Provider` Protocol). A primary
+  connection/timeout/404 error transparently retries an opt-in alt (`llm.alt_backend`, default null);
+  thread-local stickiness; `primary.max_attempts→1` when an alt exists. Wired in `cli._build_pipeline` +
+  `webapp._real_provider`. `pipeline.py` annotates `provider: Provider`.
+- **Slice 3 — 3-axis benchmark grading** (`benchmark.py`). matches-request / correct-dimensions /
+  slices-clean, each tri-state (a None/unassessed axis never blocks). Backward-compatible: the
+  `--min-success-rate` done-gate still scores on completion; `graded_passed` is additive. `kimcad bench --slice`
+  grades the slices-clean axis (real OrcaSlicer, opt-in).
+- **Slice 4 — model bake-off** (`bakeoff.py` + `kimcad bakeoff`). Runs the benchmark per backend and
+  recommends switch-or-keep (recommend ONLY — never edits config; the flip is the human's call). Each model
+  measured in isolation (no fallback contamination). Added the `local_qwen` backend.
+- **Slice 5 — plan-failure robustness** (`PlanParseError` in `llm_provider.py`; `PipelineStatus.plan_failed`).
+  A model returning un-parseable output fails clean (CLI exit **6**, distinct from gate_failed's 5; clean web
+  copy) instead of a raw pydantic traceback. The catch is narrow (only the parse boundary), so a real bug
+  elsewhere — or a genuine connection error — still propagates.
 
-**REMAINING:**
-- **Slice 3 (RESUME HERE) — expanded 3-axis benchmark grading.** `src/kimcad/benchmark.py` currently scores
-  on pipeline completion through the Printability Gate only; the spec's richer **3-axis grading
-  (slices-clean / matches-request / correct-dimensions)** is not yet wired. Build it so the bake-off can
-  judge Qwen-vs-gemma on more than "did it complete."
-- **Slice 4 — Qwen-vs-gemma bake-off.** Run the expanded benchmark with `qwen2.5-coder:1.5b` vs `gemma4:e4b`
-  on the target box. **HAND-OFF STEP: this needs Scott's box with Ollama up and BOTH models pulled — I
-  wire the machinery + the runner, but I cannot run the live bake-off myself.** Make qwen the default in
-  `config/default.yaml` only if it clears the bar; otherwise keep gemma and record why. Keep gemma as the
-  non-China alternative + vision fallback regardless.
-- **Stage 6 stage-end gate.** After Slice 4: push → full **`audit-team`** on the branch → fix EVERY finding
-  (Blocker→Nit) → re-audit → **0/0/0/0/0** → native Windows gate → **merge + tag `stage-6` MYSELF** → report.
-  (I own the re-audit + merge + tag; do not hand it back.)
+**BAKE-OFF VERDICT (run LIVE on this box 2026-06-02 — both models pulled here; output in `output/bakeoff/`):**
+`qwen2.5-coder:1.5b` = **0/10 completed** — it fails the design-plan step on every case (returns the JSON
+schema instead of an instance; confirmed not a config artifact — fails identically with JSON mode forced).
+`gemma4:e4b` = 8/10 completed, 4/10 fully graded, ~10 min/prompt. **A code-completion model is the wrong tool
+for the NL→structured-plan step; a bigger qwen is larger than gemma → slower → fails the "faster" goal. So
+`gemma4:e4b` STAYS the default — no config change.** Hand-off doc (how to re-run it live): `docs/benchmarks/stage-6-model-bakeoff.md`.
+
+**REMAINING — the one step left:**
+- **Stage 6 stage-end gate.** Run the full **`audit-team`** on the branch → fix EVERY finding (Blocker→Nit)
+  → re-audit → **0/0/0/0/0** → native Windows gate → **merge + tag `stage-6` MYSELF** → report. (I own the
+  re-audit + merge + tag; do not hand it back.) The model decision is SETTLED (gemma stays; qwen ruled out) —
+  do NOT reopen it.
 
 ---
 
@@ -242,15 +244,16 @@ slice + download; the CLI (`--send`) and MCP are the send paths today.
 
 ## 4. The stage plan (9 stages to the v3.0 Windows beta; Stages 3–4 done)
 
-3 ✅ printer coverage · 4 ✅ React SPA shell + viewport · **5 = deterministic template engine +
-live sliders** · 6 = model swap (Qwen default) + tiered fallback · 7 = Smart Mesh + PrintProof3D +
-report · 8 = CadQuery parallel backend · 9 = image on-ramp (opt-in) · 10 = direct-print UI + Bambu
-+ first-run wizard · 11 = Windows installer + beta gate. (Final-level breadth + real-hardware =
+3 ✅ printer coverage · 4 ✅ React SPA shell + viewport · 5 ✅ deterministic template engine +
+live sliders · **6 = model layer (advisor + fallback + grading + bake-off; gemma stays, qwen ruled
+out) — done on the branch, pending the gate** · 7 = Smart Mesh + PrintProof3D + report · 8 = CadQuery
+parallel backend · 9 = image on-ramp (opt-in) · 10 = direct-print UI + Bambu + first-run wizard ·
+11 = Windows installer + beta gate. (Final-level breadth + real-hardware =
 post-beta.) **KEY INSIGHT:** the instant-slider UX (re-render <1s, no LLM) is impossible on the
 current **LLM-writes-OpenSCAD** engine — there is **no `templates/` module**; the deterministic
 template engine (Stage 5) is the critical path, and UX-first + architecture-first converge there.
 
-## 5. Stage 5 scope — deterministic template engine + live sliders (IN PROGRESS — see the 🔨 section up top for current state + the Slice-4 pickup)
+## 5. Stage 5 scope — deterministic template engine + live sliders (✅ DONE — merged + tagged `stage-5`; see the Stage 5 section up top)
 
 The **critical path**. Stage 4 delivered the SPA + viewport with **read-only** slider scaffolding
 only, because true live sliders are impossible on the LLM-writes-OpenSCAD engine (re-render goes
@@ -315,9 +318,10 @@ spot-checks, NOT a gate I hand back to him.
 
 - **Model:** `gemma4:e4b` via local Ollama (`localhost:11434`, OpenAI-compatible). ~9 min/prompt on
   the 32 GB / **AMD 780M iGPU, CPU-only** box — stable. **NOT `gemma3:12b`** (OOM). Local-first;
-  cloud opt-in via `config/local.yaml`. *(v3.0 spec TARGETS `Qwen2.5-Coder 1.5B` as the new fast
-  default + `gemma4:e4b` as the non-China alternative & vision fallback — benchmark on the actual
-  box before adopting, per spec §7.5. Spec reference HW is a Beelink 890M; our box is the 780M.)*
+  cloud opt-in via `config/local.yaml`. *(Stage 6 evaluated the spec's `Qwen2.5-Coder 1.5B` candidate
+  via the live bake-off and REJECTED it — 0/10, it can't produce a design plan — so `gemma4:e4b` stays
+  the default. A `local_qwen` backend remains defined and selectable via `--backend`. Spec reference
+  HW is a Beelink 890M; our box is the 780M.)*
 - **OrcaSlicer v2.4.0-alpha** pinned (checksum-verified, gitignored `tools/`); `scripts/fetch_tools.py`
   fetches OpenSCAD + OrcaSlicer. `manifold3d>=3.0` (default; import optional at runtime).
 - **Frontend toolchain (build-time only):** React 18 + TypeScript + **Vite 8** (Rolldown bundler).
