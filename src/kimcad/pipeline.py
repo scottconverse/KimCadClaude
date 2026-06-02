@@ -350,10 +350,12 @@ class Pipeline:
         confirm_print: bool,
     ) -> PipelineResult:
         """Shared tail for both a prompt-driven ``run`` and a live-slider ``rerender``:
-        orient, harden + export the manifold mesh, build the report, then fail closed on a
-        gate FAIL (unless the caller overrode it) or slice on confirmation. Keeping the
-        safety sequence — harden-before-export, never-slice-a-gate-failed-part — in one
-        place means both entry points share exactly one implementation of it."""
+        orient, harden + export the manifold mesh, build the report, then — on a gate FAIL —
+        return without slicing UNLESS the caller passed ``proceed_anyway`` (the explicit
+        "slice a failed part for inspection" override; even then a gate-failed part is never
+        *sent* to a printer — see the send-gate boundary note in HANDOFF.md / mcp_server.py).
+        Keeping this safety sequence — harden-before-export, and the gate-FAIL slice gate — in
+        one place means ``run`` and ``rerender`` share exactly one implementation of it."""
         oriented, orientation = auto_orient(mesh)
         # Harden the oriented mesh into a guaranteed manifold before it is exported and
         # sliced; the exported .oriented.stl (also the download fallback) is the hardened
