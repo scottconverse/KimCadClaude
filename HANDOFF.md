@@ -1,16 +1,73 @@
-# KimCad — Handoff (2026-06-01, end of session)
+# KimCad — Handoff (2026-06-02 — Stage 5 IN PROGRESS, backend done, Slice 4 next)
 
 ## ⛔ READ FIRST
 
-- **Stage 4 is DONE — merged to `main` (merge commit `dcbcd1a`) and tagged `stage-4`.** **Next is
-  Stage 5 (deterministic template engine + live sliders — the critical path).** (The `stage-4` tag
-  was advanced past the merge to the docs-consistency commit — see "Tag provenance" below — so the
-  tag and the `main` head are the same commit.)
+- **🔨 STAGE 5 IS IN PROGRESS — resume on branch `stage-5-template-engine` (head `1a0af61`, 5 ahead
+  of `main`, NOT merged/tagged). The whole BACKEND is done (Slices 1-3); NEXT = Slice 4 (the
+  frontend live sliders). See the "Stage 5 — IN PROGRESS" section just below for the exact pickup.**
+- **Stage 4 is DONE — merged to `main` (merge commit `dcbcd1a`) and tagged `stage-4`** (the `stage-4`
+  tag was advanced past the merge to the docs-consistency commit — see "Tag provenance" below — so
+  the tag and the `main` head are the same commit, `181115e`).
 - **Source of truth = this doc + the in-repo v3.0 spec + the design handoff** (both under
   `docs/design/`). Do NOT rebuild from memory — I have lost context across sessions before.
 - **The agent-pipeline skill is DEAD for this project.** Scott killed it (it can't run from the
   wrong cwd / an uninitialized repo). This project runs the **manual process** in §6. Do NOT
   re-invoke `agent-pipeline-claude:run`.
+
+---
+
+## 🔨 Stage 5 — IN PROGRESS (deterministic template engine + live sliders — the critical path)
+
+**Branch `stage-5-template-engine` @ `1a0af61`, 5 commits ahead of `main`, NOT merged/tagged.**
+Stage 5 makes the headline UX real: drag a parameter slider → re-render in **<1 s with NO model
+call**. On the old LLM-writes-OpenSCAD engine that was impossible (every change round-tripped the
+model). The whole engine + backend is built; only the slider UI + benchmark + stage gate remain.
+
+**DONE — the entire backend (Slices 1-3), each through the real `audit-lite` skill to 0/0/0/0/0
+(reports committed in `docs/audits/stage-5/`):**
+- **Slice 1 — `src/kimcad/templates.py`:** a registry of 7 parametric families (snap_box, box,
+  enclosure, tube, wall_hook, cable_clip, drawer_divider) built on the proven `library/*.scad`
+  modules; a typed/range-bounded `ParamSpec` schema; OpenSCAD `emit` by pure string substitution
+  (no model, injection-safe — only clamped numbers reach emit); analytic `expected_bbox` per family;
+  param clamping + ordering constraints (tube id<od) + an alias-collision guard. `tests/test_templates.py`.
+- **Slice 2 — `pipeline.py` tiering:** a template-covered `object_type` builds DETERMINISTICALLY
+  (no model call); everything else falls back to LLM codegen. `PipelineResult.template` carries the
+  matched family + derived params; the gate plan's bbox + dimensions are aligned to the template's
+  values. `tests/test_pipeline_templates.py`.
+- **Slice 3 — the re-render API:** `pipeline.rerender()` + a shared `_assemble_result` tail;
+  `webapp.py` `POST /api/render/<id>` (deterministic re-render at new slider values, no model);
+  `/api/design` now returns the typed `parameters` snapshot + `template` family name; a re-render
+  invalidates the cached slice/G-code (the old shape can't be sliced/sent), serializes concurrent
+  drags (`render_lock`), versions the `mesh_url` (cache-buster), `/api/mesh` strips the query. Tests
+  in `tests/test_webapp.py`.
+- **+ 2 doc-accuracy commits (`03f87aa`, `1a0af61`)** that resolved Codex's spot-check: the lone
+  "Critical" was an overclaim ("gate-fail can't slice" — the real line is **never SENT**) plus a
+  documented power-user boundary (the MCP `send_print` primitive enforces confirm + a proven slice,
+  NOT the printability gate — see the **send-gate boundary note in §2** / `mcp_server.py`). Dispatch
+  safety holds on the web + CLI design flows; `--proceed-anyway` slices a failed part for inspection
+  only (engineers are power users — kept intentionally).
+
+**Verified at the branch head:** **470 pytest passing** (incl. live OrcaSlicer); ruff clean; vitest
+19; SPA build byte-reproducible; `npm audit` 0. Native Windows gate (WSL fails only on the
+Windows-installed Rolldown binding — env mismatch, not a defect).
+
+**➡️ NEXT = Slice 4 (frontend live sliders) — the UI half. Exact pickup:**
+- Replace the read-only `ParametersCard` in `frontend/src/components/RightPanel.tsx` with live
+  sliders bound to the `parameters` array `/api/design` now returns. Each entry is
+  `{name, label, value, min, max, step, unit, integer}`.
+- On drag (debounce ~150 ms) POST `{values: {<name>: <number>, …}}` to `/api/render/<id>`; on the
+  response, update the dims/report and reload the viewport from the response's **`mesh_url`** (it's
+  versioned, so the browser fetches the fresh mesh). Keep the last mesh on screen with a quiet
+  "updating…" until the new one lands (spec §4.2). LLM-backed designs have no `parameters` → keep
+  the read-only note (no sliders).
+- vitest component tests + the **MANDATORY rendered desktop + mobile visual check** (UI-slice rule).
+- Then: `audit-lite` skill → fix all Blocker→Nit → re-audit to 0/0/0/0/0 → vitest + full pytest +
+  `npm run build` (commit the rebuilt SPA) → push. Don't stop at a clean slice unless context-forced
+  (state that plainly).
+
+**Then to finish Stage 5:** Slice 5 = benchmark the families (deterministic render + <1 s re-render
+proof) + docs (ARCHITECTURE/CHANGELOG/ROADMAP/HANDOFF). **Stage gate:** full `audit-team` on the
+branch → fix → re-audit to 0/0/0/0/0 → native Windows gate → merge → tag `stage-5` → only then report.
 
 ---
 
@@ -140,7 +197,7 @@ post-beta.) **KEY INSIGHT:** the instant-slider UX (re-render <1s, no LLM) is im
 current **LLM-writes-OpenSCAD** engine — there is **no `templates/` module**; the deterministic
 template engine (Stage 5) is the critical path, and UX-first + architecture-first converge there.
 
-## 5. NEXT = Stage 5 — deterministic template engine + live sliders
+## 5. Stage 5 scope — deterministic template engine + live sliders (IN PROGRESS — see the 🔨 section up top for current state + the Slice-4 pickup)
 
 The **critical path**. Stage 4 delivered the SPA + viewport with **read-only** slider scaffolding
 only, because true live sliders are impossible on the LLM-writes-OpenSCAD engine (re-render goes
