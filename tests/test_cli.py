@@ -77,8 +77,9 @@ def test_force_utf8_output_tolerates_streams_without_reconfigure():
 
 # --- TEST-002: design exit-code contract --------------------------------------
 #
-# main(["design", ...]) must map each PipelineStatus to a stable exit code:
-#   completed -> 0, clarification_needed -> 3, render_failed -> 4, gate_failed -> 5.
+# main(["design", ...]) must map each PipelineStatus to a stable, UNIQUE exit code:
+#   completed -> 0, clarification_needed -> 3, render_failed -> 4, gate_failed -> 5,
+#   plan_failed -> 6.
 # A fake provider + stub box renderer drive real geometry without an LLM or binary;
 # cli._build_pipeline is monkeypatched to inject the fakes so main()'s own status->code
 # wiring (and report-printing) is what's under test.
@@ -144,6 +145,30 @@ def test_design_gate_failed_exit_5_prints_report(monkeypatch, capsys, tmp_path):
     assert code == 5
     assert "Gate: FAIL" in out  # report still printed for the user
     assert "Printability Gate FAILED" in out
+
+
+def test_design_plan_failed_exit_6_clean_no_traceback(monkeypatch, capsys, tmp_path):
+    # A model returning unparseable output -> plan_failed -> exit 6 (DISTINCT from
+    # gate_failed's 5), with the clean actionable message and no raw traceback.
+    from kimcad.ir import DesignPlan
+    from kimcad.llm_provider import PlanParseError
+
+    class _BadPlanProvider:
+        def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
+            try:
+                DesignPlan.model_validate({"not": "a plan"})
+            except Exception as e:
+                raise PlanParseError(str(e), original=e) from e
+
+        def generate_openscad(self, plan, printer, material, history=None):  # noqa: ANN001
+            return ""
+
+    _patch_pipeline(monkeypatch, _BadPlanProvider())
+    code = main(["design", "a block", "--out", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert code == 6  # not 5 -- no collision with gate_failed
+    assert "usable design plan" in out
+    assert "Traceback" not in out
 
 
 # --- Stage 1 Slice 3a: --slice confirmation -----------------------------------

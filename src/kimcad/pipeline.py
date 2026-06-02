@@ -26,7 +26,7 @@ from typing import Any
 from kimcad.config import Config, Material, Printer
 from kimcad.hardening import HardenReport, harden_mesh
 from kimcad.ir import DesignPlan, first_clarification
-from kimcad.llm_provider import Provider
+from kimcad.llm_provider import PlanParseError, Provider
 from kimcad.openscad_runner import (
     BlockedCodeError,
     RenderError,
@@ -106,10 +106,21 @@ def _gate_feedback(findings: list[Finding], plan: DesignPlan, report: MeshReport
 
 class PipelineStatus(str, Enum):
     clarification_needed = "clarification_needed"
+    plan_failed = "plan_failed"
     render_failed = "render_failed"
     gate_failed = "gate_failed"
     completed = "completed"
 
+
+# Shown when the model's response can't be turned into a design plan (bad JSON, or valid
+# JSON that doesn't match the schema -- e.g. a too-small model echoing the schema back).
+# A clean, actionable message instead of a raw pydantic/JSON traceback.
+PLAN_FAILED_MESSAGE = (
+    "The model didn't return a usable design plan -- its response couldn't be parsed "
+    "into the required structure. This usually means the chosen model is too small or "
+    "not suited to structured planning. Try a different model (run `kimcad models` to "
+    "see what fits your machine) or rephrase the request."
+)
 
 @dataclass
 class PrintReport:
@@ -273,9 +284,22 @@ class Pipeline:
     ) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        plan = self.provider.generate_design_plan(
-            prompt, self.printer, self.material, history=history
-        )
+        try:
+            plan = self.provider.generate_design_plan(
+                prompt, self.printer, self.material, history=history
+            )
+        except PlanParseError as e:
+            # The model returned something that isn't a valid design plan. Fail closed with
+            # a clean, user-facing message instead of leaking a raw pydantic/JSON traceback.
+            # The detail is the underlying parse exception TYPE (enough to categorize the
+            # failure); the full multi-line pydantic dump would be noise even on the CLI.
+            # Only PlanParseError is caught -- a bug elsewhere propagates, never masked here.
+            detail = type(e.original).__name__ if e.original is not None else "PlanParseError"
+            return PipelineResult(
+                status=PipelineStatus.plan_failed,
+                prompt=prompt,
+                error=f"{PLAN_FAILED_MESSAGE} (details: {detail})",
+            )
         clarification = first_clarification(plan)
         if clarification is not None:
             return PipelineResult(

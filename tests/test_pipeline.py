@@ -66,6 +66,93 @@ def test_clarification_short_circuits_when_unsized(tmp_path):
     assert state["n"] == 0
 
 
+class _RaisingPlanProvider:
+    """A provider whose design-plan call raises — to exercise the plan_failed path.
+    ``exc`` is raised on generate_design_plan; codegen counts stay observable."""
+
+    def __init__(self, exc: Exception):
+        self._exc = exc
+        self.design_calls = 0
+        self.openscad_calls = 0
+
+    def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
+        self.design_calls += 1
+        raise self._exc
+
+    def generate_openscad(self, plan, printer, material, history=None):  # noqa: ANN001
+        self.openscad_calls += 1
+        return "use <library/box.scad>;\nbox(20,20,20);"
+
+
+def _validation_error() -> Exception:
+    # The real error the parse path raises when a model returns schema-shaped / wrong JSON
+    # (e.g. a too-small model echoing the schema back).
+    try:
+        DesignPlan.model_validate({"not": "a plan"})
+    except Exception as e:  # pydantic.ValidationError
+        return e
+    raise AssertionError("model_validate unexpectedly accepted junk")
+
+
+def test_invalid_plan_fails_clean_instead_of_a_traceback(tmp_path):
+    # A model returning something that isn't a valid plan must produce a clean plan_failed
+    # result with an actionable message -- never a raw pydantic traceback to the user. The
+    # provider raises PlanParseError (what a real LLMProvider raises at the parse boundary).
+    from kimcad.llm_provider import PlanParseError
+
+    provider = _RaisingPlanProvider(PlanParseError("bad", original=_validation_error()))
+    renderer, state = _box_renderer((20, 20, 20))
+    result = _pipeline(provider, renderer).run("a box", tmp_path)
+
+    assert result.status is PipelineStatus.plan_failed
+    assert provider.openscad_calls == 0  # never reached codegen
+    assert state["n"] == 0  # never rendered
+    assert "design plan" in (result.error or "").lower()
+    assert "different model" in (result.error or "").lower()  # actionable
+    assert "ValidationError" in (result.error or "")  # underlying type surfaced as the detail
+
+
+def test_bad_json_plan_fails_clean(tmp_path):
+    import json
+
+    from kimcad.llm_provider import PlanParseError
+
+    bad_json = _RaisingPlanProvider(
+        PlanParseError("bad json", original=json.JSONDecodeError("Expecting value", "x", 0))
+    )
+    renderer, _ = _box_renderer((20, 20, 20))
+    result = _pipeline(bad_json, renderer).run("a box", tmp_path)
+    assert result.status is PipelineStatus.plan_failed
+    assert "JSONDecodeError" in (result.error or "")
+
+
+def test_connection_error_is_not_swallowed_as_plan_failed(tmp_path):
+    # A genuine connection failure is NOT a bad-plan; it must propagate (the FallbackProvider
+    # or the CLI's error handler owns it), not be masked as plan_failed.
+    import httpx
+    import pytest
+    from openai import APIConnectionError
+
+    down = _RaisingPlanProvider(
+        APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
+    )
+    renderer, _ = _box_renderer((20, 20, 20))
+    with pytest.raises(APIConnectionError):
+        _pipeline(down, renderer).run("a box", tmp_path)
+
+
+def test_a_non_parse_error_is_not_masked_as_plan_failed(tmp_path):
+    # PLAN-002: pipeline.run catches ONLY PlanParseError. A plain ValueError (a real bug,
+    # not unparseable model output) must propagate so the defect surfaces -- never be hidden
+    # behind the user-facing "try a different model" message.
+    import pytest
+
+    provider = _RaisingPlanProvider(ValueError("a real bug, not bad model output"))
+    renderer, _ = _box_renderer((20, 20, 20))
+    with pytest.raises(ValueError):
+        _pipeline(provider, renderer).run("a box", tmp_path)
+
+
 def test_open_questions_dont_block_a_sized_plan(tmp_path):
     # A sized plan proceeds even when the model attached an open question.
     provider = FakeProvider(_plan([20, 20, 20], open_questions=["What screw size?"]))

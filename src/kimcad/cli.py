@@ -256,6 +256,11 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     if result.status is PipelineStatus.clarification_needed:
         print(f"I need one detail before building:\n  {result.clarification}")
         return 3
+    if result.status is PipelineStatus.plan_failed:
+        # Distinct exit code from gate_failed (5): a plan failure means the model produced
+        # nothing buildable, so there's nothing to --proceed-anyway with.
+        print(result.error or "The model didn't return a usable design plan.")
+        return 6
     if result.status is PipelineStatus.render_failed:
         print(f"Could not produce a valid model after retries.\n  {result.error}")
         return 4

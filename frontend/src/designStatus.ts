@@ -34,11 +34,15 @@ export function gateLabel(gateStatus: string | undefined): string {
 }
 
 /** The assistant's reply for a design result, branched on every PipelineStatus the backend
- * can return (clarification_needed / render_failed / gate_failed / completed). */
+ * can return (clarification_needed / plan_failed / render_failed / gate_failed / completed). */
 export function assistantMessage(result: DesignResponse): string {
   switch (result.status) {
     case 'clarification_needed':
       return result.clarification || 'Could you tell me a little more about what you need?'
+    case 'plan_failed':
+      // The model's response couldn't be parsed into a plan. Keep this clean and
+      // actionable — don't echo result.error, which carries technical parse details.
+      return "I couldn't turn that into a workable plan — the model's response wasn't usable. Try describing the part a little differently, or switch to a model better suited to planning."
     case 'render_failed':
       return result.error
         ? `I couldn't build that one — ${result.error}`

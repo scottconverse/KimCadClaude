@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import yaml
+from pydantic import ValidationError
 
 from kimcad.config import LLMBackend, Material, Printer
 from kimcad.ir import DesignPlan, design_plan_schema, normalize_plan_dict, parse_design_plan
@@ -36,6 +37,25 @@ PROMPT_DIR = Path(__file__).parent / "prompts"
 LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
 
 _FENCE = re.compile(r"^\s*```(?:\w+)?\s*|\s*```\s*$", re.MULTILINE)
+
+# Exceptions from turning untrusted model output into a DesignPlan: bad JSON
+# (JSONDecodeError < ValueError), schema-invalid JSON (pydantic ValidationError), or a
+# non-dict body (TypeError/AttributeError/KeyError during normalize).
+_PLAN_PARSE_ERRORS = (ValueError, TypeError, KeyError, AttributeError, ValidationError)
+
+
+class PlanParseError(Exception):
+    """The model's response could not be parsed into a DesignPlan -- bad JSON, or valid JSON
+    that doesn't match the schema (e.g. a too-small model echoing the schema back).
+
+    Distinct from a connection/timeout error: this is a bad *output*, not a transport
+    failure. Raised only at the parse boundary so the pipeline can map it to a clean
+    ``plan_failed`` without a broad catch that could mask an unrelated bug. ``original``
+    is the underlying parse exception (for a precise, debuggable detail)."""
+
+    def __init__(self, message: str, *, original: Exception | None = None):
+        super().__init__(message)
+        self.original = original
 
 
 class ChatClient(Protocol):
@@ -180,8 +200,14 @@ class LLMProvider:
         messages = [{"role": "system", "content": system}]
         messages.extend(history or [])
         messages.append({"role": "user", "content": prompt})
+        # _complete is the network call; its connection/timeout errors propagate as-is.
         raw = self._complete(messages, json_mode=True)
-        return parse_design_plan(normalize_plan_dict(json.loads(_strip_fences(raw))))
+        # Only the PARSE is wrapped, so a bug elsewhere in this method can't be masked as a
+        # plan failure -- only genuinely unparseable model output raises PlanParseError.
+        try:
+            return parse_design_plan(normalize_plan_dict(json.loads(_strip_fences(raw))))
+        except _PLAN_PARSE_ERRORS as e:
+            raise PlanParseError(str(e), original=e) from e
 
     def generate_openscad(
         self,

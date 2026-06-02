@@ -93,6 +93,34 @@ def test_generate_design_plan_parses_json_through_fences():
     assert call["messages"][-1] == {"role": "user", "content": "an L bracket"}
 
 
+def test_generate_design_plan_raises_plan_parse_error_on_schema_echo():
+    # A too-small model echoing the JSON schema back: valid JSON, wrong shape. The parse
+    # boundary must raise PlanParseError (carrying the underlying ValidationError), not let
+    # a raw pydantic error escape.
+    from kimcad.ir import design_plan_schema
+    from kimcad.llm_provider import PlanParseError
+
+    client = FakeChatClient(json.dumps(design_plan_schema()))
+    provider = LLMProvider(BACKEND, client=client)
+    try:
+        provider.generate_design_plan("a box", BAMBU, PLA)
+        raise AssertionError("expected PlanParseError")
+    except PlanParseError as e:
+        assert type(e.original).__name__ == "ValidationError"
+
+
+def test_generate_design_plan_raises_plan_parse_error_on_bad_json():
+    from kimcad.llm_provider import PlanParseError
+
+    client = FakeChatClient("this is not json at all")
+    provider = LLMProvider(BACKEND, client=client)
+    try:
+        provider.generate_design_plan("a box", BAMBU, PLA)
+        raise AssertionError("expected PlanParseError")
+    except PlanParseError as e:
+        assert isinstance(e.original, json.JSONDecodeError)
+
+
 def test_generate_openscad_strips_fences_and_sends_plan():
     plan = DesignPlan(
         object_type="cube",
