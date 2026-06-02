@@ -336,3 +336,40 @@ def test_send_print_job_offline_falls_back_to_disk(capsys, tmp_path):
     out = capsys.readouterr().out
     assert "Not sent to octo" in out
     assert str(g) in out  # download fallback: the G-code is still on disk
+
+
+def test_models_command_prints_hardware_and_recommendation(monkeypatch, capsys):
+    # Stage 6: `kimcad models` probes the machine + installed models and prints a
+    # recommendation. Monkeypatch the I/O probes so the test is deterministic; the real
+    # (pure) recommend() runs end to end.
+    import kimcad.model_advisor as adv
+
+    monkeypatch.setattr(
+        adv, "probe_hardware",
+        lambda: adv.HardwareProfile(os_label="Windows 11", cpu_count=16, ram_gb=32.0),
+    )
+    monkeypatch.setattr(
+        adv, "probe_installed_models",
+        lambda base_url, **k: [adv.InstalledModel("gemma4:e4b", 9.6)],
+    )
+    code = main(["models"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "Hardware" in out and "32 GB RAM" in out
+    assert "gemma4:e4b" in out
+    assert "Recommendation" in out
+    assert "never hardwired" in out  # the choosability reminder
+
+
+def test_models_command_handles_no_ollama(monkeypatch, capsys):
+    import kimcad.model_advisor as adv
+
+    monkeypatch.setattr(
+        adv, "probe_hardware",
+        lambda: adv.HardwareProfile(os_label="Linux 6", cpu_count=4, ram_gb=8.0),
+    )
+    monkeypatch.setattr(adv, "probe_installed_models", lambda base_url, **k: [])
+    code = main(["models"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "none detected" in out

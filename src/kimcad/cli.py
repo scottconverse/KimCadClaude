@@ -27,7 +27,7 @@ from typing import Any
 
 from kimcad.config import Config
 
-_SUBCOMMANDS = {"design", "bench", "web"}
+_SUBCOMMANDS = {"design", "bench", "web", "models"}
 
 
 def _force_utf8_output(stream: Any) -> None:
@@ -101,6 +101,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="If set, exit non-zero unless the batch meets this pass rate (§4.2).",
+    )
+
+    m = sub.add_parser(
+        "models",
+        help="Examine this machine + your installed models and recommend one (advisory).",
+    )
+    m.add_argument(
+        "--base-url",
+        default=None,
+        help="Ollama base URL to query for installed models (default: the configured "
+        "local backend, else http://localhost:11434/v1).",
     )
     return parser
 
@@ -264,6 +275,58 @@ def _cmd_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_models(config: Config, args: argparse.Namespace) -> int:
+    """Probe the machine + the installed Ollama models and print a recommendation. Purely
+    advisory — it never rewrites config; the model stays choosable (config / --backend)."""
+    from kimcad.model_advisor import probe_hardware, probe_installed_models, recommend
+
+    base_url = args.base_url
+    if base_url is None:
+        # ADV-003: probe the active backend's URL if it looks local, else the conventional
+        # `local` backend, else the standard Ollama default.
+        for key in (None, "local"):
+            try:
+                candidate = config.llm_backend(key).base_url
+            except Exception:
+                continue
+            if "localhost" in candidate or "127.0.0.1" in candidate:
+                base_url = candidate
+                break
+        if base_url is None:
+            base_url = "http://localhost:11434/v1"
+
+    hw = probe_hardware()
+    installed = probe_installed_models(base_url)
+    rec = recommend(hw, installed)
+
+    print("Hardware")
+    print(f"  {hw.summary()}")
+    print()
+    print(f"Installed models (Ollama @ {base_url})")
+    if installed:
+        for m in installed:
+            size = f"  ({m.size_gb:.1f} GB)" if m.size_gb else ""
+            print(f"  - {m.name}{size}")
+    else:
+        print("  (none detected -- is Ollama running, with models pulled?)")
+    print()
+    print("Recommendation")
+    if rec.primary is not None:
+        state = "installed" if rec.installed else "NOT installed -- pull it first"
+        print(f"  -> {rec.primary.label}  [{rec.primary.name}]  ({state})")
+    print(f"  {rec.reason}")
+    if rec.upgrade is not None:
+        print(f"  Upgrade you could run: {rec.upgrade.label}  (ollama pull {rec.upgrade.name})")
+    if rec.non_china_alternative is not None:
+        alt = rec.non_china_alternative
+        state = "installed" if rec.non_china_installed else f"not installed -- ollama pull {alt.name}"
+        print(f"  Non-China local option: {alt.label}  [{alt.name}]  ({state})")
+    print()
+    print("The model is never hardwired. To choose one: set `llm.active` (or a backend's")
+    print("`model_name`) in config/local.yaml, or pass `--backend <key>` to design/web/bench.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_output(sys.stdout)
     _force_utf8_output(sys.stderr)
@@ -281,6 +344,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_design(config, args)
         if args.command == "bench":
             return _cmd_bench(config, args)
+        if args.command == "models":
+            return _cmd_models(config, args)
     except RuntimeError as e:
         # e.g. a configured backend whose API key env var is unset.
         print(f"Error: {e}", file=sys.stderr)

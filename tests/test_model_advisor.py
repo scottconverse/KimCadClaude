@@ -1,0 +1,186 @@
+"""Stage 6 — the hardware/availability-aware model advisor.
+
+The decision (:func:`recommend`) is pure, so most of this is exercised with synthetic
+hardware + installed lists. The probes are I/O and best-effort; they're covered by parsing
+their (mocked) outputs and by a smoke test that the real probe never raises.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+
+import pytest
+
+from kimcad.model_advisor import (
+    MODEL_CATALOG,
+    HardwareProfile,
+    InstalledModel,
+    ModelSpec,
+    _installed_match,
+    _ollama_tags_url,
+    probe_hardware,
+    probe_installed_models,
+    recommend,
+)
+
+
+def _hw(ram_gb=32.0, gpu=None, vram=None, cpu=8):
+    return HardwareProfile(os_label="Windows 11", cpu_count=cpu, ram_gb=ram_gb,
+                           gpu_name=gpu, vram_gb=vram)
+
+
+def _installed(*names):
+    return [InstalledModel(name=n) for n in names]
+
+
+# --- fits() ----------------------------------------------------------------------
+
+def test_fits_gates_on_ram_for_local_and_always_true_for_cloud():
+    spec = next(s for s in MODEL_CATALOG if s.name == "qwen2.5-coder:7b")  # 18 GB floor
+    assert spec.fits(_hw(ram_gb=32)) is True
+    assert spec.fits(_hw(ram_gb=8)) is False
+    assert spec.fits(_hw(ram_gb=None)) is False  # unknown RAM is never a claimed fit
+    cloud = next(s for s in MODEL_CATALOG if s.location == "cloud")
+    assert cloud.fits(_hw(ram_gb=2)) is True  # cloud has no local resource cost
+
+
+# --- recommend(): the pure decision ----------------------------------------------
+
+def test_recommends_the_best_installed_model_that_fits():
+    # Roomy box, the 7B is installed and fits -> it's the pick, and it IS installed.
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b", "gemma4:e4b"))
+    assert rec.primary.name == "qwen2.5-coder:7b"
+    assert rec.installed is True
+    assert rec.upgrade is None  # nothing higher fits
+
+
+def test_recommends_installed_model_and_names_an_upgrade_the_box_could_run():
+    # Box fits the 7B, but only the 1.5B is installed -> use the 1.5B now, suggest pulling 7B.
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:1.5b"))
+    assert rec.primary.name == "qwen2.5-coder:1.5b"
+    assert rec.installed is True
+    assert rec.upgrade is not None and rec.upgrade.tier > rec.primary.tier
+
+
+def test_recommends_a_pull_when_nothing_installed_fits():
+    rec = recommend(_hw(ram_gb=32), installed=[])
+    assert rec.installed is False
+    assert rec.primary is not None and rec.primary.location == "local"
+    assert "pull" in rec.reason.lower()
+
+
+def test_small_box_falls_back_to_cloud():
+    # Below every local floor (smallest is 6 GB) -> the opt-in cloud backend is the fallback.
+    rec = recommend(_hw(ram_gb=4), _installed("qwen2.5-coder:1.5b"))
+    assert rec.primary is not None and rec.primary.location == "cloud"
+    assert rec.installed is False
+
+
+def test_unknown_ram_falls_back_to_cloud_not_a_guessed_local():
+    rec = recommend(_hw(ram_gb=None), _installed("gemma4:e4b"))
+    assert rec.primary is not None and rec.primary.location == "cloud"
+    assert "ram" in rec.reason.lower()
+
+
+def test_surfaces_a_non_china_alternative_when_primary_is_china_origin():
+    # The 7B (Alibaba) is the pick; the advisor surfaces a non-China escape (none installed
+    # here, so the best-fitting one to pull).
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b"))
+    assert rec.primary.non_china is False
+    assert rec.non_china_alternative is not None and rec.non_china_alternative.non_china is True
+    assert rec.non_china_installed is False  # flagged as not-yet-installed
+
+
+def test_no_non_china_alternative_when_primary_is_already_non_china():
+    # Gemma (non-China) is the pick -> no redundant non-China escape line.
+    rec = recommend(_hw(ram_gb=32), _installed("gemma4:e4b"))
+    assert rec.primary.non_china is True
+    assert rec.non_china_alternative is None
+
+
+def test_non_china_escape_prefers_an_installed_option():
+    # China-origin primary (7B); gemma (non-China, installed) is preferred over llama (higher
+    # tier but not installed) so the escape is usable right now, and flagged installed.
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b", "gemma4:e4b"))
+    assert rec.primary.non_china is False
+    assert rec.non_china_alternative is not None
+    assert rec.non_china_alternative.name == "gemma4:e4b"
+    assert rec.non_china_installed is True
+
+
+def test_cloud_is_never_primary_when_a_local_model_fits_and_is_installed():
+    rec = recommend(_hw(ram_gb=32), _installed("gemma4:e4b"))
+    assert rec.primary.location == "local"
+
+
+def test_recommend_is_pure_same_inputs_same_output():
+    hw, inst = _hw(ram_gb=16), _installed("gemma4:e4b")
+    a, b = recommend(hw, inst), recommend(hw, inst)
+    assert a == b
+
+
+# --- installed-match + url helpers ----------------------------------------------
+
+@pytest.mark.parametrize("installed_name,spec_name,expected", [
+    ("qwen2.5-coder:1.5b", "qwen2.5-coder:1.5b", True),            # exact
+    ("qwen2.5-coder:1.5b-instruct", "qwen2.5-coder:1.5b", False),  # different tag, no false match
+    ("qwen2.5-coder:1.5b", "qwen2.5-coder:7b", False),             # the bug: 1.5b != 7b
+    ("gemma4", "gemma4:e4b", False),                              # bare 'gemma4' (=:latest) != :e4b
+    ("gemma4:e4b", "gemma4:e4b", True),
+    ("gemma4", "gemma4", True),                                    # tagless spec, bare install
+    ("gemma4:e4b", "gemma4", True),                                # tagless spec matches any tag
+    ("llama3.1:70b", "qwen2.5-coder:1.5b", False),
+])
+def test_installed_match(installed_name, spec_name, expected):
+    spec = ModelSpec(spec_name, "x", 1.0, min_ram_gb=4, tier=1, origin="o", non_china=True)
+    assert _installed_match(spec, _installed(installed_name)) is expected
+
+
+@pytest.mark.parametrize("base,expected", [
+    ("http://localhost:11434/v1", "http://localhost:11434/api/tags"),
+    ("http://localhost:11434/v1/", "http://localhost:11434/api/tags"),
+    ("http://192.168.0.5:11434/v1", "http://192.168.0.5:11434/api/tags"),
+])
+def test_ollama_tags_url(base, expected):
+    assert _ollama_tags_url(base) == expected
+
+
+# --- probe_installed_models (mocked Ollama) -------------------------------------
+
+def test_probe_installed_models_parses_tags(monkeypatch):
+    payload = {"models": [
+        {"name": "gemma4:e4b", "size": 4_700_000_000},
+        {"name": "qwen2.5-coder:1.5b", "size": 1_000_000_000},
+    ]}
+
+    class _Resp(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    monkeypatch.setattr(
+        "kimcad.model_advisor.urllib.request.urlopen",
+        lambda url, timeout=3.0: _Resp(json.dumps(payload).encode()),
+    )
+    models = probe_installed_models("http://localhost:11434/v1")
+    names = {m.name for m in models}
+    assert names == {"gemma4:e4b", "qwen2.5-coder:1.5b"}
+    assert any(abs((m.size_gb or 0) - 4.7) < 0.01 for m in models)
+
+
+def test_probe_installed_models_returns_empty_when_ollama_is_down(monkeypatch):
+    def _boom(url, timeout=3.0):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr("kimcad.model_advisor.urllib.request.urlopen", _boom)
+    assert probe_installed_models("http://localhost:11434/v1") == []
+
+
+# --- probe_hardware smoke (real machine, must never raise) -----------------------
+
+def test_probe_hardware_never_raises_and_reports_os():
+    hw = probe_hardware()
+    assert isinstance(hw, HardwareProfile)
+    assert hw.os_label  # platform always gives something
+    assert hw.cpu_count is None or hw.cpu_count >= 1
+    assert hw.summary()  # renders without error regardless of which fields probed
