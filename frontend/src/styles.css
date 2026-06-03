@@ -580,8 +580,24 @@ input {
   .kc-btn,
   .kc-icon-btn,
   .kc-chip,
-  .kc-field select {
+  .kc-field select,
+  .kc-design-act,
+  .kc-mydesigns-sort select {
     min-height: 44px;
+  }
+  /* UX-003 / QA-005: the My Designs card actions (Rename / Duplicate / Export / Delete) join the
+     44px touch floor and gain breathing room, and the destructive Delete is pushed to the row's
+     end so a fingertip reaching for Export can't land on it. */
+  .kc-design-act {
+    display: inline-flex;
+    align-items: center;
+  }
+  .kc-design-actions {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .kc-design-act-danger {
+    margin-left: auto;
   }
   /* UX-001: the slider — the most-touched control of the live-slider feature — gets the same
      44px floor. A transparent vertical padding grows the hit area while the painted track stays
@@ -1488,6 +1504,9 @@ input {
   background: none;
   padding: 4px 6px;
   font-size: 12px;
+  /* UX-009: a touch heavier than the passive date metadata, so the actions read as interactive
+     at rest rather than only on hover. */
+  font-weight: 600;
   color: var(--kc-muted);
   cursor: pointer;
   border-radius: var(--kc-r-btn);
@@ -1536,4 +1555,87 @@ input {
   color: var(--kc-ink);
   font-size: 13px;
   cursor: pointer;
+}
+
+/* UX-002: the library card controls were styled mouse-on-desktop only and skipped the app's
+   accent focus ring. Give every card control the same branded :focus-visible treatment the rest of
+   the chrome uses, so a keyboard/AT user can see which card + action is focused. The open button
+   has no padding (the thumbnail fills it), so it uses an inset offset to keep the ring visible. */
+.kc-design-name:focus-visible,
+.kc-design-act:focus-visible,
+.kc-design-rename:focus-visible,
+.kc-mydesigns-sort select:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-design-open:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: -2px;
+}
+
+/* UX-007: a per-card error when a Rename/Duplicate/Delete action fails, so a silent data-action
+   failure can't read as success. */
+.kc-design-err {
+  margin: 0 12px 8px;
+  font-size: 11.5px;
+  color: var(--kc-fail);
+}
+
+/* UX-005: the Topbar "My Designs" reflects the current route, so the user keeps a "you are here"
+   cue (the H1 + nav no longer read as a bare duplicate). */
+.kc-btn-ghost.kc-btn-active {
+  background: var(--kc-surface-2);
+  border-color: var(--kc-accent);
+  color: var(--kc-accent-deep);
+}
+
+/* UX-001: the quiet save indicator in the Topbar. Reassurance, not celebration. */
+.kc-savestate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kc-muted);
+  white-space: nowrap;
+}
+.kc-savestate-saved {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  border-radius: var(--kc-r-btn);
+  color: var(--kc-ink);
+  cursor: pointer;
+}
+.kc-savestate-saved:hover {
+  color: var(--kc-accent-deep);
+}
+.kc-savestate-saved:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-savestate-error {
+  color: var(--kc-fail);
+}
+.kc-savedot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.kc-savestate-saving .kc-savedot {
+  animation: kc-savepulse 1s ease-in-out infinite;
+}
+.kc-savestate-saved .kc-savedot {
+  background: var(--kc-pass, var(--kc-accent));
+}
+@keyframes kc-savepulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kc-savestate-saving .kc-savedot {
+    animation: none;
+  }
 }

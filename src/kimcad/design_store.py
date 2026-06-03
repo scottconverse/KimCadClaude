@@ -17,10 +17,13 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import threading
+import time
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +39,18 @@ _MAX_IMPORT_MEMBER = 64 * 1024 * 1024  # 64 MiB
 _WRITE_LOCK = threading.Lock()
 # Bound the library so it can't grow without limit; the oldest beyond this are dropped on save.
 _MAX_DESIGNS = 200
+# A store id must be a plain ASCII token (letters, digits, dash, underscore). ASCII-only (not
+# str.isalnum(), which accepts Unicode letters/digits) so an id can't collide under filesystem
+# normalization or be un-typeable — and, as before, can't contain a path separator or parent ref.
+_SAFE_ID_RE = re.compile(r"[A-Za-z0-9_-]+")
+# One name-length rule for every write path (save / rename / duplicate) so they can't drift.
+_MAX_NAME = 120
+_COPY_SUFFIX = " (copy)"
+# On Windows, os.replace() raises PermissionError if the destination meta.json is momentarily open
+# by a concurrent reader (the gallery's get()/list()). Retry briefly with a small backoff — the
+# reader's handle is open only for a short read_text, so a few tries close the window.
+_REPLACE_RETRIES = 8
+_REPLACE_BACKOFF = 0.01  # seconds; grows linearly per attempt (~0.36s worst case before giving up)
 
 
 @dataclass
@@ -165,7 +180,7 @@ class DesignStore:
                 d.mkdir(parents=True, exist_ok=True)
                 meta = {
                     "id": design_id,
-                    "name": name or "Untitled",
+                    "name": clip_name(name),
                     "prompt": prompt,
                     "created_at": created_at,
                     "object_type": object_type,
@@ -191,7 +206,7 @@ class DesignStore:
             with _WRITE_LOCK:
                 meta_path = self._dir(design_id) / "meta.json"
                 raw = json.loads(meta_path.read_text(encoding="utf-8"))
-                raw["name"] = (name or "Untitled").strip()[:120]
+                raw["name"] = clip_name(name)
                 _atomic_write_json(meta_path, raw)
             return True
         except Exception:  # noqa: BLE001
@@ -207,9 +222,10 @@ class DesignStore:
         except Exception:  # noqa: BLE001
             return False
 
-    def duplicate(self, design_id: str, new_id: str) -> bool:
+    def duplicate(self, design_id: str, new_id: str, created_at: str | None = None) -> bool:
         """Copy a saved design under ``new_id`` (a fresh server-minted id), with its name suffixed
-        '(copy)' and a new created_at left to the caller via the copied meta (the caller stamps)."""
+        ' (copy)' and a **fresh** ``created_at`` (the passed value, or stamped now) so the copy
+        sorts as new in the gallery rather than inheriting the source's timestamp."""
         if not (_safe_id(design_id) and _safe_id(new_id)):
             return False
         try:
@@ -218,11 +234,14 @@ class DesignStore:
                 if not src.exists():
                     return False
                 dst = self._dir(new_id)
-                shutil.copytree(src, dst, dirs_exist_ok=True)
+                # dirs_exist_ok defaults False: a (astronomically improbable) new_id collision
+                # raises FileExistsError -> the except below -> a clean False, never a silent merge.
+                shutil.copytree(src, dst)
                 meta_path = dst / "meta.json"
                 raw = json.loads(meta_path.read_text(encoding="utf-8"))
                 raw["id"] = new_id
-                raw["name"] = (str(raw.get("name", "Untitled"))[:110] + " (copy)").strip()
+                raw["name"] = clip_name(raw.get("name"))[: _MAX_NAME - len(_COPY_SUFFIX)] + _COPY_SUFFIX
+                raw["created_at"] = created_at or datetime.now(timezone.utc).isoformat()
                 _atomic_write_json(meta_path, raw)
             return True
         except Exception:  # noqa: BLE001
@@ -278,24 +297,63 @@ class DesignStore:
             return False
 
     def _prune(self) -> None:
-        """Drop the oldest designs beyond the cap. Called under the write lock."""
-        entries = self.list()
-        for entry in entries[_MAX_DESIGNS:]:
-            shutil.rmtree(self._dir(entry["id"]), ignore_errors=True)
+        """Reclaim disk, called under the write lock. Two jobs: (1) remove an orphan dir — one a
+        crashed mid-save left with a mesh but no ``meta.json`` (invisible to ``list()``, so it would
+        otherwise sit outside the cap forever); (2) when complete designs exceed the cap, drop the
+        oldest. Cheap on the hot path: only stats each dir, and only parses ``created_at`` when the
+        store is actually over the cap (not on every save)."""
+        try:
+            children = [c for c in self.root.iterdir() if c.is_dir()] if self.root.exists() else []
+        except OSError:
+            return
+        complete: list[Path] = []
+        for child in children:
+            if (child / "meta.json").exists():
+                complete.append(child)
+            else:
+                shutil.rmtree(child, ignore_errors=True)  # ENG-004: reclaim an orphan dir
+        if len(complete) <= _MAX_DESIGNS:
+            return  # ENG-005: don't parse any meta unless we're genuinely over the cap
+        dated: list[tuple[str, Path]] = []
+        for child in complete:
+            d = self.get(child.name)
+            dated.append(((d.created_at if d is not None else ""), child))
+        dated.sort(key=lambda t: t[0], reverse=True)  # newest first; created_at is ISO-8601
+        for _, child in dated[_MAX_DESIGNS:]:
+            shutil.rmtree(child, ignore_errors=True)
 
 
 def _safe_id(design_id: str) -> bool:
-    """A store id must be a plain token (no path separators / parent refs) so it can't escape the
-    store root. Server-minted ids are uuid hex; this guards a hand-crafted API request."""
-    return bool(design_id) and design_id.replace("-", "").replace("_", "").isalnum()
+    """A store id must be an ASCII token (letters, digits, dash, underscore) so it can't escape the
+    store root (no separators / parent refs) and can't collide under Unicode/filesystem
+    normalization. Server-minted ids are uuid hex; this guards the one client-supplied id."""
+    return bool(design_id) and _SAFE_ID_RE.fullmatch(design_id) is not None
+
+
+def clip_name(name: str | None) -> str:
+    """The single name rule for every write path: strip, fall back to 'Untitled' when empty, and
+    clip to ``_MAX_NAME``. Centralized so rename/duplicate/save can't drift in length handling."""
+    return ((name or "").strip() or "Untitled")[:_MAX_NAME]
 
 
 def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
-    """Write JSON via a temp file + ``os.replace`` so a concurrent reader never sees a half-write."""
+    """Write JSON via a temp file + ``os.replace`` so a concurrent reader never sees a half-write.
+    On Windows ``os.replace`` raises ``PermissionError`` if the destination is momentarily open by a
+    reader; retry with a small linear backoff (the reader's handle is brief), and on a final failure
+    clean up the temp and re-raise so the caller's best-effort ``except`` degrades cleanly rather
+    than leaking a ``.tmp``."""
     payload = json.dumps(data, indent=2, allow_nan=False)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(payload, encoding="utf-8")
-    os.replace(tmp, path)
+    for attempt in range(_REPLACE_RETRIES):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_RETRIES - 1:
+                tmp.unlink(missing_ok=True)
+                raise
+            time.sleep(_REPLACE_BACKOFF * (attempt + 1))
 
 
 def _read_zip_member(z: zipfile.ZipFile, name: str) -> bytes:

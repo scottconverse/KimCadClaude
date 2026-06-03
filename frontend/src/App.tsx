@@ -46,6 +46,13 @@ export default function App() {
   // create (which would spawn a duplicate library entry). The in-flight create sets saved_id;
   // subsequent re-renders then re-save the single entry.
   const creatingRef = useRef(false)
+  // UX-001: a visible save indicator so the user can SEE auto-save work, instead of wondering
+  // whether their part survived. 'saving' is transient; once persisted the Topbar shows a resting
+  // "Saved · My Designs" (driven by result.saved_id); 'error' self-heals via one delayed retry.
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const retryRef = useRef<number | null>(null)
+  // Latest persist fn, so the error-retry timer can re-invoke it without a self-referential closure.
+  const persistRef = useRef<((opts?: { immediate?: boolean }) => Promise<void>) | null>(null)
 
   const applyResult = useCallback((r: DesignResponse | null) => {
     resultRef.current = r
@@ -68,6 +75,7 @@ export default function App() {
         // Don't start a second create while one is in flight (avoids a duplicate library entry).
         if (isCreate && creatingRef.current) return
         if (isCreate) creatingRef.current = true
+        setSaveState('saving')
         try {
           const saved = await saveDesign(designId, '', thumb, r.saved_id)
           // Mark the result as saved + give it a durable URL (only on the first save).
@@ -79,8 +87,17 @@ export default function App() {
             applyResult({ ...resultRef.current, saved_id: saved.id })
             navigate(`design/${saved.id}`, { replace: true })
           }
+          setSaveState('saved')
         } catch {
-          /* best-effort: a save failure is non-fatal */
+          // Best-effort: a save failure is non-fatal (the live part is untouched). Surface it
+          // (UX-001) and schedule a single delayed retry so a transient miss self-heals.
+          setSaveState('error')
+          if (retryRef.current === null) {
+            retryRef.current = window.setTimeout(() => {
+              retryRef.current = null
+              void persistRef.current?.({ immediate: true })
+            }, 1500)
+          }
         } finally {
           if (isCreate) creatingRef.current = false
         }
@@ -94,6 +111,7 @@ export default function App() {
     },
     [applyResult, navigate],
   )
+  persistRef.current = persist
 
   // The viewport frames a part -> capture it and persist (create on the first frame, debounced
   // re-save on a re-render).
@@ -106,8 +124,17 @@ export default function App() {
   )
 
   // --- design / re-render -------------------------------------------------
-  async function handleSubmit(submitted: string) {
+  function resetSaveIndicator() {
     if (resaveTimer.current !== null) window.clearTimeout(resaveTimer.current)
+    if (retryRef.current !== null) {
+      window.clearTimeout(retryRef.current)
+      retryRef.current = null
+    }
+    setSaveState('idle')
+  }
+
+  async function handleSubmit(submitted: string) {
+    resetSaveIndicator()
     navigate('', { replace: true }) // a brand-new design has no saved id yet
     setPrompt(submitted)
     applyResult(null)
@@ -157,7 +184,7 @@ export default function App() {
   }
 
   function handleNewDesign() {
-    if (resaveTimer.current !== null) window.clearTimeout(resaveTimer.current)
+    resetSaveIndicator()
     navigate('', { replace: true })
     setPrompt('')
     applyResult(null)
@@ -204,6 +231,9 @@ export default function App() {
         showNewDesign={onWorkspace}
         onNewDesign={handleNewDesign}
         onMyDesigns={() => navigate('designs')}
+        activeRoute={route.name}
+        saveState={saveState}
+        savedId={result?.saved_id ?? null}
       />
       {route.name === 'designs' ? (
         <MyDesigns onOpen={(id) => navigate(`design/${id}`)} onNew={handleNewDesign} />

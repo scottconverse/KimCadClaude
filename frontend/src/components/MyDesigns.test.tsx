@@ -85,9 +85,11 @@ describe('MyDesigns', () => {
     vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
     render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
     await screen.findByText('My Box')
-    const link = screen.getByText('Export').closest('a') as HTMLAnchorElement
+    const link = screen.getByText(/Export/).closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/api/designs/a1/export')
     expect(link.hasAttribute('download')).toBe(true)
+    // UX-004: the label names the format so it's not mistaken for a printable STL.
+    expect(link.textContent).toMatch(/\.kimcad/)
   })
 
   it('filters the library by search', async () => {
@@ -102,6 +104,32 @@ describe('MyDesigns', () => {
     fireEvent.change(screen.getByLabelText('Search your designs'), { target: { value: 'bracket' } })
     expect(screen.queryByText('My Box')).toBeNull()
     expect(screen.getByText('A Bracket')).toBeTruthy()
+  })
+
+  it('reorders the grid by the sort control (TEST-005)', async () => {
+    const two: api.SavedDesignSummary[] = [
+      sample[0], // My Box — created 2026-06-03 (newest)
+      { ...sample[0], id: 'b2', name: 'A Bracket', created_at: '2026-06-01T00:00:00Z' },
+    ]
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: two })
+    render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    const names = () =>
+      Array.from(document.querySelectorAll('.kc-design-name')).map((n) => n.textContent)
+    expect(names()).toEqual(['My Box', 'A Bracket']) // default: newest first
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'oldest' } })
+    expect(names()).toEqual(['A Bracket', 'My Box'])
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'name' } })
+    expect(names()).toEqual(['A Bracket', 'My Box']) // A before M
+  })
+
+  it('surfaces a per-card error when an action fails (UX-007)', async () => {
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
+    vi.spyOn(api, 'duplicateDesign').mockRejectedValue(new Error('boom'))
+    render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    fireEvent.click(screen.getByText('Duplicate'))
+    expect(await screen.findByText(/Couldn.t duplicate/i)).toBeTruthy()
   })
 
   it('shows a no-matches message when the search excludes everything', async () => {

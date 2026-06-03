@@ -100,6 +100,7 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | `printproof3d.py` (Stage 7) | The **PrintProof3D arm's-length wrapper**. Runs the owner's MIT Rust validation **engine** as a subprocess (argv list, no shell, **never linked**) against the bed-positioned mesh and parses its `ValidationReport` JSON into the typed report Smart Mesh consumes. Generates the engine's printer/material profile JSON from KimCad's own config. Best-effort + injectable runner: a missing/un-built engine, a profile error, a runner raise, or an unparseable report all degrade to `None` (Smart Mesh falls back to the gate) — it **never raises**, and is gated on the parsed report file, not the exit code (a non-zero exit is a fail *verdict*, not a crash). |
 | `history.py` (Stage 7) | The **Smart Mesh learning store**. A local-first JSON record of built parts (coarse — type / readiness score / gate / material / largest dimension; no geometry, no prompt) at `~/.kimcad/history.json` by default (never the repo). Pure `compare_phrase()` produces the honest "compared to your past parts" line — strictly factual (a personal best needs a strict beat of every prior; a tie reads "on par," never "below"; no history → no line). All best-effort: every degrade path returns cleanly and **never raises**. |
 | `cli.py` | The `kimcad` command — `design` (the default verb for a bare prompt), `bench`, `web`, `models` (the hardware advisor), and `bakeoff` (the model comparison). `design --slice` is the explicit slice confirmation; `design --send <connector>` additionally sends the proven G-code through a connector behind the same confirmation gate (a gate-failed part is never sent; an offline printer is reported and the file is left on disk). Wires already-tested pieces together; turns foreseeable setup problems (bad config, missing key, missing prompt file) and un-parseable model output into a plain-English message and a stable non-zero exit rather than a traceback. |
+| `design_store.py` (Stage 8.5) | The **saved-designs store** ("My Designs"). Local-first, best-effort persistence of each built design under `~/.kimcad/designs/<id>/` (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. `save` / `list` / `get` / `rename` / `delete` / `duplicate` / `export_bytes` / `import_bytes`, all guarded by an ASCII-only `_safe_id` (no path escape) and serialized by a write lock with atomic `os.replace` meta writes (retried on the Windows open-handle race). Import is **zip-slip safe** — only the three known files are read by exact name (never the archive's paths) and a bounded inflated-read rejects a decompression bomb. Every method swallows failures (degrade, never raise), so a persistence miss never breaks a build. |
 | `webapp.py` | The local web layer (see below). |
 
 `config.py` loads `config/default.yaml` overlaid with an optional, gitignored
@@ -173,6 +174,18 @@ on screen. A re-render **invalidates the cached slice/G-code** for that id and i
 against concurrent drags, so a stale shape can never be sliced or sent; an LLM-backed part has
 no `parameters` and stays read-only. The slider ranges are the family's own bounds, so a part
 that the gate would reject can't even be dialed in.
+
+**Saved designs / "My Designs" (Stage 8.5).** The SPA has routes (`#/`, `#/designs`,
+`#/design/<id>`) and persists work via `design_store.py`. When the viewport frames a part the
+client auto-saves it (`POST /api/designs/save`, carrying a viewport-captured thumbnail) and routes
+to `#/design/<id>`, so a refresh restores the part + sliders (`GET /api/designs/<id>` re-registers
+it into the live loop). The library (`GET /api/designs`) backs the gallery; `rename` / `delete` /
+`duplicate` mutate it; `GET .../export` and `POST /api/designs/import` move a design as a portable
+`.kimcad` zip. Save is best-effort — a transient failure returns a soft `503` the SPA retries
+(surfaced as a Topbar "Saving… / Saved / retrying" indicator), never a hard error; the server mints
+a stable id per live design so rapid auto-saves converge to one library entry. The pipeline exports
+the oriented mesh atomically (temp + `os.replace`), so a save-copy or mesh fetch never reads a torn
+STL mid-re-render.
 
 ## Local-first and the injectable seam
 

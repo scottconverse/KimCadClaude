@@ -56,4 +56,7 @@ No escalation needed. Two Majors (a missed traversal guard + a stale-snapshot-on
 - **S1B-002 (Major) — FIXED.** `_handle_render` now rebuilds `design_snapshot[rid] = _design_snapshot(payload, result, prior_prompt)` after updating the registry, so a save-after-slider-drag persists the re-rendered parameters. New test `test_save_after_rerender_persists_the_rerendered_parameters` (re-render wall 2.0 → 3.0 → save → reopen → reopened wall is 3.0, not the stale 2.0).
 - **S1B-003 (Minor) — FIXED.** `_serve_design_thumb` wraps `read_bytes()` in `try/except OSError → 404`, so a delete/read race can't throw an unhandled exception onto a request thread.
 
-Verified: ruff clean; `test_design_store.py` 14 + `test_webapp.py` 67 + `test_config.py` = 75 passed; no regression. **Roll-up: 0/0/0/0/0.**
+Verified: ruff clean; the persistence tests pass green — at this remediation commit (`13584ea`):
+`test_design_store.py` 12 + `test_webapp.py` 56, plus the `designs_path` config test; no
+regression. (DOC-002: the original line cited a non-additive `14 + 67 = 75`; corrected here to the
+real per-file counts at that commit. At branch HEAD the suite has since grown.) **Roll-up: 0/0/0/0/0.**

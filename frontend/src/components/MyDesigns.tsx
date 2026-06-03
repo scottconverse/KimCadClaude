@@ -33,6 +33,8 @@ function DesignCard({
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(design.name)
   const [busy, setBusy] = useState(false)
+  // UX-007: a per-card error so a failed Rename/Duplicate/Delete can't silently read as success.
+  const [err, setErr] = useState<string | null>(null)
   // Two-step delete: the first click arms it, a second confirms — so a saved design isn't lost to
   // a single accidental click. Auto-disarms after a few seconds.
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -46,18 +48,38 @@ function DesignCard({
     const next = name.trim()
     setRenaming(false)
     if (next && next !== design.name) {
-      await renameDesign(design.id, next).catch(() => {})
+      setErr(null)
+      try {
+        const res = await renameDesign(design.id, next)
+        if (res && res.ok === false) {
+          setErr('Couldn’t rename — try again.')
+          setName(design.name)
+        }
+      } catch {
+        setErr('Couldn’t rename — try again.')
+        setName(design.name)
+      }
       onChanged()
     } else {
       setName(design.name)
     }
   }
 
-  async function act(fn: () => Promise<unknown>) {
+  // Run a card action; surface a per-card error if it throws or returns {ok:false} (UX-007).
+  async function act(label: string, fn: () => Promise<{ ok?: boolean } | unknown>) {
     setBusy(true)
-    await fn().catch(() => {})
-    setBusy(false)
-    onChanged()
+    setErr(null)
+    try {
+      const res = (await fn()) as { ok?: boolean } | null
+      if (res && typeof res === 'object' && 'ok' in res && res.ok === false) {
+        setErr(`Couldn’t ${label} — try again.`)
+      }
+    } catch {
+      setErr(`Couldn’t ${label} — try again.`)
+    } finally {
+      setBusy(false)
+      onChanged()
+    }
   }
 
   return (
@@ -111,11 +133,16 @@ function DesignCard({
         <button type="button" className="kc-design-act" onClick={() => setRenaming(true)}>
           Rename
         </button>
-        <button type="button" className="kc-design-act" onClick={() => act(() => duplicateDesign(design.id))}>
+        <button type="button" className="kc-design-act" onClick={() => act('duplicate', () => duplicateDesign(design.id))}>
           Duplicate
         </button>
-        <a className="kc-design-act" href={exportDesignUrl(design.id)} download>
-          Export
+        <a
+          className="kc-design-act"
+          href={exportDesignUrl(design.id)}
+          download
+          title="Download a .kimcad backup you can re-import — not a printable STL"
+        >
+          Export (.kimcad)
         </a>
         {confirmDelete ? (
           <>
@@ -124,7 +151,7 @@ function DesignCard({
               className="kc-design-act kc-design-act-danger"
               onClick={() => {
                 setConfirmDelete(false)
-                void act(() => deleteDesign(design.id))
+                void act('delete', () => deleteDesign(design.id))
               }}
             >
               Delete?
@@ -143,6 +170,11 @@ function DesignCard({
           </button>
         )}
       </div>
+      {err && (
+        <p className="kc-design-err" role="alert">
+          {err}
+        </p>
+      )}
     </div>
   )
 }
@@ -192,8 +224,8 @@ export default function MyDesigns({
       const r = await importDesign(file)
       load()
       onOpen(r.id) // open the freshly imported design
-    } catch {
-      setError("That file couldn't be imported.")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That file couldn't be imported.")
     } finally {
       setImporting(false)
       if (fileRef.current) fileRef.current.value = '' // allow re-importing the same file

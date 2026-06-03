@@ -1593,3 +1593,40 @@ def test_designs_import_rejects_garbage(tmp_path):
     with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
         st, body = _import_zip(h, p, b"not a real zip")
         assert st == 400
+
+
+def test_designs_mutate_bad_id_is_404(tmp_path):
+    # QA-003: rename/delete/duplicate of an unsafe or absent id is a 404 (matching reopen/thumb/
+    # export), not a 200 {"ok": false} a status-only client would misread as success.
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        for verb in ("rename", "delete", "duplicate"):
+            body = {"name": "x"} if verb == "rename" else {}
+            st, _ = _jreq(h, p, "POST", "/api/designs/..%2f..%2fetc/" + verb, body)
+            assert st == 404, f"unsafe id / {verb}"
+            st, _ = _jreq(h, p, "POST", "/api/designs/deadbeef99/" + verb, body)
+            assert st == 404, f"absent id / {verb}"
+
+
+def test_concurrent_saves_without_saved_id_make_one_entry(tmp_path):
+    # QA-002: rapid auto-saves of the SAME live rid without a saved_id must converge to ONE library
+    # entry (the server reuses a stable per-rid id), not mint a duplicate per call.
+    import threading
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        results: list[tuple[int, str]] = []
+
+        def fire() -> None:
+            st, saved = _jreq(h, p, "POST", "/api/designs/save",
+                              {"design_id": rid, "name": "Race"})
+            results.append((st, saved.get("id")))
+
+        threads = [threading.Thread(target=fire) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=20)
+        assert all(st == 200 for st, _ in results)  # the retry absorbs the Windows replace race
+        assert len({sid for _, sid in results}) == 1  # one shared id across all concurrent saves
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 1  # exactly one library entry, no duplicates

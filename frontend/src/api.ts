@@ -268,13 +268,28 @@ export function exportDesignUrl(id: string): string {
   return `/api/designs/${encodeURIComponent(id)}/export`
 }
 
+/** The server's import body cap (mirrors webapp `MAX_IMPORT_BYTES`). Checked client-side so an
+ * oversized file gets a precise message instead of a connection reset (QA-004). */
+export const MAX_IMPORT_BYTES = 32 * 1024 * 1024
+
 /** Import a `.kimcad` export file (the raw zip is the POST body); returns the new design's id. */
 export async function importDesign(file: File): Promise<{ id: string }> {
-  const res = await fetch('/api/designs/import', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/zip' },
-    body: file,
-  })
+  // QA-004: reject an over-cap file up front with a friendly message — otherwise the server closes
+  // the oversized upload mid-stream and the browser surfaces an opaque "network error".
+  if (file.size > MAX_IMPORT_BYTES) {
+    throw new Error('That file is too large to import (max 32 MB).')
+  }
+  let res: Response
+  try {
+    res = await fetch('/api/designs/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/zip' },
+      body: file,
+    })
+  } catch {
+    // A connection error mid-upload (e.g. the server closed an oversized stream) lands here.
+    throw new Error('Couldn’t import that file — it may be too large (max 32 MB) or unreadable.')
+  }
   const data = await readJson(res)
   throwIfNotOk(res, data)
   return data as { id: string }

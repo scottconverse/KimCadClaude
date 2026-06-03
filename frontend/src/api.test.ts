@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { designIdFromMeshUrl, getOptions, postDesign, postRender, postSlice } from './api'
+import {
+  designIdFromMeshUrl,
+  exportDesignUrl,
+  getOptions,
+  importDesign,
+  postDesign,
+  postRender,
+  postSlice,
+} from './api'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -114,6 +122,63 @@ describe('designIdFromMeshUrl', () => {
   it('strips a cache-busting version query from a re-rendered mesh URL', () => {
     expect(designIdFromMeshUrl('/api/mesh/7?v=2')).toBe(7)
     expect(designIdFromMeshUrl('/api/mesh/42?v=137')).toBe(42)
+  })
+})
+
+describe('importDesign / exportDesignUrl (Stage 8.5)', () => {
+  it('returns the new id on a 200', async () => {
+    const fetchMock = mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'imp9' }),
+    }))
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad', { type: 'application/zip' })
+    const r = await importDesign(file)
+    expect(r.id).toBe('imp9')
+    expect(fetchMock).toHaveBeenCalledWith('/api/designs/import', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('throws the backend error message on a non-2xx', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "That file isn't a valid KimCad design export." }),
+    }))
+    const file = new File([new Uint8Array([1, 2])], 'd.kimcad')
+    await expect(importDesign(file)).rejects.toThrow(/valid KimCad design export/i)
+  })
+
+  it('throws a readable error when the import body is not JSON', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error('not json')
+      },
+    }))
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad')
+    await expect(importDesign(file)).rejects.toThrow(/unreadable/i)
+  })
+
+  it('rejects an over-cap file up front with a friendly message and never fetches (QA-004)', async () => {
+    const fetchMock = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ id: 'x' }) }))
+    const big = { size: 33 * 1024 * 1024 } as File // only .size is read before the cap check
+    await expect(importDesign(big)).rejects.toThrow(/too large/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a friendly message when the upload connection fails (QA-004)', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad')
+    await expect(importDesign(file)).rejects.toThrow(/too large|unreadable/i)
+  })
+
+  it('url-encodes the id in the export URL', () => {
+    expect(exportDesignUrl('a/b')).toBe('/api/designs/a%2Fb/export')
+    expect(exportDesignUrl('abc123')).toBe('/api/designs/abc123/export')
   })
 })
 

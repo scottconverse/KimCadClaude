@@ -13,8 +13,11 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU.
 > Status: **early development.** The deterministic pipeline, the gated G-code export
 > (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
 > Bambu A1, Elegoo Neptune 4 Max — software/profile validation, not yet a real print), and
-> Manifold3D mesh hardening are in. Real-hardware print validation on Kim's printers is the
-> final stage — see ROADMAP.
+> Manifold3D mesh hardening are in (through Stage 7, tagged `stage-7`). **Stage 8.5 (Usability) is
+> in progress on branch `stage-8.5-usability` — not yet merged or tagged:** local-first
+> persistence and a "My Designs" library now keep your work between sessions (see *Saving your
+> work*, below, and `docs/guide-my-designs.md`). Real-hardware print validation on Kim's printers
+> is the final stage — see ROADMAP.
 
 ## What it does
 
@@ -38,6 +41,16 @@ plus, when it's configured, the optional arm's-length **PrintProof3D** validatio
 local-first history. It's advisory: the
 deterministic gate stays the slice authority, and the card never claims the engine ran when it
 didn't. *(Stage 7 — done; tagged `stage-7`.)*
+
+### Saving your work *(Stage 8.5 Slice 1 — in progress, on branch)*
+
+Your designs are now kept automatically. The moment a part is built it's saved to a local **My
+Designs** library and the page gets its own address, so a refresh (or coming back tomorrow) restores
+the part and its sliders instead of losing it. The library lives entirely on your machine under
+`~/.kimcad/designs/` — nothing leaves the computer. From My Designs you can reopen, rename,
+duplicate, delete, and **export** a design as a portable `.kimcad` file (a backup you can re-import
+on another machine — not a printable STL). A short walkthrough is in
+[`docs/guide-my-designs.md`](docs/guide-my-designs.md).
 
 ## Requirements
 

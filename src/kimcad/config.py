@@ -2,7 +2,8 @@
 
 Reads ``config/default.yaml`` and overlays an optional, gitignored
 ``config/local.yaml`` (per-machine overrides: binary paths, API keys via env, model
-choice). Exposes typed accessors for the parts the pipeline needs.
+choice, and the ``paths.history`` / ``paths.designs`` store locations). Exposes typed
+accessors for the parts the pipeline needs.
 """
 
 from __future__ import annotations

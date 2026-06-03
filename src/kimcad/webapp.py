@@ -390,6 +390,10 @@ def make_handler(
     # a name, and a thumbnail — can persist the design without the client re-sending everything.
     # Evicted via _evict alongside the rest of the per-design state.
     design_snapshot: dict[int, dict[str, Any]] = {}
+    # QA-002: a stable saved_id per live rid, so rapid auto-saves of the same design (fired before
+    # the client has learned the server-minted id) converge to ONE library entry instead of minting
+    # a duplicate each time. Evicted via _evict alongside the rest of the per-design state.
+    rid_saved_id: dict[int, str] = {}
     counter = itertools.count(1)
     version_counter = itertools.count(1)  # cache-busting suffix for re-rendered meshes
     lock = threading.Lock()
@@ -427,6 +431,7 @@ def make_handler(
         gate_status_by_rid.pop(rid, None)
         template_state.pop(rid, None)
         design_snapshot.pop(rid, None)
+        rid_saved_id.pop(rid, None)
         for k in [k for k in slice_cache if k[0] == rid]:
             slice_cache.pop(k, None)
         shutil.rmtree(web_root / str(rid), ignore_errors=True)
@@ -442,11 +447,16 @@ def make_handler(
 
         def _method_not_allowed(self) -> None:
             # QA-005: the resources exist for GET/HEAD/POST, so an unsupported verb is 405
-            # (method not allowed), not the stdlib default 501 (not implemented).
+            # (method not allowed), not the stdlib default 501 (not implemented). QA-006: return
+            # the app's JSON error shape (not an empty body) so the error contract is uniform.
+            body = json.dumps({"error": "Method not allowed."}).encode("utf-8")
             self.send_response(405)
             self.send_header("Allow", "GET, HEAD, POST")
-            self.send_header("Content-Length", "0")
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
+            if not getattr(self, "_head_only", False):
+                self.wfile.write(body)
 
         do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _method_not_allowed
 
@@ -884,23 +894,34 @@ def make_handler(
             if snap is None or mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "That design is no longer available to save."})
                 return
+            from kimcad.design_store import clip_name
+
             # Update-in-place when the client passes a known `saved_id` (so adjusting a part and
-            # re-saving keeps one library entry, current); otherwise mint a fresh id. Preserve the
-            # original created_at + name on an update.
+            # re-saving keeps one library entry); otherwise reuse the id we minted for this live rid
+            # last time (QA-002 — converges rapid auto-saves of one design to a single entry), or
+            # mint a fresh one. Preserve the original created_at + name on an update.
             requested = data.get("saved_id")
             existing = store.get(requested) if isinstance(requested, str) else None
-            store_id = requested if existing is not None else uuid.uuid4().hex
+            store_id = requested if existing is not None else None
+            if store_id is None:
+                with lock:
+                    prior = rid_saved_id.get(rid)
+                    if prior is None:
+                        prior = uuid.uuid4().hex
+                        rid_saved_id[rid] = prior
+                    store_id = prior
+                existing = store.get(store_id)  # None on this rid's very first save
             created_at = (
                 existing.created_at if existing is not None
                 else datetime.now(timezone.utc).isoformat()
             )
             name_raw = data.get("name")
             if isinstance(name_raw, str) and name_raw.strip():
-                name = name_raw.strip()[:120]
+                name = clip_name(name_raw)
             elif existing is not None:
                 name = existing.name
             else:
-                name = (snap.get("prompt") or "Untitled")[:120]
+                name = clip_name(snap.get("prompt"))
             ok = store.save(
                 design_id=store_id,
                 name=name,
@@ -916,9 +937,12 @@ def make_handler(
                 thumb_png=_decode_data_url_png(data.get("thumbnail")),
             )
             if not ok:
-                self._json(500, {"error": "Couldn't save the design."})
+                # QA-001: a save is best-effort (a transient persistence miss — e.g. a brief
+                # Windows file-lock contention the store now retries through — should not look like
+                # a server crash). Report it as a soft 503 the SPA can quietly retry, not a hard 500.
+                self._json(503, {"error": "Couldn't save right now — your work is still here; retrying.", "saved": False})
                 return
-            self._json(200, {"id": store_id, "name": name})
+            self._json(200, {"id": store_id, "name": name, "saved": True})
 
         def _handle_design_reopen(self, design_id: str) -> None:
             """Reopen a saved design: re-register it into the live state under a fresh id so the
@@ -976,13 +1000,18 @@ def make_handler(
             if store is None:
                 self._json(503, {"error": "Saved designs aren't available right now."})
                 return
+            # QA-003: an unsafe or absent id is a 404 (matching reopen/thumb/export), not a
+            # 200 {"ok": false} a status-only client would misread as success.
+            if store.get(design_id) is None:
+                self._json(404, {"error": "That design couldn't be found."})
+                return
             if verb == "delete":
                 self._json(200, {"ok": store.delete(design_id)})
                 return
             if verb == "duplicate":
                 new_id = uuid.uuid4().hex
                 ok = store.duplicate(design_id, new_id)
-                self._json(200, {"ok": ok, "id": new_id if ok else None})
+                self._json(200 if ok else 500, {"ok": ok, "id": new_id if ok else None})
                 return
             # rename
             data = self._read_json_body()

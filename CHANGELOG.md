@@ -11,12 +11,30 @@ All notable changes to KimCad are documented here. Format follows
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
 > report + learning store) merged + tagged `stage-7` 2026-06-02** — through the full 5-role
-> `audit-team` stage gate + remediation at 0/0/0/0/0. These sections accumulate toward the `0.1.0` release.
+> `audit-team` stage gate + remediation at 0/0/0/0/0. **Stage 8.5 (Usability) is IN PROGRESS on
+> branch `stage-8.5-usability` — not yet merged or tagged;** Slice 1 (local persistence + the "My
+> Designs" library) is implemented and pending its stage-gate approval. These sections accumulate
+> toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 8.5 Slice 1 — local persistence + "My Designs" library (on branch `stage-8.5-usability`, not yet merged/tagged):**
+  - Designs are saved automatically to a local, best-effort store under `~/.kimcad/designs/<id>/`
+    (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. A built
+    part auto-saves and the SPA routes to `#/design/<id>`, so a refresh restores the part + its
+    live sliders instead of losing the work.
+  - A **My Designs** gallery (`#/designs`): thumbnail grid with reopen, inline rename, duplicate,
+    two-step delete, search by name, and sort (newest / oldest / name). Reopen re-registers the
+    design into the live loop so its template sliders work again.
+  - **Export / import** a design as a portable `.kimcad` zip (zip-slip-safe — only the three known
+    files are read by exact name; a bounded inflated-read rejects a decompression bomb; the
+    compressed upload is capped at 32 MiB).
+  - A new `design_store.py` module (`DesignStore`) and `config.paths.designs`; new
+    `/api/designs*` endpoints (list / save / reopen / thumb / export / import / rename / delete /
+    duplicate). Writes are serialized + atomic (with a Windows `os.replace` retry); a save indicator
+    in the Topbar surfaces "Saving… / Saved / retrying."
 - **Stage 6 — model layer (merged + tagged `stage-6`):**
   - `kimcad models` — a hardware/availability-aware model advisor: probes RAM/CPU/GPU and the
     installed Ollama models and recommends the best one that fits, names an upgrade to pull, and

@@ -20,10 +20,12 @@ vi.mock('./components/Workspace', () => ({
   default: ({
     rerendering,
     onRerender,
+    onModelReady,
     result,
   }: {
     rerendering: boolean
     onRerender: (values: Record<string, number>) => void
+    onModelReady: (capture: () => string | null) => void
     result: DesignResponse | null
   }) => (
     <div>
@@ -31,6 +33,12 @@ vi.mock('./components/Workspace', () => ({
       <span data-testid="mesh-url">{result?.mesh_url ?? ''}</span>
       <button type="button" onClick={() => onRerender({ width: 1 })}>
         do-rerender
+      </button>
+      {/* TEST-001: stand in for the viewport firing onModelReady after it frames a part, which is
+          what drives auto-save. The real Workspace omitted this from the stub, leaving persist()
+          dark; here we expose it so the auto-save lifecycle can be exercised. */}
+      <button type="button" onClick={() => onModelReady(() => 'data:image/png;base64,AA')}>
+        frame-model
       </button>
     </div>
   ),
@@ -136,5 +144,48 @@ describe('App restore-on-load (Stage 8.5)', () => {
     // The workspace (stub) shows the restored mesh — the landing is not rendered.
     expect((await screen.findByTestId('mesh-url')).textContent).toBe('/api/mesh/7')
     expect(screen.queryByLabelText(/describe the part/i)).toBeNull()
+  })
+})
+
+describe('App auto-save lifecycle (Stage 8.5)', () => {
+  it('auto-saves once on first frame and guards the duplicate-create race (TEST-001)', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock).mockResolvedValueOnce(templateResult('/api/mesh/1'))
+    // Hold the first create in flight so two rapid frames overlap — the creatingRef guard must
+    // allow exactly ONE create (a second would spawn a duplicate library entry).
+    let resolveSave: (v: { id: string; name: string }) => void = () => {}
+    ;(api.saveDesign as Mock).mockImplementation(
+      () => new Promise((resolve) => { resolveSave = resolve }),
+    )
+
+    render(<App />)
+    await designFrom('a box')
+    fireEvent.click(screen.getByRole('button', { name: 'frame-model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'frame-model' }))
+    expect(api.saveDesign).toHaveBeenCalledTimes(1) // the second create is suppressed
+    expect(await screen.findByText(/Saving/)).toBeTruthy() // the indicator shows the save in flight
+
+    await act(async () => {
+      resolveSave({ id: 'x', name: 'n' })
+    })
+    // Once persisted, the Topbar shows the resting "Saved" affordance (UX-001).
+    expect(await screen.findByText(/Saved/)).toBeTruthy()
+  })
+
+  it('carries saved_id forward so a re-save updates in place, never a 2nd create (TEST-001)', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock).mockResolvedValueOnce(templateResult('/api/mesh/1'))
+    ;(api.saveDesign as Mock).mockResolvedValue({ id: 'x', name: 'n' })
+
+    render(<App />)
+    await designFrom('a box')
+    // First frame -> create (no saved_id).
+    fireEvent.click(screen.getByRole('button', { name: 'frame-model' }))
+    await waitFor(() => expect(api.saveDesign).toHaveBeenCalledTimes(1))
+    expect((api.saveDesign as Mock).mock.calls[0][3]).toBeFalsy() // create carries no saved_id
+    // Second frame -> debounced re-save of the SAME entry, carrying the minted saved_id.
+    fireEvent.click(screen.getByRole('button', { name: 'frame-model' }))
+    await waitFor(() => expect(api.saveDesign).toHaveBeenCalledTimes(2), { timeout: 1500 })
+    expect((api.saveDesign as Mock).mock.calls[1][3]).toBe('x') // update-in-place, not a new create
   })
 })

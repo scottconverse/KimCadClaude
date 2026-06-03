@@ -17,6 +17,7 @@ Two safety behaviors from the threat model (§12) live here, not in the leaf sta
 
 from __future__ import annotations
 
+import os
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -437,7 +438,13 @@ class Pipeline:
         # mesh, so a clean part goes to the slicer and to the user.
         hardened, harden_report = harden_mesh(oriented)
         mesh_path = out_dir / f"{basename}.oriented.stl"
-        hardened.export(str(mesh_path))
+        # ENG-001/ENG-003: export atomically (temp + os.replace) so a concurrent reader — a
+        # "save to My Designs" mesh copy, the viewport mesh GET, or the slicer input — never
+        # observes a half-written STL while a re-render rewrites this same path. file_type is
+        # forced because the temp name's ".tmp" suffix hides the .stl extension from trimesh.
+        tmp_path = out_dir / f"{basename}.oriented.stl.tmp"
+        hardened.export(str(tmp_path), file_type="stl")
+        os.replace(tmp_path, mesh_path)
 
         report = self._build_report(plan, render, mesh_report, gate, orientation, harden_report)
 

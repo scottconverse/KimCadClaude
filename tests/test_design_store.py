@@ -180,6 +180,11 @@ def test_import_rejects_a_non_design_or_zip_slip_archive(tmp_path):
         z.writestr("../evil.txt", "pwned")
     assert store.import_bytes(buf2.getvalue(), "x3") is True  # the valid design imports
     assert not (tmp_path / "evil.txt").exists()  # the traversal entry was ignored, not written
+    # TEST-003: pin it precisely — the imported dir holds ONLY the three known files (never the
+    # archive's own paths), so this bites on any future extract-by-archive-path regression.
+    designs_root = tmp_path / "designs"
+    assert {p.name for p in (designs_root / "x3").iterdir()} == {"meta.json", "mesh.stl"}
+    assert not any(p.name == "evil.txt" for p in designs_root.rglob("*"))
 
 
 def test_import_rejects_an_oversized_member(tmp_path, monkeypatch):
@@ -196,3 +201,80 @@ def test_import_rejects_an_oversized_member(tmp_path, monkeypatch):
         z.writestr("mesh.stl", "solid x\nendsolid x\n")
     assert store.import_bytes(buf.getvalue(), "big1") is False  # rejected, not read unbounded
     assert store.get("big1") is None  # nothing written
+
+
+def test_safe_id_rejects_unicode_and_reserved_names():
+    # ENG-002 / TEST-006: ids must be ASCII [A-Za-z0-9_-]. The old str.isalnum() guard accepted
+    # Unicode letters/digits; the tightened guard rejects them. None of these escape the root, but
+    # the documented intent is ASCII and Unicode names collide under filesystem normalization.
+    assert _safe_id("abc-123_DEF") is True
+    for bad in ("é", "²", "٠", "Ａ", "Ⅰ", "a/b", "..", "a.b", "a b", "", "a\x00b"):
+        assert _safe_id(bad) is False
+
+
+def test_duplicate_stamps_a_fresh_created_at(tmp_path):
+    # UX-006 / DOC-003: a duplicate must sort as NEW (fresh created_at), not inherit the source's.
+    store = DesignStore(tmp_path / "designs")
+    assert _save(store, tmp_path, design_id="src1", name="Orig", when="2020-01-01T00:00:00+00:00")
+    assert store.duplicate("src1", "dup1", created_at="2026-06-03T12:00:00+00:00") is True
+    dup = store.get("dup1")
+    assert dup is not None
+    assert dup.created_at == "2026-06-03T12:00:00+00:00"  # fresh, not 2020
+    assert dup.name == "Orig (copy)"
+    # With no explicit created_at it stamps "now" — just assert it no longer matches the source.
+    assert store.duplicate("src1", "dup2") is True
+    assert store.get("dup2").created_at != "2020-01-01T00:00:00+00:00"
+
+
+def test_prune_reclaims_an_orphan_dir(tmp_path):
+    # ENG-004: a crashed mid-save dir (mesh, no meta.json) is invisible to list() and must be
+    # reclaimed by _prune rather than accumulating on disk outside the cap.
+    store = DesignStore(tmp_path / "designs")
+    assert _save(store, tmp_path, design_id="good1", name="Good", when="2026-06-03T00:00:00+00:00")
+    orphan = tmp_path / "designs" / "orphanXYZ"
+    orphan.mkdir(parents=True)
+    (orphan / "mesh.stl").write_text("solid\nendsolid\n")  # no meta.json -> orphan
+    assert orphan.exists()
+    store._prune()
+    assert not orphan.exists()  # reclaimed
+    assert store.get("good1") is not None  # the complete design is untouched
+
+
+def test_concurrent_saves_and_lists_never_raise(tmp_path):
+    # TEST-004 / QA-001: the threaded server runs save() (writer, under _WRITE_LOCK + atomic
+    # os.replace) concurrently with list()/get() (unlocked readers). On Windows os.replace collides
+    # with an open meta handle; the retry must absorb it so no save and no read raises, and every
+    # design persists (no torn meta).
+    import threading
+    store = DesignStore(tmp_path / "designs")
+    errors: list[Exception] = []
+    stop = threading.Event()
+
+    def saver(i: int) -> None:
+        try:
+            for _ in range(10):
+                _save(store, tmp_path, design_id=f"d{i}", name=f"D{i}",
+                      when="2026-06-03T00:00:00+00:00")
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    def lister() -> None:
+        try:
+            while not stop.is_set():
+                store.list()
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    readers = [threading.Thread(target=lister) for _ in range(4)]
+    for r in readers:
+        r.start()
+    writers = [threading.Thread(target=saver, args=(i,)) for i in range(6)]
+    for w in writers:
+        w.start()
+    for w in writers:
+        w.join(timeout=30)
+    stop.set()
+    for r in readers:
+        r.join(timeout=5)
+    assert errors == []  # neither a save nor a concurrent read raised
+    assert len({e["id"] for e in store.list()}) == 6  # all six persisted, no torn meta
