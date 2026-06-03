@@ -113,6 +113,18 @@ class Config:
         bundled binary. Profile names in ``printers`` resolve to JSON files here."""
         return self.binary_path("orcaslicer").parent / "resources" / "profiles"
 
+    def printproof3d_binary(self) -> Path | None:
+        """The PrintProof3D validation-engine binary, or None when it isn't configured or
+        isn't present on disk (Stage 7). Optional by design: a missing engine means Smart
+        Mesh falls back to KimCad's own gate rather than failing. Resolves a relative path
+        against the project root, like :meth:`binary_path`, but never raises on absence."""
+        raw = self._d.get("binaries", {}).get("printproof3d")
+        if not raw:
+            return None
+        p = Path(raw)
+        p = p if p.is_absolute() else (PROJECT_ROOT / p)
+        return p if p.exists() else None
+
     # --- printers / materials ----------------------------------------------
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]

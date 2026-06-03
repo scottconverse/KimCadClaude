@@ -17,16 +17,23 @@
   **(1) ✅ DONE** — `src/kimcad/smart_mesh.py` readiness model + scoring (pure `assess_readiness`; PrintProof3D
   report is an optional typed input; verdict tone = worst of KimCad's gate/score/risk AND the engine's own
   status; honest attribution; audit-lite 0/0/0/0/0, `docs/audits/stage-7/audit-lite-slice-1-...md`).
-  **(2) RESUME HERE** — PrintProof3D arm's-length subprocess wrapper (`printproof3d.py`: invoke the CLI →
-  parse the JSON into `PrintProofReport`; map KimCad Printer/Material → PrintProof3D profile JSON or use its
-  bundled `profiles/`; configurable binary path via config `binaries.printproof3d`; injectable + mockable;
-  degrade gracefully when the binary is absent — readiness still works KimCad-only). **(3)** pipeline +
-  `PrintReport` + design-API integration (compute readiness in the assemble tail; gate hard-fails a
-  PrintProof3D fail beyond size/watertight). **(4)** the readiness report CARD (frontend, to design screen 10)
-  — UX-acceptance slice, RENDERED browser check. **(5)** learning/history store + the comparison line.
-  **(6)** docs + PrintProof3D tooling/config + stage-end `audit-team` gate → 0/0/0/0/0 → merge + tag `stage-7`.
-  NOTE: the "multiple-shells false-flag on hollow containers" the ROADMAP lists is ALREADY fixed
-  (`validation.py` `_stray_body_count`) — don't redo it. Branch green: **624 pytest (incl. live) + 37 vitest**.
+  **(2) ✅ DONE** — `src/kimcad/printproof3d.py` arm's-length wrapper: `validate_model(...)` invokes the CLI →
+  parses the JSON into `PrintProofReport`; generates valid PrintProof3D printer+material profile JSON from
+  KimCad's Printer/Material (`printer_profile`/`material_profile`); injectable `runner` (mockable); config
+  `binaries.printproof3d` + `Config.printproof3d_binary()` (None when absent → degrade); NEVER raises.
+  **LIVE-VERIFIED** against the real engine (returned a parsed report). audit-lite 0/0/0/0/0
+  (`docs/audits/stage-7/audit-lite-slice-2-...md`).
+  **(3) RESUME HERE** — pipeline + `PrintReport` + design-API integration: compute `assess_readiness(...)` in
+  the assemble tail (invoking `validate_model(mesh, printer, material, binary=config.printproof3d_binary())`),
+  fold `MeshReadiness` into `PrintReport` + the `/api/design` + `/api/render` responses; the gate hard-fails a
+  PrintProof3D `fail` beyond size/watertight. **⚠ BED-POSITION the mesh first**: translate the oriented mesh so
+  its min-corner sits at the bed origin `[0,build]` before calling `validate_model`, else every part trips a
+  false `MODEL_OUT_OF_BOUNDS` (PrintProof3D measures extents from the origin). **(4)** the readiness report CARD
+  (frontend, to design screen `10-smartmesh-report.png`) — UX-acceptance slice, RENDERED browser check.
+  **(5)** learning/history store + the comparison line. **(6)** docs + PrintProof3D tooling/config + stage-end
+  `audit-team` gate → 0/0/0/0/0 → merge + tag `stage-7`. NOTE: the "multiple-shells false-flag on hollow
+  containers" the ROADMAP lists is ALREADY fixed (`validation.py` `_stray_body_count`) — don't redo it.
+  Branch green: **638 pytest (incl. live) + 37 vitest**.
 
 - **✅ STAGE 6 IS DONE — merged to `main` and tagged `stage-6`** (the tag was advanced past the merge to
   this docs-DONE commit so the tagged artifact's docs say "done", not "pending" — the Stage-4/5 lesson).

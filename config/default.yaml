@@ -7,6 +7,11 @@ binaries:
   # Populated by the tools/ fetch step; override here for a system install.
   openscad: tools/openscad/openscad.exe
   orcaslicer: tools/orcaslicer/orca-slicer.exe
+  # Stage 7 validation engine (PrintProof3D, owner's MIT Rust binary, invoked at arm's length).
+  # Optional: absent by default, so Smart Mesh falls back to KimCad's own gate (honestly, at
+  # lower confidence). Point this at a built `printproof3d` (or `--printproof3d` override) to wire
+  # the deeper geometric validation in. Override in config/local.yaml per machine.
+  printproof3d: tools/printproof3d/printproof3d.exe
 
 llm:
   # Active backend: one of the keys under `backends`.
