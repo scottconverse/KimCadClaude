@@ -1,6 +1,23 @@
-# KimCad — Handoff (2026-06-02 — Stage 7 DONE: Smart Mesh + PrintProof3D + readiness report + learning store, merged to `main` + tagged `stage-7`; Stage 8 (CadQuery) next)
+# KimCad — Handoff (2026-06-03 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`; Stage 7 DONE + tagged `stage-7`)
 
 ## ⛔ READ FIRST
+
+- **🔧 STAGE 8.5 (Usability) IN PROGRESS — branch `stage-8.5-usability`** (off `main`/`stage-7`).
+  **= make the working core loop actually usable; 8.5-first, BEFORE the Stage 8 CadQuery backend**
+  (ratified by Scott 2026-06-03; spec Addendum B + design README addendum + `docs/stage-8.5-usability-plan.md`).
+  A code review of the shipped SPA found deal-killers: all in-memory (refresh wipes the part), no
+  saved-designs library, no in-workspace refinement (the "conversation" is one-shot; can't even
+  answer a clarifying question), no settings screen, mm-only, problems shown as text not on the
+  model, no progress on long model runs / no model-down recovery. **Slices** (each `audit-lite`
+  0/0/0/0/0 + a RENDERED desktop+mobile check; stage-end `audit-team` → merge → tag): (1) persistence
+  + "My Designs"; (2) refinement + version history (build the prototype's `VersionRail`); (3) numeric
+  editing; (4) units mm/inch; (5) settings + engine discoverability (`ModelPicker`); (6) problems on
+  the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
+  (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
+  DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 1.** CadQuery
+  (Stage 8) is feasibility-proven (CadQuery 2.7 + OCCT on 3.13, arm's-length subprocess worker — the
+  main venv is 3.14) but comes AFTER 8.5.
 
 - **✅ STAGE 7 IS DONE — merged to `main` and tagged `stage-7`** (the tag advanced past the merge to the
   docs-DONE commit so the tagged artifact's docs say "done"). All 6 slices passed `audit-lite` 0/0/0/0/0;
@@ -8,7 +25,7 @@
   fixed with a lock + atomic write) was remediated to **0/0/0/0/0**
   (`docs/audits/stage-7/audit-team-stage-7-2026-06-02/`). The deterministic slice gate is unchanged
   (readiness is advisory); PrintProof3D is optional/off-by-default; nothing leaves the machine.
-  **RESUME HERE = Stage 8 (CadQuery parallel backend).** Do NOT re-run the Stage 7 gate.
+  Do NOT re-run the Stage 7 gate. (RESUME is now Stage 8.5 — see the top bullet.)
   The historical Stage-7 build notes (slice plan + PrintProof3D contract) are retained below for reference.
 
 - **✅ PrintProof3D relationship — current truth (post-Stage-7, this session):** (1) During a post-stage

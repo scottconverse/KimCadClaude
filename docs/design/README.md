@@ -239,3 +239,38 @@ The prototype includes a “Tweaks” panel (toggle in the toolbar) to explore *
 To run the reference: open `prototype/KimCad.html` in a browser (needs internet for the CDN libraries + fonts).
 
 The controlling spec is `../KimCad-Unified-Product-Spec-v3.0.md`. A visual walkthrough is `../KimCad-Walkthrough.html` (open and print to PDF) and the same screens are in `screens/`.
+
+---
+
+## Addendum — Stage 8.5 usability (2026-06-03): finishing the deferred design intent
+
+A code-grounded review of the *shipped* SPA (2026-06-03) found the core loop works but much of the
+product around it — including several surfaces **already designed in this prototype** — was deferred
+during the build, leaving deal-killer gaps (no persistence; no in-workspace refinement; no settings;
+mm-only; problems shown as text, not on the model; no progress on long runs). **Stage 8.5 builds
+these now**, before the CadQuery backend. What/why: `../KimCad-Unified-Product-Spec-v3.0.md`
+Addendum B + `../stage-8.5-usability-plan.md`.
+
+**Build to THIS prototype where it already exists** (high-fidelity design source — recreate it
+faithfully in the React/TS SPA):
+- **`panels.jsx` → `VersionRail`** — the version history / timeline for Stage 8.5 Slice 2 (iterative
+  refinement). The SPA today has no version rail; build it from here.
+- **`wizard.jsx` → `FirstRunWizard` (5 steps)** — Slice 7 onboarding / first-run (detect Ollama,
+  pull the model, pick a printer). Designed here, never built.
+- **`advanced.jsx` → `ModelPicker`** — Slice 5 model selection inside the new Settings surface.
+- **`preview.jsx` → `KCViewport` click-to-point raycast + render modes** — the basis for Slice 6
+  (click a risk → focus that region on the model; highlight problem faces).
+- `ChatPanel` / `ParamPanel` (`panels.jsx`) — the in-workspace **refine-by-talking** input + numeric
+  param entry (Slices 2–3) follow these.
+
+**New surfaces this prototype did NOT cover** (design fresh, in the prototype's token system +
+Workshop theme; note them back here as built):
+- A **"My Designs" library + local persistence** (Slice 1) — the prototype assumed a single live
+  session; the product needs saved designs, reopen, auto-save/restore, and a real per-design URL.
+- A **full Settings screen** (Slice 5) beyond the model picker — printer/material defaults, units,
+  optional-engine (CadQuery / PrintProof3D) enable + install status.
+- **Units (mm/inch)** (Slice 4) across every dimension surface.
+- **On-model problem highlighting** (Slice 6) — coloring overhang/adhesion faces, beyond the
+  prototype's click-to-point.
+
+Each slice's rendered (desktop + mobile) audit-lite is the fidelity check against this design.

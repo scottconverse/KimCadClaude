@@ -205,8 +205,31 @@ Slices 1–6 each passed `audit-lite` at 0/0/0/0/0; the full 5-role `audit-team`
 passing parts are genuinely print-ready. **Remaining for the stage gate:** the full `audit-team` at
 0/0/0/0/0 → merge → tag `stage-7`. **Needs:** target box. **Size:** ~2–3 weeks.
 
-## Stage 8 — CadQuery parallel backend
-**Goal:** a second, type-safe CAD backend and real CAD export.
+## Stage 8.5 — Usability: turn the demo into a tool people keep  🔧 IN PROGRESS (branch `stage-8.5-usability`)
+**Status: IN PROGRESS — executed BEFORE the Stage 8 CadQuery backend (8.5-first, ratified 2026-06-03;
+spec Addendum B).** Full punch list: `docs/stage-8.5-usability-plan.md`.
+**Goal:** fix the deal-killers that make the working core loop unusable for real, repeated use — and
+finish the design-spec surfaces (`docs/design/`) that were deferred during the build.
+**Why first:** the built UI is all in-memory (a refresh wipes the part), has no saved-designs
+library, no in-workspace refinement (the "conversation" is one-shot), no settings screen, mm-only,
+shows problems as text not on the model, and gives no real progress on long model runs. CadQuery
+would otherwise stack a second power feature on a base that loses your work on refresh.
+**Slices** (each `audit-lite` → 0/0/0/0/0 with a rendered desktop+mobile check; stage-end `audit-team`
+→ 0/0/0/0/0 → merge → tag): (1) persistence + "My Designs"; (2) iterative refinement + version
+history (build the prototype's `VersionRail`); (3) direct numeric editing; (4) units (mm/inch);
+(5) settings + engine discoverability (`ModelPicker`); (6) problems shown on the model (viewport
+raycast/highlight); (7) onboarding / model-down / progress / help (`FirstRunWizard`); (8) output
+clarity + print preview; (9) responsive, accessibility, copy, polish.
+**Exit:** a person can make a part, leave, come back, refine it, set units, see problems on the model,
+and discover the optional engines — without hitting a wall. **Needs:** target box. **Size:** large.
+
+## Stage 8 — CadQuery parallel backend  (after Stage 8.5)
+**Goal:** a second, type-safe CAD backend and real CAD export. **Feasibility proven** 2026-06-03:
+CadQuery 2.7 + real OCCT (OCP 7.8.1) installs + exports STEP/BREP/STL cleanly on Python 3.13 in an
+isolated venv. Note: the main KimCad venv is **3.14** (CadQuery tops out at 3.13), so the backend
+runs as an **arm's-length subprocess worker in its own 3.13 venv** (like OpenSCAD/OrcaSlicer/
+PrintProof3D), not an in-process import — keeps the main runtime on 3.14 and the heavy OCCT
+dependency optional. Discoverability (the enable UI) lands in Stage 8.5 Slice 5.
 - `kimcad.cadquery` parallel to `kimcad.openscad`, **real OCCT on Python 3.13** (CadQuery supports
   3.9–3.13 — pin 3.13; not a trimesh stub); a CadQuery module library + prompts; **STEP/BREP
   export**; renderer choice in config, parity-validated.
