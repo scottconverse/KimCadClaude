@@ -629,6 +629,21 @@ input {
   .kc-design-btn {
     justify-content: center;
   }
+  /* M-1 (wiring-audit): a narrow viewport is a phone-sized / cramped context, so give the card
+     actions a real 44px touch target here too — not only under `pointer: coarse` (which a desktop
+     browser resized to 375px never reports). Belt-and-suspenders with the coarse-pointer rule. */
+  .kc-design-act {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .kc-design-actions {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .kc-design-act-danger {
+    margin-left: auto;
+  }
 }
 
 /* Respect "reduce motion": no spinners, fade-ups, or transitions for users who opt out (the
@@ -1446,12 +1461,19 @@ input {
 }
 .kc-design-thumb-empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   color: var(--kc-muted);
   font-size: 13px;
   text-transform: capitalize;
   background: var(--kc-surface-2);
+}
+/* L-1 (wiring-audit): the cube glyph reads as an intentional "no preview yet" placeholder for
+   thumb-less designs (imports / legacy), so the grid is visually consistent with rendered thumbs. */
+.kc-design-thumb-empty svg {
+  opacity: 0.45;
 }
 
 .kc-design-meta {

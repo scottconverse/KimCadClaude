@@ -12,21 +12,26 @@ This stage fixes **all** of them. Nothing is "too small to include": the polish 
 
 **Grounded in the current build** (verified by reading the source, 2026-06-03): the whole app is
 `Landing → Workspace(Chat | Viewport | RightPanel[Parameters, Readiness, Printability, Export]) +
-a Topbar with one "New design" button`. State is **all in-memory** (no routing, no persistence — a
-browser refresh wipes the current part). There is **no** settings screen, **no** units handling
+a Topbar with one "New design" button`. State *was* **all in-memory** (no routing, no persistence — a
+browser refresh wiped the current part) — **Slice 1 has since added routing + local persistence + the
+"My Designs" library**; the baseline below describes the rest still open. There is **no** settings screen, **no** units handling
 (mm only), **no** saved-designs surface, **no** follow-up/refine input in the workspace, **no**
 problem visualization on the model, and **no** real progress during the multi-minute model call.
 
 ---
 
-## Process (same bar as Stages 5–7)
+## Process (same bar as Stages 5–7, plus a runtime wiring gate)
 Each slice: build → real `audit-lite` (with a **rendered** desktop+mobile browser check, since this
-is UI) → fix every finding to 0/0/0/0/0 → push. Stage end: full 5-role `audit-team` → 0/0/0/0/0 →
-merge → tag. UX is the acceptance gate, not an afterthought.
+is UI) → fix every finding to 0/0/0/0/0 → push. Slice/stage end: full 5-role `audit-team` (static —
+code/docs/tests) → fix to 0/0/0/0/0 → **`wiring-audit` (runtime — drives the real app in a browser
+and proves every control is genuinely wired + persists, not just cosmetic)** → fix to 0/0/0/0/0 →
+THEN hand to Scott for his walkthrough + approval. Stage end: merge → tag. The two audit lanes are
+not interchangeable — `audit-team` reads the code, `wiring-audit` drives the running interface; run
+both. UX is the acceptance gate, not an afterthought.
 
 ---
 
-## Slice 1 — Persistence + "My Designs" (your work stops vanishing)
+## Slice 1 — Persistence + "My Designs" (your work stops vanishing) — ✅ DONE (on branch `stage-8.5-usability`; `audit-team` + two re-audits → 0/0/0/0/0; pending Scott's approval)
 **Goal:** the app remembers what you made; you can come back to it.
 - 🔴 **Persist designs locally** — plan, parameters, the mesh, a thumbnail, a name, a timestamp. (The Stage-7 learning store already records metadata; this is the real saved-design store + API.)
 - 🔴 **Auto-save the current design + restore on reload** — a refresh (or a crash) no longer loses the part.
@@ -58,21 +63,43 @@ merge → tag. UX is the acceptance gate, not an afterthought.
 - 🟠 Store canonical mm, display the chosen unit; round-trip without drift; sensible rounding per unit.
 - 🟡 A quick unit toggle near the dimensions, not buried in settings.
 
-## Slice 5 — Settings + engine discoverability (config files → in-app)
-**Goal:** there's an actual place in the app to see and change things — and to *discover* the optional engines.
+## Slice 5 — Advanced on-ramps & trust (DESIGN ONLY — no code; Scott's review is the gate)
+**Goal:** figure out the UI/UX **and the trust posture** for the three advanced on-ramps *before* a line of them is built — UI-first, the way the rest of the product is gated. (Inserted 2026-06-03 at Scott's direction: the photo on-ramp, the cloud path, and the experimental generator all get designed first, here, rather than bolted on later.)
+- **Design the surfaces** (flows + mockups against the Workshop design system): (a) the **model picker** (gemma4:e4b the default, always); (b) the **cloud opt-in** (OpenRouter — an API-key field + a clear local/cloud label); (c) the **experimental raw-codegen generator** toggle; (d) the **photo input mode** (an alternate "describe with a photo" on-ramp).
+- **Lock the trust rules below** in writing as hard constraints on the builds that follow.
+- Deliverable: a design doc + mockups, reviewed and approved by Scott. No product code ships in this slice.
+
+### Trust rules — HARD constraints on Slices 6–7 (settled; not re-decided ad hoc)
+- **gemma4:e4b is the only default** — text, codegen, **and vision** (the photo on-ramp uses *its* vision). Nothing silently switches models; no alternative is offered in the UI; a Chinese model (Qwen/MiniCPM/Qwen-VL) is never a default or a recommendation. Qwen stays a manual `--backend` only.
+- **Cloud is always opt-in, OFF by default, and labeled** "this sends data off your machine" at the point of use. Local-first stays the resting truth.
+- **API key = a normal Settings field** (this is a consumer product): the user enters it and saves it; on reopening Settings it's shown **masked — last 5–6 characters only**. Never stored in the repo or logs; the full secret is never echoed back.
+- **The experimental raw-codegen generator is OFF by default, labeled untrusted/experimental**, and runs **only** through the existing `openscad_runner` sandbox (blocked-code check — bans file-I/O `import()`/`surface()`, `use`/`include` outside the bundled `library/`, and `minkowski()` — plus cwd isolation, render timeout, output-size cap). It never bypasses the Printability Gate.
+- **Photo on-ramp** uses gemma4:e4b's **local** vision; the photo never auto-sends; it produces a *rough seed* the user then refines (Slice 2 conversation + Slice 3 numeric entry), not a finished part.
+
+## Slice 6 — Settings + engine discoverability (config files → in-app)
+**Goal:** there's an actual place in the app to see and change things — and to *discover* the optional engines and the advanced on-ramps. Builds the cloud + experimental toggles per the Slice-5 design.
 - 🔴 **An in-app Settings screen** — default printer + material, units, and where the model/tools status lives. Today every one of these is YAML a normal person never opens.
-- 🔴 **Model status + control** — is Ollama running? is the model pulled? which model? Surfaced and switchable, not silent.
+- 🔴 **Model status + control** — is Ollama running? is `gemma4:e4b` pulled? Surfaced clearly; gemma4:e4b stays the default (no model menu that pushes alternatives).
 - 🔴 **Optional-engine management** — CadQuery (precision CAD, Stage 8) and PrintProof3D (deeper validation) shown as **available, one-click-enable** capabilities with install/download status. "Off by default" must mean *not downloaded*, **not hidden**.
+- 🟠 **Cloud opt-in (per the Slice-5 design)** — an OpenRouter **API-key field (enter + save + masked redisplay, last 5–6 chars)** with a clear local/cloud label; off by default; "sends data off your machine" stated at the point of use.
+- 🟠 **Experimental raw-codegen toggle (per the Slice-5 design)** — off by default, labeled untrusted, routed through the `openscad_runner` sandbox; never bypasses the Printability Gate.
 - 🟠 **Contextual enable** — the Export panel's "STEP/BREP" offers to turn on CadQuery right there; the readiness card surfaces "deeper validation available." Discovery at the moment of need.
 - 🟡 Tools health (OpenSCAD / OrcaSlicer present?), an About/version, a reset.
 
-## Slice 6 — Show problems on the model (text → visual)
+## Slice 7 — Photo on-ramp ("describe with a photo")
+**Goal:** start a design from a photo, **locally** — pulled forward from Stage 9 because it's UI-first and built per the Slice-5 design.
+- 🔴 **A "use a photo" input mode** — upload/drop a photo; **gemma4:e4b's local vision** reads it into a description + rough proportions that **seed the existing text→DesignPlan path** (it does not replace or bypass it). No cloud required.
+- 🔴 **Honest framing** — the result is a *rough starting point* refined with the conversation (Slice 2) + numeric entry (Slice 3); a photo carries no scale, so dimensions are estimates until the user sets them. No "photo → finished part" promise.
+- 🟠 **The photo never auto-sends** — local vision by default; any cloud vision path is opt-in + labeled per the trust rules.
+- 🟡 Sensible states — an unreadable / over-large image, a "couldn't read that photo," and real progress while the vision model runs on CPU.
+
+## Slice 8 — Show problems on the model (text → visual)
 **Goal:** the validator already knows *where* the overhang is — show it.
 - 🟠🔴 **Highlight problem regions in the 3D viewport** — overhangs, poor bed contact, etc., colored on the actual model. (PrintProof3D returns the exact triangles; KimCad currently throws that geometry away and shows a word. Keep + forward it.)
 - 🟠 **Click a risk in the readiness card → focus/zoom that region** on the model; hover to preview.
 - 🟡 A legend + an on/off toggle for the overlays; the same treatment for locatable gate findings.
 
-## Slice 7 — Onboarding, the model-down wall, progress, help
+## Slice 9 — Onboarding, the model-down wall, progress, help
 **Goal:** a new user (or a stalled model) doesn't hit a dead end that reads as "broken."
 - 🔴 **The model-not-running state** — if Ollama isn't up, a clear, recoverable "your local AI isn't running — here's how to start it," not a raw error string.
 - 🔴 **Real progress on long runs** — a CPU model call takes minutes; today it's one spinner + "Designing your part…", which reads as frozen. Show steps (planning → generating → rendering → validating) and "this can take a minute on your hardware."
@@ -80,13 +107,13 @@ merge → tag. UX is the acceptance gate, not an afterthought.
 - 🟠 **In-app help / a glossary** — plain-language tooltips on gate / readiness / manifold / slice.
 - 🟡 Audit **every** surface's empty / loading / error state for human, recoverable copy (the "no too small" sweep).
 
-## Slice 8 — Output clarity & print preview
+## Slice 10 — Output clarity & print preview
 **Goal:** you can see what you're actually going to get.
 - 🟠 **Break out the estimate** — time, filament length **and** weight, layer count (maybe a rough cost), not one text blob.
 - 🟠 **A print preview** — a sliced/layer view, or at least a clearer "this is your part → this is the print."
 - 🟡 Surface the export formats clearly (STL / 3MF today; STEP / BREP arrives with Stage 8); a copy-the-file affordance.
 
-## Slice 9 — Responsive, accessibility, copy, polish (cross-cutting)
+## Slice 11 — Responsive, accessibility, copy, polish (cross-cutting)
 **Goal:** finished, not just functional. The explicit "no too small" tier.
 - 🟠 **Mobile actually usable** — the stacked workspace, the viewport on touch, and the new gallery/settings screens work on a phone (not just "non-overlapping").
 - 🟠 **Accessibility sweep** — focus management across the new screens, keyboard nav, ARIA, the gallery/settings/overlay surfaces.
@@ -98,9 +125,9 @@ merge → tag. UX is the acceptance gate, not an afterthought.
 
 ## Sequencing note (one open decision)
 Named "8.5," but several slices interlock with **Stage 8 (CadQuery)**: the settings/engine-enable
-surface (Slice 5) is exactly what makes CadQuery discoverable, persistence (Slice 1) is what saves a
+surface (Slice 6) is exactly what makes CadQuery discoverable, persistence (Slice 1) is what saves a
 STEP export, and units (Slice 4) matter for precision CAD. **Recommendation: do Stage 8.5 first (or
-at least Slices 1, 4, 5 before the CadQuery backend)** so CadQuery lands into a product that can
+at least Slices 1, 4, 6 before the CadQuery backend)** so CadQuery lands into a product that can
 actually surface, persist, and present it — rather than adding a second power feature on top of a
 foundation that still loses your work on refresh. Open to doing 8 → 8.5 if you'd rather finish the
 backend first.

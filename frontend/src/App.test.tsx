@@ -145,6 +145,28 @@ describe('App restore-on-load (Stage 8.5)', () => {
     expect((await screen.findByTestId('mesh-url')).textContent).toBe('/api/mesh/7')
     expect(screen.queryByLabelText(/describe the part/i)).toBeNull()
   })
+
+  it('does not re-save on a pure reopen until the user edits (L-2)', async () => {
+    const api = await import('./api')
+    ;(api.reopenDesign as Mock).mockResolvedValue({
+      ...templateResult('/api/mesh/7'),
+      saved_id: 'abc',
+    })
+    window.location.hash = '#/design/abc'
+
+    render(<App />)
+    await screen.findByTestId('mesh-url')
+    // The viewport frames the restored part -> model-ready fires. The design is already saved and
+    // unchanged, so NO redundant save POST should go out.
+    fireEvent.click(screen.getByRole('button', { name: 'frame-model' }))
+    expect(api.saveDesign).not.toHaveBeenCalled()
+
+    // An actual edit (re-render) clears the guard and re-saves the entry in place.
+    ;(api.postRender as Mock).mockResolvedValue({ ...templateResult('/api/mesh/7?v=2'), saved_id: 'abc' })
+    fireEvent.click(screen.getByRole('button', { name: 'do-rerender' }))
+    fireEvent.click(screen.getByRole('button', { name: 'frame-model' }))
+    await waitFor(() => expect(api.saveDesign).toHaveBeenCalled(), { timeout: 1500 })
+  })
 })
 
 describe('App auto-save lifecycle (Stage 8.5)', () => {

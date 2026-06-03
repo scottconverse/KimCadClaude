@@ -94,7 +94,13 @@ function DesignCard({
           <img className="kc-design-thumb" src={design.thumb_url} alt="" loading="lazy" />
         ) : (
           <div className="kc-design-thumb kc-design-thumb-empty" aria-hidden="true">
-            {design.object_type || 'part'}
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor"
+              strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2 21 7v10l-9 5-9-5V7Z" />
+              <path d="M3 7l9 5 9-5" />
+              <path d="M12 12v10" />
+            </svg>
+            <span>{design.object_type || 'part'}</span>
           </div>
         )}
       </button>

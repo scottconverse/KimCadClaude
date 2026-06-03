@@ -46,6 +46,10 @@ export default function App() {
   // create (which would spawn a duplicate library entry). The in-flight create sets saved_id;
   // subsequent re-renders then re-save the single entry.
   const creatingRef = useRef(false)
+  // L-2 (wiring-audit): set when a design is freshly reopened/restored, so the model-ready that
+  // follows doesn't fire a redundant re-save of unchanged, already-saved work. Cleared on the next
+  // frame or a new design; an actual edit (re-render) re-saves normally.
+  const restoredRef = useRef(false)
   // UX-001: a visible save indicator so the user can SEE auto-save work, instead of wondering
   // whether their part survived. 'saving' is transient; once persisted the Topbar shows a resting
   // "Saved · My Designs" (driven by result.saved_id); 'error' self-heals via one delayed retry.
@@ -118,6 +122,12 @@ export default function App() {
   const handleModelReady = useCallback(
     (capture: () => string | null) => {
       captureRef.current = capture
+      // L-2: a just-restored design is already saved + unchanged — don't re-save it merely because
+      // the viewport framed it. The next real edit (a re-render) clears this and re-saves normally.
+      if (restoredRef.current) {
+        restoredRef.current = false
+        return
+      }
       void persist()
     },
     [persist],
@@ -130,6 +140,7 @@ export default function App() {
       window.clearTimeout(retryRef.current)
       retryRef.current = null
     }
+    restoredRef.current = false
     setSaveState('idle')
   }
 
@@ -210,6 +221,7 @@ export default function App() {
         if (cancelled) return
         setPrompt(r.prompt ?? '')
         applyResult(r)
+        restoredRef.current = true // L-2: skip the redundant re-save on the restore's model-ready
       })
       .catch(() => {
         if (!cancelled) setError("That design couldn't be opened.")
