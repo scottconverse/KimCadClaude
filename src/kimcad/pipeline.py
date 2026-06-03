@@ -17,6 +17,7 @@ Two safety behaviors from the threat model (§12) live here, not in the leaf sta
 
 from __future__ import annotations
 
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -35,6 +36,8 @@ from kimcad.openscad_runner import (
 )
 from kimcad.orientation import Orientation, auto_orient
 from kimcad.printability import Finding, GateResult, Level, dim_tolerance, run_gate
+from kimcad.printproof3d import validate_model
+from kimcad.smart_mesh import MeshReadiness, assess_readiness
 from kimcad.slicer import (
     OrcaProfileError,
     SliceError,
@@ -152,6 +155,9 @@ class PrintReport:
     slice_note: str | None = None
     # (machine, process, filament) profile names actually used for the slice.
     slice_profiles: tuple[str, str, str] | None = None
+    # Stage 7: the Smart Mesh readiness verdict (score / risks / recommendations / confidence),
+    # synthesized from the gate + an optional PrintProof3D validation. Always present.
+    readiness: MeshReadiness | None = None
 
     def to_text(self) -> str:
         ax, ay, az = self.actual_bbox_mm
@@ -174,6 +180,18 @@ class PrintReport:
         ]
         if self.harden_summary:
             lines.append(f"Hardening: {self.harden_summary}")
+        if self.readiness is not None:
+            r = self.readiness
+            lines.append(
+                f"Readiness: {r.score}/100 — {r.verdict} "
+                f"(confidence {r.confidence}; via {r.attribution})"
+            )
+            for risk in r.risks:
+                lines.append(f"  Risk: {risk.title} — {risk.detail}")
+            for rec in r.recommendations:
+                lines.append(f"  Suggest: {rec}")
+            if r.comparison:
+                lines.append(f"  History: {r.comparison}")
         if self.sliced:
             detail = f" ({self.gcode_lines} G-code lines)" if self.gcode_lines else ""
             lines.append(f"Slice: G-code produced{detail} -> {self.gcode_path}")
@@ -372,6 +390,7 @@ class Pipeline:
         basename: str,
         proceed_anyway: bool,
         confirm_print: bool,
+        run_engine: bool = True,
     ) -> PipelineResult:
         """Shared tail for both a prompt-driven ``run`` and a live-slider ``rerender``:
         orient, harden + export the manifold mesh, build the report, then — on a gate FAIL —
@@ -398,6 +417,14 @@ class Pipeline:
             report.watertight = hardened_mr.watertight
             report.volume_mm3 = hardened_mr.volume_mm3
             report.n_bodies = hardened_mr.n_bodies
+
+        # Stage 7: the Smart Mesh readiness verdict, on the report so both the gate-failed and
+        # completed paths carry it. Computed on the FINAL hardened mesh (the artifact that ships),
+        # using PrintProof3D's deeper validation when the engine is configured, else the gate
+        # alone. The live-slider rerender passes run_engine=False so a drag stays snappy.
+        report.readiness = self._compute_readiness(
+            gate, mesh_report, hardened, run_engine=run_engine
+        )
 
         if gate.status is Level.FAIL and not proceed_anyway:
             return PipelineResult(
@@ -445,6 +472,38 @@ class Pipeline:
             slice_error=slice_error,
             render_attempts=attempts,
             template=match,
+        )
+
+    def _compute_readiness(
+        self, gate: GateResult, mesh_report: MeshReport, hardened: Any, *, run_engine: bool = True
+    ) -> MeshReadiness:
+        """Synthesize the Smart Mesh readiness for the hardened (final) mesh. Runs the deeper
+        PrintProof3D validation when the engine is configured, else falls back to the gate alone.
+        The mesh is **bed-positioned** (min-corner -> bed origin) before validation, because
+        PrintProof3D measures extents from ``[0, build]`` and a centered part would false-flag
+        out-of-bounds. Best-effort: a failure to run PrintProof3D never breaks the pipeline.
+
+        ``run_engine=False`` skips the engine subprocess entirely and computes the instant
+        gate-only verdict — used on the live-slider ``rerender`` hot path so a debounced drag
+        never blocks on a deep-validation subprocess (the engine validates once on the initial
+        design instead). The gate-only readiness is honestly attributed, so the card stays
+        consistent across a drag."""
+        printproof = None
+        binary = self.config.printproof3d_binary()
+        if binary is not None and run_engine:
+            try:
+                bed = hardened.copy()
+                bed.apply_translation(-bed.bounds[0])  # min-corner -> (0, 0, 0)
+                with tempfile.TemporaryDirectory(prefix="kimcad-pp3d-mesh-") as td:
+                    stl = Path(td) / "bed.stl"
+                    bed.export(str(stl))
+                    printproof = validate_model(
+                        str(stl), self.printer, self.material, binary=binary
+                    )
+            except Exception:  # noqa: BLE001 - readiness must never break the build
+                printproof = None
+        return assess_readiness(
+            gate, mesh_report, material_name=self.material.name, printproof=printproof
         )
 
     def rerender(
@@ -509,6 +568,9 @@ class Pipeline:
             basename=basename,
             proceed_anyway=proceed_anyway,
             confirm_print=confirm_print,
+            # Live-slider hot path: skip the engine subprocess so a debounced drag stays snappy;
+            # the gate-only readiness is computed instantly and honestly attributed.
+            run_engine=False,
         )
 
     @staticmethod

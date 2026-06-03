@@ -69,6 +69,25 @@ def _plan_payload(plan: Any) -> dict[str, Any]:
     }
 
 
+def _readiness_payload(readiness: Any) -> dict[str, Any] | None:
+    """Shape the Smart Mesh readiness verdict for the report card (Stage 7). None when the
+    pipeline didn't attach one (older results / non-completed paths)."""
+    if readiness is None:
+        return None
+    return {
+        "score": readiness.score,
+        "verdict": readiness.verdict,
+        "tone": readiness.tone,
+        "confidence": readiness.confidence,
+        "risks": [
+            {"title": r.title, "detail": r.detail, "tone": r.tone} for r in readiness.risks
+        ],
+        "recommendations": list(readiness.recommendations),
+        "comparison": readiness.comparison,
+        "attribution": readiness.attribution,
+    }
+
+
 def _report_payload(report: Any) -> dict[str, Any]:
     dims = []
     if report.target_bbox_mm:
@@ -92,6 +111,7 @@ def _report_payload(report: Any) -> dict[str, Any]:
         "watertight": report.watertight,
         "volume_mm3": round(float(report.volume_mm3), 1),
         "orientation": report.orientation,
+        "readiness": _readiness_payload(getattr(report, "readiness", None)),
     }
 
 
