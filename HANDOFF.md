@@ -42,12 +42,12 @@
   comparison line (strictly factual; recorded once per design, never per slider drag; default `~/.kimcad/history.json`,
   never the repo). CLI/non-demo-web inject the store; default Pipeline + demo stay history-less. audit-lite
   0/0/0/0/0 (`...slice-5-...md`).
-  **(6) ✅ DOCS DONE** — CHANGELOG/ROADMAP/README/ARCHITECTURE updated (Stage 7 = implemented-on-branch, NOT
-  yet merged/tagged — the Stage-4 lesson); `config/default.yaml` documents `binaries.printproof3d` + `paths.history`;
-  `docs/printproof3d-integration.md` = the engine build/wire/contract/privacy doc. **REMAINING = the stage-end
-  `audit-team` gate (all 5 roles) over `main...stage-7-smart-mesh` → fix all to 0/0/0/0/0 → merge → tag `stage-7`
-  → then report.** NOTE: the "multiple-shells false-flag on hollow containers" the ROADMAP lists is ALREADY fixed
-  (`validation.py` `_stray_body_count`) — don't redo it. Branch green: **664 pytest (incl. live) + 43 vitest**.
+  **(6) ✅ DONE** — docs (CHANGELOG/ROADMAP/README/ARCHITECTURE) + `config/default.yaml`
+  (`binaries.printproof3d` + `paths.history`) + `docs/printproof3d-integration.md`. **(GATE) ✅ DONE** —
+  the full 5-role `audit-team` over `main...stage-7-smart-mesh` (0B/0C/1Maj/11Min/9Nit) remediated to
+  **0/0/0/0/0** → merged to `main` → tagged `stage-7`. NOTE: the "multiple-shells false-flag on hollow
+  containers" the ROADMAP lists was ALREADY fixed (`validation.py` `_stray_body_count`). Final gate:
+  **668 pytest (incl. live) + 43 vitest**.
 
 - **✅ STAGE 6 IS DONE — merged to `main` and tagged `stage-6`** (the tag was advanced past the merge to
   this docs-DONE commit so the tagged artifact's docs say "done", not "pending" — the Stage-4/5 lesson).
