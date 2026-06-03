@@ -21,7 +21,7 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU.
 ```
 prompt → design plan (JSON) → OpenSCAD → render → mesh validation
        → Printability Gate → auto-orient → harden (Manifold3D)
-       → [confirm] slice → validated print job + report
+       → Smart Mesh readiness → [confirm] slice → validated print job + report
 ```
 
 The engine is deterministic where it counts. Parametric CSG produces closed,
@@ -30,6 +30,14 @@ lumpy neural meshes. For template-backed parts the browser UI shows **live
 parameter sliders**: drag one and the part re-renders locally in well under a
 second with no model call (the `templates.py` engine; proof in
 `docs/benchmarks/stage-5-template-families.md`).
+
+Every built part gets a **Smart Mesh readiness** report card — a 0–100 score, a plain
+verdict, the risks, and concrete recommendations — synthesized from the Printability Gate
+plus, when it's configured, the optional arm's-length **PrintProof3D** validation engine, and
+— once you've designed a few parts — an honest "compared to your past parts" line from a
+local-first history. It's advisory: the
+deterministic gate stays the slice authority, and the card never claims the engine ran when it
+didn't. *(Stage 7 — implemented on the `stage-7-smart-mesh` branch, pending its stage gate.)*
 
 ## Requirements
 

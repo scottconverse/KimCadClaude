@@ -1,6 +1,44 @@
-# KimCad — Handoff (2026-06-02 — Stage 6 DONE: model layer, merged to `main` + tagged `stage-6`)
+# KimCad — Handoff (2026-06-02 — Stage 7 IN PROGRESS: Smart Mesh + PrintProof3D, Slices 1–5 done + Slice 6 docs done on `stage-7-smart-mesh`; stage gate next)
 
 ## ⛔ READ FIRST
+
+- **🔧 STAGE 7 IN PROGRESS — branch `stage-7-smart-mesh`** (off `main`/`stage-6`; pushed; NOT merged).
+  **= Smart Mesh + PrintProof3D + readiness report.** Architecture (spec §6.12): **PrintProof3D is the
+  per-artifact validation ENGINE; Smart Mesh is KimCad's synthesis + history layer on top** that outputs
+  the readiness report card (design screen `docs/design/screens/10-smartmesh-report.png`: a score gauge,
+  verdict, confidence badge, risks, recommendations, comparison-to-past line, "PrintProof3D validation
+  engine" attribution). **PrintProof3D is BUILT + available locally** at
+  `C:\Users\scott\Documents\antigravity\eager-archimedes\PrintProof3D\target\release\printproof3d.exe`
+  (owner's MIT Rust engine; NOT bundled in this repo) — CLI:
+  `printproof3d validate-model --model <stl> --printer <profile.json> --material <profile.json> -o <report.json>`;
+  output schema = `…\PrintProof3D\schemas\validation_report.schema.json` (status pass/warning/fail ·
+  confidence_level · issues[] {id like `OVERHANG_UNSUPPORTED`, message, severity blocker|critical|major|minor|nit,
+  suggested_fixes[], region}). **Slice plan (per-slice: real `audit-lite` → fix → push) — SLICES 1–6 DONE:**
+  **(1) ✅ DONE** — `src/kimcad/smart_mesh.py` readiness model + scoring (pure `assess_readiness`; PrintProof3D
+  report is an optional typed input; verdict tone = worst of KimCad's gate/score/risk AND the engine's own
+  status; honest attribution; audit-lite 0/0/0/0/0, `docs/audits/stage-7/audit-lite-slice-1-...md`).
+  **(2) ✅ DONE** — `src/kimcad/printproof3d.py` arm's-length wrapper (`validate_model`); generates the engine's
+  profile JSON from KimCad's Printer/Material; injectable runner; `binaries.printproof3d` +
+  `Config.printproof3d_binary()`; NEVER raises; LIVE-VERIFIED. audit-lite 0/0/0/0/0 (`...slice-2-...md`).
+  **(3) ✅ DONE** — pipeline + `PrintReport.readiness` + `/api/design`+`/api/render` `readiness` block.
+  `_compute_readiness` bed-positions a COPY of the hardened mesh (min-corner → origin) before `validate_model`;
+  best-effort (never breaks the build); the slice gate is UNCHANGED (readiness is advisory); the rerender path
+  computes a fast gate-only readiness. audit-lite 0/0/0/0/0 (`...slice-3-...md`).
+  **(4) ✅ DONE** — the readiness report CARD (`frontend/src/components/RightPanel.tsx`): SVG score gauge,
+  verdict, confidence badge + blurb, risks (with a non-color a11y cue), checkmarked recommendations, comparison
+  line, honest attribution; the Printability badge reframed ("Passed"/"Needs review"/"Failed") so it doesn't
+  duplicate the readiness headline. RENDERED-checked live (desktop+mobile; JPEG screenshot tool times out in
+  this env — used DOM/computed-style, per the Stage-5 note). audit-lite 0/0/0/0/0 (`...slice-4-...md`).
+  **(5) ✅ DONE** — `src/kimcad/history.py` local-first learning store + the honest "compared to your past parts"
+  comparison line (strictly factual; recorded once per design, never per slider drag; default `~/.kimcad/history.json`,
+  never the repo). CLI/non-demo-web inject the store; default Pipeline + demo stay history-less. audit-lite
+  0/0/0/0/0 (`...slice-5-...md`).
+  **(6) ✅ DOCS DONE** — CHANGELOG/ROADMAP/README/ARCHITECTURE updated (Stage 7 = implemented-on-branch, NOT
+  yet merged/tagged — the Stage-4 lesson); `config/default.yaml` documents `binaries.printproof3d` + `paths.history`;
+  `docs/printproof3d-integration.md` = the engine build/wire/contract/privacy doc. **REMAINING = the stage-end
+  `audit-team` gate (all 5 roles) over `main...stage-7-smart-mesh` → fix all to 0/0/0/0/0 → merge → tag `stage-7`
+  → then report.** NOTE: the "multiple-shells false-flag on hollow containers" the ROADMAP lists is ALREADY fixed
+  (`validation.py` `_stray_body_count`) — don't redo it. Branch green: **664 pytest (incl. live) + 43 vitest**.
 
 - **✅ STAGE 6 IS DONE — merged to `main` and tagged `stage-6`** (the tag was advanced past the merge to
   this docs-DONE commit so the tagged artifact's docs say "done", not "pending" — the Stage-4/5 lesson).
@@ -70,8 +108,9 @@ for the NL→structured-plan step; a bigger qwen is larger than gemma → slower
 13 Minor · 11 Nit = 31; the Critical was a stale bake-off doc showing qwen winning, the inverse of the
 verdict). Every finding was remediated to **0/0/0/0/0** (`REMEDIATION.md`), the native Windows gate passed
 (ruff; **609 pytest incl. live OrcaSlicer**; **37 vitest**; SPA build reproducible), and the branch was
-merged to `main` + tagged `stage-6`. The model decision is SETTLED (gemma stays; qwen rejected) — do NOT
-reopen it. **NEXT = Stage 7 (Smart Mesh + PrintProof3D + readiness report).**
+merged to `main` + tagged `stage-6`. (That 609/37 is the Stage-6-gate count — the current Stage-7 branch
+is 664 pytest + 43 vitest, per the Stage-7 block at the top.) The model decision is SETTLED (gemma stays;
+qwen rejected) — do NOT reopen it. **NEXT = Stage 7 (Smart Mesh + PrintProof3D + readiness report).**
 
 ---
 

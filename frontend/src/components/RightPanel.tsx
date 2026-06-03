@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
-import type { DesignResponse, ParamSpec } from '../api'
-import { gateLabel, gateTone, isFailureStatus } from '../designStatus'
+import type { DesignResponse, ParamSpec, ReadinessPayload } from '../api'
+import { gateLabel, gateTone, isFailureStatus, readinessTone } from '../designStatus'
 import ExportPanel from './ExportPanel'
 
 // Right column — parameters + printability, rendered from the design result.
@@ -174,6 +174,132 @@ function ParametersCard({
   )
 }
 
+// Stage 7 — the Smart Mesh readiness card: the synthesized "should I print this?" verdict that
+// sits atop the detailed printability breakdown. A score gauge, a plain verdict, a confidence
+// badge, the risks, concrete recommendations, an optional history line, and an honest attribution
+// of what backed the call (the gate alone, or the PrintProof3D engine).
+
+const CONFIDENCE_BLURB: Record<string, string> = {
+  High: 'Validated by the PrintProof3D engine.',
+  Medium: 'From KimCad’s printability gate.',
+  Low: 'Provisional — the mesh could only be partly analyzed.',
+}
+
+// A screen-reader-only severity word per risk tone, so the warn/red tier isn't conveyed by the
+// dot color alone (WCAG 1.4.1). The risk title/detail carry the rest of the meaning.
+const RISK_TONE_WORD: Record<string, string> = {
+  fail: 'Critical risk',
+  warn: 'Warning',
+  neutral: 'Note',
+}
+
+function ScoreGauge({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(100, Math.round(score)))
+  // A semicircular arc; pathLength=100 lets the dash be the score directly, independent of the
+  // path's real length. The fill color is scoped to the card's tone class in CSS.
+  return (
+    <div className="kc-gauge-wrap">
+      <svg
+        className="kc-gauge"
+        viewBox="0 0 120 70"
+        role="img"
+        aria-label={`Readiness score ${clamped} out of 100`}
+      >
+        <path className="kc-gauge-track" d="M10 60 A50 50 0 0 1 110 60" />
+        <path
+          className="kc-gauge-fill"
+          d="M10 60 A50 50 0 0 1 110 60"
+          pathLength={100}
+          strokeDasharray={`${clamped} 100`}
+        />
+      </svg>
+      <div className="kc-gauge-num">
+        {clamped}
+        <i>/100</i>
+      </div>
+    </div>
+  )
+}
+
+function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
+  const tone = readinessTone(readiness.tone)
+  return (
+    <div className={`kc-readiness kc-rtone-${tone}`}>
+      <ScoreGauge score={readiness.score} />
+      <p className="kc-readiness-verdict">{readiness.verdict}</p>
+      {readiness.confidence && (
+        <p className="kc-readiness-conf">
+          <span className="kc-conf-badge">{readiness.confidence} confidence</span>
+          <span className="kc-conf-blurb">{CONFIDENCE_BLURB[readiness.confidence] ?? ''}</span>
+        </p>
+      )}
+
+      {readiness.risks.length > 0 && (
+        <div className="kc-readiness-sec">
+          <h3 className="kc-readiness-h">Risks</h3>
+          <ul className="kc-risks">
+            {readiness.risks.map((r) => {
+              const rtone = readinessTone(r.tone)
+              return (
+                <li key={`${r.title}:${r.detail}`} className={`kc-risk kc-rtone-${rtone}`}>
+                  <span className="kc-risk-dot" aria-hidden="true" />
+                  <span className="kc-risk-text">
+                    <span className="kc-sr-only">{RISK_TONE_WORD[rtone] ?? 'Note'}: </span>
+                    <b>{r.title}</b>
+                    {r.detail && <span className="kc-risk-detail">{r.detail}</span>}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
+      {readiness.recommendations.length > 0 && (
+        <div className="kc-readiness-sec">
+          <h3 className="kc-readiness-h">Recommendations</h3>
+          <ul className="kc-recs">
+            {readiness.recommendations.map((rec) => (
+              <li key={rec} className="kc-rec">
+                <span className="kc-rec-arrow" aria-hidden="true">
+                  →
+                </span>
+                <span>{rec}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {readiness.comparison && <p className="kc-readiness-history">{readiness.comparison}</p>}
+      {readiness.attribution && (
+        <p className="kc-readiness-attr">via {readiness.attribution}</p>
+      )}
+    </div>
+  )
+}
+
+function ReadinessCard({ result }: { result: DesignResponse | null }) {
+  const readiness = result?.report?.readiness
+  return (
+    <section className="kc-card">
+      <h2 className="kc-card-title">Readiness</h2>
+      {readiness ? (
+        <ReadinessBody readiness={readiness} />
+      ) : isFailureStatus(result?.status) ? (
+        <p className="kc-muted-note" role="status">
+          No part to assess — the last attempt didn&rsquo;t produce a model.
+        </p>
+      ) : (
+        <p className="kc-muted-note">
+          A print-readiness score — with the risks and concrete next steps — appears here once a
+          part is designed.
+        </p>
+      )}
+    </section>
+  )
+}
+
 function PrintabilityCard({ result }: { result: DesignResponse | null }) {
   const report = result?.report
   return (
@@ -182,7 +308,7 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
       {report ? (
         <>
           <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
-            {gateLabel(report.gate_status)}
+            Gate: {gateLabel(report.gate_status)}
           </span>
           {report.headline && <p className="kc-muted-note">{report.headline}</p>}
 
@@ -253,6 +379,7 @@ export default function RightPanel({
         rerenderError={rerenderError}
         onRerender={onRerender}
       />
+      <ReadinessCard result={result} />
       <PrintabilityCard result={result} />
       <ExportPanel result={result} />
     </aside>

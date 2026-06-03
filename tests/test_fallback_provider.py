@@ -295,7 +295,7 @@ def test_build_pipeline_uses_fallback_provider_when_alt_backend_configured(monke
     captured_provider = []
 
     class _FakePipeline:
-        def __init__(self, config, printer, material, provider):
+        def __init__(self, config, printer, material, provider, **kwargs):
             captured_provider.append(provider)
 
     args = MagicMock()
@@ -338,7 +338,7 @@ def test_build_pipeline_uses_bare_provider_when_no_alt(monkeypatch):
     captured_provider = []
 
     class _FakePipeline:
-        def __init__(self, config, printer, material, provider):
+        def __init__(self, config, printer, material, provider, **kwargs):
             captured_provider.append(provider)
 
     args = MagicMock()
@@ -436,7 +436,7 @@ def test_pipeline_for_backend_is_bare_even_with_alt_configured():
     captured = []
 
     class _FakePipeline:
-        def __init__(self, config, printer, material, provider):
+        def __init__(self, config, printer, material, provider, **kwargs):
             captured.append(provider)
 
     with patch("kimcad.pipeline.Pipeline", _FakePipeline), \

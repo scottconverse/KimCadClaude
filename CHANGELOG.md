@@ -9,7 +9,9 @@ All notable changes to KimCad are documented here. Format follows
 > **Stages 1–6 are tagged (`stage-1` … `stage-6`).** Stage 5 (deterministic template engine +
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
-> `audit-team` gate + remediation at 0/0/0/0/0). These sections accumulate toward the `0.1.0` release.
+> `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
+> report) is implemented on `stage-7-smart-mesh` and pending its stage-end `audit-team` gate — not
+> yet merged or tagged.** These sections accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
@@ -212,6 +214,38 @@ All notable changes to KimCad are documented here. Format follows
   no model call, **well under the <1 s interactive target** (the automated gate asserts a
   conservative ≤5 s per-family ceiling so it stays hardware-independent; the exact per-family
   timings are in `docs/benchmarks/stage-5-template-families.md`).
+
+#### Stage 7 — Smart Mesh + PrintProof3D + readiness report (implemented on `stage-7-smart-mesh`, pending the stage gate)
+- **Smart Mesh readiness synthesis** (`smart_mesh.py`): a pure `assess_readiness(gate, mesh_report,
+  …, printproof=…)` that folds KimCad's Printability Gate, the mesh integrity stats, and an
+  *optional* PrintProof3D report into one verdict — a 0–100 score, a plain verdict, a confidence,
+  the risks, and concrete recommendations. The verdict tone is the **worst** of KimCad's own
+  assessment and PrintProof3D's status, so the card is never more optimistic than either signal.
+- **PrintProof3D arm's-length integration** (`printproof3d.py`): the owner's MIT Rust validation
+  **engine** is run as a subprocess — never linked — to validate a rendered mesh; its
+  `ValidationReport` JSON is parsed into a typed report Smart Mesh consumes. Best-effort and
+  injection-safe: a missing/un-built engine, a profile error, or an unparseable report all degrade
+  to "no engine" (Smart Mesh falls back to the gate, honestly at lower confidence) and **never
+  raise**. KimCad generates the engine's printer/material profile JSON from its own config.
+- **Pipeline + design-API wiring** (`pipeline.py`, `webapp.py`): every built part now carries a
+  `MeshReadiness` (on the report, so both the completed and gate-failed paths expose it), computed
+  on the final hardened mesh — **bed-positioned** on a copy before PrintProof3D validation. The
+  deterministic slice gate is unchanged; readiness is advisory. `/api/design` + `/api/render`
+  expose a `readiness` block; the live-slider re-render recomputes a fast gate-only readiness
+  (the engine isn't re-run per drag).
+- **Readiness report card** (`RightPanel.tsx`, matching the design at
+  `docs/design/screens/10-smartmesh-report.png`): a designed card on the design screen — an SVG
+  score gauge, the verdict, a confidence badge that names what backed it (gate vs engine), a risks
+  list (with a non-color severity cue), a recommendations list, an optional history line, and an
+  honest "via …" attribution. The Printability badge is reframed ("Gate: passed / needs review /
+  failed") so it doesn't duplicate the readiness headline.
+- **Smart Mesh learning store** (`history.py`): a local-first, best-effort JSON record of built
+  parts (coarse — no geometry/prompt; default `~/.kimcad/history.json`, never the repo) that adds an
+  honest "compared to your past parts" line to the card. Strictly factual — "a personal best" needs
+  a strict beat of every prior, a tie reads "on par" not "below," and no history shows no line.
+  Recorded once per fresh design, never on a slider drag.
+- **Config:** optional `binaries.printproof3d` (the engine path; absent → degrade) and
+  `paths.history` (relocate the learning store) — both documented in `config/default.yaml`.
 
 ### Changed
 - Default local model is now `gemma4:e4b` (sized for a 32 GB / 780M-iGPU target — stable

@@ -51,9 +51,11 @@ to `main` (merge commit `14896d6`) and tagged `stage-5` (the engine, the tiered 
 model layer — hardware-aware advisor, tiered fallback, 3-axis grading, model bake-off, and plan-failure
 robustness) is DONE — merged to `main` and tagged `stage-6`** (through the full `audit-team` gate +
 remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
-bake-off). **Next = Stage 7 (Smart Mesh + PrintProof3D).**
+bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report) is IMPLEMENTED on
+`stage-7-smart-mesh`** (slices 1–5, each `audit-lite` 0/0/0/0/0) and **pending its stage-end
+`audit-team` gate — not yet merged or tagged.** **Next = the Stage 7 gate → merge → tag, then Stage 8.**
 
-Still ahead before beta: Smart Mesh + PrintProof3D (Stage 7), CadQuery
+Still ahead before beta: the Stage 7 gate/merge/tag, then CadQuery
 (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
 installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
 at Kim's.**
@@ -178,13 +180,27 @@ compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evalu
 fallback/advisor/bake-off toolchain. **Status:** DONE — merged to `main`, tagged `stage-6`.
 
 ## Stage 7 — Smart Mesh + PrintProof3D + readiness report
+**Status: IMPLEMENTED on `stage-7-smart-mesh`, pending the stage-end `audit-team` gate — not yet
+merged or tagged.** Slices 1–5 each passed `audit-lite` at 0/0/0/0/0; the readiness card was
+rendered-checked (desktop + mobile) live.
 **Goal:** real print-quality validation surfaced as a designed report.
-- **Smart Mesh** readiness (overhang/support detection, true wall-thickness from the mesh, fix the
-  multiple-shells false-flag on hollow containers); the **PrintProof3D** validation harness wired
-  in; a print-readiness **report card** matching the design (not a raw text panel).
-- Tests per check; the gate hard-fails real defects, not just size/watertightness.
+- ✅ **Smart Mesh** readiness synthesis (`smart_mesh.py`): a pure verdict — score / risks /
+  recommendations / confidence — folding the Printability Gate, mesh integrity, and an *optional*
+  PrintProof3D report; the tone is the worst of KimCad's own read and the engine's, so it never
+  over-promises.
+- ✅ **PrintProof3D** wired in at **arm's length** (`printproof3d.py`): the owner's MIT Rust engine
+  runs as a subprocess (never linked), validating the bed-positioned hardened mesh; best-effort and
+  injection-safe — a missing/un-built engine degrades to the gate, never raises. Optional via
+  `binaries.printproof3d`.
+- ✅ A print-readiness **report card** (`RightPanel.tsx`) matching the design — a score gauge,
+  verdict, confidence badge, risks, recommendations, and honest attribution (not a raw text panel).
+- ✅ A local-first **learning store** (`history.py`) adding an honest "compared to your past parts"
+  line; strictly factual, never flattering.
+- ✅ Tests per check (Python + vitest); the deterministic gate remains the slice authority and
+  PrintProof3D adds advisory depth (folding engine fails into the slice-gate is a noted follow-up).
 **Exit:** a part produces a Smart Mesh readiness report; PrintProof3D integration validated;
-passing parts are genuinely print-ready. **Needs:** target box. **Size:** ~2–3 weeks.
+passing parts are genuinely print-ready. **Remaining for the stage gate:** the full `audit-team` at
+0/0/0/0/0 → merge → tag `stage-7`. **Needs:** target box. **Size:** ~2–3 weeks.
 
 ## Stage 8 — CadQuery parallel backend
 **Goal:** a second, type-safe CAD backend and real CAD export.
