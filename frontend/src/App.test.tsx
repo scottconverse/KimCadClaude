@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { DesignResponse } from './api'
 import App from './App'
@@ -8,6 +8,8 @@ import App from './App'
 vi.mock('./api', () => ({
   postDesign: vi.fn(),
   postRender: vi.fn(),
+  reopenDesign: vi.fn(),
+  saveDesign: vi.fn().mockResolvedValue({ id: 'x', name: 'n' }),
   // App only needs a non-null id to proceed with a re-render.
   designIdFromMeshUrl: () => 1,
 }))
@@ -37,6 +39,7 @@ vi.mock('./components/Workspace', () => ({
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  window.location.hash = '' // don't leak a route into the next test
 })
 
 function templateResult(meshUrl: string): DesignResponse {
@@ -116,5 +119,22 @@ describe('App live-slider lifecycle', () => {
 
     // The stale response is discarded; the newer geometry stands.
     expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/1?v=new')
+  })
+})
+
+describe('App restore-on-load (Stage 8.5)', () => {
+  it('reopens a saved design when the page loads directly on its URL', async () => {
+    // S1F-003: a fresh load on `#/design/<id>` must restore the part (refresh = no lost work),
+    // not drop to the landing. The restore effect calls reopenDesign with the route id.
+    const api = await import('./api')
+    ;(api.reopenDesign as Mock).mockResolvedValue(templateResult('/api/mesh/7'))
+    window.location.hash = '#/design/abc'
+
+    render(<App />)
+
+    await waitFor(() => expect(api.reopenDesign).toHaveBeenCalledWith('abc'))
+    // The workspace (stub) shows the restored mesh — the landing is not rendered.
+    expect((await screen.findByTestId('mesh-url')).textContent).toBe('/api/mesh/7')
+    expect(screen.queryByLabelText(/describe the part/i)).toBeNull()
   })
 })

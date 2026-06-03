@@ -62,7 +62,10 @@ export class KCViewport {
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (this.reduceMotion) this.autoRotate = false
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    // preserveDrawingBuffer lets us read the canvas for a saved-design thumbnail
+    // (captureThumbnail) at any time, not only synchronously inside a render. Negligible cost for
+    // a single local CAD preview.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     this.renderer.setClearColor(VIEWPORT_BG, 1)
 
@@ -131,6 +134,31 @@ export class KCViewport {
   /** The loaded part's bounding-box dimensions (mm), or null when empty. */
   getDimensions(): Dimensions | null {
     return this.dims
+  }
+
+  /** A small PNG data-URL snapshot of the current frame for the "My Designs" gallery, or null if
+   * the canvas can't be read. Renders a fresh frame, then downscales onto an offscreen 2D canvas
+   * so the saved thumbnail is small regardless of the live canvas size. */
+  captureThumbnail(maxDim = 320): string | null {
+    try {
+      this.renderer.render(this.scene, this.camera)
+      const src = this.renderer.domElement
+      const sw = src.width
+      const sh = src.height
+      if (!sw || !sh) return null
+      const scale = Math.min(1, maxDim / Math.max(sw, sh))
+      const tw = Math.max(1, Math.round(sw * scale))
+      const th = Math.max(1, Math.round(sh * scale))
+      const off = document.createElement('canvas')
+      off.width = tw
+      off.height = th
+      const ctx = off.getContext('2d')
+      if (!ctx) return null
+      ctx.drawImage(src, 0, 0, tw, th)
+      return off.toDataURL('image/png')
+    } catch {
+      return null
+    }
   }
 
   resize(): void {

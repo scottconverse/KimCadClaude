@@ -235,8 +235,14 @@ export function saveDesign(
   designId: number,
   name: string,
   thumbnail: string | null,
+  savedId?: string,
 ): Promise<{ id: string; name: string }> {
-  return postJson('/api/designs/save', { design_id: designId, name, thumbnail })
+  return postJson('/api/designs/save', {
+    design_id: designId,
+    name,
+    thumbnail,
+    saved_id: savedId,
+  })
 }
 
 /** Reopen a saved design — returns a fresh, fully-functional `DesignResponse` (new mesh url, and

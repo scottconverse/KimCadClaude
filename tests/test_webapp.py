@@ -1542,3 +1542,21 @@ def test_save_after_rerender_persists_the_rerendered_parameters(tmp_path):
         st, reopened = _jreq(h, p, "GET", f"/api/designs/{saved['id']}")
         reopened_wall = next(pp for pp in reopened["parameters"] if pp["name"] == "wall")["value"]
         assert reopened_wall == 3.0  # the stale-snapshot bug would persist the original 2.0
+
+
+def test_save_update_in_place_keeps_one_entry(tmp_path):
+    # Re-saving with the existing saved_id updates that entry (one library entry, name preserved),
+    # so adjusting a part and saving again doesn't spawn duplicates.
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        st, saved = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "name": "v1"})
+        sid = saved["id"]
+        _jreq(h, p, "POST", f"/api/render/{rid}",
+              {"values": {"width": 80, "depth": 60, "height": 40, "wall": 3.0}})
+        st, saved2 = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "saved_id": sid})
+        assert st == 200 and saved2["id"] == sid  # same entry, not a new id
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 1 and lst["designs"][0]["name"] == "v1"  # name preserved
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{sid}")
+        assert next(pp for pp in reopened["parameters"] if pp["name"] == "wall")["value"] == 3.0

@@ -1,8 +1,8 @@
-// Top chrome: brand on the left; "New design" on the right.
+// Top chrome: brand on the left; "My Designs" + "New design" on the right.
 //
-// "New design" is wired (it resets back to the landing) and shows only in the workspace. The
-// Settings / first-run wizard and the live printer-status chip are later stages — rather than
-// render an interactive-looking control that does nothing, they're simply absent until built.
+// "My Designs" (Stage 8.5) opens the saved-designs library; "New design" resets to the landing and
+// shows only in the workspace. The Settings / first-run wizard and the live printer-status chip are
+// later Stage 8.5 slices — absent until built rather than rendered as dead controls.
 function CubeGlyph() {
   return (
     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
@@ -17,9 +17,11 @@ function CubeGlyph() {
 export default function Topbar({
   showNewDesign,
   onNewDesign,
+  onMyDesigns,
 }: {
   showNewDesign: boolean
   onNewDesign: () => void
+  onMyDesigns: () => void
 }) {
   return (
     <header className="kc-topbar">
@@ -32,6 +34,9 @@ export default function Topbar({
         </span>
       </div>
       <div className="kc-topbar-actions">
+        <button type="button" className="kc-btn kc-btn-ghost" onClick={onMyDesigns}>
+          My Designs
+        </button>
         {showNewDesign && (
           <button type="button" className="kc-btn kc-btn-dark" onClick={onNewDesign}>
             New design

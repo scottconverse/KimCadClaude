@@ -5,7 +5,17 @@ import { KCViewport, type Dimensions } from '../viewport/KCViewport'
 // mesh from `meshUrl` (served at /api/mesh/<id>), and surfaces the print-aware affordances: the
 // W/D/H dimension pills (positioned by KCViewport each frame), an orientation chip, a drag hint,
 // and a dimensions-aware aria-label. `busy` is the design call in flight before a mesh exists.
-export default function Viewport({ meshUrl, busy }: { meshUrl: string | null; busy: boolean }) {
+export default function Viewport({
+  meshUrl,
+  busy,
+  onModelReady,
+}: {
+  meshUrl: string | null
+  busy: boolean
+  // Stage 8.5: fired after a mesh is framed, handing back a thumbnail-capture fn so the app can
+  // snapshot the rendered part (for the "My Designs" gallery) at the moment it's on screen.
+  onModelReady?: (capture: () => string | null) => void
+}) {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelX = useRef<HTMLSpanElement>(null)
@@ -54,6 +64,8 @@ export default function Viewport({ meshUrl, busy }: { meshUrl: string | null; bu
           setLoading(false)
           setDims(vp.getDimensions())
           setHasModel(true)
+          // The part is framed — hand the app a capture fn it can call to snapshot it.
+          onModelReady?.(() => vp.captureThumbnail())
         }
       })
       .catch(() => {

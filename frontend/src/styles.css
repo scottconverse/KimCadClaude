@@ -1339,3 +1339,164 @@ input {
   background: var(--kc-accent);
   color: var(--kc-on-accent);
 }
+
+/* --------------------------------------------------- My Designs library (Stage 8.5 Slice 1) */
+
+.kc-btn-ghost {
+  background: transparent;
+  color: var(--kc-ink);
+  border: 1px solid var(--kc-hair-strong);
+  padding: 7px 13px;
+  border-radius: var(--kc-r-btn);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kc-btn-ghost:hover {
+  background: var(--kc-surface-2);
+}
+
+.kc-mydesigns {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 28px clamp(16px, 4vw, 48px) 48px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+.kc-mydesigns-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.kc-mydesigns-title {
+  margin: 0;
+  font-family: var(--kc-font-display);
+  font-size: 26px;
+  font-weight: 800;
+}
+.kc-mydesigns-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 64px 16px;
+  color: var(--kc-ink);
+}
+.kc-mydesigns-empty p {
+  margin: 0;
+}
+
+.kc-design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px;
+}
+
+.kc-design-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair);
+  border-radius: var(--kc-r-card);
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.kc-design-card:hover {
+  box-shadow: var(--kc-shadow-card);
+  transform: translateY(-1px);
+}
+.kc-design-card-busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.kc-design-open {
+  border: 0;
+  padding: 0;
+  background: var(--kc-viewport-bg);
+  cursor: pointer;
+  aspect-ratio: 4 / 3;
+  display: block;
+}
+.kc-design-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.kc-design-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kc-muted);
+  font-size: 13px;
+  text-transform: capitalize;
+  background: var(--kc-surface-2);
+}
+
+.kc-design-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 4px;
+}
+.kc-design-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--kc-ink);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.kc-design-name:hover {
+  color: var(--kc-accent-deep);
+}
+.kc-design-rename {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border: 1px solid var(--kc-accent);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+}
+.kc-design-date {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+
+.kc-design-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px 10px;
+}
+.kc-design-act {
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--kc-muted);
+  cursor: pointer;
+  border-radius: var(--kc-r-btn);
+}
+.kc-design-act:hover {
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+}
+.kc-design-act-danger:hover {
+  background: color-mix(in srgb, var(--kc-fail) 14%, var(--kc-surface));
+  color: var(--kc-fail);
+}

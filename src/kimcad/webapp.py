@@ -876,18 +876,28 @@ def make_handler(
             if snap is None or mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "That design is no longer available to save."})
                 return
-            name_raw = data.get("name")
-            name = (
-                name_raw.strip()[:120]
-                if isinstance(name_raw, str) and name_raw.strip()
-                else (snap.get("prompt") or "Untitled")[:120]
+            # Update-in-place when the client passes a known `saved_id` (so adjusting a part and
+            # re-saving keeps one library entry, current); otherwise mint a fresh id. Preserve the
+            # original created_at + name on an update.
+            requested = data.get("saved_id")
+            existing = store.get(requested) if isinstance(requested, str) else None
+            store_id = requested if existing is not None else uuid.uuid4().hex
+            created_at = (
+                existing.created_at if existing is not None
+                else datetime.now(timezone.utc).isoformat()
             )
-            store_id = uuid.uuid4().hex
+            name_raw = data.get("name")
+            if isinstance(name_raw, str) and name_raw.strip():
+                name = name_raw.strip()[:120]
+            elif existing is not None:
+                name = existing.name
+            else:
+                name = (snap.get("prompt") or "Untitled")[:120]
             ok = store.save(
                 design_id=store_id,
                 name=name,
                 prompt=snap.get("prompt", ""),
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=created_at,
                 object_type=snap.get("object_type", ""),
                 gate_status=snap.get("gate_status", ""),
                 readiness_score=snap.get("readiness_score"),

@@ -16,6 +16,7 @@ export default function Workspace({
   rerendering,
   rerenderError,
   onRerender,
+  onModelReady,
 }: {
   prompt: string
   result: DesignResponse | null
@@ -25,11 +26,12 @@ export default function Workspace({
   rerendering: boolean
   rerenderError: string | null
   onRerender: (values: Record<string, number>) => void
+  onModelReady?: (capture: () => string | null) => void
 }) {
   return (
     <div className="kc-workspace">
       <ChatPanel prompt={prompt} result={result} busy={busy} error={error} />
-      <Viewport meshUrl={meshUrl} busy={busy} />
+      <Viewport meshUrl={meshUrl} busy={busy} onModelReady={onModelReady} />
       <RightPanel
         result={result}
         rerendering={rerendering}
