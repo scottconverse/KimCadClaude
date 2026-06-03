@@ -1508,3 +1508,37 @@ def test_designs_reopen_unknown_is_404(tmp_path):
     with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
         st, _ = _jreq(h, p, "GET", "/api/designs/deadbeef01")
         assert st == 404
+
+
+def test_designs_thumb_endpoint_rejects_traversal(tmp_path):
+    # S1B-001: a traversal id on the thumb endpoint must be rejected, never reading a file outside
+    # the store root. Plant a thumb.png at the traversal target and prove it is NOT served.
+    store_root = tmp_path / "store"
+    secret = tmp_path / "secret"
+    secret.mkdir(parents=True)
+    (secret / "thumb.png").write_bytes(b"\x89PNG\r\n\x1a\nSECRETBYTES")
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", store_root) as (h, p):
+        st, raw = _req(h, p, "GET", "/api/designs/..%2fsecret/thumb")
+        assert st == 404
+        assert b"SECRET" not in raw
+
+
+def test_save_after_rerender_persists_the_rerendered_parameters(tmp_path):
+    # S1B-002: saving after a slider re-render must persist the RE-RENDERED parameters, not the
+    # original (the snapshot is refreshed on re-render so it matches the saved mesh).
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        original_wall = next(pp for pp in design["parameters"] if pp["name"] == "wall")["value"]
+        assert original_wall == 2.0
+
+        # Re-render at a new wall (same size so the stub's 80x60x40 still passes the gate).
+        st, rr = _jreq(h, p, "POST", f"/api/render/{rid}",
+                       {"values": {"width": 80, "depth": 60, "height": 40, "wall": 3.0}})
+        assert st == 200 and rr["status"] == "completed"
+        assert next(pp for pp in rr["parameters"] if pp["name"] == "wall")["value"] == 3.0
+
+        st, saved = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "name": "tweaked"})
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{saved['id']}")
+        reopened_wall = next(pp for pp in reopened["parameters"] if pp["name"] == "wall")["value"]
+        assert reopened_wall == 3.0  # the stale-snapshot bug would persist the original 2.0

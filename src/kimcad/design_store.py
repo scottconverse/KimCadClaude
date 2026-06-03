@@ -70,10 +70,14 @@ class DesignStore:
         return self.root / design_id
 
     def mesh_path(self, design_id: str) -> Path | None:
+        if not _safe_id(design_id):  # traversal guard — never resolve a path outside the root
+            return None
         p = self._dir(design_id) / "mesh.stl"
         return p if p.exists() else None
 
     def thumb_path(self, design_id: str) -> Path | None:
+        if not _safe_id(design_id):  # traversal guard — the thumb endpoint serves this directly
+            return None
         p = self._dir(design_id) / "thumb.png"
         return p if p.exists() else None
 

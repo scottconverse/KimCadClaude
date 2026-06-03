@@ -847,7 +847,12 @@ def make_handler(
             if path is None or not path.exists():
                 self._json(404, {"error": "Not found."})
                 return
-            self._send(200, path.read_bytes(), "image/png")
+            try:
+                data = path.read_bytes()
+            except OSError:  # a concurrent delete/prune between exists() and read() -> 404, not a 500
+                self._json(404, {"error": "Not found."})
+                return
+            self._send(200, data, "image/png")
 
         def _handle_design_save(self) -> None:
             """Persist the current design to the library. The client sends only the design id (the
@@ -1090,6 +1095,11 @@ def make_handler(
                         slice_cache.pop(k, None)
                     if result.template is not None:  # refresh the (bbox-aligned) base plan
                         template_state[rid] = (result.plan, result.template.family.name)
+                    # Stage 8.5: keep the saveable snapshot current so a save AFTER adjusting
+                    # sliders persists the re-rendered parameters (not the original), matching the
+                    # fresh mesh. Carry the original prompt from the prior snapshot.
+                    prior_prompt = (design_snapshot.get(rid) or {}).get("prompt", "")
+                    design_snapshot[rid] = _design_snapshot(payload, result, prior_prompt)
                     # A unique suffix busts the browser's cache so the viewport fetches the new
                     # mesh. Taken under `lock` for consistency with the other counter reads
                     # (ENG-502) — uniqueness is all the cache-buster needs.

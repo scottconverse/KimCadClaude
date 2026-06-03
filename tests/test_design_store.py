@@ -60,6 +60,15 @@ def test_safe_id_guards_path_separators():
     assert not _safe_id("../x") and not _safe_id("a/b") and not _safe_id("") and not _safe_id("a.b")
 
 
+def test_mesh_and_thumb_path_reject_traversal_ids(tmp_path):
+    # S1B-001: these accessors are served directly by the thumb endpoint, so they must reject a
+    # traversal id rather than resolve a path outside the store root.
+    store = DesignStore(tmp_path / "designs")
+    assert store.mesh_path("../etc") is None
+    assert store.thumb_path("a/b") is None
+    assert store.mesh_path("..") is None and store.thumb_path("..") is None
+
+
 def test_list_degrades_on_a_corrupt_meta(tmp_path):
     store = DesignStore(tmp_path / "designs")
     _save(store, tmp_path, design_id="good1", name="Good", when="2026-06-02T00:00:00+00:00")
