@@ -11,6 +11,23 @@
   **RESUME HERE = Stage 8 (CadQuery parallel backend).** Do NOT re-run the Stage 7 gate.
   The historical Stage-7 build notes (slice plan + PrintProof3D contract) are retained below for reference.
 
+- **✅ PrintProof3D relationship — current truth (post-Stage-7, this session):** (1) During a post-stage
+  review I found **2 real bugs in the PrintProof3D engine** (its own repo, `scottconverse/PrintProof3D`):
+  it trusted STL file normals → a mesh with zeroed/garbage normals silently MISSED all overhangs (false
+  `pass`); and `MODEL_OUT_OF_BOUNDS` had a zero-tolerance lower bound → a bed-resting model with sub-mm
+  float noise (Z=-0.03) false-failed Critical. Both reproduced against the release binary, fixed (geometric-
+  normal fallback; 0.05mm `BUILD_VOLUME_TOL`) + tested → **PR #5, which the builder MERGED** (+ follow-ups:
+  cylindrical prechecks, normal normalization). (2) **Contract re-verified** end-to-end against the updated
+  engine: KimCad's generated profiles are accepted, the report parses, readiness gets High confidence +
+  "PrintProof3D validation engine" attribution. NO drift. (3) **Decision (recorded in ROADMAP Stage 11):**
+  the engine adds real capability KimCad's own gate canNOT do (overhang/bridge/bed-adhesion — KimCad's gate
+  is only dims/watertight/shells/volume/wall). Keep it arm's-length + **off by default for now** (it's
+  source-only `0.5.0-rc2`, not bundled); **BUNDLE it + turn deeper validation ON by default at Stage 11**
+  (alongside OpenSCAD/OrcaSlicer in the installer). It's usable TODAY via a one-line `config/local.yaml`
+  override (`binaries.printproof3d: <absolute path to a built printproof3d.exe>`) — I keep my dev config
+  pointed at the engine build through Stage 8/9 so complex geometry exercises the real validator. Do NOT
+  re-litigate the bundling timing (Stage 11) or re-open whether it's worth incorporating (it is).
+
 - **🔧 STAGE 7 (historical build notes) — branch `stage-7-smart-mesh`** (merged + tagged).
   **= Smart Mesh + PrintProof3D + readiness report.** Architecture (spec §6.12): **PrintProof3D is the
   per-artifact validation ENGINE; Smart Mesh is KimCad's synthesis + history layer on top** that outputs
