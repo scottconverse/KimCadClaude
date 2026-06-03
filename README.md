@@ -37,7 +37,7 @@ plus, when it's configured, the optional arm's-length **PrintProof3D** validatio
 — once you've designed a few parts — an honest "compared to your past parts" line from a
 local-first history. It's advisory: the
 deterministic gate stays the slice authority, and the card never claims the engine ran when it
-didn't. *(Stage 7 — implemented on the `stage-7-smart-mesh` branch, pending its stage gate.)*
+didn't. *(Stage 7 — done; tagged `stage-7`.)*
 
 ## Requirements
 

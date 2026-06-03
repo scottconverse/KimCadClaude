@@ -1,8 +1,17 @@
-# KimCad — Handoff (2026-06-02 — Stage 7 IN PROGRESS: Smart Mesh + PrintProof3D, Slices 1–5 done + Slice 6 docs done on `stage-7-smart-mesh`; stage gate next)
+# KimCad — Handoff (2026-06-02 — Stage 7 DONE: Smart Mesh + PrintProof3D + readiness report + learning store, merged to `main` + tagged `stage-7`; Stage 8 (CadQuery) next)
 
 ## ⛔ READ FIRST
 
-- **🔧 STAGE 7 IN PROGRESS — branch `stage-7-smart-mesh`** (off `main`/`stage-6`; pushed; NOT merged).
+- **✅ STAGE 7 IS DONE — merged to `main` and tagged `stage-7`** (the tag advanced past the merge to the
+  docs-DONE commit so the tagged artifact's docs say "done"). All 6 slices passed `audit-lite` 0/0/0/0/0;
+  the full 5-role `audit-team` stage gate (0B/0C/1Maj/11Min/9Nit — the Major was a history write-race
+  fixed with a lock + atomic write) was remediated to **0/0/0/0/0**
+  (`docs/audits/stage-7/audit-team-stage-7-2026-06-02/`). The deterministic slice gate is unchanged
+  (readiness is advisory); PrintProof3D is optional/off-by-default; nothing leaves the machine.
+  **RESUME HERE = Stage 8 (CadQuery parallel backend).** Do NOT re-run the Stage 7 gate.
+  The historical Stage-7 build notes (slice plan + PrintProof3D contract) are retained below for reference.
+
+- **🔧 STAGE 7 (historical build notes) — branch `stage-7-smart-mesh`** (merged + tagged).
   **= Smart Mesh + PrintProof3D + readiness report.** Architecture (spec §6.12): **PrintProof3D is the
   per-artifact validation ENGINE; Smart Mesh is KimCad's synthesis + history layer on top** that outputs
   the readiness report card (design screen `docs/design/screens/10-smartmesh-report.png`: a score gauge,

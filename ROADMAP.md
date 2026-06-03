@@ -51,11 +51,11 @@ to `main` (merge commit `14896d6`) and tagged `stage-5` (the engine, the tiered 
 model layer — hardware-aware advisor, tiered fallback, 3-axis grading, model bake-off, and plan-failure
 robustness) is DONE — merged to `main` and tagged `stage-6`** (through the full `audit-team` gate +
 remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
-bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report) is IMPLEMENTED on
-`stage-7-smart-mesh`** (slices 1–5, each `audit-lite` 0/0/0/0/0) and **pending its stage-end
-`audit-team` gate — not yet merged or tagged.** **Next = the Stage 7 gate → merge → tag, then Stage 8.**
+bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report + learning store) is DONE —
+merged to `main` and tagged `stage-7`** (slices 1–6 each `audit-lite` 0/0/0/0/0; the full 5-role
+`audit-team` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8 (CadQuery).**
 
-Still ahead before beta: the Stage 7 gate/merge/tag, then CadQuery
+Still ahead before beta: CadQuery
 (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
 installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
 at Kim's.**
@@ -179,10 +179,13 @@ compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evalu
 **Exit (met):** a data-backed on-target default (`gemma4:e4b`, confirmed) + a proven
 fallback/advisor/bake-off toolchain. **Status:** DONE — merged to `main`, tagged `stage-6`.
 
-## Stage 7 — Smart Mesh + PrintProof3D + readiness report
-**Status: IMPLEMENTED on `stage-7-smart-mesh`, pending the stage-end `audit-team` gate — not yet
-merged or tagged.** Slices 1–5 each passed `audit-lite` at 0/0/0/0/0; the readiness card was
-rendered-checked (desktop + mobile) live.
+## Stage 7 — Smart Mesh + PrintProof3D + readiness report  ✅ DONE — merged + tagged `stage-7`
+**Status: DONE — merged to `main` and tagged `stage-7`** (the tag advanced past the merge to the
+docs-DONE commit so the tagged artifact's docs say "done", not "pending" — the Stage-4 lesson).
+Slices 1–6 each passed `audit-lite` at 0/0/0/0/0; the full 5-role `audit-team` stage gate ran
+2026-06-02 (0B/0C/1Maj/11Min/9Nit) and was remediated to **0/0/0/0/0**
+(`docs/audits/stage-7/audit-team-stage-7-2026-06-02/`). The readiness card was rendered-checked
+(desktop + mobile) live.
 **Goal:** real print-quality validation surfaced as a designed report.
 - ✅ **Smart Mesh** readiness synthesis (`smart_mesh.py`): a pure verdict — score / risks /
   recommendations / confidence — folding the Printability Gate, mesh integrity, and an *optional*

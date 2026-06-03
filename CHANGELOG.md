@@ -10,8 +10,8 @@ All notable changes to KimCad are documented here. Format follows
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
-> report) is implemented on `stage-7-smart-mesh` and pending its stage-end `audit-team` gate — not
-> yet merged or tagged.** These sections accumulate toward the `0.1.0` release.
+> report + learning store) merged + tagged `stage-7` 2026-06-02** — through the full 5-role
+> `audit-team` stage gate + remediation at 0/0/0/0/0. These sections accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
@@ -215,7 +215,7 @@ All notable changes to KimCad are documented here. Format follows
   conservative ≤5 s per-family ceiling so it stays hardware-independent; the exact per-family
   timings are in `docs/benchmarks/stage-5-template-families.md`).
 
-#### Stage 7 — Smart Mesh + PrintProof3D + readiness report (implemented on `stage-7-smart-mesh`, pending the stage gate)
+#### Stage 7 — Smart Mesh + PrintProof3D + readiness report (merged + tagged `stage-7`)
 - **Smart Mesh readiness synthesis** (`smart_mesh.py`): a pure `assess_readiness(gate, mesh_report,
   …, printproof=…)` that folds KimCad's Printability Gate, the mesh integrity stats, and an
   *optional* PrintProof3D report into one verdict — a 0–100 score, a plain verdict, a confidence,
