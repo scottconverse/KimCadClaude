@@ -13,6 +13,13 @@ binaries:
   # the deeper geometric validation in. Override in config/local.yaml per machine.
   printproof3d: tools/printproof3d/printproof3d.exe
 
+# Optional per-user paths (Stage 7). Sensible defaults; uncomment to relocate.
+# paths:
+#   # The Smart Mesh learning store (local-first; nothing leaves the machine). Unset (the default)
+#   # => ~/.kimcad/history.json — per-user, outside the repo so it's never committed. Set an
+#   # ABSOLUTE path to relocate it; a relative path resolves against the project root (no ~ expansion).
+#   history: C:\Users\you\.kimcad\history.json
+
 llm:
   # Active backend: one of the keys under `backends`.
   # Local-first: no cloud calls. Cloud backends remain defined for later opt-in.

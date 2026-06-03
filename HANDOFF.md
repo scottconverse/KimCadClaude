@@ -1,4 +1,4 @@
-# KimCad — Handoff (2026-06-02 — Stage 7 IN PROGRESS: Smart Mesh + PrintProof3D, Slice 1 done on `stage-7-smart-mesh`)
+# KimCad — Handoff (2026-06-02 — Stage 7 IN PROGRESS: Smart Mesh + PrintProof3D, Slices 1–5 done + Slice 6 docs done on `stage-7-smart-mesh`; stage gate next)
 
 ## ⛔ READ FIRST
 
@@ -13,27 +13,32 @@
   `printproof3d validate-model --model <stl> --printer <profile.json> --material <profile.json> -o <report.json>`;
   output schema = `…\PrintProof3D\schemas\validation_report.schema.json` (status pass/warning/fail ·
   confidence_level · issues[] {id like `OVERHANG_UNSUPPORTED`, message, severity blocker|critical|major|minor|nit,
-  suggested_fixes[], region}). **Slice plan (per-slice: real `audit-lite` → fix → push):**
+  suggested_fixes[], region}). **Slice plan (per-slice: real `audit-lite` → fix → push) — SLICES 1–6 DONE:**
   **(1) ✅ DONE** — `src/kimcad/smart_mesh.py` readiness model + scoring (pure `assess_readiness`; PrintProof3D
   report is an optional typed input; verdict tone = worst of KimCad's gate/score/risk AND the engine's own
   status; honest attribution; audit-lite 0/0/0/0/0, `docs/audits/stage-7/audit-lite-slice-1-...md`).
-  **(2) ✅ DONE** — `src/kimcad/printproof3d.py` arm's-length wrapper: `validate_model(...)` invokes the CLI →
-  parses the JSON into `PrintProofReport`; generates valid PrintProof3D printer+material profile JSON from
-  KimCad's Printer/Material (`printer_profile`/`material_profile`); injectable `runner` (mockable); config
-  `binaries.printproof3d` + `Config.printproof3d_binary()` (None when absent → degrade); NEVER raises.
-  **LIVE-VERIFIED** against the real engine (returned a parsed report). audit-lite 0/0/0/0/0
-  (`docs/audits/stage-7/audit-lite-slice-2-...md`).
-  **(3) RESUME HERE** — pipeline + `PrintReport` + design-API integration: compute `assess_readiness(...)` in
-  the assemble tail (invoking `validate_model(mesh, printer, material, binary=config.printproof3d_binary())`),
-  fold `MeshReadiness` into `PrintReport` + the `/api/design` + `/api/render` responses; the gate hard-fails a
-  PrintProof3D `fail` beyond size/watertight. **⚠ BED-POSITION the mesh first**: translate the oriented mesh so
-  its min-corner sits at the bed origin `[0,build]` before calling `validate_model`, else every part trips a
-  false `MODEL_OUT_OF_BOUNDS` (PrintProof3D measures extents from the origin). **(4)** the readiness report CARD
-  (frontend, to design screen `10-smartmesh-report.png`) — UX-acceptance slice, RENDERED browser check.
-  **(5)** learning/history store + the comparison line. **(6)** docs + PrintProof3D tooling/config + stage-end
-  `audit-team` gate → 0/0/0/0/0 → merge + tag `stage-7`. NOTE: the "multiple-shells false-flag on hollow
-  containers" the ROADMAP lists is ALREADY fixed (`validation.py` `_stray_body_count`) — don't redo it.
-  Branch green: **638 pytest (incl. live) + 37 vitest**.
+  **(2) ✅ DONE** — `src/kimcad/printproof3d.py` arm's-length wrapper (`validate_model`); generates the engine's
+  profile JSON from KimCad's Printer/Material; injectable runner; `binaries.printproof3d` +
+  `Config.printproof3d_binary()`; NEVER raises; LIVE-VERIFIED. audit-lite 0/0/0/0/0 (`...slice-2-...md`).
+  **(3) ✅ DONE** — pipeline + `PrintReport.readiness` + `/api/design`+`/api/render` `readiness` block.
+  `_compute_readiness` bed-positions a COPY of the hardened mesh (min-corner → origin) before `validate_model`;
+  best-effort (never breaks the build); the slice gate is UNCHANGED (readiness is advisory); the rerender path
+  computes a fast gate-only readiness. audit-lite 0/0/0/0/0 (`...slice-3-...md`).
+  **(4) ✅ DONE** — the readiness report CARD (`frontend/src/components/RightPanel.tsx`): SVG score gauge,
+  verdict, confidence badge + blurb, risks (with a non-color a11y cue), checkmarked recommendations, comparison
+  line, honest attribution; the Printability badge reframed ("Passed"/"Needs review"/"Failed") so it doesn't
+  duplicate the readiness headline. RENDERED-checked live (desktop+mobile; JPEG screenshot tool times out in
+  this env — used DOM/computed-style, per the Stage-5 note). audit-lite 0/0/0/0/0 (`...slice-4-...md`).
+  **(5) ✅ DONE** — `src/kimcad/history.py` local-first learning store + the honest "compared to your past parts"
+  comparison line (strictly factual; recorded once per design, never per slider drag; default `~/.kimcad/history.json`,
+  never the repo). CLI/non-demo-web inject the store; default Pipeline + demo stay history-less. audit-lite
+  0/0/0/0/0 (`...slice-5-...md`).
+  **(6) ✅ DOCS DONE** — CHANGELOG/ROADMAP/README/ARCHITECTURE updated (Stage 7 = implemented-on-branch, NOT
+  yet merged/tagged — the Stage-4 lesson); `config/default.yaml` documents `binaries.printproof3d` + `paths.history`;
+  `docs/printproof3d-integration.md` = the engine build/wire/contract/privacy doc. **REMAINING = the stage-end
+  `audit-team` gate (all 5 roles) over `main...stage-7-smart-mesh` → fix all to 0/0/0/0/0 → merge → tag `stage-7`
+  → then report.** NOTE: the "multiple-shells false-flag on hollow containers" the ROADMAP lists is ALREADY fixed
+  (`validation.py` `_stray_body_count`) — don't redo it. Branch green: **664 pytest (incl. live) + 43 vitest**.
 
 - **✅ STAGE 6 IS DONE — merged to `main` and tagged `stage-6`** (the tag was advanced past the merge to
   this docs-DONE commit so the tagged artifact's docs say "done", not "pending" — the Stage-4/5 lesson).
