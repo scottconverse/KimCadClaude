@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { DesignResponse } from './api'
-import { assistantMessage, gateLabel, gateTone, isFailureStatus } from './designStatus'
+import {
+  assistantMessage,
+  gateLabel,
+  gateTone,
+  isFailureStatus,
+  readinessTone,
+} from './designStatus'
 
 const base: DesignResponse = {
   status: 'completed',
@@ -20,6 +26,16 @@ describe('gateTone', () => {
   })
 })
 
+describe('readinessTone', () => {
+  it('maps the readiness tone onto the green/amber/red scale, neutral otherwise', () => {
+    expect(readinessTone('pass')).toBe('pass')
+    expect(readinessTone('warn')).toBe('warn')
+    expect(readinessTone('fail')).toBe('fail')
+    expect(readinessTone(undefined)).toBe('neutral')
+    expect(readinessTone('weird')).toBe('neutral')
+  })
+})
+
 describe('isFailureStatus', () => {
   it('marks plan/render/gate failures, not success / clarification / idle', () => {
     expect(isFailureStatus('plan_failed')).toBe(true)
@@ -32,10 +48,12 @@ describe('isFailureStatus', () => {
 })
 
 describe('gateLabel', () => {
-  it('gives a human label per verdict', () => {
-    expect(gateLabel('pass')).toMatch(/ready/i)
-    expect(gateLabel('warn')).toMatch(/notes/i)
-    expect(gateLabel('fail')).toMatch(/not printable/i)
+  it('frames the gate badge as the technical check, distinct from the readiness verdict', () => {
+    expect(gateLabel('pass')).toBe('Passed')
+    expect(gateLabel('warn')).toMatch(/review/i)
+    expect(gateLabel('fail')).toBe('Failed')
+    // Crucially NOT the readiness headline phrase — the two cards must not duplicate it.
+    expect(gateLabel('pass')).not.toMatch(/ready to print/i)
   })
 })
 

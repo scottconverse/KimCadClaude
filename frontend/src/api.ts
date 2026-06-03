@@ -13,6 +13,29 @@ export interface ReportDim {
   ok: boolean
 }
 
+// One readiness risk shown on the Smart Mesh card — a short title + a plain detail + a tone
+// ('warn' | 'fail') that drives the amber/red treatment. Mirrors smart_mesh.Risk.
+export interface ReadinessRisk {
+  title: string
+  detail: string
+  tone: string
+}
+
+// The Smart Mesh readiness verdict (Stage 7): a 0-100 score, a plain verdict, a confidence, the
+// risks, concrete recommendations, an optional history comparison, and what backed the assessment
+// (the gate alone, or the PrintProof3D engine). Mirrors smart_mesh.MeshReadiness; `null` when the
+// pipeline didn't attach one (older results / non-completed paths).
+export interface ReadinessPayload {
+  score: number
+  verdict: string
+  tone: string
+  confidence: string
+  risks: ReadinessRisk[]
+  recommendations: string[]
+  comparison: string | null
+  attribution: string
+}
+
 export interface ReportPayload {
   gate_status: string
   headline: string
@@ -21,6 +44,7 @@ export interface ReportPayload {
   watertight?: boolean
   volume_mm3?: number
   orientation?: string
+  readiness?: ReadinessPayload | null
 }
 
 // One typed, range-bounded parameter — a single live slider. Mirrors the backend's

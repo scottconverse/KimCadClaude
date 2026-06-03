@@ -77,11 +77,42 @@ function templateResult(parameters: ParamSpec[]): DesignResponse {
   }
 }
 
+// A completed result carrying a Smart Mesh readiness verdict (Stage 7). Uses the 'warn' tone so
+// the readiness verdict ("Printable with notes") never collides with the gate badge string.
+const readinessResult: DesignResponse = {
+  status: 'completed',
+  has_mesh: true,
+  mesh_url: '/api/mesh/9',
+  plan: { object_type: 'box', summary: 'a box', target_bbox_mm: [80, 60, 40] },
+  report: {
+    gate_status: 'warn',
+    headline: '',
+    dims: [],
+    findings: [],
+    readiness: {
+      score: 72,
+      verdict: 'Printable with notes',
+      tone: 'warn',
+      confidence: 'High',
+      risks: [
+        { title: 'Overhang unsupported', detail: 'A 55° overhang has no support.', tone: 'warn' },
+      ],
+      recommendations: [
+        'Add supports under the overhang.',
+        'Slice for PLA on the selected printer’s profile.',
+      ],
+      comparison: null,
+      attribution: 'PrintProof3D validation engine',
+    },
+  },
+}
+
 describe('RightPanel', () => {
   it('renders the printability verdict, the size, and findings from the result', () => {
     stubFetch()
     renderPanel({ result: passResult })
-    expect(screen.getByText('Ready to print')).toBeTruthy()
+    // The gate badge is framed as the technical check ("Passed"), not the readiness headline.
+    expect(screen.getByText('Passed')).toBeTruthy()
     expect(screen.getByText('Dimensions match')).toBeTruthy()
     expect(screen.getByText(/80 × 60 × 40 mm/)).toBeTruthy()
   })
@@ -98,6 +129,86 @@ describe('RightPanel', () => {
     renderPanel({ result: passResult })
     expect(screen.queryAllByRole('slider')).toHaveLength(0)
     expect(screen.getByText(/generated directly/i)).toBeTruthy()
+  })
+})
+
+describe('RightPanel readiness card', () => {
+  it('renders the score gauge, verdict, confidence, risks, recommendations, and attribution', () => {
+    stubFetch()
+    renderPanel({ result: readinessResult })
+    // The gauge exposes the score to assistive tech.
+    expect(screen.getByRole('img', { name: /readiness score 72 out of 100/i })).toBeTruthy()
+    expect(screen.getByText('Printable with notes')).toBeTruthy()
+    expect(screen.getByText('High confidence')).toBeTruthy()
+    // A risk (title + plain detail).
+    expect(screen.getByText('Overhang unsupported')).toBeTruthy()
+    expect(screen.getByText(/55° overhang/)).toBeTruthy()
+    // A concrete recommendation.
+    expect(screen.getByText('Add supports under the overhang.')).toBeTruthy()
+    // Honest attribution of what backed the verdict.
+    expect(screen.getByText(/via PrintProof3D validation engine/i)).toBeTruthy()
+    // The risk's severity tier has a non-color (screen-reader) cue, not just the dot color.
+    expect(screen.getByText(/Warning:/)).toBeTruthy()
+  })
+
+  it('applies the pass tone class and the honest gate-only attribution for a passing part', () => {
+    stubFetch()
+    const passReadiness: DesignResponse = {
+      status: 'completed',
+      has_mesh: true,
+      mesh_url: '/api/mesh/2',
+      plan: { object_type: 'box', summary: 'a box', target_bbox_mm: [80, 60, 40] },
+      report: {
+        gate_status: 'pass',
+        headline: '',
+        dims: [],
+        findings: [],
+        readiness: {
+          score: 92,
+          verdict: 'Ready to print',
+          tone: 'pass',
+          confidence: 'Medium',
+          risks: [],
+          recommendations: ['Slice for PLA on the selected printer’s profile.'],
+          comparison: null,
+          attribution: 'KimCad printability gate',
+        },
+      },
+    }
+    const { container } = renderPanel({ result: passReadiness })
+    expect(container.querySelector('.kc-readiness.kc-rtone-pass')).toBeTruthy()
+    expect(screen.getByText(/via KimCad printability gate/i)).toBeTruthy()
+    expect(screen.getByText('Medium confidence')).toBeTruthy()
+    // The gauge reflects the score.
+    expect(screen.getByRole('img', { name: /readiness score 92 out of 100/i })).toBeTruthy()
+  })
+
+  it('renders the history comparison line when one is present', () => {
+    stubFetch()
+    const withHistory: DesignResponse = {
+      ...readinessResult,
+      report: {
+        ...readinessResult.report!,
+        readiness: {
+          ...readinessResult.report!.readiness!,
+          comparison: 'Matches your strongest past prints.',
+        },
+      },
+    }
+    renderPanel({ result: withHistory })
+    expect(screen.getByText('Matches your strongest past prints.')).toBeTruthy()
+  })
+
+  it('shows the readiness placeholder before a part is designed', () => {
+    stubFetch()
+    renderPanel({ result: null })
+    expect(screen.getByText(/print-readiness score .* appears here/i)).toBeTruthy()
+  })
+
+  it('shows a failed-attempt note (not the idle placeholder) when the design failed', () => {
+    stubFetch()
+    renderPanel({ result: { status: 'gate_failed', has_mesh: false } as DesignResponse })
+    expect(screen.getByText(/no part to assess/i)).toBeTruthy()
   })
 })
 

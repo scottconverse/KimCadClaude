@@ -19,15 +19,34 @@ export function gateTone(gateStatus: string | undefined): GateTone {
   }
 }
 
-/** Human label for the gate verdict. */
+/** Map the Smart Mesh readiness tone ('pass' | 'warn' | 'fail') onto the app's green/amber/red
+ * scale. The vocabulary matches the gate's, but a dedicated mapper documents intent and guards an
+ * unexpected value to neutral rather than letting it leak into a class name. */
+export function readinessTone(tone: string | undefined): GateTone {
+  switch (tone) {
+    case 'pass':
+      return 'pass'
+    case 'warn':
+      return 'warn'
+    case 'fail':
+      return 'fail'
+    default:
+      return 'neutral'
+  }
+}
+
+/** Label for the printability GATE badge. Framed as the technical gate result ("Passed" /
+ * "Needs review" / "Failed"), distinct from the Readiness card's synthesized verdict ("Ready to
+ * print"), so the two stacked cards don't lead with the same phrase — the gate is the check that
+ * feeds the readiness headline, not a second verdict. */
 export function gateLabel(gateStatus: string | undefined): string {
   switch (gateStatus) {
     case 'pass':
-      return 'Ready to print'
+      return 'Passed'
     case 'warn':
-      return 'Printable — with notes'
+      return 'Needs review'
     case 'fail':
-      return 'Not printable yet'
+      return 'Failed'
     default:
       return 'Checked'
   }
