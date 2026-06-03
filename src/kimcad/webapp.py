@@ -21,12 +21,15 @@ Design notes:
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import itertools
 import json
 import shutil
 import threading
+import uuid
 from collections import OrderedDict
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -152,6 +155,45 @@ def design_response(
     payload["prompt"] = prompt
     mesh_path = result.mesh_path if (result.mesh_path and result.mesh_path.exists()) else None
     return payload, mesh_path, result
+
+
+def _design_snapshot(payload: dict[str, Any], result: Any, prompt: str) -> dict[str, Any]:
+    """The saveable snapshot for a completed design (Stage 8.5 "My Designs"): the API payload (sans
+    the volatile, id-specific ``mesh_url``), the facts the library indexes by, and the serialized
+    plan needed to restore the live-slider re-render state when the design is reopened."""
+    report = payload.get("report") or {}
+    readiness = report.get("readiness") or {}
+    plan_dump = None
+    try:
+        if result.plan is not None:
+            plan_dump = result.plan.model_dump(mode="json")
+    except Exception:  # noqa: BLE001 - a non-serializable plan just means reopen is view-only
+        plan_dump = None
+    return {
+        "payload": {k: v for k, v in payload.items() if k != "mesh_url"},
+        "plan": plan_dump,
+        "prompt": prompt,
+        "object_type": (payload.get("plan") or {}).get("object_type", ""),
+        "gate_status": report.get("gate_status", ""),
+        "readiness_score": readiness.get("score") if isinstance(readiness, dict) else None,
+        "template_family": payload.get("template"),
+    }
+
+
+def _decode_data_url_png(value: Any) -> bytes | None:
+    """Decode a ``data:image/png;base64,...`` thumbnail (captured from the viewport canvas) to raw
+    PNG bytes, or None if absent / not a PNG data URL / undecodable / implausibly large. The HTTP
+    body cap already bounds the input; this is the belt-and-suspenders content check."""
+    if not isinstance(value, str) or "," not in value:
+        return None
+    head, b64 = value.split(",", 1)
+    if "image/png" not in head:
+        return None
+    try:
+        raw = base64.b64decode(b64, validate=True)
+    except Exception:  # noqa: BLE001 - a malformed thumbnail just means no thumbnail
+        return None
+    return raw if 0 < len(raw) <= 2_000_000 else None
 
 
 class DemoProvider:
@@ -340,6 +382,11 @@ def make_handler(
     # part at new parameter values with no model call. Only template-backed designs are
     # registered here (an LLM-backed part has no adjustable parameters). Evicted via _evict.
     template_state: dict[int, tuple[Any, str]] = {}
+    # Stage 8.5 Slice 1: a per-design saveable snapshot (the API payload + serialized plan + the
+    # facts the "My Designs" library needs), so a save request — which carries only the design id,
+    # a name, and a thumbnail — can persist the design without the client re-sending everything.
+    # Evicted via _evict alongside the rest of the per-design state.
+    design_snapshot: dict[int, dict[str, Any]] = {}
     counter = itertools.count(1)
     version_counter = itertools.count(1)  # cache-busting suffix for re-rendered meshes
     lock = threading.Lock()
@@ -353,6 +400,22 @@ def make_handler(
             config_box["config"] = Config.load()
         return config_box["config"]
 
+    # Stage 8.5 Slice 1: the saved-designs store, built lazily from config. Best-effort — if it
+    # can't be created the persistence endpoints degrade (empty library / save no-ops) and the
+    # live design loop is untouched.
+    designs_box: dict[str, Any] = {"store": None, "tried": False}
+
+    def get_designs_store() -> Any:
+        if not designs_box["tried"]:
+            designs_box["tried"] = True
+            try:
+                from kimcad.design_store import DesignStore
+
+                designs_box["store"] = DesignStore(get_config().designs_path())
+            except Exception:  # noqa: BLE001
+                designs_box["store"] = None
+        return designs_box["store"]
+
     def _evict(rid: int) -> None:
         """QA-003: drop a design id from every registry/cache AND remove its on-disk
         directory, so disk doesn't grow unbounded as the in-memory caps evict. Call under
@@ -360,6 +423,7 @@ def make_handler(
         gcode_registry.pop(rid, None)
         gate_status_by_rid.pop(rid, None)
         template_state.pop(rid, None)
+        design_snapshot.pop(rid, None)
         for k in [k for k in slice_cache if k[0] == rid]:
             slice_cache.pop(k, None)
         shutil.rmtree(web_root / str(rid), ignore_errors=True)
@@ -455,6 +519,17 @@ def make_handler(
                 return
             if self.path.startswith("/api/gcode/"):
                 self._serve_gcode(urlsplit(self.path).path.rsplit("/", 1)[-1])
+                return
+            # Stage 8.5 — saved designs ("My Designs").
+            if self.path == "/api/designs":
+                self._handle_designs_list()
+                return
+            if self.path.startswith("/api/designs/"):
+                tail = unquote(urlsplit(self.path).path[len("/api/designs/") :])
+                if tail.endswith("/thumb"):
+                    self._serve_design_thumb(tail[: -len("/thumb")])
+                else:
+                    self._handle_design_reopen(tail)
                 return
             self._json(404, {"error": "Not found."})
 
@@ -589,6 +664,16 @@ def make_handler(
             if self.path.startswith("/api/send/"):
                 self._handle_send(self.path.rsplit("/", 1)[-1])
                 return
+            # Stage 8.5 — saved designs ("My Designs").
+            if self.path == "/api/designs/save":
+                self._handle_design_save()
+                return
+            if self.path.startswith("/api/designs/"):
+                tail = unquote(self.path[len("/api/designs/") :])
+                for verb in ("rename", "delete", "duplicate"):
+                    if tail.endswith("/" + verb):
+                        self._handle_design_mutate(tail[: -(len(verb) + 1)], verb)
+                        return
             self._json(404, {"error": "Not found."})
 
         def _handle_connector_status(self, name: str) -> None:
@@ -736,12 +821,155 @@ def make_handler(
                     # live-slider endpoint can rebuild it deterministically at new values.
                     if result.template is not None:
                         template_state[rid] = (result.plan, result.template.family.name)
+                    # Stage 8.5: retain the saveable snapshot so "save to My Designs" needs only
+                    # the design id + a name + a thumbnail from the client.
+                    design_snapshot[rid] = _design_snapshot(payload, result, prompt)
                     # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
                     while len(registry) > MAX_REGISTRY:
                         old_rid, _ = registry.popitem(last=False)
                         _evict(old_rid)
                 payload["mesh_url"] = f"/api/mesh/{rid}"
             self._json(200, payload)
+
+        # --- Stage 8.5: saved designs ("My Designs") --------------------------------------
+        def _handle_designs_list(self) -> None:
+            store = get_designs_store()
+            items = store.list() if store is not None else []
+            for it in items:
+                it["thumb_url"] = (
+                    f"/api/designs/{it['id']}/thumb" if it.get("has_thumb") else None
+                )
+            self._json(200, {"designs": items})
+
+        def _serve_design_thumb(self, design_id: str) -> None:
+            store = get_designs_store()
+            path = store.thumb_path(design_id) if store is not None else None
+            if path is None or not path.exists():
+                self._json(404, {"error": "Not found."})
+                return
+            self._send(200, path.read_bytes(), "image/png")
+
+        def _handle_design_save(self) -> None:
+            """Persist the current design to the library. The client sends only the design id (the
+            live rid), an optional name, and a viewport thumbnail; the saveable snapshot + mesh are
+            already held server-side."""
+            data = self._read_json_body()
+            if data is None:
+                return
+            store = get_designs_store()
+            if store is None:
+                self._json(503, {"error": "Saved designs aren't available right now."})
+                return
+            try:
+                rid = int(data.get("design_id"))
+            except (TypeError, ValueError):
+                self._json(400, {"error": "Design the part first, then save it."})
+                return
+            with lock:
+                snap = design_snapshot.get(rid)
+                mesh_path = registry.get(rid)
+            if snap is None or mesh_path is None or not mesh_path.exists():
+                self._json(404, {"error": "That design is no longer available to save."})
+                return
+            name_raw = data.get("name")
+            name = (
+                name_raw.strip()[:120]
+                if isinstance(name_raw, str) and name_raw.strip()
+                else (snap.get("prompt") or "Untitled")[:120]
+            )
+            store_id = uuid.uuid4().hex
+            ok = store.save(
+                design_id=store_id,
+                name=name,
+                prompt=snap.get("prompt", ""),
+                created_at=datetime.now(timezone.utc).isoformat(),
+                object_type=snap.get("object_type", ""),
+                gate_status=snap.get("gate_status", ""),
+                readiness_score=snap.get("readiness_score"),
+                template_family=snap.get("template_family"),
+                payload=snap.get("payload", {}),
+                plan=snap.get("plan"),
+                mesh_path=mesh_path,
+                thumb_png=_decode_data_url_png(data.get("thumbnail")),
+            )
+            if not ok:
+                self._json(500, {"error": "Couldn't save the design."})
+                return
+            self._json(200, {"id": store_id, "name": name})
+
+        def _handle_design_reopen(self, design_id: str) -> None:
+            """Reopen a saved design: re-register it into the live state under a fresh id so the
+            mesh serves and (for a template part) the live sliders work again, then return the
+            stored API payload pointed at the new mesh url."""
+            store = get_designs_store()
+            d = store.get(design_id) if store is not None else None
+            mesh_src = store.mesh_path(design_id) if store is not None else None
+            if d is None or mesh_src is None:
+                self._json(404, {"error": "That design couldn't be found."})
+                return
+            with lock:
+                rid = next(counter)
+            dest_dir = web_root / str(rid)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            mesh_dest = dest_dir / "reopened.stl"
+            try:
+                shutil.copyfile(mesh_src, mesh_dest)
+            except OSError:
+                self._json(500, {"error": "Couldn't open that design."})
+                return
+            with lock:
+                registry[rid] = mesh_dest
+                gate_status_by_rid[rid] = d.gate_status or "fail"
+                if d.template_family and d.plan is not None:
+                    try:
+                        from kimcad.ir import DesignPlan
+
+                        template_state[rid] = (
+                            DesignPlan.model_validate(d.plan),
+                            d.template_family,
+                        )
+                    except Exception:  # noqa: BLE001 - reopen stays view-only if the plan won't restore
+                        pass
+                design_snapshot[rid] = {
+                    "payload": d.payload,
+                    "plan": d.plan,
+                    "prompt": d.prompt,
+                    "object_type": d.object_type,
+                    "gate_status": d.gate_status,
+                    "readiness_score": d.readiness_score,
+                    "template_family": d.template_family,
+                }
+                while len(registry) > MAX_REGISTRY:
+                    old_rid, _ = registry.popitem(last=False)
+                    _evict(old_rid)
+            payload = dict(d.payload)
+            payload["mesh_url"] = f"/api/mesh/{rid}"
+            payload["prompt"] = d.prompt
+            payload["saved_id"] = design_id  # the SPA knows this is an already-saved design
+            self._json(200, payload)
+
+        def _handle_design_mutate(self, design_id: str, verb: str) -> None:
+            store = get_designs_store()
+            if store is None:
+                self._json(503, {"error": "Saved designs aren't available right now."})
+                return
+            if verb == "delete":
+                self._json(200, {"ok": store.delete(design_id)})
+                return
+            if verb == "duplicate":
+                new_id = uuid.uuid4().hex
+                ok = store.duplicate(design_id, new_id)
+                self._json(200, {"ok": ok, "id": new_id if ok else None})
+                return
+            # rename
+            data = self._read_json_body()
+            if data is None:
+                return
+            name = data.get("name")
+            if not isinstance(name, str) or not name.strip():
+                self._json(400, {"error": "Give the design a name."})
+                return
+            self._json(200, {"ok": store.rename(design_id, name)})
 
         def _respond_slice(self, rid: int, info: dict[str, Any], gcode_path: Path | None) -> None:
             out = dict(info)

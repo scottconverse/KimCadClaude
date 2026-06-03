@@ -1388,3 +1388,123 @@ def test_concurrent_rerenders_are_serialized(tmp_path):
     # Belt-and-suspenders: their wall-clock intervals also don't overlap.
     (a0, a1), (b0, b1) = sorted(intervals)
     assert a1 <= b0 + 0.001, "re-renders overlapped — render_lock is not serializing them"
+
+
+# --- Stage 8.5: saved designs ("My Designs") endpoints --------------------------------------
+import contextlib as _ctx2  # noqa: E402
+import http.client as _hc  # noqa: E402
+import json as _json2  # noqa: E402
+import threading as _thr2  # noqa: E402
+from http.server import ThreadingHTTPServer as _THS2  # noqa: E402
+from pathlib import Path as _Path2  # noqa: E402
+
+# A 1x1 transparent PNG as a data URL (a stand-in viewport thumbnail).
+_TINY_PNG = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
+
+
+@_ctx2.contextmanager
+def _serve_with_designs(pipe, root, designs_dir):
+    """Serve with the saved-designs store pointed at a tmp dir (never the real ~/.kimcad)."""
+    root = _Path2(root)
+    root.mkdir(parents=True, exist_ok=True)
+    cfg = Config({"paths": {"designs": str(designs_dir)}})
+    httpd = _THS2(("127.0.0.1", 0), make_handler(pipe, root, config=cfg))
+    _thr2.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        yield "127.0.0.1", httpd.server_address[1]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def _req(host, port, method, path, body=None):
+    conn = _hc.HTTPConnection(host, port, timeout=20)
+    try:
+        data = _json2.dumps(body).encode() if body is not None else None
+        headers = {"Content-Type": "application/json"} if data is not None else {}
+        conn.request(method, path, body=data, headers=headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read()
+    finally:
+        conn.close()
+
+
+def _jreq(host, port, method, path, body=None):
+    status, raw = _req(host, port, method, path, body)
+    return status, _json2.loads(raw)
+
+
+def _template_box_pipeline():
+    from kimcad.ir import DesignPlan
+
+    plan = DesignPlan(
+        object_type="box", summary="a box",
+        dimensions={"width": 80, "depth": 60, "height": 40, "wall": 2},
+        bounding_box_mm=None, printer="bambu_p2s", material="pla",
+    )
+    return _pipeline(FakeProvider(plan), _box_renderer((80, 60, 40)))
+
+
+def test_designs_full_round_trip(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        assert st == 200 and design["status"] == "completed"
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        assert design.get("parameters")  # template-backed -> has live sliders
+
+        st, saved = _jreq(h, p, "POST", "/api/designs/save",
+                          {"design_id": rid, "name": "My Box", "thumbnail": _TINY_PNG})
+        assert st == 200 and saved["name"] == "My Box"
+        sid = saved["id"]
+
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert st == 200
+        entry = next(d for d in lst["designs"] if d["id"] == sid)
+        assert entry["name"] == "My Box" and entry["object_type"] == "box"
+        assert entry["thumb_url"] == f"/api/designs/{sid}/thumb"
+
+        st, raw = _req(h, p, "GET", f"/api/designs/{sid}/thumb")
+        assert st == 200 and raw[:8] == b"\x89PNG\r\n\x1a\n"
+
+        # Reopen -> fresh fully-functional design (mesh serves; sliders + re-render restored).
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{sid}")
+        assert st == 200 and reopened["saved_id"] == sid and reopened.get("parameters")
+        newrid = int(reopened["mesh_url"].rsplit("/", 1)[-1])
+        st, mesh = _req(h, p, "GET", f"/api/mesh/{newrid}")
+        assert st == 200 and len(mesh) > 0
+        # Re-render at the part's own size (the stub renderer always emits 80x60x40): a 200 +
+        # 'completed' proves the template re-render state was restored on reopen (a missing one
+        # would render-fail), without coupling to the stub's fixed output size.
+        st, rr = _jreq(h, p, "POST", f"/api/render/{newrid}",
+                       {"values": {"width": 80, "depth": 60, "height": 40, "wall": 2}})
+        assert st == 200 and rr["status"] == "completed"  # re-render on a reopened design works
+
+        st, _ = _jreq(h, p, "POST", f"/api/designs/{sid}/rename", {"name": "Renamed"})
+        assert st == 200
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert next(d for d in lst["designs"] if d["id"] == sid)["name"] == "Renamed"
+
+        st, dup = _jreq(h, p, "POST", f"/api/designs/{sid}/duplicate")
+        assert st == 200 and dup["ok"] and dup["id"]
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 2
+
+        st, _ = _jreq(h, p, "POST", f"/api/designs/{sid}/delete")
+        assert st == 200
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert sid not in [d["id"] for d in lst["designs"]] and len(lst["designs"]) == 1
+
+
+def test_designs_save_without_a_design_is_404(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, _ = _jreq(h, p, "POST", "/api/designs/save", {"design_id": 9999, "name": "x"})
+        assert st == 404
+
+
+def test_designs_reopen_unknown_is_404(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, _ = _jreq(h, p, "GET", "/api/designs/deadbeef01")
+        assert st == 404
