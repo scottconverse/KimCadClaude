@@ -262,3 +262,20 @@ export function deleteDesign(id: string): Promise<{ ok: boolean }> {
 export function duplicateDesign(id: string): Promise<{ ok: boolean; id: string | null }> {
   return postJson(`/api/designs/${encodeURIComponent(id)}/duplicate`, {})
 }
+
+/** The download URL for a design export (a `.kimcad` zip) — used as an `<a download>` href. */
+export function exportDesignUrl(id: string): string {
+  return `/api/designs/${encodeURIComponent(id)}/export`
+}
+
+/** Import a `.kimcad` export file (the raw zip is the POST body); returns the new design's id. */
+export async function importDesign(file: File): Promise<{ id: string }> {
+  const res = await fetch('/api/designs/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/zip' },
+    body: file,
+  })
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  return data as { id: string }
+}

@@ -14,13 +14,23 @@ fewer designs / a save is skipped) rather than ever breaking a build. Writes are
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import shutil
 import threading
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+# The only files a design folder holds / an export carries. Import extracts ONLY these by exact
+# name (never by the zip's own paths), so a crafted archive can't write outside the design dir.
+_DESIGN_FILES = ("meta.json", "mesh.stl", "thumb.png")
+# Per-member inflated-size ceiling on import — generous for a real STL, fatal to a decompression
+# bomb (a tiny compressed entry that inflates to gigabytes). The compressed upload is separately
+# capped by the web layer; this bounds the *inflated* read so a bomb can't exhaust memory.
+_MAX_IMPORT_MEMBER = 64 * 1024 * 1024  # 64 MiB
 
 # Serialize the read-modify-write of the index + per-design writes across the threaded web server.
 _WRITE_LOCK = threading.Lock()
@@ -218,6 +228,55 @@ class DesignStore:
         except Exception:  # noqa: BLE001
             return False
 
+    def export_bytes(self, design_id: str) -> bytes | None:
+        """A design as a downloadable .kimcad zip (meta + mesh + thumb), for backup / sharing /
+        moving machines. None if absent/unreadable. Never raises."""
+        if not _safe_id(design_id):
+            return None
+        d = self._dir(design_id)
+        if not (d / "meta.json").exists():
+            return None
+        try:
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                for name in _DESIGN_FILES:
+                    p = d / name
+                    if p.exists():
+                        z.write(p, name)
+            return buf.getvalue()
+        except (OSError, zipfile.BadZipFile):
+            return None
+
+    def import_bytes(self, data: bytes, new_id: str) -> bool:
+        """Unpack a .kimcad export (from :meth:`export_bytes`) into a fresh ``new_id``. Zip-slip
+        safe: only the three known files are read, by exact name, and written into the new design
+        dir — the archive's own paths are never used. Validates a usable meta.json + mesh. Returns
+        True on success; best-effort, never raises."""
+        if not _safe_id(new_id):
+            return False
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                names = set(z.namelist())
+                if "meta.json" not in names or "mesh.stl" not in names:
+                    return False
+                meta = json.loads(_read_zip_member(z, "meta.json"))
+                if not isinstance(meta, dict):
+                    return False
+                mesh = _read_zip_member(z, "mesh.stl")
+                thumb = _read_zip_member(z, "thumb.png") if "thumb.png" in names else None
+            with _WRITE_LOCK:
+                dst = self._dir(new_id)
+                dst.mkdir(parents=True, exist_ok=True)
+                (dst / "mesh.stl").write_bytes(mesh)
+                if thumb is not None:
+                    (dst / "thumb.png").write_bytes(thumb)
+                meta["id"] = new_id  # re-key to this machine's fresh id
+                _atomic_write_json(dst / "meta.json", meta)
+                self._prune()
+            return True
+        except Exception:  # noqa: BLE001 - a malformed/oversized archive must never break a build
+            return False
+
     def _prune(self) -> None:
         """Drop the oldest designs beyond the cap. Called under the write lock."""
         entries = self.list()
@@ -237,3 +296,14 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(payload, encoding="utf-8")
     os.replace(tmp, path)
+
+
+def _read_zip_member(z: zipfile.ZipFile, name: str) -> bytes:
+    """Read a zip member with a **bounded** decompression read, so a crafted entry (a zip bomb)
+    can't inflate to gigabytes in memory. Raises ValueError if the member exceeds the ceiling —
+    ``import_bytes``'s broad ``except`` turns that into a clean import rejection (400)."""
+    with z.open(name) as f:
+        data = f.read(_MAX_IMPORT_MEMBER + 1)
+    if len(data) > _MAX_IMPORT_MEMBER:
+        raise ValueError(f"zip member '{name}' exceeds the import size limit")
+    return data

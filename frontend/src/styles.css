@@ -1500,3 +1500,40 @@ input {
   background: color-mix(in srgb, var(--kc-fail) 14%, var(--kc-surface));
   color: var(--kc-fail);
 }
+
+/* My Designs toolbar (Stage 8.5 Slice 1 — search / sort / import) */
+.kc-mydesigns-headactions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kc-mydesigns-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.kc-mydesigns-search {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font-size: 13.5px;
+}
+.kc-mydesigns-search:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-mydesigns-sort select {
+  padding: 8px 10px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font-size: 13px;
+  cursor: pointer;
+}

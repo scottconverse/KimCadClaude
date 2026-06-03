@@ -80,4 +80,51 @@ describe('MyDesigns', () => {
     render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
     expect(await screen.findByRole('alert')).toBeTruthy()
   })
+
+  it('offers an export download link per card', async () => {
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
+    render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    const link = screen.getByText('Export').closest('a') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/api/designs/a1/export')
+    expect(link.hasAttribute('download')).toBe(true)
+  })
+
+  it('filters the library by search', async () => {
+    const two: api.SavedDesignSummary[] = [
+      sample[0],
+      { ...sample[0], id: 'b2', name: 'A Bracket', created_at: '2026-06-01T00:00:00Z' },
+    ]
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: two })
+    render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    expect(screen.getByText('A Bracket')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Search your designs'), { target: { value: 'bracket' } })
+    expect(screen.queryByText('My Box')).toBeNull()
+    expect(screen.getByText('A Bracket')).toBeTruthy()
+  })
+
+  it('shows a no-matches message when the search excludes everything', async () => {
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
+    render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    fireEvent.change(screen.getByLabelText('Search your designs'), {
+      target: { value: 'zzz-no-such-design' },
+    })
+    expect(screen.queryByText('My Box')).toBeNull()
+    expect(screen.getByText(/No designs match/i)).toBeTruthy()
+  })
+
+  it('imports a file and opens the new design', async () => {
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
+    const impSpy = vi.spyOn(api, 'importDesign').mockResolvedValue({ id: 'imp9' })
+    const onOpen = vi.fn()
+    const { container } = render(<MyDesigns onOpen={onOpen} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad', { type: 'application/zip' })
+    const input = container.querySelector('input[type=file]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => expect(impSpy).toHaveBeenCalledWith(file))
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith('imp9'))
+  })
 })

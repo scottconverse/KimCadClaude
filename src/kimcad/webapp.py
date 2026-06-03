@@ -42,6 +42,9 @@ WEB_DIR = Path(__file__).parent / "web"
 # Hardening caps (ENG-004): bound in-memory state and request size.
 MAX_REGISTRY = 50  # keep at most the last N rendered meshes; evict oldest
 MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
+# A design import carries a mesh (+ thumb), so it needs more headroom than a JSON body. Still
+# bounded so a hostile upload can't exhaust memory.
+MAX_IMPORT_BYTES = 32 * 1_048_576  # 32 MiB
 
 # ENG-010: map mesh file extensions to a content type.
 _MESH_CONTENT_TYPES = {".stl": "model/stl", ".3mf": "model/3mf"}
@@ -528,6 +531,8 @@ def make_handler(
                 tail = unquote(urlsplit(self.path).path[len("/api/designs/") :])
                 if tail.endswith("/thumb"):
                     self._serve_design_thumb(tail[: -len("/thumb")])
+                elif tail.endswith("/export"):
+                    self._serve_design_export(tail[: -len("/export")])
                 else:
                     self._handle_design_reopen(tail)
                 return
@@ -667,6 +672,9 @@ def make_handler(
             # Stage 8.5 — saved designs ("My Designs").
             if self.path == "/api/designs/save":
                 self._handle_design_save()
+                return
+            if self.path == "/api/designs/import":
+                self._handle_design_import()
                 return
             if self.path.startswith("/api/designs/"):
                 tail = unquote(self.path[len("/api/designs/") :])
@@ -985,6 +993,46 @@ def make_handler(
                 self._json(400, {"error": "Give the design a name."})
                 return
             self._json(200, {"ok": store.rename(design_id, name)})
+
+        def _serve_design_export(self, design_id: str) -> None:
+            store = get_designs_store()
+            data = store.export_bytes(design_id) if store is not None else None
+            if data is None:
+                self._json(404, {"error": "Not found."})
+                return
+            self._send_download(data, "application/zip", f"kimcad-design-{design_id}.kimcad")
+
+        def _handle_design_import(self) -> None:
+            """Import a .kimcad design export (a zip POSTed as the raw body) into a fresh id."""
+            store = get_designs_store()
+            if store is None:
+                self._json(503, {"error": "Saved designs aren't available right now."})
+                return
+            data = self._read_raw_body(MAX_IMPORT_BYTES)
+            if data is None:
+                return  # a 413/400 was already sent
+            new_id = uuid.uuid4().hex
+            if not store.import_bytes(data, new_id):
+                self._json(400, {"error": "That file isn't a valid KimCad design export."})
+                return
+            self._json(200, {"id": new_id})
+
+        def _read_raw_body(self, max_bytes: int) -> bytes | None:
+            """Read the raw request body behind a size guard (for a binary import). Returns the
+            bytes, or None after sending a 413/400 (mirrors _read_json_body's guard)."""
+            raw_len = self.headers.get("Content-Length")
+            try:
+                declared = int(raw_len) if raw_len is not None else 0
+            except (ValueError, TypeError):
+                declared = -1
+            if declared > max_bytes:
+                self.close_connection = True
+                self._json(413, {"error": "File too large."})
+                return None
+            if declared <= 0:
+                self._json(400, {"error": "Empty upload."})
+                return None
+            return self.rfile.read(declared)
 
         def _respond_slice(self, rid: int, info: dict[str, Any], gcode_path: Path | None) -> None:
             out = dict(info)

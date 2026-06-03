@@ -1560,3 +1560,36 @@ def test_save_update_in_place_keeps_one_entry(tmp_path):
         assert len(lst["designs"]) == 1 and lst["designs"][0]["name"] == "v1"  # name preserved
         st, reopened = _jreq(h, p, "GET", f"/api/designs/{sid}")
         assert next(pp for pp in reopened["parameters"] if pp["name"] == "wall")["value"] == 3.0
+
+
+def _import_zip(host, port, blob):
+    conn = _hc.HTTPConnection(host, port, timeout=20)
+    try:
+        conn.request("POST", "/api/designs/import", body=blob,
+                     headers={"Content-Type": "application/zip"})
+        resp = conn.getresponse()
+        return resp.status, _json2.loads(resp.read())
+    finally:
+        conn.close()
+
+
+def test_designs_export_import_round_trip(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        st, saved = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "name": "Portable"})
+        sid = saved["id"]
+        st, blob = _req(h, p, "GET", f"/api/designs/{sid}/export")
+        assert st == 200 and blob[:2] == b"PK"  # a zip download
+        st, imp = _import_zip(h, p, blob)
+        assert st == 200 and imp["id"] and imp["id"] != sid  # a fresh id
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 2  # original + imported
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{imp['id']}")
+        assert reopened.get("parameters")  # the imported design reopens, sliders restored
+
+
+def test_designs_import_rejects_garbage(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, body = _import_zip(h, p, b"not a real zip")
+        assert st == 400

@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   deleteDesign,
   duplicateDesign,
+  exportDesignUrl,
   getDesigns,
+  importDesign,
   renameDesign,
   type SavedDesignSummary,
 } from '../api'
+
+type SortKey = 'newest' | 'oldest' | 'name'
 
 // Stage 8.5 Slice 1 — the "My Designs" library: a thumbnail grid of saved designs. Click a card to
 // reopen it (the app routes to '#/design/<id>' and restores the part + its sliders); rename inline;
@@ -110,6 +114,9 @@ function DesignCard({
         <button type="button" className="kc-design-act" onClick={() => act(() => duplicateDesign(design.id))}>
           Duplicate
         </button>
+        <a className="kc-design-act" href={exportDesignUrl(design.id)} download>
+          Export
+        </a>
         {confirmDelete ? (
           <>
             <button
@@ -149,6 +156,10 @@ export default function MyDesigns({
 }) {
   const [designs, setDesigns] = useState<SavedDesignSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SortKey>('newest')
+  const [importing, setImporting] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
     getDesigns()
@@ -163,14 +174,80 @@ export default function MyDesigns({
     load()
   }, [load])
 
+  // Filter (by name) + sort, derived from the loaded list (the server returns newest-first).
+  const shown = useMemo(() => {
+    if (designs === null) return null
+    const q = query.trim().toLowerCase()
+    const filtered = q ? designs.filter((d) => d.name.toLowerCase().includes(q)) : designs.slice()
+    if (sort === 'name') filtered.sort((a, b) => a.name.localeCompare(b.name))
+    else if (sort === 'oldest') filtered.sort((a, b) => a.created_at.localeCompare(b.created_at))
+    else filtered.sort((a, b) => b.created_at.localeCompare(a.created_at)) // newest
+    return filtered
+  }, [designs, query, sort])
+
+  async function handleImportFile(file: File | undefined) {
+    if (!file) return
+    setImporting(true)
+    try {
+      const r = await importDesign(file)
+      load()
+      onOpen(r.id) // open the freshly imported design
+    } catch {
+      setError("That file couldn't be imported.")
+    } finally {
+      setImporting(false)
+      if (fileRef.current) fileRef.current.value = '' // allow re-importing the same file
+    }
+  }
+
+  const hasAny = designs !== null && designs.length > 0
+
   return (
     <main className="kc-mydesigns">
       <div className="kc-mydesigns-head">
         <h1 className="kc-mydesigns-title">My Designs</h1>
-        <button type="button" className="kc-btn kc-btn-accent" onClick={onNew}>
-          New design
-        </button>
+        <div className="kc-mydesigns-headactions">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".kimcad,application/zip"
+            className="kc-sr-only"
+            onChange={(e) => handleImportFile(e.target.files?.[0])}
+          />
+          <button
+            type="button"
+            className="kc-btn kc-btn-ghost"
+            onClick={() => fileRef.current?.click()}
+            disabled={importing}
+          >
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+          <button type="button" className="kc-btn kc-btn-accent" onClick={onNew}>
+            New design
+          </button>
+        </div>
       </div>
+
+      {hasAny && (
+        <div className="kc-mydesigns-toolbar">
+          <input
+            type="search"
+            className="kc-mydesigns-search"
+            placeholder="Search your designs…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search your designs"
+          />
+          <label className="kc-mydesigns-sort">
+            <span className="kc-sr-only">Sort by</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="name">Name (A–Z)</option>
+            </select>
+          </label>
+        </div>
+      )}
 
       {error && <p className="kc-muted-note" role="alert">{error}</p>}
 
@@ -188,9 +265,13 @@ export default function MyDesigns({
         </div>
       )}
 
-      {designs !== null && designs.length > 0 && (
+      {hasAny && shown !== null && shown.length === 0 && (
+        <p className="kc-muted-note">No designs match “{query}”.</p>
+      )}
+
+      {shown !== null && shown.length > 0 && (
         <div className="kc-design-grid">
-          {designs.map((d) => (
+          {shown.map((d) => (
             <DesignCard key={d.id} design={d} onOpen={onOpen} onChanged={load} />
           ))}
         </div>

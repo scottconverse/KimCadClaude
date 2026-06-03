@@ -140,3 +140,59 @@ def test_atomic_meta_is_valid_json_after_save(tmp_path):
     _save(store, tmp_path, design_id="j1", name="J", when="2026-06-03T00:00:00+00:00")
     meta = json.loads((tmp_path / "designs" / "j1" / "meta.json").read_text(encoding="utf-8"))
     assert meta["id"] == "j1" and meta["name"] == "J"
+
+
+def test_export_then_import_round_trips(tmp_path):
+    store = DesignStore(tmp_path / "designs")
+    _save(store, tmp_path, design_id="exp1", name="Exported", when="2026-06-03T00:00:00+00:00")
+    blob = store.export_bytes("exp1")
+    assert blob is not None and blob[:2] == b"PK"  # a zip
+    assert store.import_bytes(blob, "imp1") is True
+    imported = store.get("imp1")
+    assert imported is not None and imported.id == "imp1" and imported.name == "Exported"
+    assert store.mesh_path("imp1") is not None  # mesh came across
+    # original + imported coexist
+    assert {e["id"] for e in store.list()} == {"exp1", "imp1"}
+
+
+def test_export_is_none_for_missing_or_unsafe_id(tmp_path):
+    store = DesignStore(tmp_path / "designs")
+    assert store.export_bytes("nope") is None
+    assert store.export_bytes("../etc") is None
+
+
+def test_import_rejects_a_non_design_or_zip_slip_archive(tmp_path):
+    import io
+    import zipfile
+    store = DesignStore(tmp_path / "designs")
+    # Not a zip.
+    assert store.import_bytes(b"not a zip", "x1") is False
+    # A zip MISSING the required mesh.stl -> rejected.
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("meta.json", '{"id":"a","name":"n"}')
+    assert store.import_bytes(buf.getvalue(), "x2") is False
+    # A zip-slip attempt: an entry named ../evil.txt must NOT be written outside the design dir.
+    buf2 = io.BytesIO()
+    with zipfile.ZipFile(buf2, "w") as z:
+        z.writestr("meta.json", '{"id":"a","name":"n"}')
+        z.writestr("mesh.stl", "solid\nendsolid\n")
+        z.writestr("../evil.txt", "pwned")
+    assert store.import_bytes(buf2.getvalue(), "x3") is True  # the valid design imports
+    assert not (tmp_path / "evil.txt").exists()  # the traversal entry was ignored, not written
+
+
+def test_import_rejects_an_oversized_member(tmp_path, monkeypatch):
+    # EI-001: a member that inflates past the per-member ceiling is rejected (no OOM / unbounded
+    # read). Shrink the cap so a normal entry exceeds it, proving the bounded read.
+    import io
+    import zipfile
+    import kimcad.design_store as ds
+    monkeypatch.setattr(ds, "_MAX_IMPORT_MEMBER", 8)
+    store = DesignStore(tmp_path / "designs")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("meta.json", '{"id":"a","name":"a long enough name to exceed the tiny cap"}')
+        z.writestr("mesh.stl", "solid x\nendsolid x\n")
+    assert store.import_bytes(buf.getvalue(), "big1") is False  # rejected, not read unbounded
+    assert store.get("big1") is None  # nothing written
