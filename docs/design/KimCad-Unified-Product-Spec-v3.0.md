@@ -15,7 +15,7 @@ Reference hardware: Beelink mini-PC — AMD Ryzen AI 9 HX 370, Radeon 890M, XDNA
 >
 > 1. **This unified spec is the SOLE controlling document.** The companion `KimCad-Build-Spec-v3.0.md` and `DECISION-LOG-v3.md` (the "Canonical package" note just above), `MODEL_GUIDE.md` (§7), and `internal/agent-workflows/ROADMAP-v3-stages-7-10.md` (§9) **are NOT in this repo** — do not look for them. The live control plane is: **this spec + `ROADMAP.md` + `HANDOFF.md` + the in-repo audit packages under `docs/audits/`.**
 > 2. **Model decision — SETTLED (supersedes §7 and §14).** The default local model is **`gemma4:e4b`**. **`Qwen2.5-Coder 1.5B` was evaluated via the Stage 6 live bake-off and REJECTED (0/10 — a code-completion model can't produce a valid DesignPlan; it echoes the JSON schema back, even with JSON mode forced).** Qwen remains a selectable `--backend` only. Do NOT reopen this. (So §7's "Default: Qwen2.5-Coder 1.5B" and §14's "Qwen2.5-Coder default" are obsolete; the non-China-alternative and OpenRouter-cloud-router framing still holds.)
-> 3. **Stage status — the repo's tagged stage numbering is authoritative (supersedes §9's numbering).** Stages **0–6 are done and tagged** (`stage-0`…`stage-6`). The work §9 bundles under "Stage 8" has already partly shipped: the **model swap landed as repo Stage 6** and **templates + live sliders landed as repo Stage 5**. **NEXT = repo Stage 7 = Smart Mesh + PrintProof3D + readiness report.** Read §9 below for the remaining *work* (Smart Mesh, image on-ramp, real-printer execution, Windows beta) — not its stage *numbers*. (§9's "Stage 7 = Spec Rebaseline (docs only)" is effectively this note; it's done.)
+> 3. **Stage status — the repo's tagged stage numbering is authoritative (supersedes §9's numbering; ratified by Scott 2026-06-02 — see Addendum A at the end of this doc for the full §9→repo mapping).** Stages **0–6 are done and tagged** (`stage-0`…`stage-6`). The work §9 bundles under "Stage 8" has already partly shipped: the **model swap landed as repo Stage 6** and **templates + live sliders landed as repo Stage 5**. **NEXT = repo Stage 7 = Smart Mesh + PrintProof3D + readiness report.** Read §9 below for the remaining *work* (Smart Mesh, image on-ramp, real-printer execution, Windows beta) — not its stage *numbers*. (§9's "Stage 7 = Spec Rebaseline (docs only)" is effectively this note; it's done.)
 
 ---
 
@@ -360,3 +360,25 @@ Ten canonical functional prompts, each with expected geometric properties for au
 Scored on Trimesh properties (`is_watertight`, `math.isclose(volume, expected)`, `bounding_box == expected`) plus feature-specific assertions (e.g. hole diameter). The same harness A/B-tests models and prompt revisions and gates every offered model (§7).
 
 *End of Unified Specification — v3.0. Supersedes v2.1. Load-bearing facts verified 2026-05-31; re-verify per §7.5.*
+
+---
+
+## Addendum A — Stage-numbering reconciliation (RATIFIED by Scott, 2026-06-02)
+
+**Decision (ratified):** the **repo's tagged stage numbering is the authoritative operational scheme**, not §9's "Stages 7–10" planning numbers. The product was built and tagged on the repo scheme (`stage-0` … `stage-6`), so that is the numbering of record for all future work. §9 above is retained as the *work backlog* (what's left to build), read for its content, not its stage labels. `ROADMAP.md` is the live operational roadmap.
+
+**Why:** §9's numbering and the repo's tag history diverged as the build progressed — the model swap and the templates+sliders that §9 bundles under "Stage 8" actually shipped earlier as repo Stages 6 and 5. An independent full audit flagged the resulting ambiguity (Critical DOC-001, `docs/audits/full/audit-full-kimcadclaude-2026-06-02-codex/`). One authoritative scheme removes the drift.
+
+**Mapping — spec §9 plan → repo stages (for the remaining work):**
+
+| Spec §9 item | Repo status |
+|---|---|
+| Stage 7 — Spec Rebaseline (docs only) | **Done** — the control-plane banner at the top of this doc + this addendum *are* the rebaseline. |
+| Stage 8 — model swap | **Done** as repo **Stage 6** (`stage-6`); verdict: `gemma4:e4b` stays, Qwen rejected. |
+| Stage 8 — template engine + live sliders | **Done** as repo **Stage 5** (`stage-5`). |
+| Stage 8 — Smart Mesh + learning/history | **Next** = repo **Stage 7** (Smart Mesh + PrintProof3D + readiness report). |
+| Stage 8 — image-to-3D on-ramp · multi-library template expansion · CadQuery parallel backend | Later repo stages (post-Stage-7). |
+| Stage 9 — Real Printer Execution | A later repo stage. |
+| Stage 10 — Windows Beta Gate | The final repo stage. |
+
+**Net:** stages 0–6 are done and tagged; **next = repo Stage 7 = Smart Mesh + PrintProof3D + readiness report.** The model decision (`gemma4:e4b` default; Qwen rejected) is settled and is not reopened.
