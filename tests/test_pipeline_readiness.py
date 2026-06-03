@@ -14,6 +14,7 @@ from pathlib import Path
 import trimesh
 
 from kimcad.config import Config
+from kimcad.history import HistoryStore
 from kimcad.ir import DesignPlan
 from kimcad.pipeline import Pipeline, PipelineStatus
 from kimcad.smart_mesh import MeshReadiness, PrintProofIssue, PrintProofReport, Risk
@@ -227,6 +228,59 @@ def test_printproof3d_failure_never_breaks_the_build(tmp_path, monkeypatch):
     # Degraded cleanly to the gate-only verdict.
     assert result.report.readiness is not None
     assert result.report.readiness.attribution == "KimCad printability gate"
+
+
+# --- the learning store: comparison + recording ----------------------------------------------
+
+def test_no_history_store_means_no_comparison(tmp_path):
+    # The default pipeline has no history store -> no comparison line, no side effects.
+    plan = _plan("box", dimensions={"width": 80, "depth": 60, "height": 40, "wall": 2})
+    renderer, _ = _box_renderer((80, 60, 40))
+    result = _pipeline(FakeProvider(plan), renderer).run("a box", tmp_path)
+    assert result.report.readiness.comparison is None
+    assert "print history" not in result.report.readiness.attribution
+
+
+def test_history_comparison_folds_in_and_the_build_is_recorded(tmp_path):
+    store = HistoryStore(tmp_path / "history.json")
+    # Seed two prior, lower-scoring box prints so the new build ranks against them.
+    from kimcad.history import PrintRecord
+    store.record(PrintRecord("box", 50, "pass", "PLA", 80.0))
+    store.record(PrintRecord("box", 60, "pass", "PLA", 80.0))
+
+    plan = _plan("box", dimensions={"width": 80, "depth": 60, "height": 40, "wall": 2})
+    renderer, _ = _box_renderer((80, 60, 40))
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(plan), renderer=renderer, history=store)
+    result = pipe.run("a box", tmp_path)
+
+    r = result.report.readiness
+    assert r.comparison is not None
+    assert "past" in r.comparison  # a factual ranking line
+    assert "your local build history" in r.attribution  # attribution augmented honestly
+
+    # The build was recorded AFTER comparing, so the store now has 3 records and the comparison
+    # above ranked against the 2 PRIOR ones (not itself).
+    records = store.load()
+    assert len(records) == 3
+    assert records[-1].object_type == "box"
+    assert records[-1].score == r.score
+
+
+def test_rerender_does_not_record_history(tmp_path):
+    store = HistoryStore(tmp_path / "history.json")
+    plan = _plan("box", dimensions={"width": 80, "depth": 60, "height": 40, "wall": 2})
+    renderer, _ = _box_renderer((80, 60, 40))
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(plan), renderer=renderer, history=store)
+
+    pipe.run("a box", tmp_path)
+    assert len(store.load()) == 1  # the initial design recorded once
+
+    pipe.rerender(plan, "snap_box",
+                  {"width": 80, "depth": 60, "height": 40, "wall": 1.5}, tmp_path)
+    pipe.rerender(plan, "snap_box",
+                  {"width": 90, "depth": 60, "height": 40, "wall": 1.5}, tmp_path)
+    # A live-slider drag is not a new design — the store must NOT grow per drag.
+    assert len(store.load()) == 1
 
 
 # --- the design API exposes readiness --------------------------------------------------------

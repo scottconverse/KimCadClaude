@@ -20,6 +20,7 @@ from __future__ import annotations
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ from kimcad.openscad_runner import (
     RenderResult,
     render_scad,
 )
+from kimcad.history import HistoryStore, PrintRecord
 from kimcad.orientation import Orientation, auto_orient
 from kimcad.printability import Finding, GateResult, Level, dim_tolerance, run_gate
 from kimcad.printproof3d import validate_model
@@ -249,6 +251,7 @@ class Pipeline:
         slicer: Slicer | None = None,
         registry: TemplateRegistry | None = None,
         max_render_retries: int = 2,
+        history: HistoryStore | None = None,
     ):
         self.config = config
         self.printer = printer
@@ -256,6 +259,10 @@ class Pipeline:
         self.provider = provider
         self.renderer = renderer or self._default_renderer
         self.slicer = slicer or self._default_slicer
+        # The Smart Mesh learning store (Stage 7). Optional: when None (the default, and in unit
+        # tests), no history is read or written — the readiness card simply omits the comparison.
+        # The CLI/web entrypoints inject a real store so a build is remembered and compared.
+        self.history = history
         # The deterministic template engine. Pass an empty TemplateRegistry(()) to force
         # the LLM-codegen path for every part (the engine off); the default registry makes
         # template-covered object types deterministic and instantly re-renderable.
@@ -391,6 +398,7 @@ class Pipeline:
         proceed_anyway: bool,
         confirm_print: bool,
         run_engine: bool = True,
+        record_history: bool = True,
     ) -> PipelineResult:
         """Shared tail for both a prompt-driven ``run`` and a live-slider ``rerender``:
         orient, harden + export the manifold mesh, build the report, then — on a gate FAIL —
@@ -425,6 +433,12 @@ class Pipeline:
         report.readiness = self._compute_readiness(
             gate, mesh_report, hardened, run_engine=run_engine
         )
+        # The learning layer runs on a fresh design only, not a live-slider drag: fold in the
+        # "compared to your past prints" line (ranked against PRIOR records), THEN record this
+        # build. A drag would otherwise flood the store and rank a part against its own parent.
+        if record_history:
+            self._apply_history_comparison(report.readiness, plan)
+            self._record_history(plan, report)
 
         if gate.status is Level.FAIL and not proceed_anyway:
             return PipelineResult(
@@ -506,6 +520,44 @@ class Pipeline:
             gate, mesh_report, material_name=self.material.name, printproof=printproof
         )
 
+    def _apply_history_comparison(self, readiness: MeshReadiness, plan: DesignPlan) -> None:
+        """Fold an honest "compared to your past prints" line (and a history attribution) into the
+        readiness, comparing this part's score against the PRIOR records. Best-effort: a store
+        read failure leaves the readiness untouched (no comparison) rather than breaking the build."""
+        if self.history is None:
+            return
+        try:
+            line = self.history.comparison(
+                object_type=plan.object_type, score=readiness.score
+            )
+        except Exception:  # noqa: BLE001 - the learning line is never load-bearing
+            line = None
+        if line is not None:
+            readiness.comparison = line
+            readiness.attribution = f"{readiness.attribution} and your local build history"
+            readiness.sources.append("build-history")
+
+    def _record_history(self, plan: DesignPlan, report: PrintReport) -> None:
+        """Append this build to the learning store. Best-effort: any failure is swallowed so a
+        logging miss never breaks a build. Stores a coarse record (type, readiness score, gate,
+        material, largest dimension) — no geometry, no prompt."""
+        if self.history is None or report.readiness is None:
+            return
+        try:
+            max_dim = max(report.actual_bbox_mm) if report.actual_bbox_mm else 0.0
+            self.history.record(
+                PrintRecord(
+                    object_type=plan.object_type,
+                    score=report.readiness.score,
+                    gate_status=report.gate_status,
+                    material=self.material.name,
+                    max_dim_mm=float(max_dim),
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                )
+            )
+        except Exception:  # noqa: BLE001 - history is never load-bearing
+            return
+
     def rerender(
         self,
         base_plan: DesignPlan,
@@ -569,8 +621,10 @@ class Pipeline:
             proceed_anyway=proceed_anyway,
             confirm_print=confirm_print,
             # Live-slider hot path: skip the engine subprocess so a debounced drag stays snappy;
-            # the gate-only readiness is computed instantly and honestly attributed.
+            # the gate-only readiness is computed instantly and honestly attributed. Don't record
+            # to history either — a drag isn't a new design, and would flood the store.
             run_engine=False,
+            record_history=False,
         )
 
     @staticmethod

@@ -163,6 +163,7 @@ def _normalize_argv(argv: list[str]) -> list[str]:
 
 
 def _build_pipeline(config: Config, args: argparse.Namespace):
+    from kimcad.history import HistoryStore
     from kimcad.llm_provider import FallbackProvider, LLMProvider
     from kimcad.pipeline import Pipeline
 
@@ -172,7 +173,10 @@ def _build_pipeline(config: Config, args: argparse.Namespace):
     alt_cfg = config.llm_alt_backend()
     alt = LLMProvider(alt_cfg) if alt_cfg is not None else None
     provider = FallbackProvider(primary, alt) if alt is not None else primary
-    return Pipeline(config, printer, material, provider)
+    # A real design is remembered for the Smart Mesh learning comparison (local-first, best-effort).
+    return Pipeline(
+        config, printer, material, provider, history=HistoryStore(config.history_path())
+    )
 
 
 def _pipeline_for_backend(config: Config, backend_key: str, printer: Any, material: Any):

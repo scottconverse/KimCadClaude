@@ -186,13 +186,17 @@ class DemoProvider:
 def build_web_pipeline(*, demo: bool = False, backend: str | None = None) -> Any:
     """Construct the pipeline for the web app, mirroring the CLI's wiring."""
     from kimcad.config import Config
+    from kimcad.history import HistoryStore
     from kimcad.pipeline import Pipeline
 
     config = Config.load()
     printer = config.printer(None)
     material = config.material(None)
     provider: Any = DemoProvider() if demo else _real_provider(config, backend)
-    return Pipeline(config, printer, material, provider)
+    # Real designs are remembered for the learning comparison; the demo stays stateless so a UI
+    # check never pollutes the user's history (and the demo builds the same part anyway).
+    history = None if demo else HistoryStore(config.history_path())
+    return Pipeline(config, printer, material, provider, history=history)
 
 
 def _real_provider(config: Any, backend: str | None) -> Any:

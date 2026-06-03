@@ -125,6 +125,17 @@ class Config:
         p = p if p.is_absolute() else (PROJECT_ROOT / p)
         return p if p.exists() else None
 
+    def history_path(self) -> Path:
+        """Where the Smart Mesh learning store lives (Stage 7). Defaults to a per-user file
+        (``~/.kimcad/history.json``) so it persists across projects and never lands in the repo;
+        override with ``paths.history`` in config (a relative path resolves against the project
+        root). The store is local-first and best-effort — nothing here leaves the machine."""
+        raw = self._d.get("paths", {}).get("history")
+        if raw:
+            p = Path(raw)
+            return p if p.is_absolute() else (PROJECT_ROOT / p)
+        return Path.home() / ".kimcad" / "history.json"
+
     # --- printers / materials ----------------------------------------------
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]
