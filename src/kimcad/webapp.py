@@ -45,6 +45,10 @@ MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
 # A design import carries a mesh (+ thumb), so it needs more headroom than a JSON body. Still
 # bounded so a hostile upload can't exhaust memory.
 MAX_IMPORT_BYTES = 32 * 1_048_576  # 32 MiB
+# Stage 8.5 Slice 2: bound the client-supplied conversation history threaded into the model on a
+# follow-up turn, so a crafted request can't blow up the prompt context.
+MAX_HISTORY_TURNS = 20
+MAX_HISTORY_CONTENT = 4000  # chars per turn
 
 # ENG-010: map mesh file extensions to a content type.
 _MESH_CONTENT_TYPES = {".stl": "model/stl", ".3mf": "model/3mf"}
@@ -144,16 +148,38 @@ def _result_to_payload(result: Any) -> dict[str, Any]:
     return payload
 
 
+def _sanitize_history(raw: Any) -> list[dict[str, str]] | None:
+    """Coerce client-supplied conversation history into the ``[{role, content}]`` shape the model
+    accepts (Stage 8.5 Slice 2 — a follow-up turn threads the prior conversation for context).
+    Defensive: keep only well-formed user/assistant turns, cap the count + each content length, and
+    never raise. Returns None when there's nothing usable (the call then behaves like a fresh turn)."""
+    if not isinstance(raw, list):
+        return None
+    out: list[dict[str, str]] = []
+    for turn in raw[-MAX_HISTORY_TURNS:]:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get("role")
+        content = turn.get("content")
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            continue
+        out.append({"role": role, "content": content[:MAX_HISTORY_CONTENT]})
+    return out or None
+
+
 def design_response(
-    pipeline: Any, prompt: str, out_dir: Path
+    pipeline: Any, prompt: str, out_dir: Path, history: list[dict[str, str]] | None = None
 ) -> tuple[dict[str, Any], Path | None, Any]:
     """Run one prompt through the pipeline and shape the result for the UI.
+
+    ``history`` is the prior conversation (``[{role, content}]``) for a follow-up/refine turn, so the
+    model sees the context of the part being changed; ``None`` runs the prompt standalone.
 
     Returns the JSON-able payload, the rendered mesh path (or None) for the 3D preview, and
     the :class:`PipelineResult` itself so the HTTP layer can register per-design re-render
     state (the base plan + template family) for the live-slider endpoint.
     """
-    result = pipeline.run(prompt, out_dir)
+    result = pipeline.run(prompt, out_dir, history=history)
     payload = _result_to_payload(result)
     payload["prompt"] = prompt
     mesh_path = result.mesh_path if (result.mesh_path and result.mesh_path.exists()) else None
@@ -821,10 +847,16 @@ def make_handler(
             if not prompt:
                 self._json(400, {"error": "Please describe the part you want."})
                 return
+            # Stage 8.5 Slice 2: an optional conversation history threads the prior turns into the
+            # model so a follow-up ("make it 10mm taller") refines in context. Sanitized + bounded;
+            # a malformed history is dropped (the turn just runs standalone), never a 400/500.
+            history = _sanitize_history(data.get("history"))
             with lock:
                 rid = next(counter)
             try:
-                payload, mesh_path, result = design_response(pipeline, prompt, web_root / str(rid))
+                payload, mesh_path, result = design_response(
+                    pipeline, prompt, web_root / str(rid), history=history
+                )
             except Exception as e:  # never leak a traceback to the browser
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return

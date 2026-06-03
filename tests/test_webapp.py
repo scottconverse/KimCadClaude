@@ -1630,3 +1630,60 @@ def test_concurrent_saves_without_saved_id_make_one_entry(tmp_path):
         assert len({sid for _, sid in results}) == 1  # one shared id across all concurrent saves
         st, lst = _jreq(h, p, "GET", "/api/designs")
         assert len(lst["designs"]) == 1  # exactly one library entry, no duplicates
+
+
+def test_sanitize_history_keeps_only_wellformed_bounded_turns():
+    # Slice 2: the client-supplied conversation history is sanitized before it reaches the model.
+    from kimcad.webapp import MAX_HISTORY_CONTENT, MAX_HISTORY_TURNS, _sanitize_history
+    assert _sanitize_history(None) is None
+    assert _sanitize_history("not a list") is None
+    assert _sanitize_history([]) is None
+    assert _sanitize_history([{"role": "user", "content": "hi"}]) == [{"role": "user", "content": "hi"}]
+    # Drops bad roles, non-str content, and non-dict entries; preserves order of the good ones.
+    assert _sanitize_history([
+        {"role": "user", "content": "ok"},
+        {"role": "system", "content": "drop me (bad role)"},
+        {"role": "assistant", "content": 5},  # non-str content
+        "not a dict",
+        {"role": "assistant", "content": "kept"},
+    ]) == [{"role": "user", "content": "ok"}, {"role": "assistant", "content": "kept"}]
+    # Caps the number of turns (keeps the most recent).
+    many = [{"role": "user", "content": str(i)} for i in range(MAX_HISTORY_TURNS + 5)]
+    capped = _sanitize_history(many)
+    assert len(capped) == MAX_HISTORY_TURNS and capped[-1]["content"] == str(MAX_HISTORY_TURNS + 4)
+    # Caps each turn's content length.
+    long = _sanitize_history([{"role": "user", "content": "y" * (MAX_HISTORY_CONTENT + 100)}])
+    assert len(long[0]["content"]) == MAX_HISTORY_CONTENT
+
+
+def test_design_threads_sanitized_history_to_the_model(tmp_path):
+    # Slice 2: a follow-up turn's prior conversation reaches generate_design_plan as `history`, so
+    # the model refines in context — and a malformed history never 400s/500s (it's dropped).
+    from conftest import FakeProvider
+    captured: dict = {}
+
+    class Recording(FakeProvider):
+        def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
+            captured["history"] = history
+            return super().generate_design_plan(prompt, printer, material, history=history)
+
+    pipe = _pipeline(Recording(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _jreq(host, port, "POST", "/api/design", {
+            "prompt": "make it 10mm taller",
+            "history": [
+                {"role": "user", "content": "a 20mm box"},
+                {"role": "assistant", "content": "Here you go — a 20mm box."},
+                {"role": "bogus", "content": "dropped"},
+            ],
+        })
+        assert st == 200
+        assert captured["history"] == [
+            {"role": "user", "content": "a 20mm box"},
+            {"role": "assistant", "content": "Here you go — a 20mm box."},
+        ]
+        # No history key -> standalone (None), and a non-list history is dropped to None, never an error.
+        st, _ = _jreq(host, port, "POST", "/api/design", {"prompt": "a fresh box"})
+        assert st == 200 and captured["history"] is None
+        st, _ = _jreq(host, port, "POST", "/api/design", {"prompt": "a box", "history": "garbage"})
+        assert st == 200 and captured["history"] is None
