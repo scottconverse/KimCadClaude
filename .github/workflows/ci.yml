@@ -1,7 +1,12 @@
 name: CI
 
-# Hosted CI for when GitHub Actions minutes are available. Until then the same
-# checks run locally via the pre-push hook (.githooks/pre-push -> scripts/ci.sh).
+# PARTIAL smoke check, NOT the authoritative gate. This runs Python lint + pytest only,
+# on a Linux runner. It deliberately does NOT run the frontend Vitest suite, the SPA
+# build / build-reproducibility check, npm audit, external-tool fetch, or the live
+# (Windows-only) OrcaSlicer slice proof — those can't run on a hosted Linux runner.
+# The authoritative gate is the LOCAL Windows pre-push hook (.githooks/pre-push ->
+# scripts/ci.sh), which runs all of the above. A green check here is not equivalent to
+# the local gate. (Currently disabled to save Actions minutes; `gh workflow enable CI`.)
 on:
   push:
   pull_request:

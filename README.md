@@ -250,9 +250,17 @@ aren't available). Enable the hook once per clone:
 git config core.hooksPath .githooks
 ```
 
-After that, every `git push` runs `scripts/ci.sh` (ruff + pytest) and blocks the push
-if anything fails. The same checks are defined for hosted CI in
-`.github/workflows/ci.yml` for when Actions minutes are available.
+After that, every `git push` runs `scripts/ci.sh` and blocks the push if anything fails.
+That local Windows pre-push hook is the **authoritative gate**: ruff, the full pytest
+suite (including the live OrcaSlicer slice), the frontend Vitest suite, a committed-SPA
+build-reproducibility check, and — in release mode — live-tool proof.
+
+Hosted GitHub Actions CI (`.github/workflows/ci.yml`) is an **intentionally partial
+smoke check** — Python lint + `pytest` only, on a Linux runner — and is currently
+disabled (out of Actions minutes; re-enable with `gh workflow enable CI`). It does **not**
+run the frontend tests/build or the live Windows-only OrcaSlicer slice, so a green hosted
+check is not equivalent to the local gate and is not authoritative. Treat the pre-push hook
+as the gate of record until hosted CI is brought up to the same coverage.
 
 ## Platform notes
 

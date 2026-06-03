@@ -1,6 +1,10 @@
 #!/bin/sh
-# Local CI gate — runs the same checks GitHub Actions would, on this machine.
-# Used by the pre-push hook (.githooks/pre-push) and runnable by hand.
+# Local CI gate — the AUTHORITATIVE pre-push gate (run on Windows). It is a SUPERSET of
+# hosted CI: ruff + the full pytest suite (incl. the live OrcaSlicer slice) + frontend
+# vitest + SPA build-reproducibility + release-mode live-tool proof. Hosted GitHub Actions
+# (.github/workflows/ci.yml) is an intentionally PARTIAL smoke check (Python lint + pytest
+# only, Linux) and is not equivalent. Used by the pre-push hook (.githooks/pre-push) and
+# runnable by hand.
 set -e
 cd "$(git rev-parse --show-toplevel)"
 

@@ -8,16 +8,8 @@
   `audit-lite` to 0/0/0/0/0, then the full `audit-team` stage gate ran 2026-06-02 (0B/1C/6Maj/13Min/11Nit)
   and was remediated to **0/0/0/0/0** — package at `docs/audits/stage-6/audit-team-stage-6-2026-06-02/`
   (+ `REMEDIATION.md`). **The model decision is settled: `gemma4:e4b` stays; `qwen2.5-coder:1.5b` was
-  evaluated via the live bake-off and rejected (0/10).** **NEXT = Stage 7 (Smart Mesh + PrintProof3D).** Slices, each through
-  the real `audit-lite` skill to **0/0/0/0/0** (reports in `docs/audits/stage-6/`): **(1)** hardware-aware
-  advisor `kimcad models`; **(2)** tiered fallback `FallbackProvider`; **(3)** 3-axis benchmark grading;
-  **(4)** the `kimcad bakeoff` machinery; **(5)** plan-failure robustness. **Bake-off verdict — run LIVE
-  on THIS box (both models are pulled here; the earlier "needs Scott's box / hand-off" note was a wrong
-  assumption I corrected): `qwen2.5-coder:1.5b` = 0/10 (it can't produce a design plan — a code model
-  echoes the JSON schema instead of an instance, even with JSON mode forced). So `gemma4:e4b` STAYS the
-  default — no config change.** **RESUME HERE = the Stage 6 stage-end `audit-team` gate** on the branch
-  → fix to 0/0/0/0/0 → merge + tag `stage-6`. Branch green: **588 pytest (incl. live) + 36 vitest**; the
-  pre-push CI hook gates every push.
+  evaluated via the live bake-off and rejected (0/10).** **RESUME HERE = Stage 7 (Smart Mesh + PrintProof3D + readiness report).** Stage 6 is complete — do NOT
+  re-run its gate. The model decision is settled (gemma stays, qwen rejected) — do NOT reopen it.
 - **✅ STAGE 5 IS DONE — merged to `main` (merge commit `14896d6`) and tagged `stage-5`** (the tag was
   advanced past the merge to this docs-DONE commit so the tagged artifact's docs say "done", not
   "pending" — the Stage-4 lesson). Slices 1–5 (engine, pipeline tiering, re-render API, live sliders,

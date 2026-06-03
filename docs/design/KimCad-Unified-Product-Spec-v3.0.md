@@ -11,6 +11,12 @@ Reference hardware: Beelink mini-PC — AMD Ryzen AI 9 HX 370, Radeon 890M, XDNA
 >
 > **Canonical package (ground-up complete).** This document is the *direction, decisions, and acceptance* layer. The concrete buildable layer — schemas, contracts, prompts, the API surface, the PrintProof3D integration contract, the build/installer recipe, and the genuinely-new pieces (Smart Mesh data model + readiness score, image-provider interface, printer-adapter config) — lives in the companion **`KimCad-Build-Spec-v3.0.md`**. Together with **`DECISION-LOG-v3.md`** these three files in `docs/spec/` are the complete, self-contained spec: a fresh builder handed only this folder can build the product from the ground up. (The build spec's contracts are extracted from the current code and marked where the v3.0 TARGET differs from what exists today.)
 
+> **⚠ CONTROL-PLANE STATUS (updated 2026-06-02, after the repo reached tag `stage-6`) — READ THIS FIRST. It supersedes the stale parts of the body below.** An independent full audit flagged this drift as Critical (`docs/audits/full/audit-full-kimcadclaude-2026-06-02-codex/`, finding DOC-001). The reconciliation:
+>
+> 1. **This unified spec is the SOLE controlling document.** The companion `KimCad-Build-Spec-v3.0.md` and `DECISION-LOG-v3.md` (the "Canonical package" note just above), `MODEL_GUIDE.md` (§7), and `internal/agent-workflows/ROADMAP-v3-stages-7-10.md` (§9) **are NOT in this repo** — do not look for them. The live control plane is: **this spec + `ROADMAP.md` + `HANDOFF.md` + the in-repo audit packages under `docs/audits/`.**
+> 2. **Model decision — SETTLED (supersedes §7 and §14).** The default local model is **`gemma4:e4b`**. **`Qwen2.5-Coder 1.5B` was evaluated via the Stage 6 live bake-off and REJECTED (0/10 — a code-completion model can't produce a valid DesignPlan; it echoes the JSON schema back, even with JSON mode forced).** Qwen remains a selectable `--backend` only. Do NOT reopen this. (So §7's "Default: Qwen2.5-Coder 1.5B" and §14's "Qwen2.5-Coder default" are obsolete; the non-China-alternative and OpenRouter-cloud-router framing still holds.)
+> 3. **Stage status — the repo's tagged stage numbering is authoritative (supersedes §9's numbering).** Stages **0–6 are done and tagged** (`stage-0`…`stage-6`). The work §9 bundles under "Stage 8" has already partly shipped: the **model swap landed as repo Stage 6** and **templates + live sliders landed as repo Stage 5**. **NEXT = repo Stage 7 = Smart Mesh + PrintProof3D + readiness report.** Read §9 below for the remaining *work* (Smart Mesh, image on-ramp, real-printer execution, Windows beta) — not its stage *numbers*. (§9's "Stage 7 = Spec Rebaseline (docs only)" is effectively this note; it's done.)
+
 ---
 
 ## 0. About this document
@@ -255,6 +261,8 @@ Windows-first. The bundled installer carries all binaries. macOS/Linux betas may
 
 ## 7. Model Strategy (verified 2026-05-31 — re-verify before each stage)
 
+> **⚠ SUPERSEDED in part — see the CONTROL-PLANE STATUS banner at the top.** The Stage 6 live bake-off settled the default: **`gemma4:e4b`**, not Qwen. `Qwen2.5-Coder 1.5B` was evaluated and **rejected (0/10 — can't produce a valid DesignPlan)** and is a selectable `--backend` only. The "Default: Qwen2.5-Coder" lines below are obsolete; the non-China-alternative (Gemma) and OpenRouter-cloud-router decisions still hold. `MODEL_GUIDE.md` is not in the repo.
+
 The decision: a **small, fast local model for DesignPlan JSON**, a **proven non-China alternative**, and **OpenRouter as the cloud router**. The full matrix is maintained out-of-band in `MODEL_GUIDE.md` because it rots fast.
 
 ### 7.1 Local default — sized for the loop
@@ -281,6 +289,8 @@ The library is the quality moat — it does more for first-try accuracy than any
 ---
 
 ## 9. Build Plan (Stages 7–10)
+
+> **⚠ STAGE NUMBERING SUPERSEDED — see the CONTROL-PLANE STATUS banner at the top.** The repo's tagged numbering is authoritative: stages **0–6 are done + tagged**; the "Stage 7 = Spec Rebaseline" item below is effectively done, and the "Stage 8" bundle's model-swap + templates/sliders already shipped as repo Stages 6 and 5. **NEXT = repo Stage 7 = Smart Mesh + PrintProof3D + readiness report.** Read this section for the remaining *work*, not its stage *numbers*. `internal/agent-workflows/ROADMAP-v3-stages-7-10.md` is not in the repo (`ROADMAP.md` is the live roadmap).
 
 Stages 0–6 are complete. **Stage 6 is a packaged Windows local-CAD release candidate — not the beta.** The remaining work is four large, coherent stages (no small-slice sprawl). Detailed deliverables/acceptance per stage live in `internal/agent-workflows/ROADMAP-v3-stages-7-10.md`.
 
@@ -332,6 +342,8 @@ KimCad binds a local web server that runs subprocesses derived from model output
 ---
 
 ## 14. Open Questions & Decision Log
+
+> **⚠ SUPERSEDED in part — see the CONTROL-PLANE STATUS banner at the top.** `docs/spec/DECISION-LOG-v3.md` is not in the repo. The "Qwen2.5-Coder default" in the decided list is obsolete — the Stage 6 bake-off rejected Qwen; **`gemma4:e4b` is the default.** The "Still open … Qwen quantization" item is closed (Qwen is out). Other decided/open items below still hold.
 
 Full decision history with reasoning and provenance: `docs/spec/DECISION-LOG-v3.md`. Summary of what's **decided** in v3.0: Windows-first; Apache-2.0; deterministic templates (OpenSCAD default + CadQuery parallel) with tiered LLM-OpenSCAD fallback; multi-library template expansion; image-to-3D required-but-opt-in (OpenRouter vision-LLM default, TripoSG/Meshy mesh upgrade, Gemma 4 E4B local fallback); real printer execution via PrintProof3D spine + bambulabs-api Bambu; Smart Mesh = PrintProof3D validation + KimCad learning; Qwen2.5-Coder default + Gemma 4 E4B non-China alternative; OpenRouter cloud router; no beta code-signing; Stage 6 reclassified; real-hardware proof removed as a release gate.
 
