@@ -77,6 +77,21 @@ export interface DesignResponse {
   // LLM-backed parts have neither — there are no parametric sliders to drive.
   template?: string
   parameters?: ParamSpec[]
+  // Stage 8.5: set when this response is a REOPENED saved design — the store id it came from, so
+  // the UI knows it's already in the library (and which entry it is).
+  saved_id?: string
+}
+
+// Stage 8.5 — a saved design as it appears in the "My Designs" library index.
+export interface SavedDesignSummary {
+  id: string
+  name: string
+  created_at: string
+  object_type: string
+  gate_status: string
+  readiness_score: number | null
+  has_thumb: boolean
+  thumb_url: string | null
 }
 
 export interface PrinterOption {
@@ -204,4 +219,40 @@ export function designIdFromMeshUrl(meshUrl: string | undefined): number | null 
   const seg = path.split('/').pop()
   const id = seg ? Number.parseInt(seg, 10) : Number.NaN
   return Number.isNaN(id) ? null : id
+}
+
+// --- Stage 8.5: saved designs ("My Designs") -------------------------------------------------
+
+/** The library index, newest first. */
+export function getDesigns(): Promise<{ designs: SavedDesignSummary[] }> {
+  return getJson<{ designs: SavedDesignSummary[] }>('/api/designs')
+}
+
+/** Save the current design to the library. `designId` is the live mesh id; the server already
+ * holds the mesh + a snapshot, so the client sends only a name and an optional PNG data-URL
+ * thumbnail captured from the viewport. */
+export function saveDesign(
+  designId: number,
+  name: string,
+  thumbnail: string | null,
+): Promise<{ id: string; name: string }> {
+  return postJson('/api/designs/save', { design_id: designId, name, thumbnail })
+}
+
+/** Reopen a saved design — returns a fresh, fully-functional `DesignResponse` (new mesh url, and
+ * for a template part the live sliders are restored). */
+export function reopenDesign(id: string): Promise<DesignResponse> {
+  return getJson<DesignResponse>(`/api/designs/${encodeURIComponent(id)}`)
+}
+
+export function renameDesign(id: string, name: string): Promise<{ ok: boolean }> {
+  return postJson(`/api/designs/${encodeURIComponent(id)}/rename`, { name })
+}
+
+export function deleteDesign(id: string): Promise<{ ok: boolean }> {
+  return postJson(`/api/designs/${encodeURIComponent(id)}/delete`, {})
+}
+
+export function duplicateDesign(id: string): Promise<{ ok: boolean; id: string | null }> {
+  return postJson(`/api/designs/${encodeURIComponent(id)}/duplicate`, {})
 }
