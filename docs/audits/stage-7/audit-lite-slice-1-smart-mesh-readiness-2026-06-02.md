@@ -7,11 +7,10 @@
 Ship after one Major. The readiness synthesis is honest, pure, and well-tested — it never claims a part is "Ready to print" over a visible risk, it credits "KimCad printability gate" (not the engine or history) when no engine ran, and scoring is monotonic. The one real gap: `assess_readiness` derives the verdict from the gate status + its own severity penalties but **ignores PrintProof3D's own `status`** — so a PrintProof3D `fail` whose worst issue is only `major` could render as "Printable with notes," a card contradicting the validation engine it cites. Plus two Nits and a small test gap.
 
 ## Severity rollup
-- Blocker: 0
-- Critical: 0
-- Major: 1
-- Minor: 1
-- Nit: 2
+
+> **FINAL (after remediation): 0 Blocker · 0 Critical · 0 Major · 0 Minor · 0 Nit — all 4 findings fixed.** See "Re-audit (resolution)" at the bottom; verified by `tests/test_smart_mesh.py` 15 passed + ruff clean.
+
+**As found** (before remediation): 0 Blocker · 0 Critical · 1 Major · 1 Minor · 2 Nit (4 findings).
 
 ## Findings
 
