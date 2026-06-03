@@ -242,6 +242,15 @@ direct-print UI is wired. **Needs:** target box + emulators. **Size:** ~2–3 we
 beta gate.
 - **Windows shell via WebView2** (controlled render engine); package the built SPA + Python core +
   bundled OpenSCAD + OrcaSlicer; a single installer; unsigned (SmartScreen documented).
+- **Bundle the PrintProof3D engine + turn Smart Mesh's deeper validation ON by default.** The
+  Stage-7 integration is arm's-length and verified (KimCad generates the engine's profiles, calls
+  it, parses the report); it's only off today because the engine binary isn't shipped. Bundle the
+  engine `.exe` in the installer alongside OpenSCAD/OrcaSlicer (or fetch+pin it via
+  `scripts/fetch_tools.py` once it cuts a stable, per-platform published release) into
+  `tools/printproof3d/` — the path the default config already names — so a default install gets the
+  real overhang/bridge/bed-adhesion validation, not gate-only. Gate this on the engine reaching a
+  stable release (it's `0.5.0-rc2` today); the arm's-length wrapper already degrades to gate-only if
+  the engine is absent or misbehaves, so it can't destabilize the install.
 - First-run setup on a clean Windows profile; re-enable hosted CI; the **beta gate** (the full
   `audit-team` at 0/0/0/0/0 on the release).
 - User docs: install guide, usage, supported-printer matrix (API-only until verified on metal).
