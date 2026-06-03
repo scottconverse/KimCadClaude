@@ -136,6 +136,17 @@ class Config:
             return p if p.is_absolute() else (PROJECT_ROOT / p)
         return Path.home() / ".kimcad" / "history.json"
 
+    def designs_path(self) -> Path:
+        """Where the "My Designs" store lives (Stage 8.5). Defaults to a per-user directory
+        (``~/.kimcad/designs/``) so saved designs persist across sessions and never land in the
+        repo; override with ``paths.designs`` in config (a relative path resolves against the
+        project root). Local-first — nothing here leaves the machine."""
+        raw = self._d.get("paths", {}).get("designs")
+        if raw:
+            p = Path(raw)
+            return p if p.is_absolute() else (PROJECT_ROOT / p)
+        return Path.home() / ".kimcad" / "designs"
+
     # --- printers / materials ----------------------------------------------
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]
