@@ -111,8 +111,8 @@ describe('RightPanel', () => {
   it('renders the printability verdict, the size, and findings from the result', () => {
     stubFetch()
     renderPanel({ result: passResult })
-    // The gate badge is framed as the technical check ("Passed"), not the readiness headline.
-    expect(screen.getByText('Passed')).toBeTruthy()
+    // The gate badge is framed as the technical check ("Gate: Passed"), not the readiness headline.
+    expect(screen.getByText(/Gate: Passed/)).toBeTruthy()
     expect(screen.getByText('Dimensions match')).toBeTruthy()
     expect(screen.getByText(/80 × 60 × 40 mm/)).toBeTruthy()
   })

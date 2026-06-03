@@ -182,7 +182,7 @@ function ParametersCard({
 const CONFIDENCE_BLURB: Record<string, string> = {
   High: 'Validated by the PrintProof3D engine.',
   Medium: 'From KimCad’s printability gate.',
-  Low: 'Provisional — the mesh could only be partly analysed.',
+  Low: 'Provisional — the mesh could only be partly analyzed.',
 }
 
 // A screen-reader-only severity word per risk tone, so the warn/red tier isn't conveyed by the
@@ -261,8 +261,8 @@ function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
           <ul className="kc-recs">
             {readiness.recommendations.map((rec) => (
               <li key={rec} className="kc-rec">
-                <span className="kc-rec-check" aria-hidden="true">
-                  ✓
+                <span className="kc-rec-arrow" aria-hidden="true">
+                  →
                 </span>
                 <span>{rec}</span>
               </li>
@@ -308,7 +308,7 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
       {report ? (
         <>
           <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
-            {gateLabel(report.gate_status)}
+            Gate: {gateLabel(report.gate_status)}
           </span>
           {report.headline && <p className="kc-muted-note">{report.headline}</p>}
 

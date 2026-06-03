@@ -207,7 +207,7 @@ def _confidence(printproof: PrintProofReport | None, mesh_unanalysable: bool) ->
 
 def _attribution(printproof: PrintProofReport | None, mesh_unanalysable: bool) -> str:
     if mesh_unanalysable:
-        return "KimCad printability gate (mesh only partly analysable)"
+        return "KimCad printability gate (mesh only partly analyzable)"
     if printproof is not None:
         # The "your local print history" half is added once the learning store lands (Slice 5).
         return "PrintProof3D validation engine"

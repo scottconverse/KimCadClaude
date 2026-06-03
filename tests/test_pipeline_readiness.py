@@ -283,6 +283,22 @@ def test_rerender_does_not_record_history(tmp_path):
     assert len(store.load()) == 1
 
 
+def test_gate_failed_part_is_still_recorded_to_history(tmp_path):
+    # TEST-S7-001: a gate-FAILED design is still recorded (the comparison ranks against ALL prior
+    # parts, including failed attempts — recording is intentionally before the gate-fail return).
+    store = HistoryStore(tmp_path / "history.json")
+    plan = _plan("box", dimensions={"width": 80, "depth": 60, "height": 40})
+    renderer, _ = _box_renderer((20, 20, 20))  # wrong size -> dim-mismatch FAIL
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(plan), renderer=renderer, history=store)
+    result = pipe.run("a box", tmp_path)
+
+    assert result.status is PipelineStatus.gate_failed
+    records = store.load()
+    assert len(records) == 1
+    assert records[0].gate_status == "fail"
+    assert records[0].object_type == "box"
+
+
 # --- the design API exposes readiness --------------------------------------------------------
 
 def test_report_payload_includes_the_readiness_block(tmp_path):

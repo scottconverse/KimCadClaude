@@ -108,8 +108,9 @@ for the NL→structured-plan step; a bigger qwen is larger than gemma → slower
 13 Minor · 11 Nit = 31; the Critical was a stale bake-off doc showing qwen winning, the inverse of the
 verdict). Every finding was remediated to **0/0/0/0/0** (`REMEDIATION.md`), the native Windows gate passed
 (ruff; **609 pytest incl. live OrcaSlicer**; **37 vitest**; SPA build reproducible), and the branch was
-merged to `main` + tagged `stage-6`. The model decision is SETTLED (gemma stays; qwen rejected) — do NOT
-reopen it. **NEXT = Stage 7 (Smart Mesh + PrintProof3D + readiness report).**
+merged to `main` + tagged `stage-6`. (That 609/37 is the Stage-6-gate count — the current Stage-7 branch
+is 664 pytest + 43 vitest, per the Stage-7 block at the top.) The model decision is SETTLED (gemma stays;
+qwen rejected) — do NOT reopen it. **NEXT = Stage 7 (Smart Mesh + PrintProof3D + readiness report).**
 
 ---
 

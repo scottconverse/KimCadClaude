@@ -44,7 +44,9 @@ def _subprocess_runner(argv: list[str], timeout_s: float) -> None:
     """Run PrintProof3D as a subprocess (argv list, no shell). The return code is ignored on
     purpose — a non-zero exit is how PrintProof3D reports a fail/warning verdict, not a crash;
     the report file at ``-o`` is the source of truth. A timeout/OS error propagates and is
-    caught by the caller (which then degrades to no report)."""
+    caught by the caller (which then degrades to no report). stdout/stderr are captured (not
+    inherited, so the engine can't scribble on KimCad's console) and intentionally not surfaced —
+    the parsed report, not the engine's chatter, is the contract."""
     subprocess.run(argv, timeout=timeout_s, capture_output=True, check=False)
 
 
@@ -75,8 +77,14 @@ def validate_model(
         material_json = tmpdir / "material.json"
         report_json = tmpdir / "report.json"
         try:
-            printer_json.write_text(json.dumps(printer_profile(printer)), encoding="utf-8")
-            material_json.write_text(json.dumps(material_profile(material)), encoding="utf-8")
+            # allow_nan=False: a non-finite field would emit `Infinity`/`NaN`, which the strict
+            # Rust engine rejects; raise here instead and degrade cleanly (caught just below).
+            printer_json.write_text(
+                json.dumps(printer_profile(printer), allow_nan=False), encoding="utf-8"
+            )
+            material_json.write_text(
+                json.dumps(material_profile(material), allow_nan=False), encoding="utf-8"
+            )
         except (OSError, TypeError, ValueError, IndexError, KeyError, AttributeError):
             return None  # any profile-build/serialize failure -> degrade, never raise
 

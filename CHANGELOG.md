@@ -233,11 +233,12 @@ All notable changes to KimCad are documented here. Format follows
   deterministic slice gate is unchanged; readiness is advisory. `/api/design` + `/api/render`
   expose a `readiness` block; the live-slider re-render recomputes a fast gate-only readiness
   (the engine isn't re-run per drag).
-- **Readiness report card** (`RightPanel.tsx`): a designed card on the design screen — an SVG score
-  gauge, the verdict, a confidence badge that names what backed it (gate vs engine), a risks list
-  (with a non-color severity cue), a checkmarked recommendations list, an optional history line, and
-  an honest "via …" attribution. The Printability badge is reframed ("Passed" / "Needs review" /
-  "Failed") so it doesn't duplicate the readiness headline.
+- **Readiness report card** (`RightPanel.tsx`, matching the design at
+  `docs/design/screens/10-smartmesh-report.png`): a designed card on the design screen — an SVG
+  score gauge, the verdict, a confidence badge that names what backed it (gate vs engine), a risks
+  list (with a non-color severity cue), a recommendations list, an optional history line, and an
+  honest "via …" attribution. The Printability badge is reframed ("Gate: passed / needs review /
+  failed") so it doesn't duplicate the readiness headline.
 - **Smart Mesh learning store** (`history.py`): a local-first, best-effort JSON record of built
   parts (coarse — no geometry/prompt; default `~/.kimcad/history.json`, never the repo) that adds an
   honest "compared to your past parts" line to the card. Strictly factual — "a personal best" needs

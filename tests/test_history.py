@@ -77,6 +77,16 @@ def test_compare_phrase_falls_back_to_all_parts_when_too_few_same_type():
     assert "all 3" in phrase  # compared against all 3 records
 
 
+def test_compare_phrase_at_two_same_type_still_falls_back_to_all_parts():
+    # TEST-S7-003: the boundary one below _MIN_SAME_TYPE (=3) — exactly 2 same-type parts must
+    # still compare against ALL parts ("parts"), not narrow to "box parts" (guards the >= bound).
+    prior = [_rec("box", 50), _rec("box", 60), _rec("bracket", 70)]  # 2 boxes (one below threshold)
+    phrase = compare_phrase("box", 90, prior)
+    assert "box parts" not in phrase
+    assert "past parts" in phrase
+    assert "all 3" in phrase  # ranked against all 3, not just the 2 boxes
+
+
 # --- HistoryStore: round-trip + every degrade path ------------------------------------------
 
 def test_record_and_load_round_trip(tmp_path):
@@ -136,6 +146,26 @@ def test_record_is_best_effort_on_an_unwritable_path(tmp_path):
     store = HistoryStore(afile / "history.json")
     store.record(_rec("box", 90))  # must not raise
     assert store.load() == []
+
+
+def test_record_is_thread_safe_under_concurrency(tmp_path):
+    # ENG-701: the threaded web server can service designs on many threads at once. Without the
+    # process-wide lock + atomic write, concurrent records race on the read-modify-write and lose
+    # most of the store (reproduced: 40 writers collapsed to ~1). With the fix, all 40 survive.
+    import threading
+
+    store = HistoryStore(tmp_path / "concurrent.json")
+
+    def worker(i: int) -> None:
+        store.record(_rec("box", 50 + i))
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(40)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(store.load()) == 40  # no record lost to a torn read-modify-write
 
 
 def test_comparison_uses_prior_records(tmp_path):

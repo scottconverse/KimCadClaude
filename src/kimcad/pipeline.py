@@ -184,12 +184,14 @@ class PrintReport:
             lines.append(f"Hardening: {self.harden_summary}")
         if self.readiness is not None:
             r = self.readiness
+            # ASCII separators on purpose: this report prints to the console, and an ASCII '-'
+            # needs no UTF-8 reconfigure to be safe on a legacy code page (defense in depth).
             lines.append(
-                f"Readiness: {r.score}/100 — {r.verdict} "
+                f"Readiness: {r.score}/100 - {r.verdict} "
                 f"(confidence {r.confidence}; via {r.attribution})"
             )
             for risk in r.risks:
-                lines.append(f"  Risk: {risk.title} — {risk.detail}")
+                lines.append(f"  Risk: {risk.title} - {risk.detail}")
             for rec in r.recommendations:
                 lines.append(f"  Suggest: {rec}")
             if r.comparison:
@@ -237,6 +239,28 @@ class PipelineResult:
     # is what the live-slider UI needs: the typed parameters and the family to re-render.
     template: TemplateMatch | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+
+
+_FALLBACK_VERDICT = {
+    "pass": ("Ready to print", 85),
+    "warn": ("Printable with notes", 60),
+    "fail": ("Not print-ready", 20),
+}
+
+
+def _fallback_readiness(gate: GateResult) -> MeshReadiness:
+    """A last-resort readiness if ``assess_readiness`` itself somehow raised (it shouldn't — it's
+    pure over inputs the pipeline already validated). Keeps the build alive with an honest,
+    conservative, gate-only card rather than letting an exception escape."""
+    tone = str(gate.status) if str(gate.status) in _FALLBACK_VERDICT else "warn"
+    verdict, score = _FALLBACK_VERDICT[tone]
+    return MeshReadiness(
+        score=score,
+        verdict=verdict,
+        tone=tone,
+        confidence="Low",
+        attribution="KimCad printability gate",
+    )
 
 
 class Pipeline:
@@ -434,7 +458,7 @@ class Pipeline:
             gate, mesh_report, hardened, run_engine=run_engine
         )
         # The learning layer runs on a fresh design only, not a live-slider drag: fold in the
-        # "compared to your past prints" line (ranked against PRIOR records), THEN record this
+        # "compared to your past parts" line (ranked against PRIOR records), THEN record this
         # build. A drag would otherwise flood the store and rank a part against its own parent.
         if record_history:
             self._apply_history_comparison(report.readiness, plan)
@@ -516,12 +540,16 @@ class Pipeline:
                     )
             except Exception:  # noqa: BLE001 - readiness must never break the build
                 printproof = None
-        return assess_readiness(
-            gate, mesh_report, material_name=self.material.name, printproof=printproof
-        )
+        try:
+            return assess_readiness(
+                gate, mesh_report, material_name=self.material.name, printproof=printproof
+            )
+        except Exception:  # noqa: BLE001 - assess_readiness is pure over validated inputs, but the
+            # never-breaks-the-build contract is airtight: a last-resort gate-only card, not a raise.
+            return _fallback_readiness(gate)
 
     def _apply_history_comparison(self, readiness: MeshReadiness, plan: DesignPlan) -> None:
-        """Fold an honest "compared to your past prints" line (and a history attribution) into the
+        """Fold an honest "compared to your past parts" line (and a history attribution) into the
         readiness, comparing this part's score against the PRIOR records. Best-effort: a store
         read failure leaves the readiness untouched (no comparison) rather than breaking the build."""
         if self.history is None:

@@ -159,7 +159,21 @@ def test_unanalysable_mesh_drops_confidence_to_low():
         _mesh(errors=["body count could not be computed"]),
     )
     assert r.confidence == "Low"
-    assert "partly analysable" in r.attribution
+    assert "partly analyzable" in r.attribution
+
+
+def test_unanalysable_mesh_keeps_confidence_low_even_when_the_engine_ran():
+    # TEST-S7-002: an unanalysable mesh forces Low confidence EVEN when the deeper PrintProof3D
+    # engine ran (Low must win over the engine's High) — the card hedges on exactly the parts
+    # KimCad couldn't fully measure, never overstating certainty.
+    engine = PrintProofReport(status="pass", confidence_level="high", issues=())
+    r = assess_readiness(
+        _gate((Level.PASS, "dim.match", "ok")),
+        _mesh(errors=["body count could not be computed"]),
+        printproof=engine,
+    )
+    assert r.confidence == "Low"  # not "High", despite the engine running
+    assert "partly analyzable" in r.attribution
 
 
 # --- score clamping, material rec, dedupe, purity --------------------------------------------

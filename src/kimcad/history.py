@@ -1,27 +1,39 @@
 """Stage 7 — the Smart Mesh learning store (spec §6.12).
 
 Smart Mesh's *history* layer: a local-first record of the parts this install has built, used to add
-an honest "compared to your past prints" line to the readiness card. The store is plain local JSON
+an honest "compared to your past parts" line to the readiness card. The store is plain local JSON
 and entirely **best-effort** — a missing or corrupt file degrades to *no* history (the card simply
 omits the comparison), and a write failure never breaks a build. Nothing ever leaves the machine.
 
 The comparison is deliberately **factual, not flattering**: it states how this part's readiness
-score ranks against prior prints ("Stronger than 7 of your 9 past prints"), and only claims a
+score ranks against prior parts ("Stronger than 7 of your 9 past parts"), and only claims a
 personal best when the score strictly beats every prior one. With no prior history it returns
 ``None`` — the card shows nothing rather than inventing a baseline.
+
+Writes are serialized + atomic (a process-wide lock + temp-file ``os.replace``) so concurrent
+designs under the threaded web server can't lose records or leave a half-written file. Two separate
+KimCad *processes* racing could still drop a record — acceptable for an advisory store — but the
+file is never corrupted.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 # Keep the store bounded; once it passes this, the oldest records are dropped on the next write.
 _MAX_RECORDS = 500
-# Need at least this many same-type prints before narrowing the comparison to that type; otherwise
-# compare against all prints (and say so), so a brand-new type isn't judged against one prior.
+# Need at least this many same-type parts before narrowing the comparison to that type; otherwise
+# compare against all parts (and say so), so a brand-new type isn't judged against one prior.
 _MIN_SAME_TYPE = 3
+
+# Process-wide lock serializing the read-modify-write in ``record`` across every HistoryStore in
+# this process (the threaded web server services designs on many threads). Writes are tiny and
+# rare, so a single global lock is ample and contention-free in practice.
+_WRITE_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -58,9 +70,9 @@ def compare_phrase(object_type: str, score: int, prior: list[PrintRecord]) -> st
     ahead = sum(1 for s in scores if s < score)  # priors this part strictly beats
     behind = sum(1 for s in scores if s > score)  # priors that strictly beat this part
     if ahead == n:  # beats every prior
-        return f"A personal best — ahead of all {n} of your past {scope}."
+        return f"A personal best - ahead of all {n} of your past {scope}."
     if behind == n:  # every prior is strictly higher
-        return f"Below all {n} of your past {scope} — worth a closer look before printing."
+        return f"Below all {n} of your past {scope} - worth a closer look before printing."
     if ahead == 0:  # beats none, but ties at least one (not strictly below all)
         return f"On par with your {n} past {scope}."
     return f"Stronger than {ahead} of your {n} past {scope}."
@@ -101,20 +113,29 @@ class HistoryStore:
         return out
 
     def record(self, rec: PrintRecord) -> None:
-        """Append ``rec`` and persist (keeping the most recent ``_MAX_RECORDS``). Best-effort: a
-        read/write/serialize failure is swallowed so a logging miss never breaks a build."""
+        """Append ``rec`` and persist (keeping the most recent ``_MAX_RECORDS``). Serialized by a
+        process-wide lock and written atomically (temp file + ``os.replace``), so concurrent
+        designs can neither lose records to a torn read-modify-write nor observe a half-written
+        file. Best-effort: any read/write/serialize failure (including a non-finite ``max_dim_mm``,
+        which ``allow_nan=False`` rejects) is swallowed so a logging miss never breaks a build."""
         try:
-            existing = self.load()
-            existing.append(rec)
-            existing = existing[-_MAX_RECORDS:]
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(
-                json.dumps([asdict(r) for r in existing], indent=2), encoding="utf-8"
-            )
-        except OSError:
-            return  # best-effort persistence
+            with _WRITE_LOCK:
+                existing = self.load()
+                existing.append(rec)
+                existing = existing[-_MAX_RECORDS:]
+                payload = json.dumps(
+                    [asdict(r) for r in existing], indent=2, allow_nan=False
+                )
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = self.path.with_name(self.path.name + ".tmp")
+                tmp.write_text(payload, encoding="utf-8")
+                os.replace(tmp, self.path)  # atomic on Windows + POSIX
+        except Exception:  # noqa: BLE001 - history is best-effort; never break a build over it
+            return
 
     def comparison(self, *, object_type: str, score: int) -> str | None:
         """The factual comparison line for a part of ``object_type`` scoring ``score`` against the
-        PRIOR records in the store, or ``None`` when there's no prior history."""
+        PRIOR records in the store, or ``None`` when there's no prior history. Ranks against the
+        FULL history (all time) by design — "your past parts" means all of them; ``created_at`` is
+        retained for future recency features but does not filter the pool today."""
         return compare_phrase(object_type, score, self.load())
