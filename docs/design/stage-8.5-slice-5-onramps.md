@@ -176,14 +176,14 @@ inline on an out-of-template request; cloud isn't pushed, only available.
   key, the experimental toggle) against these flows and trust rules.
 - **Slice 7** builds Surface D (the photo on-ramp) against this flow, using gemma4:e4b local vision.
 
-## Open questions for Scott
-1. **Cloud model choice** — when cloud is on, do we (a) keep it invisible (KimCad picks a sensible
-   OpenRouter model), or (b) expose a model field for power users? Recommend **(a)** for the consumer
-   default with a future "advanced" disclosure — fewer ways to misconfigure; matches the "no menu that
-   sells models" posture.
-2. **Photo entry prominence** — secondary-but-visible (a small camera affordance always present) vs.
-   tucked behind an "other ways to start" disclosure. Recommend **secondary-but-visible** — it's a
-   headline capability worth seeing, still clearly not the primary path.
-3. **Experimental inline offer** — offer it on *every* out-of-template miss, or only after the normal
-   path visibly fails once? Recommend **on the miss** (no dead-end is the §4.2 rule), with the warning
-   carrying the weight.
+## Settled decisions (approved by Scott, 2026-06-04)
+1. **Cloud model choice** — **invisible: KimCad picks a sensible OpenRouter model.** No model field in
+   the consumer default (a future "advanced" disclosure can add one). Fewer ways to misconfigure;
+   matches the "no menu that sells models" posture.
+2. **Photo entry prominence** — **secondary-but-visible:** a small camera affordance is always present
+   beside the text box, clearly off the primary path. It's a headline capability worth seeing.
+3. **Experimental inline offer** — **offered on the miss:** every out-of-template request offers the
+   experimental generator (no dead-end, the §4.2 rule), with the warning carrying the weight.
+
+The mockup already reflects all three (no model field in the cloud block; the camera affordance on the
+prompt; the inline offer card). Slice 6/7 inherit these as settled.
