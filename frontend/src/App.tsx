@@ -7,6 +7,7 @@ import {
   saveDesign,
   type ChatTurn,
   type DesignResponse,
+  type DesignVersion,
   type Message,
 } from './api'
 import { assistantMessage, isFailureStatus } from './designStatus'
@@ -34,6 +35,10 @@ export default function App() {
   // Slice 2: the full conversation thread (all user + assistant turns for this design session).
   // A new design resets this; a follow-up refine/clarify appends to it.
   const [messages, setMessages] = useState<Message[]>([])
+  // Version history: each successful design / refine push a snapshot. The user can step back.
+  const [versions, setVersions] = useState<DesignVersion[]>([])
+  // Which version is currently active (0-based index into versions, or -1 when no versions yet).
+  const [versionIdx, setVersionIdx] = useState(-1)
   // The most recent completed design result — drives the viewport + right panel.
   const [result, setResult] = useState<DesignResponse | null>(null)
   const [busy, setBusy] = useState(false)
@@ -141,15 +146,37 @@ export default function App() {
   }
 
   /** Run a design prompt (first turn or follow-up) and append the result to the thread.
-   *  Pass history=undefined for a brand-new design, or the current thread for a refine turn. */
-  async function runDesign(userPrompt: string, history?: ChatTurn[]) {
+   *  Pass history=undefined for a brand-new design, or the current thread for a refine turn.
+   *  On success, pushes a new version entry so the user can step back. If the user refined from
+   *  a prior version, future versions are truncated (branching replaces forward history). */
+  async function runDesign(userPrompt: string, history?: ChatTurn[], fromVersionIdx?: number) {
     setBusy(true)
     setError(null)
     try {
       const r = await postDesign(userPrompt, history)
-      // Append the assistant reply as a message with appropriate tone.
       const tone = isFailureStatus(r.status) ? 'error' : undefined
-      setMessages((prev) => [...prev, { role: 'assistant', content: assistantMessage(r), tone }])
+      const assistantMsg: Message = { role: 'assistant', content: assistantMessage(r), tone }
+      setMessages((prev) => {
+        const next = [...prev, assistantMsg]
+        // Push a version snapshot if the result has a mesh (completed or gate_failed — still a
+        // real part the user might want to revisit). Clarification_needed doesn't become a version.
+        if (r.has_mesh) {
+          setVersions((prevVers) => {
+            // Branching: if the user refined from a prior version, drop any forward versions.
+            const base = fromVersionIdx !== undefined ? prevVers.slice(0, fromVersionIdx + 1) : prevVers
+            const newVer: DesignVersion = {
+              index: base.length + 1,
+              messages: next,
+              result: r,
+              label: userPrompt.length > 60 ? userPrompt.slice(0, 57) + '…' : userPrompt,
+            }
+            const updated = [...base, newVer]
+            setVersionIdx(updated.length - 1)
+            return updated
+          })
+        }
+        return next
+      })
       applyResult(r)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.'
@@ -164,8 +191,9 @@ export default function App() {
   async function handleSubmit(submitted: string) {
     resetSaveIndicator()
     navigate('', { replace: true })
-    // Reset to a fresh conversation for a brand-new design.
     setMessages([{ role: 'user', content: submitted }])
+    setVersions([])
+    setVersionIdx(-1)
     applyResult(null)
     setError(null)
     setRerenderError(null)
@@ -175,16 +203,29 @@ export default function App() {
   }
 
   /** Follow-up: "make it 10mm taller", or answering a clarifying question.
-   *  Threads the full prior conversation as history so the model has context. */
+   *  Threads the full prior conversation as history so the model has context.
+   *  If the user branched from a prior version (versionIdx < last), forward versions are dropped. */
   async function handleRefine(followUp: string) {
-    // Snapshot the current thread as history BEFORE appending the new user turn,
-    // so the backend receives the prior conversation (not the turn being sent).
     const history = buildHistory()
+    // Pass the current versionIdx so runDesign knows whether to truncate forward versions.
+    const fromIdx = versionIdx >= 0 ? versionIdx : undefined
     setMessages((prev) => [...prev, { role: 'user', content: followUp }])
     setError(null)
     setRerenderError(null)
-    renderSeq.current++ // abandon any stale in-flight render
-    await runDesign(followUp, history)
+    renderSeq.current++
+    await runDesign(followUp, history, fromIdx)
+  }
+
+  /** Step back/forward to a specific version. Restores the messages + result from that snapshot. */
+  function handleSwitchVersion(idx: number) {
+    const ver = versions[idx]
+    if (!ver) return
+    resetSaveIndicator() // clear any in-flight save indicator from the version being left
+    setMessages(ver.messages)
+    applyResult(ver.result)
+    setVersionIdx(idx)
+    setError(null)
+    setRerenderError(null)
   }
 
   async function handleRerender(values: Record<string, number>) {
@@ -221,6 +262,8 @@ export default function App() {
     resetSaveIndicator()
     navigate('', { replace: true })
     setMessages([])
+    setVersions([])
+    setVersionIdx(-1)
     applyResult(null)
     setError(null)
     setRerenderError(null)
@@ -241,11 +284,23 @@ export default function App() {
     reopenDesign(route.id)
       .then((r) => {
         if (cancelled) return
-        // Restore the single original prompt as the thread seed.
-        setMessages([
+        const seedMsgs: Message[] = [
           { role: 'user', content: r.prompt ?? '' },
           { role: 'assistant', content: assistantMessage(r) },
-        ])
+        ]
+        setMessages(seedMsgs)
+        // Seed version history with the restored snapshot so the user can refine from v1.
+        if (r.has_mesh) {
+          const v1: DesignVersion = {
+            index: 1, messages: seedMsgs, result: r,
+            label: (r.prompt ?? '').slice(0, 60) || 'Original',
+          }
+          setVersions([v1])
+          setVersionIdx(0)
+        } else {
+          setVersions([])
+          setVersionIdx(-1)
+        }
         applyResult(r)
         restoredRef.current = true
       })
@@ -279,6 +334,8 @@ export default function App() {
         <Suspense fallback={<div className="kc-workspace-loading">Loading workspace…</div>}>
           <Workspace
             messages={messages}
+            versions={versions}
+            versionIdx={versionIdx}
             result={result}
             meshUrl={meshUrl}
             busy={busy}
@@ -287,6 +344,7 @@ export default function App() {
             rerenderError={rerenderError}
             onRerender={handleRerender}
             onRefine={handleRefine}
+            onSwitchVersion={handleSwitchVersion}
             onModelReady={handleModelReady}
           />
         </Suspense>

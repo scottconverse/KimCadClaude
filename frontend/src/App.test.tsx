@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
-import type { DesignResponse, Message } from './api'
+import type { DesignResponse, DesignVersion, Message } from './api'
 import App from './App'
 
 // Mock the API so we control timing without a server.
@@ -17,16 +17,22 @@ vi.mock('./api', () => ({
 vi.mock('./components/Workspace', () => ({
   default: ({
     messages,
+    versions,
+    versionIdx,
     rerendering,
     onRerender,
     onRefine,
+    onSwitchVersion,
     onModelReady,
     result,
   }: {
     messages: Message[]
+    versions: DesignVersion[]
+    versionIdx: number
     rerendering: boolean
     onRerender: (values: Record<string, number>) => void
     onRefine: (text: string) => void
+    onSwitchVersion: (idx: number) => void
     onModelReady: (capture: () => string | null) => void
     result: DesignResponse | null
   }) => (
@@ -34,9 +40,12 @@ vi.mock('./components/Workspace', () => ({
       <span data-testid="rerendering">{String(rerendering)}</span>
       <span data-testid="mesh-url">{result?.mesh_url ?? ''}</span>
       <span data-testid="msg-count">{messages.length}</span>
+      <span data-testid="version-count">{versions.length}</span>
+      <span data-testid="version-idx">{versionIdx}</span>
       <button type="button" onClick={() => onRerender({ width: 1 })}>do-rerender</button>
       <button type="button" onClick={() => onModelReady(() => 'data:image/png;base64,AA')}>frame-model</button>
       <button type="button" onClick={() => onRefine('make it bigger')}>do-refine</button>
+      <button type="button" onClick={() => onSwitchVersion(0)}>switch-v1</button>
     </div>
   ),
 }))
@@ -176,6 +185,42 @@ describe('App auto-save lifecycle (Stage 8.5)', () => {
 })
 
 describe('App refinement thread (Stage 8.5 Slice 2)', () => {
+  it('pushes a version on each successful design', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock)
+      .mockResolvedValueOnce(templateResult('/api/mesh/1'))
+      .mockResolvedValueOnce(templateResult('/api/mesh/2'))
+
+    render(<App />)
+    await designFrom('a box')
+    expect(screen.getByTestId('version-count').textContent).toBe('1')
+    expect(screen.getByTestId('version-idx').textContent).toBe('0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(screen.getByTestId('version-count').textContent).toBe('2'))
+    expect(screen.getByTestId('version-idx').textContent).toBe('1')
+  })
+
+  it('switch-version restores prior messages + result', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock)
+      .mockResolvedValueOnce(templateResult('/api/mesh/1'))
+      .mockResolvedValueOnce(templateResult('/api/mesh/2'))
+
+    render(<App />)
+    await designFrom('a box')
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(screen.getByTestId('version-count').textContent).toBe('2'))
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/2')
+
+    // Switch back to v1
+    fireEvent.click(screen.getByRole('button', { name: 'switch-v1' }))
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/1')
+    expect(screen.getByTestId('version-idx').textContent).toBe('0')
+    // Message count drops back to v1's 2 messages
+    expect(screen.getByTestId('msg-count').textContent).toBe('2')
+  })
+
   it('builds a conversation thread across multiple turns', async () => {
     const api = await import('./api')
     ;(api.postDesign as Mock)
@@ -214,6 +259,28 @@ describe('App refinement thread (Stage 8.5 Slice 2)', () => {
         expect.objectContaining({ role: 'assistant' }),
       ])
     )
+  })
+
+  it('refine after switch-back branches: drops forward versions', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock)
+      .mockResolvedValueOnce(templateResult('/api/mesh/1'))  // v1
+      .mockResolvedValueOnce(templateResult('/api/mesh/2'))  // v2
+      .mockResolvedValueOnce(templateResult('/api/mesh/3'))  // v3 (branched from v1)
+
+    render(<App />)
+    await designFrom('a box')
+    // Refine -> v2
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(screen.getByTestId('version-count').textContent).toBe('2'))
+    // Step back to v1
+    fireEvent.click(screen.getByRole('button', { name: 'switch-v1' }))
+    expect(screen.getByTestId('version-idx').textContent).toBe('0')
+    // Refine from v1 -> should create v2' and drop old v2
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(api.postDesign).toHaveBeenCalledTimes(3))
+    // Still 2 versions (v1 + new v2), not 3
+    expect(screen.getByTestId('version-count').textContent).toBe('2')
   })
 
   it('resets the thread on new design', async () => {

@@ -187,6 +187,15 @@ export interface Message extends ChatTurn {
   tone?: 'error'
 }
 
+/** One saved version of a design — the full conversation thread and the result at that point.
+ * Stage 8.5 Slice 2: each successful refinement push a new version, so the user can step back. */
+export interface DesignVersion {
+  index: number            // 1-based display label ("v1", "v2", …)
+  messages: Message[]      // the conversation thread up to and including this version's reply
+  result: DesignResponse   // the design result (mesh_url still valid if server hasn't evicted)
+  label: string            // the user prompt that created this version (for the tooltip)
+}
+
 /** Submit a prompt. On a follow-up/refine turn, pass the prior `history` so the model refines the
  * current part in context (Stage 8.5 Slice 2); omit it for a brand-new design. */
 export function postDesign(prompt: string, history?: ChatTurn[]): Promise<DesignResponse> {
