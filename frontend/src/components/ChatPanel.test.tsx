@@ -25,6 +25,7 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ChatPanel>> 
     busy: false,
     error: null as string | null,
     onRefine: vi.fn(),
+    onTryExperimental: vi.fn(),
     ...overrides,
   }
   return { ...render(<ChatPanel {...props} />), props }
@@ -89,6 +90,23 @@ describe('ChatPanel thread', () => {
     })
     const box = screen.getByRole('textbox', { name: /Refine your part/i }) as HTMLTextAreaElement
     expect(box.placeholder).toMatch(/Answer the question above/i)
+  })
+
+  // --- Slice 6 MS-4: the experimental-generator offer ---
+  it('offers the experimental generator on needs_experimental and Try calls onTryExperimental', () => {
+    const { props } = renderPanel({
+      messages: [{ role: 'assistant', content: "I don't have a precise template for that." }],
+      result: { status: 'needs_experimental', has_mesh: false },
+    })
+    expect(screen.getByText(/Experimental · may not be perfect/i)).toBeTruthy()
+    const tryBtn = screen.getByRole('button', { name: /Try the experimental generator/i })
+    fireEvent.click(tryBtn)
+    expect(props.onTryExperimental).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not show the experimental offer for a normal completed result', () => {
+    renderPanel({ result: completed })
+    expect(screen.queryByRole('button', { name: /Try the experimental generator/i })).toBeNull()
   })
 })
 

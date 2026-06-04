@@ -19,6 +19,7 @@ export default function Workspace({
   onRefine,
   onSwitchVersion,
   onCompare,
+  onTryExperimental,
   onModelReady,
 }: {
   messages: Message[]
@@ -35,6 +36,7 @@ export default function Workspace({
   onRefine: (text: string) => void
   onSwitchVersion: (idx: number) => void
   onCompare: (aIdx: number, bIdx: number) => void
+  onTryExperimental: () => void
   onModelReady?: (capture: () => string | null) => void
 }) {
   return (
@@ -53,6 +55,7 @@ export default function Workspace({
           busy={busy}
           error={error}
           onRefine={onRefine}
+          onTryExperimental={onTryExperimental}
         />
         <Viewport meshUrl={meshUrl} busy={busy} onModelReady={onModelReady} />
         <RightPanel

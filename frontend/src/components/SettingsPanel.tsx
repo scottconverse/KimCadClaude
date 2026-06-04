@@ -342,6 +342,32 @@ export default function SettingsPanel() {
               </div>
             )}
           </section>
+
+          {/* Experimental raw-codegen generator (Surface C) — OFF by default, untrusted. */}
+          <section className="kc-set-card">
+            <div className="kc-set-cardhead">
+              <h2 className="kc-set-h">Experimental: direct shape generator</h2>
+              <span className="kc-set-badge kc-set-badge-exp">Experimental · Untrusted</span>
+              <span className="kc-set-grow" />
+              <button
+                type="button"
+                className={`kc-switch${settings.experimental_enabled ? ' kc-switch-on' : ''}`}
+                role="switch"
+                aria-checked={settings.experimental_enabled ? 'true' : 'false'}
+                aria-label="Enable the experimental shape generator"
+                onClick={() => change({ experimental_enabled: !settings.experimental_enabled })}
+              />
+            </div>
+            <p className="kc-set-sub">
+              Lets the AI write the 3D shape directly when no template fits. Off by default. Runs in a
+              locked sandbox; never skips the printability check; results can be rough.
+            </p>
+            <div className="kc-set-callout kc-set-callout-warn">
+              {settings.experimental_enabled
+                ? 'On — a part with no template generates directly (it still has to pass the check).'
+                : 'Off — a part with no template offers the generator rather than running it.'}
+            </div>
+          </section>
         </div>
       )}
     </main>

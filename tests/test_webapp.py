@@ -1885,6 +1885,71 @@ def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):
         assert s["running"] is True and s["model"] == "deepseek-v4-flash"
 
 
+# --- Stage 8.5 Slice 6 MS-4: the experimental-generator gate --------------------
+
+
+def test_design_experimental_false_offers_instead_of_codegen(tmp_path, monkeypatch):
+    """The consumer default: a non-template request with experimental:false returns the offer
+    (needs_experimental) and never runs the codegen model — no dead-end, no auto-run."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    provider = FakeProvider(_plan([20, 20, 20]))  # object_type "block" -> non-template
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design",
+                      {"prompt": "a topographic coaster", "experimental": False})
+        assert st == 200
+        assert r["status"] == "needs_experimental"
+        assert not r.get("has_mesh")
+        assert provider.openscad_calls == 0
+
+
+def test_design_experimental_true_runs_codegen(tmp_path, monkeypatch):
+    """Opting in (experimental:true) runs the sandboxed codegen and completes."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design",
+                      {"prompt": "a topographic coaster", "experimental": True})
+        assert st == 200
+        assert r["status"] == "completed" and r["has_mesh"] is True
+        assert provider.openscad_calls >= 1
+
+
+def test_design_no_flag_defaults_to_running_codegen(tmp_path, monkeypatch):
+    """An ABSENT flag (raw API / CLI / older client) keeps the backward-compatible auto-run —
+    the consumer SPA is the layer that opts OUT by sending experimental:false."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design", {"prompt": "a topographic coaster"})
+        assert st == 200 and r["status"] == "completed"
+
+
+def test_design_experimental_setting_on_auto_runs(tmp_path, monkeypatch):
+    """With the Settings toggle ON, a non-template request auto-runs even when the SPA sends
+    experimental:false (the setting force-enables it)."""
+    from kimcad import config as config_mod
+    from kimcad.settings_store import SettingsStore
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    SettingsStore(settings_file).update({"experimental_enabled": True})
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design",
+                      {"prompt": "a topographic coaster", "experimental": False})
+        assert st == 200 and r["status"] == "completed"
+
+
 # --- Stage 8.5 Slice 6 MS-3: cloud opt-in + the masked OpenRouter key -----------
 
 

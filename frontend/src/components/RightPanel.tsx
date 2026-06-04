@@ -289,7 +289,7 @@ function ParametersCard({
             </p>
           )}
         </>
-      ) : plan ? (
+      ) : plan && result?.status !== 'needs_experimental' ? (
         <>
           <dl className="kc-paramlist">
             <div className="kc-paramrow">

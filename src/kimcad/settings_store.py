@@ -41,6 +41,8 @@ _ALLOWED_KEYS = frozenset(
         "cloud_enabled",
         "openrouter_api_key",
         "cloud_model",
+        # Slice 6 MS-4 — the experimental raw-codegen generator (OFF by default).
+        "experimental_enabled",
     }
 )
 

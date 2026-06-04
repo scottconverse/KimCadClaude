@@ -116,6 +116,10 @@ class PipelineStatus(str, Enum):
     render_failed = "render_failed"
     gate_failed = "gate_failed"
     completed = "completed"
+    # Stage 8.5 Slice 6 MS-4: no deterministic template fits and the experimental LLM-OpenSCAD
+    # generator wasn't allowed for this request — so we OFFER it rather than auto-run it (no codegen
+    # call, no dead-end). The web layer renders this as the "try the experimental generator" prompt.
+    needs_experimental = "needs_experimental"
 
 
 # Shown when the model's response can't be turned into a design plan (bad JSON, or valid
@@ -330,6 +334,7 @@ class Pipeline:
         history: list[dict[str, str]] | None = None,
         proceed_anyway: bool = False,
         confirm_print: bool = False,
+        allow_experimental: bool = True,
         basename: str = "part",
     ) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -365,6 +370,15 @@ class Pipeline:
         # align the plan's target bbox to it — the gate then verifies the template built
         # what it declares, and the report/viewport show that size.
         match = self.registry.match(plan)
+        if match is None and not allow_experimental:
+            # No deterministic template fits, and the experimental LLM-OpenSCAD generator wasn't
+            # allowed for this request (the consumer default — it's OFF until the user opts in). Offer
+            # it rather than dead-ending: return without calling the model for codegen.
+            return PipelineResult(
+                status=PipelineStatus.needs_experimental,
+                prompt=prompt,
+                plan=plan,
+            )
         if match is not None:
             plan = plan.model_copy(
                 update={

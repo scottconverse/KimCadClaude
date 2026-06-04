@@ -105,6 +105,7 @@ export default function ChatPanel({
   busy,
   error,
   onRefine,
+  onTryExperimental,
 }: {
   messages: Message[]
   compareCard: CompareMessage | null
@@ -112,6 +113,7 @@ export default function ChatPanel({
   busy: boolean
   error: string | null
   onRefine: (text: string) => void
+  onTryExperimental: () => void
 }) {
   const [draft, setDraft] = useState('')
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -178,6 +180,23 @@ export default function ChatPanel({
             <div className="kc-think">
               <span className="kc-spin" aria-hidden="true" />
               <span>Designing your part…</span>
+            </div>
+          </div>
+        )}
+
+        {/* Slice 6 MS-4: the experimental-generator offer (no template fit). Never auto-run — the
+            user explicitly opts in here, or re-describes the part in the refine input below. */}
+        {!busy && result?.status === 'needs_experimental' && (
+          <div className="kc-ai-row">
+            <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+            <div className="kc-exp-offer">
+              <p className="kc-exp-warn">
+                <b>Experimental · may not be perfect.</b> It runs in a locked sandbox and still has to
+                pass the printability check — you’ll see exactly what happens.
+              </p>
+              <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onTryExperimental}>
+                Try the experimental generator
+              </button>
             </div>
           </div>
         )}

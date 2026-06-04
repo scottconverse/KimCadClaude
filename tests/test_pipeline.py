@@ -163,6 +163,28 @@ def test_open_questions_dont_block_a_sized_plan(tmp_path):
     assert provider.openscad_calls >= 1
 
 
+def test_experimental_gate_offers_when_disallowed(tmp_path):
+    # Slice 6 MS-4: a non-template request with allow_experimental=False returns the offer
+    # (needs_experimental) and never calls the codegen model — no dead-end, no auto-run.
+    provider = FakeProvider(_plan([20, 20, 20]))  # object_type "block" -> non-template
+    renderer, _ = _box_renderer((20, 20, 20))
+    result = _pipeline(provider, renderer).run("a topo coaster", tmp_path, allow_experimental=False)
+
+    assert result.status is PipelineStatus.needs_experimental
+    assert provider.openscad_calls == 0  # codegen never ran
+    assert result.plan is not None  # the plan is kept (so the offer can name what was asked)
+
+
+def test_experimental_allowed_runs_codegen(tmp_path):
+    # The same request WITH experimental allowed (the default) runs codegen and completes.
+    provider = FakeProvider(_plan([20, 20, 20]))
+    renderer, _ = _box_renderer((20, 20, 20))
+    result = _pipeline(provider, renderer).run("a topo coaster", tmp_path, allow_experimental=True)
+
+    assert result.status is PipelineStatus.completed
+    assert provider.openscad_calls >= 1
+
+
 def test_completed_happy_path(tmp_path):
     provider = FakeProvider(_plan([20, 20, 20]))
     renderer, _ = _box_renderer((20, 20, 20))

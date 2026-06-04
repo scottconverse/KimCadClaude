@@ -56,6 +56,8 @@ export default function App() {
   const [rerendering, setRerendering] = useState(false)
   const [rerenderError, setRerenderError] = useState<string | null>(null)
   const renderSeq = useRef(0)
+  // Slice 6 MS-4: the last design attempt, so the experimental-generator offer can re-run it.
+  const lastAttemptRef = useRef<{ prompt: string; history?: ChatTurn[]; fromVersionIdx?: number } | null>(null)
   const resultRef = useRef<DesignResponse | null>(null)
   resultRef.current = result
   const captureRef = useRef<(() => string | null) | null>(null)
@@ -157,11 +159,18 @@ export default function App() {
    *  Pass history=undefined for a brand-new design, or the current thread for a refine turn.
    *  On success, pushes a new version entry so the user can step back. If the user refined from
    *  a prior version, future versions are truncated (branching replaces forward history). */
-  async function runDesign(userPrompt: string, history?: ChatTurn[], fromVersionIdx?: number) {
+  async function runDesign(
+    userPrompt: string,
+    history?: ChatTurn[],
+    fromVersionIdx?: number,
+    experimental = false,
+  ) {
+    // Remember this attempt so the "try the experimental generator" offer can re-run it.
+    lastAttemptRef.current = { prompt: userPrompt, history, fromVersionIdx }
     setBusy(true)
     setError(null)
     try {
-      const r = await postDesign(userPrompt, history)
+      const r = await postDesign(userPrompt, history, experimental)
       const tone = isFailureStatus(r.status) ? 'error' : undefined
       const assistantMsg: Message = { role: 'assistant', content: assistantMessage(r), tone }
       setMessages((prev) => {
@@ -223,6 +232,17 @@ export default function App() {
     setRerenderError(null)
     renderSeq.current++
     await runDesign(followUp, history, fromIdx)
+  }
+
+  /** The user accepted the experimental-generator offer — re-run the same attempt with codegen
+   *  allowed (no new user turn; just appends the assistant's result). */
+  async function handleTryExperimental() {
+    const a = lastAttemptRef.current
+    if (!a) return
+    setError(null)
+    setRerenderError(null)
+    renderSeq.current++
+    await runDesign(a.prompt, a.history, a.fromVersionIdx, true)
   }
 
   /** Show a comparison card between two versions (default: the two most recent). */
@@ -372,6 +392,7 @@ export default function App() {
             onRefine={handleRefine}
             onSwitchVersion={handleSwitchVersion}
             onCompare={handleCompare}
+            onTryExperimental={handleTryExperimental}
             onModelReady={handleModelReady}
           />
         </Suspense>

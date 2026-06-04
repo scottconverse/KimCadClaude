@@ -133,6 +133,22 @@ describe('RightPanel', () => {
     expect(screen.queryAllByRole('slider')).toHaveLength(0)
     expect(screen.getByText(/generated directly/i)).toBeTruthy()
   })
+
+  it('shows the idle placeholder (not a Size readout) for the experimental-offer state (MS-4)', () => {
+    stubFetch()
+    renderPanel({
+      result: {
+        status: 'needs_experimental',
+        has_mesh: false,
+        plan: { object_type: 'coaster', summary: 'a coaster', target_bbox_mm: [80, 60, 40] },
+      } as DesignResponse,
+    })
+    // No sliders, and no "Size"/bbox readout implying a part exists.
+    expect(screen.queryAllByRole('slider')).toHaveLength(0)
+    expect(screen.queryByText(/80 × 60 × 40/)).toBeNull()
+    expect(screen.queryByText(/generated directly/i)).toBeNull()
+    expect(screen.getByText(/parameters will appear here/i)).toBeTruthy()
+  })
 })
 
 describe('RightPanel readiness card', () => {

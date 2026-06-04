@@ -2271,6 +2271,34 @@ input {
   text-decoration: none;
 }
 
+/* Slice 6 MS-4 — the experimental toggle badge + warn callout, and the chat offer card. */
+.kc-set-badge-exp {
+  color: var(--kc-warn);
+  border-color: color-mix(in srgb, var(--kc-warn-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--kc-warn-accent) 14%, transparent);
+}
+.kc-set-callout-warn {
+  background: color-mix(in srgb, var(--kc-warn-accent) 14%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-warn-accent) 40%, transparent);
+  color: #5d4708;
+}
+.kc-exp-offer {
+  margin-right: 22px;
+  background: color-mix(in srgb, var(--kc-warn-accent) 10%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-warn-accent) 35%, transparent);
+  border-radius: 13px;
+  padding: 11px 13px;
+}
+.kc-exp-warn {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kc-ink);
+}
+.kc-exp-try {
+  font-size: 13px;
+}
+
 @media (max-width: 640px) {
   .kc-set-row {
     flex-direction: column;

@@ -80,6 +80,14 @@ export function assistantMessage(result: DesignResponse): string {
       return result.plan
         ? `I made ${result.plan.summary}, but it didn't pass the printability check — see the notes on the right.`
         : "I made it, but it didn't pass the printability check — see the notes on the right."
+    case 'needs_experimental':
+      // Slice 6 MS-4: no deterministic template fit. We OFFER the experimental generator (the
+      // ChatPanel renders a "try it" button below this message) rather than dead-ending.
+      return (
+        "I don't have a precise template for that. I can try an experimental generator that " +
+        "writes the shape directly — it isn't always right, it runs in a locked sandbox, and it " +
+        "still has to pass the printability check."
+      )
     case 'completed':
       return result.plan?.summary ? `Here you go — ${result.plan.summary}` : 'Here you go.'
     default:

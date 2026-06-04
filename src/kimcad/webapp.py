@@ -182,7 +182,12 @@ def _sanitize_history(raw: Any) -> list[dict[str, str]] | None:
 
 
 def design_response(
-    pipeline: Any, prompt: str, out_dir: Path, history: list[dict[str, str]] | None = None
+    pipeline: Any,
+    prompt: str,
+    out_dir: Path,
+    history: list[dict[str, str]] | None = None,
+    *,
+    allow_experimental: bool = True,
 ) -> tuple[dict[str, Any], Path | None, Any]:
     """Run one prompt through the pipeline and shape the result for the UI.
 
@@ -193,7 +198,7 @@ def design_response(
     the :class:`PipelineResult` itself so the HTTP layer can register per-design re-render
     state (the base plan + template family) for the live-slider endpoint.
     """
-    result = pipeline.run(prompt, out_dir, history=history)
+    result = pipeline.run(prompt, out_dir, history=history, allow_experimental=allow_experimental)
     payload = _result_to_payload(result)
     payload["prompt"] = prompt
     mesh_path = result.mesh_path if (result.mesh_path and result.mesh_path.exists()) else None
@@ -368,6 +373,7 @@ def settings_response(config: Any, saved: dict[str, Any]) -> dict[str, Any]:
     payload["cloud_model"] = saved.get("cloud_model") if isinstance(saved.get("cloud_model"), str) else ""
     payload["has_cloud_key"] = isinstance(key, str) and bool(key)
     payload["cloud_key_masked"] = _mask_key(key)
+    payload["experimental_enabled"] = bool(saved.get("experimental_enabled"))
     return payload
 
 
@@ -953,6 +959,9 @@ def make_handler(
                     return
                 # A blank/None key clears it; a real key is stored. It's never echoed back.
                 updates["openrouter_api_key"] = k.strip() if (isinstance(k, str) and k.strip()) else None
+            # Slice 6 MS-4 — the experimental raw-codegen generator toggle (OFF by default).
+            if "experimental_enabled" in data:
+                updates["experimental_enabled"] = bool(data.get("experimental_enabled"))
             store = get_settings_store()
             if store is None:
                 saved_ok = False
@@ -1095,11 +1104,20 @@ def make_handler(
             # model so a follow-up ("make it 10mm taller") refines in context. Sanitized + bounded;
             # a malformed history is dropped (the turn just runs standalone), never a 400/500.
             history = _sanitize_history(data.get("history"))
+            # Slice 6 MS-4: the experimental raw-codegen generator is OFF for the consumer by
+            # default. An ABSENT flag defaults True (backward-compatible for the API / CLI / tests);
+            # the consumer SPA always sends `experimental:false` on a normal design (so a template
+            # miss OFFERS the generator instead of auto-running it) and `true` only when the user
+            # clicks "try the experimental generator". The Settings toggle force-enables it.
+            allow_experimental = bool(data.get("experimental", True)) or bool(
+                saved_settings().get("experimental_enabled")
+            )
             with lock:
                 rid = next(counter)
             try:
                 payload, mesh_path, result = design_response(
-                    pipeline, prompt, web_root / str(rid), history=history
+                    pipeline, prompt, web_root / str(rid), history=history,
+                    allow_experimental=allow_experimental,
                 )
             except Exception as e:  # never leak a traceback to the browser
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})

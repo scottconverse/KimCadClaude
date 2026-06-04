@@ -24,6 +24,7 @@ const SETTINGS = {
   cloud_model: '',
   has_cloud_key: false,
   cloud_key_masked: null,
+  experimental_enabled: false,
 }
 
 const RUNNING = { model: 'gemma4:e4b', backend: 'local', running: true, model_present: true }
@@ -171,5 +172,19 @@ describe('SettingsPanel', () => {
     postSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, cloud_model: 'anthropic/claude-sonnet', saved: true })
     fireEvent.blur(modelInput)
     await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ cloud_model: 'anthropic/claude-sonnet' }))
+  })
+
+  // --- Slice 6 MS-4: the experimental toggle ---
+  it('the experimental generator is off by default and toggling it posts experimental_enabled', async () => {
+    render(<SettingsPanel />)
+    await screen.findByLabelText(/Default printer/i)
+    const sw = screen.getByRole('switch', { name: /experimental shape generator/i })
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    // The "Untrusted" framing is present.
+    expect(screen.getByText(/Experimental · Untrusted/i)).toBeTruthy()
+    expect(screen.getByText(/offers the generator rather than running it/i)).toBeTruthy()
+    postSettings.mockResolvedValue({ ...SETTINGS, experimental_enabled: true, saved: true })
+    fireEvent.click(sw)
+    await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ experimental_enabled: true }))
   })
 })

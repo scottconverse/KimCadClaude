@@ -205,9 +205,20 @@ export interface CompareMessage {
 }
 
 /** Submit a prompt. On a follow-up/refine turn, pass the prior `history` so the model refines the
- * current part in context (Stage 8.5 Slice 2); omit it for a brand-new design. */
-export function postDesign(prompt: string, history?: ChatTurn[]): Promise<DesignResponse> {
-  return postJson<DesignResponse>('/api/design', history?.length ? { prompt, history } : { prompt })
+ * current part in context (Stage 8.5 Slice 2); omit it for a brand-new design.
+ *
+ * Slice 6 MS-4: `experimental` opts into the raw-codegen generator. The consumer default is
+ * `false` — so a request with no deterministic template OFFERS the generator (status
+ * `needs_experimental`) instead of auto-running it; the offer's "try it" button re-sends `true`.
+ * (The server force-enables it when the user turned the experimental toggle on in Settings.) */
+export function postDesign(
+  prompt: string,
+  history?: ChatTurn[],
+  experimental = false,
+): Promise<DesignResponse> {
+  const body: Record<string, unknown> = { prompt, experimental }
+  if (history?.length) body.history = history
+  return postJson<DesignResponse>('/api/design', body)
 }
 
 /** Deterministically re-render a template-backed design at new slider values — no model call.
@@ -234,6 +245,7 @@ export interface SettingsResponse extends OptionsResponse {
   cloud_model?: string
   has_cloud_key?: boolean
   cloud_key_masked?: string | null
+  experimental_enabled?: boolean
 }
 
 export function getSettings(): Promise<SettingsResponse> {
@@ -264,6 +276,7 @@ export function postSettings(updates: {
   cloud_enabled?: boolean
   cloud_model?: string | null
   openrouter_api_key?: string | null
+  experimental_enabled?: boolean
 }): Promise<SettingsResponse> {
   return postJson<SettingsResponse>('/api/settings', updates)
 }
