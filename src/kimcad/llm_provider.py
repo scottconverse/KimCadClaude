@@ -235,6 +235,54 @@ class LLMProvider:
         )
         return _strip_fences(self._complete(messages, json_mode=False))
 
+    def describe_photo(
+        self, image_bytes: bytes, printer: Printer, material: Material
+    ) -> str:
+        """Read a photo into a ROUGH text seed for the text->DesignPlan path (Stage 8.5 Slice 7).
+
+        LOCAL-first by design: the photo is sent to the local Ollama vision model via the **native**
+        ``/api/chat`` endpoint (derived from the backend base_url) with ``think`` disabled. The
+        OpenAI-compatible ``/v1`` path leaves vision output EMPTY because gemma4:e4b's 'thinking' mode
+        spends the whole token budget before producing content; the native endpoint with
+        ``think: false`` returns the description. The seed is a plain description + ROUGH proportions
+        (a photo carries no scale) that the user confirms/edits — it never becomes the delivered
+        geometry. Untrusted input into the validated DesignPlan, the same trust boundary as typed text.
+        """
+        import base64
+        import urllib.request
+        from urllib.parse import urlsplit, urlunsplit
+
+        parts = urlsplit(self.backend.base_url)
+        chat_url = (
+            urlunsplit((parts.scheme, parts.netloc, "/api/chat", "", ""))
+            if parts.scheme and parts.netloc
+            else self.backend.base_url.rstrip("/").removesuffix("/v1") + "/api/chat"
+        )
+        system = _load_prompt("system_photo_seed.md").replace(
+            "{constraints}", build_constraints_block(printer, material)
+        )
+        body = json.dumps({
+            "model": self.backend.model_name,
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": "Describe the object in this photo as a part to 3D-print.",
+                    "images": [base64.b64encode(image_bytes).decode()],
+                },
+            ],
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "num_predict": 400},
+        }).encode()
+        req = urllib.request.Request(
+            chat_url, data=body, headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
+            data = json.load(r)
+        seed = ((data.get("message") or {}).get("content") or "").strip()
+        return _strip_fences(seed)
+
 
 class FallbackProvider:
     """Transparent primary-to-alt LLM fallback chain.

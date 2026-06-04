@@ -2172,3 +2172,157 @@ def test_settings_aware_provider_routes_by_cloud_setting(tmp_path, monkeypatch):
     assert active is not local
     assert isinstance(active, LLMProvider)
     assert active.backend.model_name == "anthropic/claude-sonnet"
+
+
+# --- Stage 8.5 Slice 7: the photo on-ramp (local vision seed) -------------------
+
+
+def _post_photo(host, port, body, content_length=None, content_type="image/png"):
+    import json as _j
+
+    conn = http.client.HTTPConnection(host, port, timeout=15)
+    try:
+        conn.putrequest("POST", "/api/photo-seed", skip_host=False, skip_accept_encoding=True)
+        conn.putheader("Content-Type", content_type)
+        conn.putheader("Content-Length", str(content_length if content_length is not None else len(body)))
+        conn.endheaders()
+        if body:
+            conn.send(body)
+        resp = conn.getresponse()
+        raw = resp.read()
+        return resp.status, (_j.loads(raw) if raw else {})
+    finally:
+        conn.close()
+
+
+def test_photo_seed_returns_a_rough_seed(tmp_path):
+    """POST a photo -> a rough text seed from the LOCAL vision provider (the fake/demo provider
+    returns a canned seed, so the on-ramp is exercisable without the real vision model)."""
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_photo(host, port, b"\x89PNG-fake-image-bytes")
+        assert st == 200
+        assert "seed" in d and "rough" in d["seed"].lower()
+        assert getattr(provider, "photo_calls", 0) == 1  # local vision ran once
+
+
+def test_photo_seed_oversized_is_413(tmp_path):
+    from kimcad.webapp import MAX_PHOTO_BYTES
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        # Declare an oversized Content-Length; the body is never read.
+        st, _ = _post_photo(host, port, b"", content_length=MAX_PHOTO_BYTES + 1)
+        assert st == 413
+
+
+def test_photo_seed_unreadable_is_422_not_500(tmp_path):
+    """A vision failure is a clean 422 with a friendly message, never a 500."""
+
+    class _BadVision(FakeProvider):
+        def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+            raise RuntimeError("vision boom")
+
+    pipe = _pipeline(_BadVision(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_photo(host, port, b"img")
+        assert st == 422 and "photo" in d["error"].lower()
+
+
+def test_photo_seed_empty_seed_is_422(tmp_path):
+    """An empty/blank seed (the model couldn't make out a part) is a 422, not a silent 200."""
+
+    class _EmptyVision(FakeProvider):
+        def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+            return "   "
+
+    pipe = _pipeline(_EmptyVision(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _post_photo(host, port, b"img")
+        assert st == 422
+
+
+def test_llm_describe_photo_uses_native_chat_with_think_false(monkeypatch):
+    """The local vision call hits Ollama's NATIVE /api/chat (not /v1) with the image attached and
+    think disabled — the wiring the live probe proved is required for a non-empty vision response."""
+    import io
+    import json as _j
+
+    from kimcad import llm_provider as lp
+    from kimcad.config import LLMBackend
+
+    backend = LLMBackend(
+        key="local", provider="openai_compatible", base_url="http://localhost:11434/v1",
+        model_name="gemma4:e4b", api_key_env=None, temperature=0.0, max_tokens=400,
+        supports_structured_output=False,
+    )
+    captured: dict = {}
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = _j.loads(req.data)
+        return _Resp(_j.dumps({"message": {"content": "a rough box, ~80mm"}}).encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    seed = lp.LLMProvider(backend).describe_photo(b"imgbytes", BAMBU, PLA)
+    assert seed == "a rough box, ~80mm"
+    assert captured["url"].endswith("/api/chat")  # NATIVE endpoint, not /v1
+    assert captured["body"]["think"] is False
+    assert captured["body"]["messages"][1]["images"]  # the image was attached
+
+
+def test_photo_never_routes_to_cloud_even_when_cloud_enabled(tmp_path, monkeypatch):
+    """LOAD-BEARING trust rule: the photo is ALWAYS read by the LOCAL vision model and is NEVER
+    auto-sent to the cloud — even with cloud TEXT fully enabled (key + model saved). The router's
+    ``describe_photo`` must build a LOCAL provider and must NOT consult the cloud-capable
+    ``_active()`` path (which is what would send a request to OpenRouter)."""
+    from kimcad import config as config_mod
+    from kimcad import llm_provider as lp
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    # Cloud TEXT fully enabled + configured — exactly the state in which a design prompt WOULD be
+    # routed to the user's OpenRouter model. The photo must still stay local.
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": "or-fake-key-value",
+         "cloud_model": "anthropic/claude-sonnet"}
+    )
+
+    built: list[str] = []
+
+    class _SpyProvider:
+        def __init__(self, backend, *a, **kw):  # noqa: ANN001
+            built.append(backend.key)  # record WHICH backend the photo was sent to
+            self.backend = backend
+
+        def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+            return "a rough box (local vision)"
+
+    # describe_photo does ``from kimcad.llm_provider import LLMProvider`` at call time, so patching
+    # the module attribute makes it build the spy instead of a real client.
+    monkeypatch.setattr(lp, "LLMProvider", _SpyProvider)
+
+    prov = _SettingsAwareProvider(object(), cfg)
+    # Hard guard: the cloud-capable router must NOT be consulted for a photo.
+    def _no_active() -> object:
+        raise AssertionError("describe_photo must not route a photo through the cloud-capable _active()")
+
+    monkeypatch.setattr(prov, "_active", _no_active)
+
+    seed = prov.describe_photo(b"imgbytes", BAMBU, PLA)
+    assert seed == "a rough box (local vision)"
+    # The photo used the LOCAL backend, never the cloud (custom_openrouter) one — even though cloud
+    # TEXT is fully enabled above.
+    assert built == [cfg.llm_backend("local").key]
+    assert "custom_openrouter" not in built

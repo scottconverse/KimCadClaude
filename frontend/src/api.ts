@@ -279,6 +279,36 @@ export function getHealth(): Promise<HealthStatus> {
   return getJson<HealthStatus>('/api/health')
 }
 
+// Stage 8.5 Slice 7 — the photo on-ramp. A photo is read by the LOCAL vision model into a ROUGH
+// text seed (a description + estimated proportions) that the user confirms/edits, then submits as a
+// normal design prompt. The photo never auto-sends off the machine.
+export interface PhotoSeedResponse {
+  seed: string
+}
+
+/** The server's photo cap (mirrors webapp `MAX_PHOTO_BYTES`). Checked client-side so an oversized
+ * photo gets a precise message instead of a connection reset. */
+export const MAX_PHOTO_BYTES = 12 * 1024 * 1024
+
+export async function uploadPhoto(file: File): Promise<PhotoSeedResponse> {
+  if (file.size > MAX_PHOTO_BYTES) {
+    throw new Error('That photo is too large to read (max 12 MB).')
+  }
+  let res: Response
+  try {
+    res = await fetch('/api/photo-seed', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'image/jpeg' },
+      body: file,
+    })
+  } catch {
+    throw new Error('Couldn’t read that photo — it may be too large or unreadable.')
+  }
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  return data as PhotoSeedResponse
+}
+
 /** Persist a settings change. Pass only the fields you're changing; `null` (or a blank string for
  * the cloud fields) clears that value. The OpenRouter key is sent here to save it but is never
  * returned in full — only the masked form comes back. */

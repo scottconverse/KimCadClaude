@@ -8,6 +8,7 @@ import {
   postRender,
   postSettings,
   postSlice,
+  uploadPhoto,
 } from './api'
 
 afterEach(() => {
@@ -75,6 +76,25 @@ describe('postSettings', () => {
     await postSettings({ reset: true })
     const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
     expect(body).toEqual({ reset: true })
+  })
+})
+
+describe('uploadPhoto (Slice 7)', () => {
+  it('POSTs the photo to /api/photo-seed and returns the seed', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'a rough box' }) }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    const r = await uploadPhoto(file)
+    expect(r.seed).toBe('a rough box')
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/photo-seed')
+    expect((call[1] as RequestInit).method).toBe('POST')
+  })
+
+  it('rejects an oversized photo up front (no request)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'x' }) }))
+    const big = { size: 13 * 1024 * 1024, type: 'image/png' } as File
+    await expect(uploadPhoto(big)).rejects.toThrow(/too large/i)
+    expect(f.mock.calls.length).toBe(0)
   })
 })
 

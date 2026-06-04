@@ -68,6 +68,11 @@ class FakeProvider:
         self.openscad_calls += 1
         return self._scad
 
+    def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+        # Slice 7: a canned vision seed; count via photo_calls so a test can assert it ran.
+        self.photo_calls = getattr(self, "photo_calls", 0) + 1
+        return "a small box, roughly 80mm wide (a rough guess from the photo — no scale)"
+
 
 def box_renderer(extents, *, fail_times=0):
     """A stub renderer that writes a real trimesh box STL, optionally failing first.

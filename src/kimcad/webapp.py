@@ -45,6 +45,9 @@ MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
 # A design import carries a mesh (+ thumb), so it needs more headroom than a JSON body. Still
 # bounded so a hostile upload can't exhaust memory.
 MAX_IMPORT_BYTES = 32 * 1_048_576  # 32 MiB
+# A photo for the vision on-ramp (Slice 7). Generous for a phone photo, bounded so a hostile
+# upload can't exhaust memory; the local vision model also downsizes it.
+MAX_PHOTO_BYTES = 12 * 1_048_576  # 12 MiB
 # Stage 8.5 Slice 2: bound the client-supplied conversation history threaded into the model on a
 # follow-up turn, so a crafted request can't blow up the prompt context.
 MAX_HISTORY_TURNS = 20
@@ -272,6 +275,14 @@ class DemoProvider:
         # non-template object_type.
         return "use <library/containers.scad>;\nsnap_box(width=80, depth=60, height=40, wall=2);"
 
+    def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+        # Slice 7: a canned vision seed so the photo on-ramp is exercisable in demo/UI checks
+        # without the real (CPU-bound) vision model. The image is ignored; the fixed seed stands in.
+        return (
+            "A small rectangular box, roughly 80 mm wide, 60 mm deep, and 40 mm tall — these sizes "
+            "are rough guesses from the photo (a photo has no scale), so adjust them."
+        )
+
 
 def build_web_pipeline(*, demo: bool = False, backend: str | None = None) -> Any:
     """Construct the pipeline for the web app, mirroring the CLI's wiring."""
@@ -354,6 +365,15 @@ class _SettingsAwareProvider:
 
     def generate_openscad(self, *args: Any, **kwargs: Any) -> Any:
         return self._active().generate_openscad(*args, **kwargs)
+
+    def describe_photo(self, image_bytes: bytes, printer: Any, material: Any) -> str:
+        """Vision is ALWAYS local — the photo never auto-sends, even when cloud TEXT is enabled
+        (Slice 7 trust rule: local vision by default, the photo stays on the machine). Build a
+        dedicated local Ollama vision provider rather than routing through the cloud."""
+        from kimcad.llm_provider import LLMProvider
+
+        local = LLMProvider(self._config.llm_backend("local"))
+        return local.describe_photo(image_bytes, printer, material)
 
 
 def _mask_key(key: Any) -> str | None:
@@ -848,6 +868,9 @@ def make_handler(
             if self.path == "/api/settings":
                 self._handle_settings_post()
                 return
+            if self.path == "/api/photo-seed":
+                self._handle_photo_seed()
+                return
             if self.path.startswith("/api/slice/"):
                 self._handle_slice(self.path.rsplit("/", 1)[-1])
                 return
@@ -1120,6 +1143,29 @@ def make_handler(
             except ConnectorError:
                 pass
             self._json(200, info)
+
+        def _handle_photo_seed(self) -> None:
+            """Slice 7: read an uploaded photo and return a ROUGH text seed (a description +
+            estimated proportions) for the text->DesignPlan path. The photo is read by the LOCAL
+            vision model and is NEVER auto-sent off the machine. Best-effort: an unreadable photo or
+            a vision failure is a clean 422, never a 500; nothing is persisted."""
+            image = self._read_raw_body(MAX_PHOTO_BYTES)
+            if image is None:
+                return  # _read_raw_body already sent a 413/400
+            cant_read = {
+                "error": "Couldn’t read that photo — try a clearer shot, or describe the part in words."
+            }
+            cfg = get_config()
+            try:
+                seed = pipeline.provider.describe_photo(image, cfg.printer(None), cfg.material(None))
+            except Exception:  # noqa: BLE001 - never leak a traceback; vision is best-effort
+                self._json(422, cant_read)
+                return
+            seed = (seed or "").strip()
+            if not seed:
+                self._json(422, cant_read)
+                return
+            self._json(200, {"seed": seed})
 
         def _handle_design(self) -> None:
             data = self._read_json_body()
