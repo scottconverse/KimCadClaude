@@ -1883,3 +1883,86 @@ def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):
         assert st == 200
         assert s["backend"] == "cloud"
         assert s["running"] is True and s["model"] == "deepseek-v4-flash"
+
+
+# --- Stage 8.5 Slice 6 MS-3: cloud opt-in + the masked OpenRouter key -----------
+
+
+def test_cloud_key_saved_locally_but_never_returned_in_full(tmp_path, monkeypatch):
+    """TRUST-CRITICAL: the OpenRouter key is stored on disk (the user's machine) but the API never
+    returns it in full — only a masked form (last 5). GET + POST both honor this."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    SECRET = "or-fake-openrouter-key-ABCDEwQ9f2"
+    with _serve(pipe, tmp_path) as (host, port):
+        st, resp = _jreq(host, port, "POST", "/api/settings", {
+            "cloud_enabled": True,
+            "openrouter_api_key": SECRET,
+            "cloud_model": "anthropic/claude-sonnet",
+        })
+        assert st == 200 and resp["saved"] is True
+        # The full key is NEVER anywhere in the response.
+        assert SECRET not in _j.dumps(resp)
+        assert resp["has_cloud_key"] is True
+        assert resp["cloud_key_masked"].endswith(SECRET[-5:])
+        assert resp["cloud_enabled"] is True
+        assert resp["cloud_model"] == "anthropic/claude-sonnet"
+        # A fresh GET also never returns it raw.
+        st, g = _jreq(host, port, "GET", "/api/settings")
+        assert SECRET not in _j.dumps(g)
+        assert g["cloud_key_masked"].endswith(SECRET[-5:])
+        # But the real key DID land on disk (local consumer storage, the user's machine).
+        on_disk = _j.loads(settings_file.read_text(encoding="utf-8"))
+        assert on_disk["openrouter_api_key"] == SECRET
+        # And model-status now reports the user's cloud model, not the local default.
+        st, ms = _jreq(host, port, "GET", "/api/model-status")
+        assert ms["backend"] == "cloud" and ms["model"] == "anthropic/claude-sonnet"
+
+
+def test_cloud_key_can_be_cleared(tmp_path, monkeypatch):
+    """A blank key clears it — has_cloud_key false, masked null."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": "or-fake-key-wQ9f2"})
+        st, g1 = _jreq(host, port, "GET", "/api/settings")
+        assert g1["has_cloud_key"] is True
+        _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": ""})
+        st, g2 = _jreq(host, port, "GET", "/api/settings")
+        assert g2["has_cloud_key"] is False and g2["cloud_key_masked"] is None
+
+
+def test_settings_aware_provider_routes_by_cloud_setting(tmp_path, monkeypatch):
+    """The provider routes to LOCAL by default, to a cloud OpenRouter provider (the user's model +
+    key) when cloud is enabled + configured, and back to LOCAL when enabled-but-unconfigured."""
+    from kimcad import config as config_mod
+    from kimcad.llm_provider import LLMProvider
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    local = object()  # a sentinel local provider
+    prov = _SettingsAwareProvider(local, cfg)
+
+    # No settings -> local.
+    assert prov._active() is local
+    # Cloud enabled but no key/model -> still local (degrade, never break).
+    SettingsStore(settings_file).update({"cloud_enabled": True})
+    assert prov._active() is local
+    # Fully configured -> a cloud LLMProvider carrying the user's chosen model.
+    SettingsStore(settings_file).update(
+        {"openrouter_api_key": "or-fake-key-value", "cloud_model": "anthropic/claude-sonnet"}
+    )
+    active = prov._active()
+    assert active is not local
+    assert isinstance(active, LLMProvider)
+    assert active.backend.model_name == "anthropic/claude-sonnet"

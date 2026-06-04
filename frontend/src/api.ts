@@ -225,10 +225,15 @@ export function getOptions(): Promise<OptionsResponse> {
 }
 
 // Stage 8.5 Slice 6 — the in-app Settings screen. The settings GET returns the same printer/material
-// choices + effective defaults as /api/options; a POST persists a change and echoes back the new
-// effective settings with a `saved` flag (false if the local store couldn't persist).
+// choices + effective defaults as /api/options, plus the cloud opt-in state; a POST persists a change
+// and echoes back the new settings with a `saved` flag (false if the local store couldn't persist).
+// MS-3: the OpenRouter key is only ever returned MASKED (`cloud_key_masked`, last 5) — never in full.
 export interface SettingsResponse extends OptionsResponse {
   saved?: boolean
+  cloud_enabled?: boolean
+  cloud_model?: string
+  has_cloud_key?: boolean
+  cloud_key_masked?: string | null
 }
 
 export function getSettings(): Promise<SettingsResponse> {
@@ -250,11 +255,15 @@ export function getModelStatus(): Promise<ModelStatus> {
   return getJson<ModelStatus>('/api/model-status')
 }
 
-/** Persist a settings change. Pass only the fields you're changing; `null` clears an override
- * (restoring the shipped config default). */
+/** Persist a settings change. Pass only the fields you're changing; `null` (or a blank string for
+ * the cloud fields) clears that value. The OpenRouter key is sent here to save it but is never
+ * returned in full — only the masked form comes back. */
 export function postSettings(updates: {
   default_printer?: string | null
   default_material?: string | null
+  cloud_enabled?: boolean
+  cloud_model?: string | null
+  openrouter_api_key?: string | null
 }): Promise<SettingsResponse> {
   return postJson<SettingsResponse>('/api/settings', updates)
 }

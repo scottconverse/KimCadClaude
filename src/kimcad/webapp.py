@@ -278,6 +278,10 @@ def build_web_pipeline(*, demo: bool = False, backend: str | None = None) -> Any
     printer = config.printer(None)
     material = config.material(None)
     provider: Any = DemoProvider() if demo else _real_provider(config, backend)
+    # Slice 6 MS-3: wrap the real provider so a Settings cloud opt-in routes the next request to the
+    # user's OpenRouter model (their key), and otherwise stays local. The demo provider is left bare.
+    if not demo:
+        provider = _SettingsAwareProvider(provider, config)
     # Real designs are remembered for the learning comparison; the demo stays stateless so a UI
     # check never pollutes the user's history (and the demo builds the same part anyway).
     history = None if demo else HistoryStore(config.history_path())
@@ -291,6 +295,80 @@ def _real_provider(config: Any, backend: str | None) -> Any:
     alt_cfg = config.llm_alt_backend()
     alt = LLMProvider(alt_cfg) if alt_cfg is not None else None
     return FallbackProvider(primary, alt) if alt is not None else primary
+
+
+class _SettingsAwareProvider:
+    """Routes each LLM call to the local provider by default, or to a cloud (OpenRouter) provider
+    when the user has enabled cloud + saved an OpenRouter key + a model in the in-app Settings
+    (Slice 6 MS-3). Per the spec, KimCad does NOT hardwire a cloud vendor — OpenRouter is the router
+    and the user picks the model.
+
+    It reads the settings file per call (a design call is slow + rare, so the small JSON read is
+    negligible) so a Settings toggle takes effect on the next request without a server restart. Cloud
+    is opt-in and degrades to LOCAL on any gap — not enabled, no key, no model, or a cloud build
+    failure — because local must always work."""
+
+    def __init__(self, local: Any, config: Any):
+        self._local = local
+        self._config = config
+        self._cloud_cache: dict[tuple[str, str], Any] = {}
+
+    def _settings(self) -> dict[str, Any]:
+        try:
+            from kimcad.settings_store import SettingsStore
+
+            return SettingsStore(self._config.settings_path()).all()
+        except Exception:  # noqa: BLE001 - a settings read failure just means "no cloud override"
+            return {}
+
+    def _active(self) -> Any:
+        s = self._settings()
+        if not s.get("cloud_enabled"):
+            return self._local
+        key = s.get("openrouter_api_key")
+        model = s.get("cloud_model")
+        if not (isinstance(key, str) and key and isinstance(model, str) and model):
+            return self._local  # enabled but not fully configured -> local
+        cache_key = (key, model)
+        prov = self._cloud_cache.get(cache_key)
+        if prov is None:
+            try:
+                from dataclasses import replace
+
+                from kimcad.llm_provider import LLMProvider
+
+                backend = replace(self._config.llm_backend("custom_openrouter"), model_name=model)
+                prov = LLMProvider(backend, api_key=key)
+                self._cloud_cache[cache_key] = prov
+            except Exception:  # noqa: BLE001 - a cloud build failure degrades to local
+                return self._local
+        return prov
+
+    def generate_design_plan(self, *args: Any, **kwargs: Any) -> Any:
+        return self._active().generate_design_plan(*args, **kwargs)
+
+    def generate_openscad(self, *args: Any, **kwargs: Any) -> Any:
+        return self._active().generate_openscad(*args, **kwargs)
+
+
+def _mask_key(key: Any) -> str | None:
+    """A masked form of an API key for redisplay — a fixed dot run + the last 5 characters. None
+    when there's no key. The full key is NEVER returned by the API (only this masked form)."""
+    if not isinstance(key, str) or not key:
+        return None
+    return "•" * 16 + key[-5:]
+
+
+def settings_response(config: Any, saved: dict[str, Any]) -> dict[str, Any]:
+    """The full Settings payload: the printer/material choices + effective defaults, plus the cloud
+    opt-in state. The OpenRouter key is returned ONLY masked (last 5) — never in full."""
+    payload = web_options(config, saved)
+    key = saved.get("openrouter_api_key")
+    payload["cloud_enabled"] = bool(saved.get("cloud_enabled"))
+    payload["cloud_model"] = saved.get("cloud_model") if isinstance(saved.get("cloud_model"), str) else ""
+    payload["has_cloud_key"] = isinstance(key, str) and bool(key)
+    payload["cloud_key_masked"] = _mask_key(key)
+    return payload
 
 
 def effective_defaults(config: Any, saved: dict[str, Any] | None) -> tuple[str | None, str | None]:
@@ -785,9 +863,9 @@ def make_handler(
         # Stage 8.5 Slice 6 — the in-app Settings screen.
         def _handle_settings_get(self) -> None:
             """The user's effective settings + the choices the Settings screen offers (printers,
-            materials, and the active default of each). Mirrors /api/options so the screen has
-            everything in one call."""
-            self._json(200, web_options(get_config(), saved_settings()))
+            materials, the active default of each, and the cloud opt-in state). The OpenRouter key
+            is returned only MASKED — never in full."""
+            self._json(200, settings_response(get_config(), saved_settings()))
 
         def _handle_model_status(self) -> None:
             """The AI model's health for the Settings screen (Slice 6 MS-2). For the local (Ollama)
@@ -795,6 +873,14 @@ def make_handler(
             UI can show Running / Start Ollama / Get the model. Best-effort + bounded (a short probe
             timeout); a config gap or a down model server is a STATUS, never a 500."""
             cfg = get_config()
+            # Slice 6 MS-3: if the user enabled cloud + saved a key + a model, the EFFECTIVE backend
+            # is their OpenRouter model — report that, not the local default.
+            saved = saved_settings()
+            ck = saved.get("openrouter_api_key")
+            cm = saved.get("cloud_model")
+            if saved.get("cloud_enabled") and isinstance(ck, str) and ck and isinstance(cm, str) and cm:
+                self._json(200, {"model": cm, "backend": "cloud", "running": True, "model_present": True})
+                return
             try:
                 backend = cfg.llm_backend()
             except Exception:  # noqa: BLE001 - a config gap shouldn't 500 the status
@@ -850,6 +936,23 @@ def make_handler(
                     self._json(400, {"error": "Unknown material."})
                     return
                 updates["default_material"] = dm
+            # Slice 6 MS-3 — cloud (OpenRouter) opt-in fields.
+            if "cloud_enabled" in data:
+                updates["cloud_enabled"] = bool(data.get("cloud_enabled"))
+            if "cloud_model" in data:
+                cm = data.get("cloud_model")
+                if cm is not None and not isinstance(cm, str):
+                    self._json(400, {"error": "Invalid model."})
+                    return
+                # An empty/blank model clears it (back to unconfigured); a string saves it.
+                updates["cloud_model"] = cm.strip() if (isinstance(cm, str) and cm.strip()) else None
+            if "openrouter_api_key" in data:
+                k = data.get("openrouter_api_key")
+                if k is not None and not isinstance(k, str):
+                    self._json(400, {"error": "Invalid API key."})
+                    return
+                # A blank/None key clears it; a real key is stored. It's never echoed back.
+                updates["openrouter_api_key"] = k.strip() if (isinstance(k, str) and k.strip()) else None
             store = get_settings_store()
             if store is None:
                 saved_ok = False
@@ -857,7 +960,7 @@ def make_handler(
                 saved_ok = store.update(updates)
             else:
                 saved_ok = True
-            payload = web_options(cfg, saved_settings())
+            payload = settings_response(cfg, saved_settings())
             payload["saved"] = saved_ok
             self._json(200, payload)
 

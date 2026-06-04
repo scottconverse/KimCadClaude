@@ -2163,6 +2163,114 @@ input {
   font-size: 12.5px;
 }
 
+/* Slice 6 MS-3 — cloud opt-in (toggle switch, key + model fields). */
+.kc-switch {
+  width: 42px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--kc-hair-strong);
+  position: relative;
+  flex: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.kc-switch-on {
+  background: var(--kc-accent-strong);
+}
+.kc-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: left 0.12s;
+}
+.kc-switch-on::after {
+  left: 20px;
+}
+.kc-switch:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-set-callout {
+  border-radius: var(--kc-r-btn);
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+.kc-set-callout-privacy {
+  background: color-mix(in srgb, var(--kc-accent) 8%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-accent) 24%, transparent);
+  color: var(--kc-ink);
+}
+.kc-cloud-config {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.kc-set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kc-set-field > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.kc-set-fieldrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.kc-set-input {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+}
+.kc-set-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-btn-sm {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid var(--kc-hair-strong);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  padding: 8px 13px;
+  border-radius: var(--kc-r-btn);
+  cursor: pointer;
+  flex: none;
+}
+.kc-btn-accent-sm {
+  background: var(--kc-accent-strong);
+  border-color: var(--kc-accent-strong);
+  color: #fff;
+}
+.kc-btn-sm:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.kc-set-link {
+  font-size: 12.5px;
+  align-self: flex-start;
+  text-decoration: none;
+}
+
 @media (max-width: 640px) {
   .kc-set-row {
     flex-direction: column;

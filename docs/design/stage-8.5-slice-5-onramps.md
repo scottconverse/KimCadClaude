@@ -177,9 +177,15 @@ inline on an out-of-template request; cloud isn't pushed, only available.
 - **Slice 7** builds Surface D (the photo on-ramp) against this flow, using gemma4:e4b local vision.
 
 ## Settled decisions (approved by Scott, 2026-06-04)
-1. **Cloud model choice** — **invisible: KimCad picks a sensible OpenRouter model.** No model field in
-   the consumer default (a future "advanced" disclosure can add one). Fewer ways to misconfigure;
-   matches the "no menu that sells models" posture.
+1. **Cloud model choice** — **the user picks the model via OpenRouter; KimCad does NOT hardwire a
+   vendor.** This corrects the earlier "KimCad picks one" draft, which cut against the spec. Per spec
+   §7.3 ("KimCad does not hardwire a cloud vendor; OpenRouter is the router for any cloud LLM use")
+   and the v3.0 change table ("OpenRouter as the cloud router — pick/swap any model… Don't hardwire
+   one vendor"), the cloud section exposes a **model field** the user fills with their OpenRouter
+   model slug (with a "browse models on OpenRouter →" link). The field is neutral/empty by default —
+   KimCad never pre-selects or recommends a model, so the no-Chinese-model trust rule holds (the
+   user's explicit pick is theirs). The `custom_openrouter` backend already ships `model_name: ""`
+   ("user supplies").
 2. **Photo entry prominence** — **secondary-but-visible:** a small camera affordance is always present
    beside the text box, clearly off the primary path. It's a headline capability worth seeing.
 3. **Experimental inline offer** — **offered on the miss:** every out-of-template request offers the

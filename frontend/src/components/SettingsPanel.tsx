@@ -43,6 +43,13 @@ export default function SettingsPanel() {
   const [model, setModel] = useState<ModelStatus | null>(null)
   const [modelState, setModelState] = useState<'checking' | 'ready' | 'error'>('checking')
 
+  // Cloud (OpenRouter) opt-in drafts (MS-3). The model field is seeded once from settings on load
+  // (not re-seeded on every save, so in-progress typing survives an unrelated change). The key is
+  // entered into `keyDraft`; once saved it shows masked, with Replace to enter a new one.
+  const [modelDraft, setModelDraft] = useState('')
+  const [keyDraft, setKeyDraft] = useState('')
+  const [replacingKey, setReplacingKey] = useState(false)
+
   const checkModel = useCallback(() => {
     setModelState('checking')
     getModelStatus()
@@ -53,14 +60,18 @@ export default function SettingsPanel() {
   useEffect(() => {
     let cancelled = false
     getSettings()
-      .then((s) => { if (!cancelled) setSettings(s) })
+      .then((s) => {
+        if (cancelled) return
+        setSettings(s)
+        setModelDraft(s.cloud_model ?? '')
+      })
       .catch(() => { if (!cancelled) setLoadError('Couldn’t load your settings.') })
     return () => { cancelled = true }
   }, [])
 
   useEffect(() => { checkModel() }, [checkModel])
 
-  async function change(updates: { default_printer?: string; default_material?: string }) {
+  async function change(updates: Parameters<typeof postSettings>[0]) {
     setSaveNote('saving')
     try {
       const next = await postSettings(updates)
@@ -68,9 +79,27 @@ export default function SettingsPanel() {
       // The server tells us honestly whether the choice persisted (saved:false if the local store
       // couldn't be written) so we never claim "Saved" when it didn't stick.
       setSaveNote(next.saved === false ? 'error' : 'saved')
+      // A cloud change flips which model handles requests — re-check so the AI section reflects it.
+      if ('cloud_enabled' in updates || 'cloud_model' in updates || 'openrouter_api_key' in updates) {
+        checkModel()
+      }
     } catch {
       setSaveNote('error')
     }
+  }
+
+  async function saveKey() {
+    const k = keyDraft.trim()
+    if (!k) return
+    await change({ openrouter_api_key: k })
+    setReplacingKey(false)
+    setKeyDraft('')
+  }
+
+  function saveModel() {
+    const m = modelDraft.trim()
+    if (m === (settings?.cloud_model ?? '')) return // no change — don't fire a redundant save
+    void change({ cloud_model: m })
   }
 
   return (
@@ -204,6 +233,113 @@ export default function SettingsPanel() {
               <button type="button" className="kc-link-btn kc-model-refresh" onClick={checkModel}>
                 Refresh
               </button>
+            )}
+          </section>
+
+          {/* Cloud acceleration (Surface B) — opt-in, OFF by default. Per spec §7.3, KimCad does NOT
+              hardwire a cloud vendor: OpenRouter is the router and the USER picks the model. The key
+              is saved locally and shown masked (last 5) on return. */}
+          <section className="kc-set-card">
+            <div className="kc-set-cardhead">
+              <h2 className="kc-set-h">Cloud acceleration</h2>
+              <span className={`kc-set-badge${settings.cloud_enabled ? ' kc-set-badge-cloud' : ''}`}>
+                {settings.cloud_enabled ? 'On' : 'Optional'}
+              </span>
+              <span className="kc-set-grow" />
+              <button
+                type="button"
+                className={`kc-switch${settings.cloud_enabled ? ' kc-switch-on' : ''}`}
+                role="switch"
+                aria-checked={settings.cloud_enabled ? 'true' : 'false'}
+                aria-label="Use a cloud model"
+                onClick={() => change({ cloud_enabled: !settings.cloud_enabled })}
+              />
+            </div>
+            <p className="kc-set-sub">
+              Local always works. Turn this on to send a design prompt to a cloud model — your choice,
+              via OpenRouter — for a hard request.
+            </p>
+            <div className="kc-set-callout kc-set-callout-privacy">
+              <b>This sends your prompt off your machine.</b> Off by default — KimCad stays on your
+              computer until you choose this.
+            </div>
+
+            {settings.cloud_enabled && (
+              <div className="kc-cloud-config">
+                <div className="kc-set-field">
+                  <label htmlFor="cloud-key">OpenRouter API key</label>
+                  {settings.has_cloud_key && !replacingKey ? (
+                    <div className="kc-set-fieldrow">
+                      <input
+                        id="cloud-key"
+                        className="kc-set-input kc-mono"
+                        value={settings.cloud_key_masked ?? ''}
+                        readOnly
+                        aria-label="Saved OpenRouter key (masked)"
+                      />
+                      <button
+                        type="button"
+                        className="kc-btn-sm"
+                        onClick={() => { setReplacingKey(true); setKeyDraft('') }}
+                      >
+                        Replace
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="kc-set-fieldrow">
+                      <input
+                        id="cloud-key"
+                        className="kc-set-input kc-mono"
+                        type="password"
+                        value={keyDraft}
+                        placeholder="Paste your OpenRouter key"
+                        aria-label="OpenRouter API key"
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(e) => setKeyDraft(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="kc-btn-sm kc-btn-accent-sm"
+                        disabled={!keyDraft.trim()}
+                        onClick={saveKey}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  )}
+                  <a
+                    className="kc-link-btn kc-set-link"
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Get a free OpenRouter key →
+                  </a>
+                </div>
+
+                <div className="kc-set-field">
+                  <label htmlFor="cloud-model">Model</label>
+                  <input
+                    id="cloud-model"
+                    className="kc-set-input kc-mono"
+                    value={modelDraft}
+                    placeholder="a model slug from openrouter.ai/models"
+                    aria-label="OpenRouter model"
+                    onChange={(e) => setModelDraft(e.target.value)}
+                    onBlur={saveModel}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                  />
+                  <a
+                    className="kc-link-btn kc-set-link"
+                    href="https://openrouter.ai/models"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Browse models on OpenRouter →
+                  </a>
+                </div>
+              </div>
             )}
           </section>
         </div>

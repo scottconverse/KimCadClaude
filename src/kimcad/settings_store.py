@@ -36,6 +36,11 @@ _ALLOWED_KEYS = frozenset(
     {
         "default_printer",
         "default_material",
+        # Slice 6 MS-3 — cloud (OpenRouter) opt-in. The key is the user's own secret, stored on
+        # their machine (never the repo/logs) and never echoed back in full by the API.
+        "cloud_enabled",
+        "openrouter_api_key",
+        "cloud_model",
     }
 )
 

@@ -137,11 +137,15 @@ class LLMProvider:
         backend: LLMBackend,
         client: ChatClient | None = None,
         *,
+        api_key: str | None = None,
         max_attempts: int = 6,
         retry_wait_s: float = 30.0,
     ):
         self.backend = backend
-        self.client = client if client is not None else self._build_client(backend)
+        # An explicit api_key (e.g. a key the user saved in the in-app Settings — Slice 6 MS-3)
+        # takes precedence over the backend's api_key_env lookup, so a cloud backend can run on a
+        # locally-saved consumer key without an environment variable.
+        self.client = client if client is not None else self._build_client(backend, api_key=api_key)
         # A local CPU model server (Ollama) can briefly drop or restart mid-batch; retry
         # connection/timeout errors with a wait long enough to bridge a server restart
         # plus an 8 GB model reload, so one hiccup doesn't fail the case.
@@ -149,18 +153,21 @@ class LLMProvider:
         self.retry_wait_s = retry_wait_s
 
     @staticmethod
-    def _build_client(backend: LLMBackend) -> ChatClient:
+    def _build_client(backend: LLMBackend, *, api_key: str | None = None) -> ChatClient:
         from openai import OpenAI
 
-        api_key = "not-needed"
-        if backend.api_key_env:
-            api_key = os.environ.get(backend.api_key_env) or ""
-            if not api_key:
+        # An explicit (saved) key wins; otherwise fall back to the backend's env var.
+        key = api_key
+        if key is None and backend.api_key_env:
+            key = os.environ.get(backend.api_key_env) or ""
+            if not key:
                 raise RuntimeError(
                     f"Environment variable {backend.api_key_env} is not set; "
                     f"the {backend.key} backend needs an API key."
                 )
-        return OpenAI(base_url=backend.base_url, api_key=api_key, timeout=backend.timeout_s)
+        if not key:
+            key = "not-needed"
+        return OpenAI(base_url=backend.base_url, api_key=key, timeout=backend.timeout_s)
 
     def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
         kwargs: dict[str, Any] = {

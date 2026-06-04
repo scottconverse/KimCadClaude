@@ -20,6 +20,10 @@ const SETTINGS = {
   materials: [{ key: 'pla', name: 'PLA' }, { key: 'petg', name: 'PETG' }],
   default_printer: 'bambu_p2s',
   default_material: 'pla',
+  cloud_enabled: false,
+  cloud_model: '',
+  has_cloud_key: false,
+  cloud_key_masked: null,
 }
 
 const RUNNING = { model: 'gemma4:e4b', backend: 'local', running: true, model_present: true }
@@ -120,5 +124,52 @@ describe('SettingsPanel', () => {
     getModelStatus.mockRejectedValue(new Error('boom'))
     render(<SettingsPanel />)
     expect(await screen.findByText(/Couldn.t check/i)).toBeTruthy()
+  })
+
+  // --- Slice 6 MS-3: the cloud opt-in section ---
+  it('cloud is off by default; toggling it on posts cloud_enabled and shows the privacy label', async () => {
+    render(<SettingsPanel />)
+    await screen.findByLabelText(/Default printer/i)
+    const sw = screen.getByRole('switch', { name: /Use a cloud model/i })
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByText(/sends your prompt off your machine/i)).toBeTruthy()
+    postSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, saved: true })
+    fireEvent.click(sw)
+    await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ cloud_enabled: true }))
+  })
+
+  it('with cloud enabled and no key, the key field + Save appear and saving posts the key', async () => {
+    getSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, has_cloud_key: false })
+    render(<SettingsPanel />)
+    const keyInput = (await screen.findByLabelText('OpenRouter API key')) as HTMLInputElement
+    // FOUND-001: an obscured field that opts out of browser autofill / save-password.
+    expect(keyInput.type).toBe('password')
+    expect(keyInput.getAttribute('autocomplete')).toBe('off')
+    const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    fireEvent.change(keyInput, { target: { value: 'or-fake-key-12345' } })
+    expect(save.disabled).toBe(false)
+    postSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, has_cloud_key: true, cloud_key_masked: '••••••••••••••••12345', saved: true })
+    fireEvent.click(save)
+    await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ openrouter_api_key: 'or-fake-key-12345' }))
+  })
+
+  it('with a saved key, shows it masked with a Replace button (never the raw key)', async () => {
+    getSettings.mockResolvedValue({
+      ...SETTINGS, cloud_enabled: true, has_cloud_key: true, cloud_key_masked: '••••••••••••••••wQ9f2',
+    })
+    render(<SettingsPanel />)
+    expect(await screen.findByDisplayValue('••••••••••••••••wQ9f2')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
+  })
+
+  it('saving the model field posts cloud_model on blur', async () => {
+    getSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, cloud_model: '' })
+    render(<SettingsPanel />)
+    const modelInput = await screen.findByLabelText('OpenRouter model')
+    fireEvent.change(modelInput, { target: { value: 'anthropic/claude-sonnet' } })
+    postSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, cloud_model: 'anthropic/claude-sonnet', saved: true })
+    fireEvent.blur(modelInput)
+    await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ cloud_model: 'anthropic/claude-sonnet' }))
   })
 })
