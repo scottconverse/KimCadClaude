@@ -21,6 +21,8 @@ export default function Topbar({
   showNewDesign,
   onNewDesign,
   onMyDesigns,
+  onSettings,
+  onHome,
   activeRoute,
   saveState = 'idle',
   savedId = null,
@@ -28,11 +30,14 @@ export default function Topbar({
   showNewDesign: boolean
   onNewDesign: () => void
   onMyDesigns: () => void
+  onSettings: () => void
+  onHome: () => void
   activeRoute?: string
   saveState?: SaveState
   savedId?: string | null
 }) {
   const onDesigns = activeRoute === 'designs'
+  const onSettingsRoute = activeRoute === 'settings'
   // UX-001: surface auto-save. While saving -> "Saving…"; once persisted (just saved, or a saved
   // design at rest) -> a "Saved · My Designs" link to the user's work; on failure -> "Couldn't
   // save — retrying" (the app retries automatically). These branches are mutually exclusive.
@@ -40,14 +45,14 @@ export default function Topbar({
 
   return (
     <header className="kc-topbar">
-      <div className="kc-brand">
+      <button type="button" className="kc-brand" onClick={onHome} aria-label="KimCad — home">
         <span className="kc-logo">
           <CubeGlyph />
         </span>
         <span className="kc-wordmark">
           Kim<span className="kc-wordmark-accent">Cad</span>
         </span>
-      </div>
+      </button>
       <div className="kc-topbar-actions">
         {saveState === 'saving' && (
           <span className="kc-savestate kc-savestate-saving" role="status" aria-live="polite">
@@ -76,6 +81,14 @@ export default function Topbar({
           aria-current={onDesigns ? 'page' : undefined}
         >
           My Designs
+        </button>
+        <button
+          type="button"
+          className={`kc-btn kc-btn-ghost${onSettingsRoute ? ' kc-btn-active' : ''}`}
+          onClick={onSettings}
+          aria-current={onSettingsRoute ? 'page' : undefined}
+        >
+          Settings
         </button>
         {showNewDesign && (
           <button type="button" className="kc-btn kc-btn-dark" onClick={onNewDesign}>

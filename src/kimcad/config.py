@@ -148,6 +148,18 @@ class Config:
             return p if p.is_absolute() else (PROJECT_ROOT / p)
         return Path.home() / ".kimcad" / "designs"
 
+    def settings_path(self) -> Path:
+        """Where the in-app Settings store lives (Stage 8.5 Slice 6). Defaults to a per-user file
+        (``~/.kimcad/settings.json``) so the user's choices (default printer/material, and later the
+        LLM backend + cloud opt-in + experimental toggle) persist across sessions and never land in
+        the repo; override with ``paths.settings`` in config (a relative path resolves against the
+        project root). Local-first — nothing here leaves the machine."""
+        raw = self._d.get("paths", {}).get("settings")
+        if raw:
+            p = Path(raw)
+            return p if p.is_absolute() else (PROJECT_ROOT / p)
+        return Path.home() / ".kimcad" / "settings.json"
+
     # --- printers / materials ----------------------------------------------
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]

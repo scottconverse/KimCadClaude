@@ -293,8 +293,25 @@ def _real_provider(config: Any, backend: str | None) -> Any:
     return FallbackProvider(primary, alt) if alt is not None else primary
 
 
-def web_options(config: Any) -> dict[str, Any]:
-    """The printer + material choices the UI offers, plus the configured defaults.
+def effective_defaults(config: Any, saved: dict[str, Any] | None) -> tuple[str | None, str | None]:
+    """The default printer + material the app should use: the user's saved Settings choice when it's
+    still a known config key, else the shipped config default. A saved key that no longer exists
+    (a printer/material removed from config between sessions) falls back rather than dangling."""
+    defaults = config.raw.get("defaults", {})
+    saved = saved or {}
+    printer_keys = set(config.raw.get("printers", {}))
+    material_keys = set(config.raw.get("materials", {}))
+    sp = saved.get("default_printer")
+    sm = saved.get("default_material")
+    return (
+        sp if sp in printer_keys else defaults.get("printer"),
+        sm if sm in material_keys else defaults.get("material"),
+    )
+
+
+def web_options(config: Any, saved_settings: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The printer + material choices the UI offers, plus the effective defaults (the user's saved
+    Settings choice overlaid on the shipped config default — Stage 8.5 Slice 6).
 
     Each printer carries a ``sliceable`` flag (it has an OrcaSlicer process profile) so
     the UI can mark any printer configured without one as not-yet-sliceable instead of
@@ -321,12 +338,12 @@ def web_options(config: Any) -> dict[str, Any]:
         {"key": key, "name": config.material(key).name}
         for key in config.raw.get("materials", {})
     ]
-    defaults = config.raw.get("defaults", {})
+    default_printer, default_material = effective_defaults(config, saved_settings)
     return {
         "printers": printers,
         "materials": materials,
-        "default_printer": defaults.get("printer"),
-        "default_material": defaults.get("material"),
+        "default_printer": default_printer,
+        "default_material": default_material,
     }
 
 
@@ -463,6 +480,26 @@ def make_handler(
                 designs_box["store"] = None
         return designs_box["store"]
 
+    # Stage 8.5 Slice 6: the user settings store, built lazily from config. Best-effort — if it
+    # can't be created, /api/settings degrades to the shipped config defaults (read) / no-ops (write).
+    settings_box: dict[str, Any] = {"store": None, "tried": False}
+
+    def get_settings_store() -> Any:
+        if not settings_box["tried"]:
+            settings_box["tried"] = True
+            try:
+                from kimcad.settings_store import SettingsStore
+
+                settings_box["store"] = SettingsStore(get_config().settings_path())
+            except Exception:  # noqa: BLE001
+                settings_box["store"] = None
+        return settings_box["store"]
+
+    def saved_settings() -> dict[str, Any]:
+        """The user's saved settings as a dict (empty when the store is absent/unreadable)."""
+        store = get_settings_store()
+        return store.all() if store is not None else {}
+
     def _evict(rid: int) -> None:
         """QA-003: drop a design id from every registry/cache AND remove its on-disk
         directory, so disk doesn't grow unbounded as the in-memory caps evict. Call under
@@ -535,7 +572,10 @@ def make_handler(
                 self._send(200, index_html, "text/html; charset=utf-8")
                 return
             if self.path == "/api/options":
-                self._json(200, web_options(get_config()))
+                self._json(200, web_options(get_config(), saved_settings()))
+                return
+            if self.path == "/api/settings":
+                self._handle_settings_get()
                 return
             if self.path == "/api/connectors":
                 from kimcad.connectors import connector_is_simulated
@@ -712,6 +752,9 @@ def make_handler(
             if self.path == "/api/design":
                 self._handle_design()
                 return
+            if self.path == "/api/settings":
+                self._handle_settings_post()
+                return
             if self.path.startswith("/api/slice/"):
                 self._handle_slice(self.path.rsplit("/", 1)[-1])
                 return
@@ -735,6 +778,48 @@ def make_handler(
                         self._handle_design_mutate(tail[: -(len(verb) + 1)], verb)
                         return
             self._json(404, {"error": "Not found."})
+
+        # Stage 8.5 Slice 6 — the in-app Settings screen.
+        def _handle_settings_get(self) -> None:
+            """The user's effective settings + the choices the Settings screen offers (printers,
+            materials, and the active default of each). Mirrors /api/options so the screen has
+            everything in one call."""
+            self._json(200, web_options(get_config(), saved_settings()))
+
+        def _handle_settings_post(self) -> None:
+            """Persist a Settings change (default printer / material). Each key is validated against
+            the configured choices — an unknown value is a 400, never silently saved — then written.
+            Returns the new effective settings with a ``saved`` flag (false if the store couldn't
+            persist) so the UI can tell the user honestly whether the choice stuck. Never 500s."""
+            data = self._read_json_body()
+            if data is None:
+                return
+            cfg = get_config()
+            printer_keys = set(cfg.raw.get("printers", {}))
+            material_keys = set(cfg.raw.get("materials", {}))
+            updates: dict[str, Any] = {}
+            if "default_printer" in data:
+                dp = data.get("default_printer")
+                if dp is not None and dp not in printer_keys:
+                    self._json(400, {"error": "Unknown printer."})
+                    return
+                updates["default_printer"] = dp  # None clears the override (back to config default)
+            if "default_material" in data:
+                dm = data.get("default_material")
+                if dm is not None and dm not in material_keys:
+                    self._json(400, {"error": "Unknown material."})
+                    return
+                updates["default_material"] = dm
+            store = get_settings_store()
+            if store is None:
+                saved_ok = False
+            elif updates:
+                saved_ok = store.update(updates)
+            else:
+                saved_ok = True
+            payload = web_options(cfg, saved_settings())
+            payload["saved"] = saved_ok
+            self._json(200, payload)
 
         def _handle_connector_status(self, name: str) -> None:
             """Live readiness of one printer connection: reachable and idle (ready), busy,

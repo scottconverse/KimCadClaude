@@ -224,6 +224,26 @@ export function getOptions(): Promise<OptionsResponse> {
   return getJson<OptionsResponse>('/api/options')
 }
 
+// Stage 8.5 Slice 6 — the in-app Settings screen. The settings GET returns the same printer/material
+// choices + effective defaults as /api/options; a POST persists a change and echoes back the new
+// effective settings with a `saved` flag (false if the local store couldn't persist).
+export interface SettingsResponse extends OptionsResponse {
+  saved?: boolean
+}
+
+export function getSettings(): Promise<SettingsResponse> {
+  return getJson<SettingsResponse>('/api/settings')
+}
+
+/** Persist a settings change. Pass only the fields you're changing; `null` clears an override
+ * (restoring the shipped config default). */
+export function postSettings(updates: {
+  default_printer?: string | null
+  default_material?: string | null
+}): Promise<SettingsResponse> {
+  return postJson<SettingsResponse>('/api/settings', updates)
+}
+
 export function getConnectors(): Promise<ConnectorsResponse> {
   return getJson<ConnectorsResponse>('/api/connectors')
 }

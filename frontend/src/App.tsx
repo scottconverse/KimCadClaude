@@ -14,6 +14,7 @@ import {
 import { assistantMessage, isFailureStatus } from './designStatus'
 import Landing from './components/Landing'
 import MyDesigns from './components/MyDesigns'
+import SettingsPanel from './components/SettingsPanel'
 import Topbar from './components/Topbar'
 import { useHashRoute } from './useHashRoute'
 
@@ -331,7 +332,10 @@ export default function App() {
   }, [route, applyResult])
 
   const meshUrl = result?.has_mesh && result.mesh_url ? result.mesh_url : null
-  const onWorkspace = route.name !== 'designs' && (result !== null || busy || route.name === 'design')
+  const onWorkspace =
+    route.name !== 'designs' &&
+    route.name !== 'settings' &&
+    (result !== null || busy || route.name === 'design')
 
   return (
     <div className="kc-shell">
@@ -339,12 +343,16 @@ export default function App() {
         showNewDesign={onWorkspace}
         onNewDesign={handleNewDesign}
         onMyDesigns={() => navigate('designs')}
+        onSettings={() => navigate('settings')}
+        onHome={handleNewDesign}
         activeRoute={route.name}
         saveState={saveState}
         savedId={result?.saved_id ?? null}
       />
       {route.name === 'designs' ? (
         <MyDesigns onOpen={(id) => navigate(`design/${id}`)} onNew={handleNewDesign} />
+      ) : route.name === 'settings' ? (
+        <SettingsPanel />
       ) : !onWorkspace ? (
         <Landing onSubmit={handleSubmit} busy={busy} />
       ) : (

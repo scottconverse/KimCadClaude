@@ -8,11 +8,13 @@ import { useEffect, useState } from 'react'
 export type Route =
   | { name: 'landing' }
   | { name: 'designs' }
+  | { name: 'settings' }
   | { name: 'design'; id: string }
 
 export function parseHash(hash: string): Route {
   const h = hash.replace(/^#\/?/, '')
   if (h === 'designs') return { name: 'designs' }
+  if (h === 'settings') return { name: 'settings' }
   if (h.startsWith('design/')) {
     const id = decodeURIComponent(h.slice('design/'.length))
     if (id) return { name: 'design', id }

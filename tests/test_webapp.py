@@ -1710,3 +1710,94 @@ def test_design_threads_sanitized_history_to_the_model(tmp_path):
         assert st == 200 and captured["history"] is None
         st, _ = _jreq(host, port, "POST", "/api/design", {"prompt": "a box", "history": "garbage"})
         assert st == 200 and captured["history"] is None
+
+
+# --- Stage 8.5 Slice 6: the Settings endpoint -------------------------------
+
+
+def test_settings_get_post_roundtrip_and_options_reflects(tmp_path, monkeypatch):
+    """Slice 6: /api/settings GET returns the choices + effective defaults; POST persists a new
+    default printer/material; GET and /api/options both then reflect it (the saved default is
+    authoritative app-wide)."""
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, get1 = _jreq(host, port, "GET", "/api/settings")
+        assert st == 200
+        printer_keys = [p["key"] for p in get1["printers"]]
+        material_keys = [m["key"] for m in get1["materials"]]
+        assert get1["default_printer"] in printer_keys
+        assert get1["default_material"] in material_keys
+        # Pick a DIFFERENT printer + material than the current default to prove the change sticks.
+        new_printer = next(k for k in printer_keys if k != get1["default_printer"])
+        new_material = next(k for k in material_keys if k != get1["default_material"])
+        st, resp = _jreq(host, port, "POST", "/api/settings",
+                         {"default_printer": new_printer, "default_material": new_material})
+        assert st == 200 and resp["saved"] is True
+        assert resp["default_printer"] == new_printer
+        assert resp["default_material"] == new_material
+        # A fresh GET reflects the persisted choice.
+        st, get2 = _jreq(host, port, "GET", "/api/settings")
+        assert get2["default_printer"] == new_printer and get2["default_material"] == new_material
+        # And /api/options (what the rest of the app reads) reflects it too.
+        st, opt = _jreq(host, port, "GET", "/api/options")
+        assert opt["default_printer"] == new_printer and opt["default_material"] == new_material
+        # The choice actually landed on disk (not just in memory).
+        assert settings_file.exists()
+
+
+def test_settings_post_rejects_unknown_keys(tmp_path, monkeypatch):
+    """An unknown printer/material value is a clean 400 — never a 500, never a silent save."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _jreq(host, port, "POST", "/api/settings", {"default_printer": "no-such-printer"})
+        assert st == 400
+        st, _ = _jreq(host, port, "POST", "/api/settings", {"default_material": "no-such-material"})
+        assert st == 400
+        # Nothing was persisted by the rejected requests.
+        st, opt = _jreq(host, port, "GET", "/api/settings")
+        assert st == 200  # still serving the config defaults, no corruption
+
+
+def test_settings_clear_override_falls_back_to_config_default(tmp_path, monkeypatch):
+    """Sending null clears an override, restoring the shipped config default."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, get1 = _jreq(host, port, "GET", "/api/settings")
+        config_default = get1["default_printer"]
+        new_printer = next(k for k in [p["key"] for p in get1["printers"]] if k != config_default)
+        _jreq(host, port, "POST", "/api/settings", {"default_printer": new_printer})
+        st, mid = _jreq(host, port, "GET", "/api/settings")
+        assert mid["default_printer"] == new_printer
+        # Clear it -> back to the config default.
+        _jreq(host, port, "POST", "/api/settings", {"default_printer": None})
+        st, after = _jreq(host, port, "GET", "/api/settings")
+        assert after["default_printer"] == config_default
+
+
+def test_settings_post_reports_unsaved_when_store_write_fails(tmp_path, monkeypatch):
+    """When the local store can't persist (e.g. a read-only ~/.kimcad), POST returns 200 with
+    saved:false — never a 500, never a dishonest saved:true — so the UI can tell the user their
+    choice didn't stick."""
+    from kimcad import config as config_mod
+    from kimcad import settings_store as ss_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    # Simulate a persistence failure at the store layer.
+    monkeypatch.setattr(ss_mod.SettingsStore, "update", lambda self, updates: False)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, get1 = _jreq(host, port, "GET", "/api/settings")
+        new_printer = next(k for k in [p["key"] for p in get1["printers"]] if k != get1["default_printer"])
+        st, resp = _jreq(host, port, "POST", "/api/settings", {"default_printer": new_printer})
+        assert st == 200
+        assert resp["saved"] is False
