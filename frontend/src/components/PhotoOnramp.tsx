@@ -73,14 +73,14 @@ export default function PhotoOnramp({
       const res = await uploadPhoto(file)
       const text = (res.seed ?? '').trim()
       if (!text) {
-        setErrorMsg('Couldn’t read that photo — try a clearer shot, or describe the part in words.')
+        setErrorMsg('Couldn’t read that photo — try a clearer shot, or cancel and describe the part in words.')
         setPhase('error')
         return
       }
       setSeed(text)
       setPhase('confirm')
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Couldn’t read that photo — describe it in words instead.')
+      setErrorMsg(err instanceof Error ? err.message : 'Couldn’t read that photo — try again, or cancel and describe it in words.')
       setPhase('error')
     }
   }
@@ -134,7 +134,17 @@ export default function PhotoOnramp({
       )}
 
       {phase !== 'idle' && (
-        <div className={`kc-photo-card${phase === 'error' ? ' kc-photo-card-error' : ''}`} role="group" aria-label="Describe with a photo">
+        <div
+          className={`kc-photo-card${phase === 'error' ? ' kc-photo-card-error' : ''}`}
+          role="group"
+          aria-label={
+            phase === 'error'
+              ? 'Photo couldn’t be read'
+              : phase === 'reading'
+                ? 'Reading your photo'
+                : 'A rough starting point from your photo'
+          }
+        >
           {phase === 'reading' && (
             <div className="kc-photo-row" aria-live="polite">
               {previewUrl && <img className="kc-photo-thumb" src={previewUrl} alt="" />}
@@ -200,7 +210,7 @@ export default function PhotoOnramp({
               <p className="kc-photo-error-msg" aria-live="polite">{errorMsg}</p>
               <div className="kc-photo-actions">
                 <button type="button" className="kc-btn kc-btn-accent" onClick={openPicker} disabled={disabled}>
-                  Try another photo
+                  Use a different photo
                 </button>
                 <button type="button" className="kc-photo-cancel" onClick={reset}>
                   Cancel

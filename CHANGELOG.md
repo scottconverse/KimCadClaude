@@ -12,14 +12,39 @@ All notable changes to KimCad are documented here. Format follows
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
 > report + learning store) merged + tagged `stage-7` 2026-06-02** — through the full 5-role
 > `audit-team` stage gate + remediation at 0/0/0/0/0. **Stage 8.5 (Usability) is IN PROGRESS on
-> branch `stage-8.5-usability` — not yet merged or tagged;** Slice 1 (local persistence + the "My
-> Designs" library) is implemented and pending its stage-gate approval. These sections accumulate
-> toward the `0.1.0` release.
+> branch `stage-8.5-usability` — not yet merged or tagged.** Slices 1–7 are built on the branch:
+> Slice 1 (persistence + "My Designs"), Slices 2–4 (refine-as-a-conversation + version history,
+> numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
+> in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the
+> "describe with a photo" on-ramp). Slices 1, 2–4, and 6 have each passed their `audit-team` gate at
+> 0/0/0/0/0; Slice 7 is at its slice-end gate. All pending Scott's stage approval. These sections
+> accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 8.5 Slice 7 — "describe with a photo" on-ramp (on branch, not yet merged/tagged):** a
+  secondary affordance on the landing + workspace reads a photo with gemma4:e4b's **local** vision
+  into a rough, editable text seed that pre-fills the existing text→DesignPlan path. It's a starting
+  point, never a "photo → finished part" promise: the user confirms/edits the seed (a photo carries
+  no scale, so sizes are estimates) before anything runs. The photo is read locally and **never
+  auto-sends off the machine** (vision is pinned to the local provider even when cloud TEXT is on),
+  is never persisted, and never logged; an unreadable/oversized photo is a clean 422/413, never a
+  500. New `POST /api/photo-seed` + `LLMProvider.describe_photo` (Ollama's native `/api/chat` with
+  `think:false`).
+- **Stage 8.5 Slice 6 — in-app Settings screen (on branch, not yet merged/tagged):** model status
+  (gemma4:e4b, local, with a health line — no menu of alternatives), an off-by-default **cloud
+  opt-in** via OpenRouter (the user picks the model; the API key is a normal Settings field, saved
+  locally and shown masked to the last few characters, never echoed back in full or stored in the
+  repo/logs), an off-by-default **experimental raw-codegen generator** (sandboxed, never bypasses the
+  Printability Gate, offered inline on an out-of-template request), plus tools health + about + a
+  two-step reset. New `settings_store.py`, `/api/settings`, `/api/model-status`.
+- **Stage 8.5 Slices 2–4 (on branch, not yet merged/tagged):** refine a part as a **conversation**
+  with full **version history** (a timeline with step-back/undo + a "what changed" compare);
+  **numeric parameter entry** alongside the live sliders; and a **mm / inch units** toggle so a US
+  maker isn't walled out. (Gated together by the Slice 2–4 `audit-team` + `wiring-audit` at
+  0/0/0/0/0.)
 - **Stage 8.5 Slice 1 — local persistence + "My Designs" library (on branch `stage-8.5-usability`, not yet merged/tagged):**
   - Designs are saved automatically to a local, best-effort store under `~/.kimcad/designs/<id>/`
     (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. A built

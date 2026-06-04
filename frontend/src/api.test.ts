@@ -96,6 +96,30 @@ describe('uploadPhoto (Slice 7)', () => {
     await expect(uploadPhoto(big)).rejects.toThrow(/too large/i)
     expect(f.mock.calls.length).toBe(0)
   })
+
+  // TEST-702: the server's friendly 422/413 message must reach the UI (the error-recovery copy is
+  // the user's only feedback on a vision failure). Exercises the real throwIfNotOk/readJson seam.
+  it('throws the backend error message on a non-2xx (422 vision failure)', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: 'Couldn’t read that photo — try a clearer shot, or cancel and describe the part in words.' }),
+    }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    await expect(uploadPhoto(file)).rejects.toThrow(/couldn.t read that photo/i)
+  })
+
+  it('throws a readable error when the photo response body is not JSON', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error('not json')
+      },
+    }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    await expect(uploadPhoto(file)).rejects.toThrow(/unreadable/i)
+  })
 })
 
 describe('postDesign template payload', () => {

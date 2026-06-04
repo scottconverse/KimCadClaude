@@ -2217,6 +2217,17 @@ def test_photo_seed_oversized_is_413(tmp_path):
         assert st == 413
 
 
+def test_photo_seed_empty_upload_is_400(tmp_path):
+    """An empty body (Content-Length 0) is a clean 400 'Empty upload.' — not a 500 and not a vision
+    attempt on zero bytes (TEST-701: the 400 branch of _read_raw_body for this route)."""
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_photo(host, port, b"", content_length=0)
+        assert st == 400 and "empty" in d["error"].lower()
+        assert getattr(provider, "photo_calls", 0) == 0  # vision was never invoked on an empty body
+
+
 def test_photo_seed_unreadable_is_422_not_500(tmp_path):
     """A vision failure is a clean 422 with a friendly message, never a 500."""
 

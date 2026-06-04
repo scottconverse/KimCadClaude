@@ -82,7 +82,7 @@ describe('PhotoOnramp', () => {
     const { container } = render(<PhotoOnramp onSeed={onSeed} />)
     pickFile(container)
     expect(await screen.findByText(/couldn.t read that photo/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Try another photo/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Use a different photo/i })).toBeTruthy()
     expect(onSeed).not.toHaveBeenCalled()
   })
 
@@ -91,7 +91,7 @@ describe('PhotoOnramp', () => {
     const { container } = render(<PhotoOnramp onSeed={vi.fn()} />)
     pickFile(container)
     expect(await screen.findByText(/too large to read/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Try another photo/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Use a different photo/i })).toBeTruthy()
   })
 
   it('Cancel from the confirm card returns to the affordance without submitting', async () => {
@@ -124,5 +124,32 @@ describe('PhotoOnramp', () => {
     render(<PhotoOnramp onSeed={vi.fn()} disabled />)
     const btn = screen.getByRole('button', { name: /Describe with a photo/i }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
+  })
+
+  it('accepts a dropped photo (drag-and-drop) and runs the read flow (TEST-703)', async () => {
+    mockUpload.mockResolvedValue({ seed: 'a dropped box' })
+    render(<PhotoOnramp onSeed={vi.fn()} />)
+    const affordance = screen.getByRole('button', { name: /Describe with a photo/i })
+    const file = new File([new Uint8Array([1, 2, 3])], 'd.png', { type: 'image/png' })
+    // fireEvent returns false when the handler called preventDefault — onDrop must, so the browser
+    // doesn't navigate to the dropped image.
+    const notCancelled = fireEvent.drop(affordance, { dataTransfer: { files: [file] } })
+    expect(notCancelled).toBe(false)
+    const box = (await screen.findByLabelText(SEED_LABEL)) as HTMLTextAreaElement
+    expect(box.value).toBe('a dropped box') // the drop routed into the same read flow
+  })
+
+  it('re-picking via "Use a different photo" swaps the preview and revokes the prior blob URL (TEST-704)', async () => {
+    mockUpload.mockResolvedValue({ seed: 'a rough box' })
+    const { container } = render(<PhotoOnramp onSeed={vi.fn()} />)
+    pickFile(container)
+    await screen.findByLabelText(SEED_LABEL)
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
+    // From the confirm card, choose a different photo.
+    fireEvent.click(screen.getByRole('button', { name: /Use a different photo/i }))
+    pickFile(container, new File([new Uint8Array([9, 9, 9])], 'q.png', { type: 'image/png' }))
+    await screen.findByLabelText(SEED_LABEL)
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(2) // a fresh preview for the 2nd photo
+    expect(URL.revokeObjectURL).toHaveBeenCalled() // the 1st blob URL was revoked — no leak on re-pick
   })
 })

@@ -76,7 +76,7 @@ both. UX is the acceptance gate, not an afterthought.
 - **The experimental raw-codegen generator is OFF by default, labeled untrusted/experimental**, and runs **only** through the existing `openscad_runner` sandbox (blocked-code check — bans file-I/O `import()`/`surface()`, `use`/`include` outside the bundled `library/`, and `minkowski()` — plus cwd isolation, render timeout, output-size cap). It never bypasses the Printability Gate.
 - **Photo on-ramp** uses gemma4:e4b's **local** vision; the photo never auto-sends; it produces a *rough seed* the user then refines (Slice 2 conversation + Slice 3 numeric entry), not a finished part.
 
-## Slice 6 — Settings + engine discoverability (config files → in-app)
+## Slice 6 — Settings + engine discoverability (config files → in-app) — ✅ IMPLEMENTED (in-app Settings screen, model status, cloud opt-in, experimental toggle, tools health/about/reset; `audit-team` → 0/0/0/0/0; pending Scott's approval. The optional-engine one-click-enable for CadQuery/PrintProof3D is deferred to Stage 8, where CadQuery lands.)
 **Goal:** there's an actual place in the app to see and change things — and to *discover* the optional engines and the advanced on-ramps. Builds the cloud + experimental toggles per the Slice-5 design.
 - 🔴 **An in-app Settings screen** — default printer + material, units, and where the model/tools status lives. Today every one of these is YAML a normal person never opens.
 - 🔴 **Model status + control** — is Ollama running? is `gemma4:e4b` pulled? Surfaced clearly; gemma4:e4b stays the default (no model menu that pushes alternatives).
@@ -86,7 +86,7 @@ both. UX is the acceptance gate, not an afterthought.
 - 🟠 **Contextual enable** — the Export panel's "STEP/BREP" offers to turn on CadQuery right there; the readiness card surfaces "deeper validation available." Discovery at the moment of need.
 - 🟡 Tools health (OpenSCAD / OrcaSlicer present?), an About/version, a reset.
 
-## Slice 7 — Photo on-ramp ("describe with a photo")
+## Slice 7 — Photo on-ramp ("describe with a photo") — ✅ IMPLEMENTED (MS-1 local-vision backend + `POST /api/photo-seed`; MS-2 the on-ramp UI; audit-lite-gated per micro-slice; slice-end `audit-team` + `wiring-audit` → 0/0/0/0/0; pending Scott's walkthrough)
 **Goal:** start a design from a photo, **locally** — pulled forward from Stage 9 because it's UI-first and built per the Slice-5 design.
 - 🔴 **A "use a photo" input mode** — upload/drop a photo; **gemma4:e4b's local vision** reads it into a description + rough proportions that **seed the existing text→DesignPlan path** (it does not replace or bypass it). No cloud required.
 - 🔴 **Honest framing** — the result is a *rough starting point* refined with the conversation (Slice 2) + numeric entry (Slice 3); a photo carries no scale, so dimensions are estimates until the user sets them. No "photo → finished part" promise.

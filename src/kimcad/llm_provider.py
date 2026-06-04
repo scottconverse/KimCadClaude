@@ -18,14 +18,17 @@ for its remaining calls, avoiding re-trying a dead primary on every codegen retr
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 from pydantic import ValidationError
@@ -248,10 +251,6 @@ class LLMProvider:
         (a photo carries no scale) that the user confirms/edits — it never becomes the delivered
         geometry. Untrusted input into the validated DesignPlan, the same trust boundary as typed text.
         """
-        import base64
-        import urllib.request
-        from urllib.parse import urlsplit, urlunsplit
-
         parts = urlsplit(self.backend.base_url)
         chat_url = (
             urlunsplit((parts.scheme, parts.netloc, "/api/chat", "", ""))
@@ -272,6 +271,11 @@ class LLMProvider:
                 },
             ],
             "stream": False,
+            # ``think: false`` is what keeps gemma4:e4b's thinking mode from spending the whole
+            # budget on an empty reply. NOTE (ENG-002): older Ollama builds that predate the
+            # ``think`` field silently ignore it, so vision can come back empty on a stale Ollama —
+            # which then looks identical to an unreadable photo. We log a one-line hint below so the
+            # cause is debuggable; the user still gets the graceful "couldn't read that photo" 422.
             "think": False,
             "options": {"temperature": 0, "num_predict": 400},
         }).encode()
@@ -280,8 +284,16 @@ class LLMProvider:
         )
         with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
             data = json.load(r)
-        seed = ((data.get("message") or {}).get("content") or "").strip()
-        return _strip_fences(seed)
+        seed = _strip_fences(((data.get("message") or {}).get("content") or "").strip())
+        if not seed:
+            # An empty vision response is usually an unreadable photo, but a too-old Ollama (no
+            # ``think`` support) presents identically — leave a breadcrumb for support/debugging.
+            print(
+                "[kimcad] vision returned an empty description; if this recurs on a clear photo, "
+                "update Ollama (older builds ignore think:false and gemma4 vision returns empty).",
+                file=sys.stderr,
+            )
+        return seed
 
 
 class FallbackProvider:

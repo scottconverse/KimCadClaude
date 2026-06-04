@@ -73,7 +73,7 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | Module | Responsibility |
 |---|---|
 | `ir.py` | The Design-Plan IR (Pydantic v2): `DesignPlan`, `Feature`, `Tolerances`. Validates LLM JSON before any geometry is written; salvages almost-valid JSON (`normalize_plan_dict`); decides the one-question clarification policy (`first_clarification`). |
-| `llm_provider.py` | All LLM communication, over the OpenAI SDK as the universal client (local Ollama / LM Studio, DeepSeek, any OpenAI-compatible endpoint). Two jobs: `generate_design_plan` and `generate_openscad`. Builds the constraints block and library manifest injected into the prompts. Retries connection/timeout errors so a flaky local server doesn't fail a case. Raises `PlanParseError` at the parse boundary when model output can't become a `DesignPlan` (so the pipeline can fail clean, not crash). `FallbackProvider` wraps a primary with an opt-in alt backend, transparently retrying it on a primary connection/timeout/404; both satisfy the `Provider` `Protocol` the pipeline depends on. The client is injectable for offline tests. |
+| `llm_provider.py` | All LLM communication, over the OpenAI SDK as the universal client (local Ollama / LM Studio, DeepSeek, any OpenAI-compatible endpoint). Three jobs: `generate_design_plan`, `generate_openscad`, and `describe_photo` (Stage 8.5 — a **local**-vision read of an uploaded photo into a rough text seed, via Ollama's native `/api/chat` with `think:false`; the photo never auto-sends off the machine). Builds the constraints block and library manifest injected into the prompts. Retries connection/timeout errors so a flaky local server doesn't fail a case. Raises `PlanParseError` at the parse boundary when model output can't become a `DesignPlan` (so the pipeline can fail clean, not crash). `FallbackProvider` wraps a primary with an opt-in alt backend, transparently retrying it on a primary connection/timeout/404; both satisfy the `Provider` `Protocol` the pipeline depends on. The client is injectable for offline tests. |
 | `openscad_runner.py` | Sanitize-and-render. **Trust boundary:** generated OpenSCAD is untrusted, so before it reaches the binary it is checked — `import()`/`surface()` file I/O, `minkowski()` (a CPU/RAM DoS at high `$fn`), and any `use`/`include` reaching outside the approved `library/` path are **blocked** (the orchestrator re-prompts) rather than silently stripped. Also deterministically repairs two common model slips: injecting a missing library `use` line, and appending a dropped trailing `;`. Then it shells out (`openscad -o part.3mf part.scad`) in an isolated temp dir with a timeout and an output-size guard, falling back to STL if the binary lacks `lib3mf`. |
 | `validation.py` | Loads a rendered mesh (flattening a multi-part scene), checks watertightness, attempts conservative repairs (fill holes, fix normals/winding/inversion), and reports geometry stats — volume, bounding box, body count. The bounding box here feeds the gate's dimensional assertion. |
 | `printability.py` | The **Printability Gate**: pass / warn / fail with reasons. Phase-1 checks: dimensional assertion (rendered bbox vs the plan envelope, flat 0.5 mm tolerance, no relative term), build-volume fit, declared wall thickness vs the material/nozzle minimum, and disconnected-shell detection. A non-watertight mesh is a hard fail. Single source of truth for the dimensional tolerance (`dim_tolerance`), shared with the retry feedback and the web UI. |
@@ -156,6 +156,14 @@ server, behind an explicit confirm step that refuses anything but a proven, gate
 A send failure (offline/unreachable, bad key, misconfig) is a soft result, not an error — it
 carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
 download stays as the fallback, as does the validated model itself.
+
+**Stage 8.5 additions (on the `stage-8.5-usability` branch):** `/api/designs*` persist + reopen the
+"My Designs" library; `/api/settings` + `/api/model-status` back the in-app Settings screen (the
+saved cloud API key is masked on redisplay and never echoed back in full); and `POST /api/photo-seed`
+reads an uploaded photo with the **local** vision model into a rough text seed (never persisted,
+never logged, never auto-sent). `_SettingsAwareProvider` routes a design prompt to the user's
+opt-in cloud model when configured, but `describe_photo` always builds a dedicated **local** provider,
+so the photo path is unreachable from the cloud-TEXT routing — the photo can't leave the machine.
 
 **The browser UI is a React + TypeScript SPA** (Stage 4), compiled by Vite from `frontend/`
 into `src/kimcad/web/` (`index.html` + `assets/`). Node/Vite are **build-time only** — the

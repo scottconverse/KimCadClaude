@@ -14,10 +14,13 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU.
 > (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
 > Bambu A1, Elegoo Neptune 4 Max — software/profile validation, not yet a real print), and
 > Manifold3D mesh hardening are in (through Stage 7, tagged `stage-7`). **Stage 8.5 (Usability) is
-> in progress on branch `stage-8.5-usability` — not yet merged or tagged:** local-first
-> persistence and a "My Designs" library now keep your work between sessions (see *Saving your
-> work*, below, and `docs/guide-my-designs.md`). Real-hardware print validation on Kim's printers
-> is the final stage — see ROADMAP.
+> in progress on branch `stage-8.5-usability` — not yet merged or tagged:** local-first persistence
+> and a "My Designs" library keep your work between sessions (see *Saving your work*, below, and
+> `docs/guide-my-designs.md`); you can refine a part as a conversation with version history, type
+> exact numbers, switch between mm and inches, manage everything from an in-app Settings screen, and
+> start a design by **describing it with a photo** — read by the local vision model into a rough,
+> editable starting point that never leaves your machine. Real-hardware print validation on Kim's
+> printers is the final stage — see ROADMAP.
 
 ## What it does
 
@@ -42,7 +45,7 @@ local-first history. It's advisory: the
 deterministic gate stays the slice authority, and the card never claims the engine ran when it
 didn't. *(Stage 7 — done; tagged `stage-7`.)*
 
-### Saving your work *(Stage 8.5 Slice 1 — in progress, on branch)*
+### Saving your work *(Stage 8.5 — in progress, on branch)*
 
 Your designs are now kept automatically. The moment a part is built it's saved to a local **My
 Designs** library and the page gets its own address, so a refresh (or coming back tomorrow) restores

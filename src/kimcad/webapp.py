@@ -1153,10 +1153,11 @@ def make_handler(
             if image is None:
                 return  # _read_raw_body already sent a 413/400
             cant_read = {
-                "error": "Couldn’t read that photo — try a clearer shot, or describe the part in words."
+                "error": "Couldn’t read that photo — try a clearer shot, or cancel and describe "
+                "the part in words."
             }
-            cfg = get_config()
             try:
+                cfg = get_config()
                 seed = pipeline.provider.describe_photo(image, cfg.printer(None), cfg.material(None))
             except Exception:  # noqa: BLE001 - never leak a traceback; vision is best-effort
                 self._json(422, cant_read)
