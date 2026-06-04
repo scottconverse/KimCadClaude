@@ -2369,6 +2369,7 @@ input {
    Stays out of the viewport — sits as a footer beneath the scrollable thread. */
 .kc-refine-wrap {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-end;
   padding: 10px 18px 14px;
@@ -2402,6 +2403,170 @@ input {
 }
 @media (pointer: coarse) {
   .kc-refine-send {
+    min-height: 44px;
+  }
+}
+
+/* --------------------------------------- Slice 7: the photo on-ramp (Surface D) */
+/* A secondary "describe with a photo" affordance + its reading/confirm/error card. Text stays the
+   primary path; this is honest, local-vision framing throughout. */
+.kc-photo-onramp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+/* Landing: a block under the input card, full width so the card aligns with it. */
+.kc-photo-landing {
+  width: 100%;
+  margin-top: 14px;
+}
+/* Workspace: sits on its own line at the foot of the refine row (the row is flex-wrap). */
+.kc-photo-workspace {
+  flex: 1 0 100%;
+  margin-top: 2px;
+}
+
+.kc-photo-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px dashed var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: transparent;
+  color: var(--kc-muted);
+  font-family: var(--kc-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.kc-photo-affordance:hover:not(:disabled) {
+  color: var(--kc-accent-strong);
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 7%, transparent);
+}
+.kc-photo-affordance:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.kc-photo-affordance:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
+.kc-photo-card {
+  width: 100%;
+  text-align: left;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-card);
+  padding: 14px;
+  animation: kc-fadeup 0.25s ease both;
+}
+.kc-photo-card-error {
+  background: color-mix(in srgb, var(--kc-fail) 7%, var(--kc-surface));
+  border-color: color-mix(in srgb, var(--kc-fail) 32%, transparent);
+}
+
+.kc-photo-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.kc-photo-thumb {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--kc-hair);
+  background: var(--kc-surface-2);
+}
+.kc-photo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.kc-photo-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--kc-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-photo-privacy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--kc-muted);
+}
+
+.kc-photo-seed {
+  width: 100%;
+  margin-top: 11px;
+  resize: vertical;
+  padding: 9px 12px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+  font-size: 13.5px;
+  font-family: var(--kc-font-body);
+  line-height: 1.5;
+  min-height: 64px;
+}
+.kc-photo-seed:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-photo-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--kc-muted);
+}
+.kc-photo-error-msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kc-ink);
+}
+
+.kc-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.kc-photo-cancel {
+  border: none;
+  background: transparent;
+  color: var(--kc-muted);
+  font-family: var(--kc-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 6px;
+}
+.kc-photo-cancel:hover {
+  color: var(--kc-ink);
+}
+.kc-photo-cancel:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
+/* Touch / narrow-viewport: the affordance, cancel, and seed textarea reach a real 44px tap target. */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-photo-affordance,
+  .kc-photo-cancel {
     min-height: 44px;
   }
 }

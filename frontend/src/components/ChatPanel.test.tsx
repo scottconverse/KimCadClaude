@@ -26,6 +26,7 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ChatPanel>> 
     error: null as string | null,
     onRefine: vi.fn(),
     onTryExperimental: vi.fn(),
+    onPhotoSeed: vi.fn(),
     ...overrides,
   }
   return { ...render(<ChatPanel {...props} />), props }

@@ -20,6 +20,7 @@ export default function Workspace({
   onSwitchVersion,
   onCompare,
   onTryExperimental,
+  onPhotoSeed,
   onModelReady,
 }: {
   messages: Message[]
@@ -37,6 +38,7 @@ export default function Workspace({
   onSwitchVersion: (idx: number) => void
   onCompare: (aIdx: number, bIdx: number) => void
   onTryExperimental: () => void
+  onPhotoSeed: (seed: string) => void
   onModelReady?: (capture: () => string | null) => void
 }) {
   return (
@@ -56,6 +58,7 @@ export default function Workspace({
           error={error}
           onRefine={onRefine}
           onTryExperimental={onTryExperimental}
+          onPhotoSeed={onPhotoSeed}
         />
         <Viewport meshUrl={meshUrl} busy={busy} onModelReady={onModelReady} />
         <RightPanel

@@ -393,6 +393,7 @@ export default function App() {
             onSwitchVersion={handleSwitchVersion}
             onCompare={handleCompare}
             onTryExperimental={handleTryExperimental}
+            onPhotoSeed={handleSubmit}
             onModelReady={handleModelReady}
           />
         </Suspense>

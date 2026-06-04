@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CompareMessage, DesignResponse, Message } from '../api'
 import { gateLabel, gateTone } from '../designStatus'
 import { useUnits } from '../useUnits'
+import PhotoOnramp from './PhotoOnramp'
 
 // Left column — the design conversation thread.
 // Stage 8.5 Slice 2: renders all turns (user + assistant) as a scrollable thread, plus a
@@ -106,6 +107,7 @@ export default function ChatPanel({
   error,
   onRefine,
   onTryExperimental,
+  onPhotoSeed,
 }: {
   messages: Message[]
   compareCard: CompareMessage | null
@@ -114,6 +116,7 @@ export default function ChatPanel({
   error: string | null
   onRefine: (text: string) => void
   onTryExperimental: () => void
+  onPhotoSeed: (seed: string) => void
 }) {
   const [draft, setDraft] = useState('')
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -240,6 +243,9 @@ export default function ChatPanel({
           >
             Send
           </button>
+          {/* Slice 7: start a fresh part from a photo (a rough local-vision seed). Secondary to the
+              refine input; using it begins a new design from the seed. */}
+          <PhotoOnramp onSeed={onPhotoSeed} disabled={busy} variant="workspace" />
         </div>
       )}
     </aside>
