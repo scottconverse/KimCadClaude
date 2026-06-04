@@ -227,7 +227,7 @@ def test_malformed_content_length_is_clean_400(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         status, body = _post_with_raw_length(host, port, "not-a-number")
     assert status == 400
-    assert b"invalid request body" in body.lower()
+    assert b"valid json" in body.lower()
 
 
 class _MeshPipeline:
@@ -835,7 +835,7 @@ def test_non_dict_json_body_is_clean_400(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         status, body = _post_with_raw_length(host, port, len(b"[1,2,3]"), body=b"[1,2,3]")
     assert status == 400
-    assert b"invalid request body" in body.lower()
+    assert b"json object" in body.lower()
 
 
 def test_non_string_prompt_is_400(tmp_path):
@@ -1654,6 +1654,29 @@ def test_sanitize_history_keeps_only_wellformed_bounded_turns():
     # Caps each turn's content length.
     long = _sanitize_history([{"role": "user", "content": "y" * (MAX_HISTORY_CONTENT + 100)}])
     assert len(long[0]["content"]) == MAX_HISTORY_CONTENT
+
+
+def test_sanitize_history_bounds_aggregate_content_keeping_newest():
+    # ENG-001: even within the per-turn + turn-count caps, the TOTAL kept content is bounded, and
+    # the most-recent turns are the ones retained (newest is the relevant context for a refine).
+    from kimcad.webapp import (
+        MAX_HISTORY_CONTENT,
+        MAX_HISTORY_TOTAL_CONTENT,
+        _sanitize_history,
+    )
+
+    # 20 maxed-out turns would be 20 * 4000 = 80 KB; the aggregate cap must trim that down.
+    big = [
+        {"role": "user", "content": f"{i}-" + "x" * MAX_HISTORY_CONTENT}
+        for i in range(20)
+    ]
+    out = _sanitize_history(big)
+    total = sum(len(t["content"]) for t in out)
+    assert total <= MAX_HISTORY_TOTAL_CONTENT
+    # The kept turns are the most recent ones, in chronological order (last turn is index 19).
+    assert out[-1]["content"].startswith("19-")
+    # Earlier (older) turns were dropped to honor the budget, so fewer than all 20 survive.
+    assert len(out) < 20
 
 
 def test_design_threads_sanitized_history_to_the_model(tmp_path):

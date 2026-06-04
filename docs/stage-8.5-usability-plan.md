@@ -41,26 +41,26 @@ both. UX is the acceptance gate, not an afterthought.
 - 🟠 **Export / import a design file** — portability (back it up, send it to someone, move machines).
 - 🟡 Sort + search the library; a sensible empty state ("nothing saved yet — make your first part").
 
-## Slice 2 — Iterative refinement (the "conversation" actually works)
+## Slice 2 — Iterative refinement (the "conversation" actually works) — ✅ IMPLEMENTED (on branch `stage-8.5-usability`; pending the Slice 2–4 `audit-team` + `wiring-audit` gate + Scott's approval)
 **Goal:** you can change a part by talking to it — today you can't, at all.
 - 🔴 **A follow-up input in the workspace** — "make it 10mm taller / add mounting holes" refines the *current* part instead of forcing "New design" and starting over (which also loses the part).
 - 🔴 **Answer a clarifying question inline** — the model can ask one, but right now there's no input to answer it; the flow dead-ends.
 - 🟠 **Version timeline within a design** — v1 → vN, revisit any, **undo / step back**; "describe a change" is non-destructive (old version kept).
-- 🟠 **Compare two versions** side-by-side.
+- 🟠 **Compare two versions.** **Built:** a compare *summary* card (each version's summary / gate / readiness) with a **"what changed" delta** (per-axis dimension changes + readiness delta), rather than a two-viewport geometry side-by-side — the delta answers "which do I keep?" without the second 3D view.
 - 🟡 The conversation reads as a real thread (multi-turn), not prompt + one reply.
 
-## Slice 3 — Direct editing & numeric control
+## Slice 3 — Direct editing & numeric control — ✅ IMPLEMENTED (on branch `stage-8.5-usability`; pending the Slice 2–4 `audit-team` + `wiring-audit` gate + Scott's approval)
 **Goal:** you can set exact values, and you can adjust AI-made parts at all.
 - 🔴 **Manual numeric entry** for parameters — type "42.5", not just drag a slider (and it's units-aware, see Slice 4).
-- 🔴 **A way to adjust AI-generated (non-template) parts** — today they're fully read-only (no sliders, no refine input). At minimum: editable key dimensions that re-render; ideally promote more parts to parametric.
+- 🔴 **A way to adjust AI-generated (non-template) parts** — today they're fully read-only (no sliders, no refine input). **Built:** non-template parts are adjusted through the **Slice-2 conversation refine** ("make it 10mm taller" → a new version), with an in-card hint pointing there — the refine path covers the same need without faking sliders on a non-parametric mesh. **Deferred (future option):** inline editable key dimensions on non-template parts / promoting more parts to parametric.
 - 🟠 Constrain/validate typed input (min/max, ordering) with clear inline feedback.
 - 🟡 Keyboard nudges on a focused slider (arrow keys = ±step).
 
-## Slice 4 — Units (mm **and** inches)
+## Slice 4 — Units (mm **and** inches) — ✅ IMPLEMENTED (on branch `stage-8.5-usability`; pending the Slice 2–4 `audit-team` + `wiring-audit` gate + Scott's approval)
 **Goal:** a US maker isn't walled out.
-- 🔴 **A units preference (mm/inch), persisted**, applied **everywhere** — sliders, the dims table, size, bbox, readiness, the slice estimate.
-- 🔴 **Inch input** — accept "2in", "2.5", and common fractions on entry; the prompt understands it too ("a 2-inch cube").
-- 🟠 Store canonical mm, display the chosen unit; round-trip without drift; sensible rounding per unit.
+- 🔴 **A units preference (mm/inch), persisted**, applied to the editable + read-out surfaces — **Built:** sliders (value label + numeric input + `aria-valuetext`), the size/bbox readout, and the printability **dims table** all convert on one toggle (a shared store keeps the cards in lockstep). **Deferred (future slice):** converting the **readiness card** and the **slice estimate** to the chosen unit.
+- 🔴 **Inch input** — **Deferred (future slice):** parsing inch *text* on entry ("2in", common fractions) and the **prompt** understanding "a 2-inch cube". Slice 4 ships unit-aware *numeric* entry (type an inch value into the slider's number field; it commits the mm-converted value) but not free-text inch parsing; the backend stays canonical mm.
+- 🟠 Store canonical mm, display the chosen unit; round-trip without drift; sensible rounding per unit (inch shows 3 dp so thin, nozzle-multiple walls stay editable).
 - 🟡 A quick unit toggle near the dimensions, not buried in settings.
 
 ## Slice 5 — Advanced on-ramps & trust (DESIGN ONLY — no code; Scott's review is the gate)

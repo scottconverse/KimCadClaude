@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CompareMessage, DesignResponse, Message } from '../api'
+import { gateLabel, gateTone } from '../designStatus'
+import { useUnits } from '../useUnits'
 
 // Left column — the design conversation thread.
 // Stage 8.5 Slice 2: renders all turns (user + assistant) as a scrollable thread, plus a
@@ -17,14 +19,48 @@ function CubeGlyph() {
   )
 }
 
+// Axis labels for the bbox delta (target_bbox_mm is [width, depth, height]).
+const BBOX_AXES = ['W', 'D', 'H']
+
+/** Build the "what changed" lines between two versions: any bbox axis that moved (in the active
+ *  display unit) plus a readiness-score delta. Empty when the two versions are dimensionally identical. */
+function diffVersions(
+  a: CompareMessage['a'],
+  b: CompareMessage['b'],
+  formatMm: (mm: number) => string,
+  unit: string,
+): string[] {
+  const lines: string[] = []
+  const bboxA = a.result.plan?.target_bbox_mm
+  const bboxB = b.result.plan?.target_bbox_mm
+  if (bboxA && bboxB && bboxA.length === bboxB.length) {
+    bboxA.forEach((av, i) => {
+      const bv = bboxB[i]
+      if (typeof bv === 'number' && Math.abs(av - bv) > 0.01) {
+        lines.push(`${BBOX_AXES[i] ?? `axis ${i + 1}`} ${formatMm(av)} → ${formatMm(bv)} ${unit}`)
+      }
+    })
+  }
+  const scoreA = a.result.report?.readiness?.score
+  const scoreB = b.result.report?.readiness?.score
+  if (scoreA != null && scoreB != null && scoreA !== scoreB) {
+    lines.push(`Readiness ${scoreA} → ${scoreB}`)
+  }
+  return lines
+}
+
 function CompareCard({ card }: { card: CompareMessage }) {
   const { a, b } = card
+  const { unit, formatMm } = useUnits()
   const sumA = a.result.plan?.summary ?? `v${a.index}`
   const sumB = b.result.plan?.summary ?? `v${b.index}`
   const gateA = a.result.report?.gate_status
   const gateB = b.result.report?.gate_status
   const scoreA = a.result.report?.readiness?.score
   const scoreB = b.result.report?.readiness?.score
+  // UX-006: a "Compare" that only restates two summaries makes the user do the diffing. Surface
+  // the actual delta so the card answers "what changed / which do I keep?".
+  const changes = diffVersions(a, b, formatMm, unit)
   return (
     <div className="kc-compare-card" aria-label={`Comparing v${a.index} and v${b.index}`}>
       <div className="kc-compare-header">
@@ -34,16 +70,29 @@ function CompareCard({ card }: { card: CompareMessage }) {
         <div className="kc-compare-col">
           <div className="kc-compare-col-head">v{a.index}</div>
           <p className="kc-compare-sum">{sumA}</p>
-          {gateA && <span className={`kc-compare-gate kc-gate-${gateA}`}>{gateA}</span>}
+          {/* UX-003: use the same gate vocabulary as the Printability card ("Passed", not "pass"). */}
+          {gateA && <span className={`kc-compare-gate kc-gate-${gateTone(gateA)}`}>{gateLabel(gateA)}</span>}
           {scoreA != null && <span className="kc-compare-score">Readiness {scoreA}/100</span>}
         </div>
         <div className="kc-compare-divider" aria-hidden="true" />
         <div className="kc-compare-col">
           <div className="kc-compare-col-head">v{b.index}</div>
           <p className="kc-compare-sum">{sumB}</p>
-          {gateB && <span className={`kc-compare-gate kc-gate-${gateB}`}>{gateB}</span>}
+          {gateB && <span className={`kc-compare-gate kc-tone-${gateTone(gateB)}`}>{gateLabel(gateB)}</span>}
           {scoreB != null && <span className="kc-compare-score">Readiness {scoreB}/100</span>}
         </div>
+      </div>
+      <div className="kc-compare-delta">
+        {changes.length > 0 ? (
+          <>
+            <span className="kc-compare-delta-label">What changed</span>
+            <ul className="kc-compare-delta-list">
+              {changes.map((c) => <li key={c}>{c}</li>)}
+            </ul>
+          </>
+        ) : (
+          <span className="kc-compare-delta-none">No dimensional change between these versions.</span>
+        )}
       </div>
     </div>
   )

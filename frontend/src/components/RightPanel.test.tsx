@@ -438,8 +438,8 @@ describe('RightPanel units (Slice 4)', () => {
     stubFetch()
     renderPanel({ result: passResult })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
-    // 80/60/40 mm → 3.15/2.36/1.57 in (2dp, trailing zeros trimmed).
-    expect(screen.getByText(/3\.15 × 2\.36 × 1\.57 in/)).toBeTruthy()
+    // 80/60/40 mm → 3.15/2.362/1.575 in (3dp, trailing zeros trimmed — UX-004).
+    expect(screen.getByText(/3\.15 × 2\.362 × 1\.575 in/)).toBeTruthy()
     expect(screen.queryByText(/80 × 60 × 40 mm/)).toBeNull()
     expect(screen.getByRole('button', { name: 'in' }).getAttribute('aria-pressed')).toBe('true')
   })
@@ -476,7 +476,7 @@ describe('RightPanel units (Slice 4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // Open the inline input (seeded with 3.15 in) and type a fresh inch value.
     fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
-    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     fireEvent.change(numInput, { target: { value: '4' } }) // 4 in → 101.6 mm
     fireEvent.keyDown(numInput, { key: 'Enter' })
     act(() => { vi.advanceTimersByTime(200) })
@@ -494,7 +494,7 @@ describe('RightPanel units (Slice 4)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
-    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     fireEvent.change(numInput, { target: { value: '40' } }) // 40 in → 1016 mm, over max 200
     fireEvent.keyDown(numInput, { key: 'Enter' })
     act(() => { vi.advanceTimersByTime(200) })
@@ -508,7 +508,7 @@ describe('RightPanel units (Slice 4)', () => {
     localStorage.setItem('kc-units', 'in')
     renderPanel({ result: passResult })
     expect(screen.getByRole('button', { name: 'in' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByText(/3\.15 × 2\.36 × 1\.57 in/)).toBeTruthy()
+    expect(screen.getByText(/3\.15 × 2\.362 × 1\.575 in/)).toBeTruthy()
   })
 
   // FOUND-001: opening the inch editor and committing the unchanged (2dp-rounded) seed must NOT
@@ -522,7 +522,7 @@ describe('RightPanel units (Slice 4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // 80mm shows as 3.15in. Open the editor and commit without changing the seeded value.
     fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
-    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     expect((numInput as HTMLInputElement).value).toBe('3.15') // seeded from the rounded display
     fireEvent.keyDown(numInput, { key: 'Enter' })
     act(() => { vi.advanceTimersByTime(200) })
@@ -538,12 +538,97 @@ describe('RightPanel units (Slice 4)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
-    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     fireEvent.change(numInput, { target: { value: '3.5' } }) // 3.5in → 88.9mm, a real change
     fireEvent.keyDown(numInput, { key: 'Enter' })
     act(() => { vi.advanceTimersByTime(200) })
     expect(props.onRerender).toHaveBeenCalledTimes(1)
     const emitted = vi.mocked(props.onRerender).mock.calls[0][0] as Record<string, number>
     expect(emitted.width).toBeCloseTo(88.9, 5)
+  })
+
+  // TEST-003: one toggle click must convert BOTH a slider value (ParametersCard) AND the dims
+  // table (PrintabilityCard) — the two are separate useUnits() instances; this proves the shared
+  // store keeps them in lockstep (a plain-useState refactor would regress this green).
+  it('a single toggle converts both the slider value and the dims table together', () => {
+    stubFetch()
+    const both: DesignResponse = {
+      status: 'completed',
+      has_mesh: true,
+      mesh_url: '/api/mesh/5',
+      template: 'snap_box',
+      plan: { object_type: 'snap_box', summary: 'a snap box', target_bbox_mm: [80, 60, 40] },
+      report: {
+        gate_status: 'pass',
+        headline: '',
+        dims: [{ axis: 'X', target: 80, actual: 80, ok: true }],
+        findings: [],
+      },
+      parameters: [param({ name: 'width', label: 'Width', value: 80, max: 200 })],
+    }
+    renderPanel({ result: both })
+    // mm first: slider value 80 mm, dims cell 80.
+    expect(screen.getByRole('button', { name: /Width: 80 mm/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    // After ONE click: slider value 3.15 in AND the dims target/actual cells read 3.15.
+    expect(screen.getByRole('button', { name: /Width: 3\.15 in/i })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: /Target \(in\)/ })).toBeTruthy()
+    expect(screen.getAllByText('3.15').length).toBeGreaterThanOrEqual(2)
+  })
+
+  // TEST-004: an empty or non-numeric numeric edit reverts with no change (no onRerender).
+  it('reverts an empty or non-numeric numeric edit without re-rendering', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Width: 80 mm/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value/i })
+    fireEvent.change(numInput, { target: { value: '' } }) // cleared
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).not.toHaveBeenCalled()
+    // The original value button is restored.
+    expect(screen.getByRole('button', { name: /Width: 80 mm/i })).toBeTruthy()
+  })
+
+  // ENG-002: a real sub-0.1 mm typed change in mm mode must commit, not be swallowed by the no-op guard.
+  it('commits a sub-0.1 mm change in mm mode (not swallowed by the no-op guard)', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([
+        param({ name: 'wall', label: 'Wall', value: 2, min: 0.8, max: 8, step: 0.1 }),
+      ]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Wall: 2 mm/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Wall value/i })
+    fireEvent.change(numInput, { target: { value: '2.04' } })
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).toHaveBeenCalledTimes(1)
+    const emitted = vi.mocked(props.onRerender).mock.calls[0][0] as Record<string, number>
+    expect(emitted.wall).toBeCloseTo(2.04, 5)
+  })
+
+  // TEST-005: an integer-spec param rounds on commit (the Math.round branch in clampToSpec/format).
+  it('rounds a typed value for an integer-spec parameter', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([
+        param({ name: 'teeth', label: 'Teeth', value: 12, min: 4, max: 40, step: 1, integer: true }),
+      ]),
+    })
+    // Integer display shows no decimals.
+    fireEvent.click(screen.getByRole('button', { name: /Teeth: 12/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Teeth value/i })
+    fireEvent.change(numInput, { target: { value: '18.7' } })
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).toHaveBeenCalledTimes(1)
+    const emitted = vi.mocked(props.onRerender).mock.calls[0][0] as Record<string, number>
+    expect(emitted.teeth).toBe(19) // 18.7 rounded to the nearest integer
   })
 })

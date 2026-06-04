@@ -22,7 +22,11 @@ import { useHashRoute } from './useHashRoute'
 const Workspace = lazy(() => import('./components/Workspace'))
 
 const RERENDER_MIN_DWELL_MS = 350
-const RESAVE_DEBOUNCE_MS = 800
+// QA-001: autosave coalescing window. Each settled re-render lands a new mesh and would otherwise
+// trigger its own save; this debounce collapses a burst of slider/numeric edits into one save. Sized
+// comfortably above a fast (loopback) re-render so an active editing session saves once when it
+// settles, not on every nudge — and it stays robust when a slower real renderer lands.
+const RESAVE_DEBOUNCE_MS = 1500
 
 // KimCad SPA — application shell + the design flow.
 // Stage 8.5 Slice 2: the app now maintains a multi-turn conversation thread. Each user prompt

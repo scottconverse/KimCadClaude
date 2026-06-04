@@ -30,6 +30,10 @@ export default function Viewport({
   // previous part stays visible. While a model is shown we suppress the full-cover "Rendering…"
   // overlay — the swap is quiet (the parameters card shows the "Updating…" note instead).
   const [hasModel, setHasModel] = useState(false)
+  // ENG-004: a non-blocking note for when a mesh load fails while a part is already on screen —
+  // e.g. switching to an older version whose server-side mesh was LRU-evicted. We keep the framed
+  // part (no crash, the right-panel data is intact) but tell the user the preview may be stale.
+  const [staleNote, setStaleNote] = useState(false)
 
   useEffect(() => {
     if (!stageRef.current || !canvasRef.current) return
@@ -53,6 +57,7 @@ export default function Viewport({
       setError(null)
       setDims(null)
       setHasModel(false)
+      setStaleNote(false)
       return
     }
     let cancelled = false
@@ -62,6 +67,7 @@ export default function Viewport({
       .then(() => {
         if (!cancelled) {
           setLoading(false)
+          setStaleNote(false)
           setDims(vp.getDimensions())
           setHasModel(true)
           // The part is framed — hand the app a capture fn it can call to snapshot it.
@@ -72,8 +78,10 @@ export default function Viewport({
         if (!cancelled) {
           setLoading(false)
           // The previous mesh is still on screen (the swap only happens on a successful load), so
-          // only surface a blocking error when there's nothing to fall back to.
+          // only surface a blocking error when there's nothing to fall back to. If a part IS framed,
+          // keep it but flag that this preview couldn't load (ENG-004 — e.g. an evicted version).
           if (!hasModel) setError('Could not load the 3D preview.')
+          else setStaleNote(true)
         }
       })
     return () => {
@@ -115,6 +123,11 @@ export default function Viewport({
           )}
           {showModel && (
             <span className="kc-viewport-hint">Drag to rotate · scroll to zoom</span>
+          )}
+          {showModel && staleNote && (
+            <span className="kc-viewport-stale" role="status">
+              Preview couldn&rsquo;t update — refine to regenerate this version.
+            </span>
           )}
           {overlay && (
             <div

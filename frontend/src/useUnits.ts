@@ -71,11 +71,13 @@ export function useUnits() {
     return unit === 'in' ? val * MM_PER_INCH : val
   }, [unit])
 
-  /** Format a mm value as a display string (rounds sensibly per unit). */
+  /** Format a mm value as a display string (rounds sensibly per unit). Inch uses 3 dp (UX-004 —
+   *  2 dp was too coarse for thin, print-critical features like nozzle-multiple walls); trailing
+   *  zeros are trimmed so 80mm reads "3.15", not "3.150". */
   const formatMm = useCallback((mm: number): string => {
     if (unit === 'in') {
       const inches = mm / MM_PER_INCH
-      return parseFloat(inches.toFixed(2)).toString()
+      return parseFloat(inches.toFixed(3)).toString()
     }
     return Number.isInteger(mm) ? String(mm) : mm.toFixed(1)
   }, [unit])

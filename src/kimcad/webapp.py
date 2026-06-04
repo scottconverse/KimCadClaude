@@ -49,6 +49,10 @@ MAX_IMPORT_BYTES = 32 * 1_048_576  # 32 MiB
 # follow-up turn, so a crafted request can't blow up the prompt context.
 MAX_HISTORY_TURNS = 20
 MAX_HISTORY_CONTENT = 4000  # chars per turn
+# ENG-001: also bound the AGGREGATE sanitized history, not just per-turn — 20 turns × 4000 chars
+# would otherwise prepend ~80 KB of context to every refine, a latency tax on a CPU-bound local
+# model. Keep the most-recent turns within this budget (newest are the most relevant for a refine).
+MAX_HISTORY_TOTAL_CONTENT = 16000  # chars across all kept turns
 
 # ENG-010: map mesh file extensions to a content type.
 _MESH_CONTENT_TYPES = {".stl": "model/stl", ".3mf": "model/3mf"}
@@ -155,15 +159,25 @@ def _sanitize_history(raw: Any) -> list[dict[str, str]] | None:
     never raise. Returns None when there's nothing usable (the call then behaves like a fresh turn)."""
     if not isinstance(raw, list):
         return None
+    # Walk newest-first so the aggregate budget keeps the most-recent (most relevant) turns, then
+    # reverse back to chronological order. Bound by turn count, per-turn length, AND total length.
     out: list[dict[str, str]] = []
-    for turn in raw[-MAX_HISTORY_TURNS:]:
+    total = 0
+    for turn in reversed(raw):
+        if len(out) >= MAX_HISTORY_TURNS:
+            break
         if not isinstance(turn, dict):
             continue
         role = turn.get("role")
         content = turn.get("content")
         if role not in ("user", "assistant") or not isinstance(content, str):
             continue
-        out.append({"role": role, "content": content[:MAX_HISTORY_CONTENT]})
+        clipped = content[:MAX_HISTORY_CONTENT]
+        if total + len(clipped) > MAX_HISTORY_TOTAL_CONTENT:
+            break  # adding this older turn would blow the aggregate budget — stop here
+        out.append({"role": role, "content": clipped})
+        total += len(clipped)
+    out.reverse()
     return out or None
 
 
@@ -681,14 +695,16 @@ def make_handler(
                     raise ValueError("invalid Content-Length header")
                 obj = json.loads(self.rfile.read(declared) or b"{}")
             except (ValueError, TypeError):
-                self._json(400, {"error": "invalid request body"})
+                # QA-004: name the actual problem (malformed JSON) rather than a generic message.
+                self._json(400, {"error": "Request body isn't valid JSON."})
                 return None
             # QA-001: a valid-JSON but non-object body (a list, scalar, or null) would
             # crash the handlers' data.get(...) with an AttributeError *before* their
             # traceback guards, dropping the connection with no response. Reject it here
             # so the docstring's "returns the parsed dict" promise holds for callers.
+            # QA-004: a distinct message so the client knows the shape (not the syntax) is wrong.
             if not isinstance(obj, dict):
-                self._json(400, {"error": "invalid request body"})
+                self._json(400, {"error": "Request body must be a JSON object."})
                 return None
             return obj
 

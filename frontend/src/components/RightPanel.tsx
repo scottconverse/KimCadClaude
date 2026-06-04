@@ -51,6 +51,8 @@ function SliderRow({
 
   // The label for the display unit — backend spec.unit is always 'mm'; in inch mode we override.
   const displayUnit = unit === 'in' && spec.unit === 'mm' ? 'in' : (spec.unit ?? '')
+  // UX-005: spell the unit out for the screen-reader aria-label so it doesn't read "value in in".
+  const unitWord = displayUnit === 'in' ? 'inches' : displayUnit === 'mm' ? 'millimeters' : displayUnit
 
   // The display-unit range bounds (the value itself is formatted via formatDisplay below).
   const displayMin = toDisplay(spec.min)
@@ -62,17 +64,21 @@ function SliderRow({
   const [draft, setDraft] = useState('')
   const [inputError, setInputError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // The display-unit value the editor was seeded with — used to detect a no-op commit (see below).
+  const seedRef = useRef<number>(NaN)
 
-  // The label/edit string for a mm value in the current display unit. In inch mode this is the
-  // 2-dp inch reading; in mm mode it's the exact value. Used both to render the value and to
-  // detect a no-op edit on commit (so a focus+blur with no change can't drift the value).
+  // The label/edit string for a mm value in the current display unit. In mm mode it's the exact
+  // value (respecting integer specs); in inch mode it's a 3-dp inch reading (UX-004 — 2 dp was too
+  // coarse to edit nozzle-multiple walls: a 0.4mm step is invisible at 2 dp but resolves at 3 dp).
   function formatDisplay(mm: number): string {
-    return unit === 'in' ? parseFloat(toDisplay(mm).toFixed(2)).toString() : formatValue(mm, spec)
+    return unit === 'in' ? parseFloat(toDisplay(mm).toFixed(3)).toString() : formatValue(mm, spec)
   }
 
   function startEdit() {
-    // Seed draft in the current display unit.
-    setDraft(formatDisplay(value))
+    // Seed draft in the current display unit and remember its numeric value.
+    const seed = formatDisplay(value)
+    setDraft(seed)
+    seedRef.current = Number(seed)
     setInputError(null)
     setEditing(true)
     setTimeout(() => { inputRef.current?.select() }, 0)
@@ -81,25 +87,34 @@ function SliderRow({
   function commitEdit() {
     setEditing(false)
     setInputError(null)
-    const rawDisplay = parseFloat(draft)
-    if (Number.isNaN(rawDisplay)) return
-    // Convert from display unit back to mm, then clamp to the mm spec range.
+    const trimmed = draft.trim()
+    // Empty or non-numeric entry reverts with no change. Number('') is 0, so check empty first;
+    // Number('12abc') is NaN (stricter than parseFloat, which would truncate to 12 — ENG-005).
+    if (trimmed === '') return
+    const rawDisplay = Number(trimmed)
+    if (!Number.isFinite(rawDisplay)) return
+    // No-op guard: if the typed display value equals the seed the editor opened with, the user
+    // didn't actually change anything — skip. Comparing display NUMBERS (not the rounded display
+    // string) suppresses the inch round-trip drift (0.08in→2.032mm on a no-op blur) WITHOUT
+    // swallowing a real sub-step mm edit like 2.0→2.04 (ENG-002).
+    if (rawDisplay === seedRef.current) return
+    // Convert from the display unit back to mm, then clamp to the mm spec range. Typed entry
+    // intentionally allows finer-than-step precision (you type to reach an exact value a drag's
+    // step can't hit); the backend re-clamps to range and the gate re-validates, so an off-step
+    // value is safe (ENG-003 — a deliberate product choice, not a gap).
     const mm = clampToSpec(fromDisplay(rawDisplay), spec)
-    // No-op guard: the inch seed is 2-dp rounded, so converting it back to mm won't equal the
-    // original (e.g. 2.0mm shows as 0.08in → 2.032mm). If the committed value reads identically
-    // in the current unit, the user didn't actually change anything — skip the change so we don't
-    // drift the dimension or fire a wasted re-render.
-    if (formatDisplay(mm) === formatDisplay(value)) return
     onChange(spec.name, mm)
   }
 
   function handleDraftChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setDraft(val)
-    const n = parseFloat(val)
-    if (!Number.isNaN(n) && (n < displayMin || n > displayMax)) {
+    const n = Number(val.trim())
+    if (val.trim() !== '' && Number.isFinite(n) && (n < displayMin || n > displayMax)) {
+      // UX-007: a self-describing alert ("Enter 10–250 mm"), not a bare range, so a screen reader
+      // announces what to do rather than just two numbers.
       setInputError(
-        `${parseFloat(displayMin.toFixed(2))}–${parseFloat(displayMax.toFixed(2))} ${displayUnit}`
+        `Enter ${parseFloat(displayMin.toFixed(3))}–${parseFloat(displayMax.toFixed(3))} ${displayUnit}`
       )
     } else {
       setInputError(null)
@@ -130,7 +145,7 @@ function SliderRow({
               min={displayMin}
               max={displayMax}
               step={displayStep}
-              aria-label={`${spec.label} value${displayUnit ? ` in ${displayUnit}` : ''}`}
+              aria-label={`${spec.label} value${unitWord ? ` in ${unitWord}` : ''}`}
               aria-invalid={inputError ? 'true' : undefined}
               aria-describedby={inputError ? `${spec.name}-err` : undefined}
               onChange={handleDraftChange}

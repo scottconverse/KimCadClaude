@@ -584,6 +584,22 @@ input {
   pointer-events: none;
 }
 
+/* ENG-004: stale-preview note — a part is still framed but its latest mesh couldn't load. */
+.kc-viewport-stale {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  max-width: 60%;
+  padding: 5px 10px;
+  border-radius: var(--kc-r-chip);
+  background: color-mix(in srgb, var(--kc-warn) 22%, rgba(0, 0, 0, 0.55));
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: right;
+  pointer-events: none;
+}
+
 /* Touch targets: on coarse pointers, the interactive chrome is at least ~44px tall. */
 @media (pointer: coarse) {
   .kc-btn,
@@ -732,7 +748,9 @@ input {
 .kc-msg-user {
   align-self: flex-end;
   margin-left: 28px;
-  background: var(--kc-accent);
+  /* UX-001: white-on-accent text needs the darker `-strong` to clear WCAG-AA 4.5:1 (raw
+     `--kc-accent` is 3.99:1 for normal text). */
+  background: var(--kc-accent-strong);
   color: var(--kc-on-accent);
   border-top-right-radius: 5px;
 }
@@ -847,12 +865,24 @@ input {
   background: var(--kc-surface-2);
 }
 .kc-unit-btn-active {
-  background: var(--kc-accent);
+  /* UX-001: `-strong` for AA contrast on the white "mm"/"in" label (raw accent is 3.99:1). */
+  background: var(--kc-accent-strong);
   color: #fff;
 }
 .kc-unit-btn:focus-visible {
   outline: 2px solid var(--kc-accent);
   outline-offset: -1px;
+}
+/* UX-002: the unit toggle + click-to-edit value button get a real 44px touch target on touch
+   devices AND on narrow viewports (a desktop resized to 375px never reports `pointer: coarse`,
+   so both queries are needed — the same belt-and-suspenders the My Designs actions use). */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-unit-btn, .kc-pval-btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .kc-card-sub {
@@ -1818,8 +1848,9 @@ input {
   color: var(--kc-ink);
 }
 .kc-version-pill-active {
-  background: var(--kc-accent);
-  border-color: var(--kc-accent);
+  /* UX-001: `-strong` for AA contrast on the white "v2" label (raw accent is 3.99:1). */
+  background: var(--kc-accent-strong);
+  border-color: var(--kc-accent-strong);
   color: #fff;
 }
 .kc-version-pill:focus-visible,
@@ -1853,9 +1884,12 @@ input {
 .kc-version-compare {
   color: var(--kc-accent-deep);
 }
-@media (pointer: coarse) {
+/* UX-002: raise version pills/steps (Compare carries `.kc-version-step` too) to the 44px touch
+   floor (HIG / WCAG 2.5.5). Both arms — `coarse` for real touch devices AND `width <= 640px` so a
+   desktop resized to a phone width (which reports `pointer: fine`) still gets the target. */
+@media (pointer: coarse), (max-width: 640px) {
   .kc-version-pill, .kc-version-step {
-    min-height: 36px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
   }
@@ -1914,6 +1948,7 @@ input {
 .kc-gate-pass { background: color-mix(in srgb, var(--kc-pass) 14%, transparent); color: var(--kc-pass); }
 .kc-gate-warn { background: color-mix(in srgb, var(--kc-warn) 14%, transparent); color: var(--kc-warn-dark, #a05a00); }
 .kc-gate-fail { background: color-mix(in srgb, var(--kc-fail) 14%, transparent); color: var(--kc-fail); }
+.kc-gate-neutral { background: var(--kc-surface-2); color: var(--kc-muted); }
 .kc-compare-score {
   font-size: 12px;
   color: var(--kc-muted);
@@ -1922,6 +1957,30 @@ input {
   width: 1px;
   background: var(--kc-hair);
   flex: none;
+}
+/* UX-006: the "what changed" delta row — turns Compare from a restatement into a decision aid. */
+.kc-compare-delta {
+  padding: 9px 14px;
+  border-top: 1px solid var(--kc-hair);
+  background: var(--kc-surface-2);
+}
+.kc-compare-delta-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kc-muted);
+}
+.kc-compare-delta-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+  color: var(--kc-ink);
+  line-height: 1.5;
+}
+.kc-compare-delta-none {
+  font-size: 12.5px;
+  color: var(--kc-muted);
 }
 
 /* ------------------------------------------------ Slice 2: refine input (Stage 8.5) */
