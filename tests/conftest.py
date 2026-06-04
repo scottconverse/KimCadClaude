@@ -21,6 +21,25 @@ from kimcad.config import Material, Printer
 from kimcad.ir import DesignPlan
 from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
 
+@pytest.fixture(autouse=True)
+def _isolate_kimcad_home(tmp_path, monkeypatch):
+    """Isolate the per-user ``~/.kimcad`` stores (settings / designs / history) to a fresh tmp dir
+    for EVERY test, so no test reads or writes the developer's real files.
+
+    Without this the model-status tests (which read the saved cloud setting since Slice 6 MS-3)
+    were machine-dependent — green on CI's empty home, red on a machine whose ``~/.kimcad`` has cloud
+    enabled. A test that needs its own path still overrides this (its monkeypatch runs after the
+    fixture). Keeps the suite deterministic + the developer's real settings untouched."""
+    from kimcad.config import Config
+
+    home = tmp_path / "_kimcad_home"
+    home.mkdir(exist_ok=True)
+    monkeypatch.setattr(Config, "settings_path", lambda self: home / "settings.json")
+    monkeypatch.setattr(Config, "designs_path", lambda self: home / "designs")
+    monkeypatch.setattr(Config, "history_path", lambda self: home / "history.json")
+    return home
+
+
 BAMBU = Printer(
     key="bambu_p2s",
     name="Bambu Lab P2S",

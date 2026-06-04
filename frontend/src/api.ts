@@ -289,6 +289,7 @@ export function postSettings(updates: {
   cloud_model?: string | null
   openrouter_api_key?: string | null
   experimental_enabled?: boolean
+  reset?: boolean
 }): Promise<SettingsResponse> {
   return postJson<SettingsResponse>('/api/settings', updates)
 }

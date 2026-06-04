@@ -358,10 +358,13 @@ class _SettingsAwareProvider:
 
 def _mask_key(key: Any) -> str | None:
     """A masked form of an API key for redisplay — a fixed dot run + the last 5 characters. None
-    when there's no key. The full key is NEVER returned by the API (only this masked form)."""
+    when there's no key. The full key is NEVER returned by the API (only this masked form). A real
+    OpenRouter key is 40+ chars; for an implausibly short value we reveal nothing (the last-5 would
+    otherwise expose most/all of it)."""
     if not isinstance(key, str) or not key:
         return None
-    return "•" * 16 + key[-5:]
+    tail = key[-5:] if len(key) > 8 else ""
+    return "•" * 16 + tail
 
 
 def settings_response(config: Any, saved: dict[str, Any]) -> dict[str, Any]:
@@ -950,6 +953,15 @@ def make_handler(
             if data is None:
                 return
             cfg = get_config()
+            # Slice 6 MS-5: a full reset clears every saved override (pristine), not a set-each-to-
+            # false — so the file holds no stale keys after a reset (QA-001).
+            if data.get("reset") is True:
+                store = get_settings_store()
+                ok = store.clear() if store is not None else False
+                payload = settings_response(cfg, saved_settings())
+                payload["saved"] = ok
+                self._json(200, payload)
+                return
             printer_keys = set(cfg.raw.get("printers", {}))
             material_keys = set(cfg.raw.get("materials", {}))
             updates: dict[str, Any] = {}

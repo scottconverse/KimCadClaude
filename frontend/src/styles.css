@@ -2182,7 +2182,10 @@ input {
 .kc-switch::after {
   content: '';
   position: absolute;
-  top: 2px;
+  /* Centred vertically so the visual knob stays put even when the touch target grows the track
+     to 44px on a phone/narrow viewport (UX-101). */
+  top: 50%;
+  transform: translateY(-50%);
   left: 2px;
   width: 20px;
   height: 20px;
@@ -2270,6 +2273,12 @@ input {
   align-self: flex-start;
   text-decoration: none;
 }
+.kc-set-fallback-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--kc-muted);
+  line-height: 1.5;
+}
 
 /* Slice 6 MS-4 — the experimental toggle badge + warn callout, and the chat offer card. */
 .kc-set-badge-exp {
@@ -2298,6 +2307,11 @@ input {
 .kc-exp-try {
   font-size: 13px;
 }
+.kc-exp-decline {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--kc-muted);
+}
 
 /* Slice 6 MS-5 — tools health + about/reset. */
 .kc-tool-stat {
@@ -2319,6 +2333,22 @@ input {
   background: var(--kc-fail);
   border-color: var(--kc-fail);
   color: #fff;
+}
+
+/* UX-101/102/103: the Slice 6 controls (toggle switches, small Save/Replace/Reset buttons) and the
+   topbar nav reach the 44px touch floor on touch devices AND on narrow viewports (a desktop resized
+   to a phone width reports pointer:fine, so both arms are needed). The switch keeps its slim visual
+   track via content-box clipping + transparent vertical padding, so only the TAP AREA grows. */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-btn,
+  .kc-btn-sm {
+    min-height: 44px;
+  }
+  .kc-switch {
+    min-height: 44px;
+    padding-block: 10px;
+    background-clip: content-box;
+  }
 }
 
 @media (max-width: 640px) {

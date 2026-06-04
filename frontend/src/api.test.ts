@@ -6,6 +6,7 @@ import {
   importDesign,
   postDesign,
   postRender,
+  postSettings,
   postSlice,
 } from './api'
 
@@ -49,6 +50,31 @@ describe('postDesign', () => {
       },
     }))
     await expect(postDesign('x')).rejects.toThrow(/unreadable/i)
+  })
+
+  // Slice 6 MS-4: the consumer opts OUT of the experimental generator by default.
+  it('sends experimental:false by default (no history)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    await postDesign('a box')
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body).toEqual({ prompt: 'a box', experimental: false })
+  })
+
+  it('sends experimental:true + threads history when opted in', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    await postDesign('taller', [{ role: 'user', content: 'a box' }], true)
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body.experimental).toBe(true)
+    expect(body.history).toEqual([{ role: 'user', content: 'a box' }])
+  })
+})
+
+describe('postSettings', () => {
+  it('posts a reset flag to clear everything to defaults', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ saved: true }) }))
+    await postSettings({ reset: true })
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body).toEqual({ reset: true })
   })
 })
 

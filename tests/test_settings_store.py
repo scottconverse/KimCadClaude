@@ -55,6 +55,18 @@ def test_non_object_json_reads_as_empty(tmp_path):
     assert SettingsStore(path).all() == {}
 
 
+def test_clear_drops_all_overrides(tmp_path):
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    store.update({"default_printer": "p2s", "cloud_enabled": True})
+    assert store.all() != {}
+    assert store.clear() is True
+    assert store.all() == {}  # pristine — no stale keys
+    import json
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {}
+
+
 def test_creates_parent_dir_on_first_write(tmp_path):
     # The ~/.kimcad dir may not exist yet on a fresh machine; update() must create it.
     path = tmp_path / "fresh" / "nested" / "settings.json"

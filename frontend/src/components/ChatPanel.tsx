@@ -197,6 +197,7 @@ export default function ChatPanel({
               <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onTryExperimental}>
                 Try the experimental generator
               </button>
+              <p className="kc-exp-decline">Or describe it differently below.</p>
             </div>
           </div>
         )}

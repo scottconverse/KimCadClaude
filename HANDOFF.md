@@ -15,9 +15,14 @@
   the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
   (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
   DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
-  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 1.** CadQuery
-  (Stage 8) is feasibility-proven (CadQuery 2.7 + OCCT on 3.13, arm's-length subprocess worker — the
-  main venv is 3.14) but comes AFTER 8.5.
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 7 (photo
+  on-ramp).** Slices 1–6 are built on branch `stage-8.5-usability` and audit-lite-gated 0/0/0/0/0
+  (Slices 2–4 also passed the full audit-team + wiring-audit; Slice 6 — the Settings screen — is at
+  its slice-end gate); Slice 5 was design-only (the three advanced on-ramps + the trust rules,
+  approved by Scott). The plan was RENUMBERED 2026-06-03 — the on-ramps design is Slice 5, so
+  settings became Slice 6 and the photo on-ramp is Slice 7 (was "8" in the old prototype list above).
+  NOT merged/tagged — that's Scott's authorization. CadQuery (Stage 8) is feasibility-proven (CadQuery
+  2.7 + OCCT on 3.13, arm's-length subprocess worker — the main venv is 3.14) but comes AFTER 8.5.
 
 - **✅ STAGE 7 IS DONE — merged to `main` and tagged `stage-7`** (the tag advanced past the merge to the
   docs-DONE commit so the tagged artifact's docs say "done"). All 6 slices passed `audit-lite` 0/0/0/0/0;

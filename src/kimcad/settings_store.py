@@ -83,6 +83,18 @@ class SettingsStore:
     def get(self, key: str, default: Any = None) -> Any:
         return self.all().get(key, default)
 
+    def clear(self) -> bool:
+        """Reset to pristine: drop every saved override so the file holds no keys (the app falls
+        back to the shipped config defaults). Returns True on success, False on failure (no-op).
+        Never raises."""
+        try:
+            with _WRITE_LOCK:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                _atomic_write_json(self._path, {})
+            return True
+        except Exception:  # noqa: BLE001 - best-effort
+            return False
+
     def update(self, updates: dict[str, Any]) -> bool:
         """Merge ``updates`` (only ``_ALLOWED_KEYS``; a value of None clears that key) into the
         saved settings and atomically write. Returns True on success, False on any failure (the

@@ -229,17 +229,8 @@ describe('SettingsPanel', () => {
     const confirm = screen.getByRole('button', { name: 'Reset everything' })
     postSettings.mockResolvedValue({ ...SETTINGS, saved: true })
     fireEvent.click(confirm)
-    await waitFor(() =>
-      expect(postSettings).toHaveBeenCalledWith({
-        default_printer: null,
-        default_material: null,
-        cloud_enabled: false,
-        cloud_model: '',
-        openrouter_api_key: '',
-        experimental_enabled: false,
-      }),
-    )
-    // Units reset to mm.
+    // A full reset clears everything server-side (pristine) + resets client units.
+    await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ reset: true }))
     expect(localStorage.getItem('kc-units')).toBe('mm')
   })
 })

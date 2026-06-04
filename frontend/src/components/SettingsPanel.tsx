@@ -123,14 +123,8 @@ export default function SettingsPanel() {
     setReplacingKey(false)
     setModelDraft('')
     setUnit('mm')
-    await change({
-      default_printer: null,
-      default_material: null,
-      cloud_enabled: false,
-      cloud_model: '',
-      openrouter_api_key: '',
-      experimental_enabled: false,
-    })
+    // A full reset clears every saved override server-side (pristine), not a set-each-to-false.
+    await change({ reset: true })
   }
 
   return (
@@ -274,7 +268,7 @@ export default function SettingsPanel() {
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">Cloud acceleration</h2>
               <span className={`kc-set-badge${settings.cloud_enabled ? ' kc-set-badge-cloud' : ''}`}>
-                {settings.cloud_enabled ? 'On' : 'Optional'}
+                {settings.cloud_enabled ? 'On' : 'Off'}
               </span>
               <span className="kc-set-grow" />
               <button
@@ -369,6 +363,10 @@ export default function SettingsPanel() {
                   >
                     Browse models on OpenRouter →
                   </a>
+                  <p className="kc-set-fallback-note">
+                    If a model isn’t reachable, KimCad falls back to your local model — a design
+                    never fails just because a cloud slug is wrong.
+                  </p>
                 </div>
               </div>
             )}

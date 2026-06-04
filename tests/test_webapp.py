@@ -1885,6 +1885,115 @@ def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):
         assert s["running"] is True and s["model"] == "deepseek-v4-flash"
 
 
+# --- Stage 8.5 Slice 6 slice-end remediation -----------------------------------
+
+
+def test_probe_ollama_distinguishes_reachable_from_empty(monkeypatch):
+    """probe_ollama returns reachable=True even when Ollama has no models (unlike
+    probe_installed_models, which returns [] for both down AND empty) — the whole reason it exists."""
+    import io
+    import json as _j
+    import urllib.error
+
+    from kimcad import model_advisor as ma
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _serve_json(payload):
+        return lambda url, timeout=3.0: _Resp(_j.dumps(payload).encode())
+
+    monkeypatch.setattr(ma.urllib.request, "urlopen", _serve_json({"models": [{"name": "gemma4:e4b"}]}))
+    reachable, models = ma.probe_ollama("http://localhost:11434/v1")
+    assert reachable is True and [m.name for m in models] == ["gemma4:e4b"]
+
+    monkeypatch.setattr(ma.urllib.request, "urlopen", _serve_json({"models": []}))
+    reachable, models = ma.probe_ollama("http://localhost:11434/v1")
+    assert reachable is True and models == []  # UP but empty
+
+    def _down(url, timeout=3.0):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(ma.urllib.request, "urlopen", _down)
+    reachable, models = ma.probe_ollama("http://localhost:11434/v1")
+    assert reachable is False and models == []  # DOWN
+
+
+def test_settings_aware_provider_degrades_to_local_on_cloud_build_error(tmp_path, monkeypatch):
+    """If building the cloud provider raises, the router falls back to LOCAL — never breaks a design."""
+    from kimcad import config as config_mod
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": "or-fake-key", "cloud_model": "x/y"}
+    )
+    orig = config_mod.Config.llm_backend
+
+    def _raise_for_cloud(self, key=None):
+        if key == "custom_openrouter":
+            raise RuntimeError("boom")
+        return orig(self, key)
+
+    monkeypatch.setattr(config_mod.Config, "llm_backend", _raise_for_cloud)
+    local = object()
+    assert _SettingsAwareProvider(local, cfg)._active() is local
+
+
+def test_model_status_cloud_never_returns_the_key(tmp_path, monkeypatch):
+    """The model-status cloud branch reads the key only to test presence — it must NOT appear in
+    the response."""
+    import json as _j
+
+    from kimcad import config as config_mod
+    from kimcad.settings_store import SettingsStore
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    SECRET = "or-fake-key-ABCDEwQ9f2"
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": SECRET, "cloud_model": "anthropic/claude-sonnet"}
+    )
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200 and s["backend"] == "cloud"
+        assert SECRET not in _j.dumps(s)
+
+
+def test_settings_reset_clears_everything_to_pristine(tmp_path, monkeypatch):
+    """A {reset:true} POST clears EVERY override (no stale false keys left on disk)."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, g0 = _jreq(host, port, "GET", "/api/settings")
+        new_printer = next(k for k in [p["key"] for p in g0["printers"]] if k != g0["default_printer"])
+        _jreq(host, port, "POST", "/api/settings", {
+            "default_printer": new_printer, "cloud_enabled": True,
+            "openrouter_api_key": "or-fake-wQ9f2", "experimental_enabled": True,
+        })
+        st, r = _jreq(host, port, "POST", "/api/settings", {"reset": True})
+        assert st == 200 and r["saved"] is True
+        assert r["default_printer"] == g0["default_printer"]  # back to config default
+        assert r["cloud_enabled"] is False
+        assert r["has_cloud_key"] is False
+        assert r["experimental_enabled"] is False
+        # The file holds NO stale keys.
+        assert _j.loads(settings_file.read_text(encoding="utf-8")) == {}
+
+
 # --- Stage 8.5 Slice 6 MS-5: tools health + version ----------------------------
 
 
