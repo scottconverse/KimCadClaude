@@ -1885,6 +1885,38 @@ def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):
         assert s["running"] is True and s["model"] == "deepseek-v4-flash"
 
 
+# --- Stage 8.5 Slice 6 MS-5: tools health + version ----------------------------
+
+
+def test_health_reports_tools_and_version(tmp_path):
+    """GET /api/health reports OpenSCAD/OrcaSlicer presence + the app version; never 500s."""
+    from kimcad import __version__
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, h = _jreq(host, port, "GET", "/api/health")
+        assert st == 200
+        assert h["version"] == __version__
+        # The bundled binaries are configured + present in the repo (tools/…).
+        assert isinstance(h["openscad"], bool) and isinstance(h["orcaslicer"], bool)
+        assert h["openscad"] is True  # tools/openscad/openscad.exe is committed
+
+
+def test_health_missing_binary_is_a_status_not_a_500(tmp_path, monkeypatch):
+    """A missing/unconfigured binary is present:false, never a 500."""
+    from kimcad import config as config_mod
+
+    def _boom(self, name):  # noqa: ANN001
+        raise KeyError(name)
+
+    monkeypatch.setattr(config_mod.Config, "binary_path", _boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, h = _jreq(host, port, "GET", "/api/health")
+        assert st == 200
+        assert h["openscad"] is False and h["orcaslicer"] is False
+
+
 # --- Stage 8.5 Slice 6 MS-4: the experimental-generator gate --------------------
 
 

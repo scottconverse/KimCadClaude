@@ -2299,6 +2299,28 @@ input {
   font-size: 13px;
 }
 
+/* Slice 6 MS-5 — tools health + about/reset. */
+.kc-tool-stat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-muted);
+}
+.kc-tool-stat-ok { color: var(--kc-pass); }
+.kc-tool-stat-missing { color: var(--kc-fail); }
+.kc-set-about {
+  font-size: 13px;
+  color: var(--kc-muted);
+}
+.kc-reset-confirm {
+  display: inline-flex;
+  gap: 8px;
+}
+.kc-btn-danger-sm {
+  background: var(--kc-fail);
+  border-color: var(--kc-fail);
+  color: #fff;
+}
+
 @media (max-width: 640px) {
   .kc-set-row {
     flex-direction: column;

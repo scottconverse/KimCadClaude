@@ -3,12 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoist-safe mock of the api module (the factory runs before module-body consts exist).
-const { getSettings, postSettings, getModelStatus } = vi.hoisted(() => ({
+const { getSettings, postSettings, getModelStatus, getHealth } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   postSettings: vi.fn(),
   getModelStatus: vi.fn(),
+  getHealth: vi.fn(),
 }))
-vi.mock('../api', () => ({ getSettings, postSettings, getModelStatus }))
+vi.mock('../api', () => ({ getSettings, postSettings, getModelStatus, getHealth }))
 
 import SettingsPanel from './SettingsPanel'
 
@@ -37,6 +38,7 @@ beforeEach(() => {
   getSettings.mockResolvedValue(SETTINGS)
   postSettings.mockResolvedValue({ ...SETTINGS, default_printer: 'elegoo', saved: true })
   getModelStatus.mockResolvedValue(RUNNING)
+  getHealth.mockResolvedValue({ version: '0.1.0', openscad: true, orcaslicer: true })
 })
 
 afterEach(() => {
@@ -186,5 +188,58 @@ describe('SettingsPanel', () => {
     postSettings.mockResolvedValue({ ...SETTINGS, experimental_enabled: true, saved: true })
     fireEvent.click(sw)
     await waitFor(() => expect(postSettings).toHaveBeenCalledWith({ experimental_enabled: true }))
+  })
+
+  // --- Slice 6 MS-5: tools health + about/reset ---
+  it('shows the bundled tools as installed and the app version', async () => {
+    render(<SettingsPanel />)
+    expect(await screen.findByText('OpenSCAD')).toBeTruthy()
+    expect(screen.getByText('OrcaSlicer')).toBeTruthy()
+    expect(screen.getAllByText('Installed').length).toBe(2)
+    expect(screen.getByText(/v0\.1\.0/)).toBeTruthy()
+  })
+
+  it('flags a missing tool as Not found', async () => {
+    getHealth.mockResolvedValue({ version: '0.1.0', openscad: true, orcaslicer: false })
+    render(<SettingsPanel />)
+    expect(await screen.findByText('Not found')).toBeTruthy()
+  })
+
+  it('shows "Couldn’t check" when the health fetch fails (not a perpetual Checking…)', async () => {
+    getHealth.mockRejectedValue(new Error('boom'))
+    render(<SettingsPanel />)
+    await screen.findByLabelText(/Default printer/i)
+    await waitFor(() => expect(screen.getAllByText(/Couldn.t check/i).length).toBeGreaterThanOrEqual(1))
+  })
+
+  it('Reset can be cancelled without changing anything', async () => {
+    render(<SettingsPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    // Back to the single Reset… button; nothing posted.
+    expect(screen.getByRole('button', { name: 'Reset…' })).toBeTruthy()
+    expect(postSettings).not.toHaveBeenCalled()
+  })
+
+  it('Reset asks to confirm, then clears settings + units to defaults', async () => {
+    localStorage.setItem('kc-units', 'in')
+    render(<SettingsPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset…' }))
+    // Confirm step appears (not a one-click destructive action).
+    const confirm = screen.getByRole('button', { name: 'Reset everything' })
+    postSettings.mockResolvedValue({ ...SETTINGS, saved: true })
+    fireEvent.click(confirm)
+    await waitFor(() =>
+      expect(postSettings).toHaveBeenCalledWith({
+        default_printer: null,
+        default_material: null,
+        cloud_enabled: false,
+        cloud_model: '',
+        openrouter_api_key: '',
+        experimental_enabled: false,
+      }),
+    )
+    // Units reset to mm.
+    expect(localStorage.getItem('kc-units')).toBe('mm')
   })
 })

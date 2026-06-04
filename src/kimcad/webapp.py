@@ -664,6 +664,9 @@ def make_handler(
             if self.path == "/api/model-status":
                 self._handle_model_status()
                 return
+            if self.path == "/api/health":
+                self._handle_health()
+                return
             if self.path == "/api/connectors":
                 from kimcad.connectors import connector_is_simulated
 
@@ -872,6 +875,26 @@ def make_handler(
             materials, the active default of each, and the cloud opt-in state). The OpenRouter key
             is returned only MASKED — never in full."""
             self._json(200, settings_response(get_config(), saved_settings()))
+
+        def _handle_health(self) -> None:
+            """Tool + app health for the Settings screen (Slice 6 MS-5): whether the bundled
+            OpenSCAD + OrcaSlicer binaries are present on disk, plus the app version. Best-effort —
+            a missing binary or config key is a STATUS (present:false), never a 500."""
+            from kimcad import __version__
+
+            cfg = get_config()
+
+            def _present(name: str) -> bool:
+                try:
+                    return cfg.binary_path(name).exists()
+                except Exception:  # noqa: BLE001 - a missing config key is "not present", not a 500
+                    return False
+
+            self._json(200, {
+                "version": __version__,
+                "openscad": _present("openscad"),
+                "orcaslicer": _present("orcaslicer"),
+            })
 
         def _handle_model_status(self) -> None:
             """The AI model's health for the Settings screen (Slice 6 MS-2). For the local (Ollama)

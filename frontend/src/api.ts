@@ -267,6 +267,18 @@ export function getModelStatus(): Promise<ModelStatus> {
   return getJson<ModelStatus>('/api/model-status')
 }
 
+// Stage 8.5 Slice 6 MS-5 — tool + app health for the Settings screen: whether the bundled OpenSCAD
+// and OrcaSlicer binaries are present, plus the app version.
+export interface HealthStatus {
+  version: string
+  openscad: boolean
+  orcaslicer: boolean
+}
+
+export function getHealth(): Promise<HealthStatus> {
+  return getJson<HealthStatus>('/api/health')
+}
+
 /** Persist a settings change. Pass only the fields you're changing; `null` (or a blank string for
  * the cloud fields) clears that value. The OpenRouter key is sent here to save it but is never
  * returned in full — only the masked form comes back. */

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  getHealth,
   getModelStatus,
   getSettings,
   postSettings,
+  type HealthStatus,
   type ModelStatus,
   type SettingsResponse,
 } from '../api'
@@ -50,6 +52,11 @@ export default function SettingsPanel() {
   const [keyDraft, setKeyDraft] = useState('')
   const [replacingKey, setReplacingKey] = useState(false)
 
+  // MS-5: tool + app health (loads independently), and the reset-to-defaults confirm.
+  const [health, setHealth] = useState<HealthStatus | null>(null)
+  const [healthError, setHealthError] = useState(false)
+  const [confirmingReset, setConfirmingReset] = useState(false)
+
   const checkModel = useCallback(() => {
     setModelState('checking')
     getModelStatus()
@@ -70,6 +77,14 @@ export default function SettingsPanel() {
   }, [])
 
   useEffect(() => { checkModel() }, [checkModel])
+
+  useEffect(() => {
+    let cancelled = false
+    getHealth()
+      .then((h) => { if (!cancelled) setHealth(h) })
+      .catch(() => { if (!cancelled) setHealthError(true) })
+    return () => { cancelled = true }
+  }, [])
 
   async function change(updates: Parameters<typeof postSettings>[0]) {
     setSaveNote('saving')
@@ -100,6 +115,22 @@ export default function SettingsPanel() {
     const m = modelDraft.trim()
     if (m === (settings?.cloud_model ?? '')) return // no change — don't fire a redundant save
     void change({ cloud_model: m })
+  }
+
+  async function resetAll() {
+    setConfirmingReset(false)
+    setKeyDraft('')
+    setReplacingKey(false)
+    setModelDraft('')
+    setUnit('mm')
+    await change({
+      default_printer: null,
+      default_material: null,
+      cloud_enabled: false,
+      cloud_model: '',
+      openrouter_api_key: '',
+      experimental_enabled: false,
+    })
   }
 
   return (
@@ -366,6 +397,55 @@ export default function SettingsPanel() {
               {settings.experimental_enabled
                 ? 'On — a part with no template generates directly (it still has to pass the check).'
                 : 'Off — a part with no template offers the generator rather than running it.'}
+            </div>
+          </section>
+
+          {/* Tools health (MS-5) — the bundled engines. */}
+          <section className="kc-set-card">
+            <h2 className="kc-set-h">Tools</h2>
+            <p className="kc-set-sub">The bundled engines KimCad uses to build and slice your parts.</p>
+            {(['openscad', 'orcaslicer'] as const).map((tool) => (
+              <div className="kc-set-row" key={tool}>
+                <span>{tool === 'openscad' ? 'OpenSCAD' : 'OrcaSlicer'}</span>
+                <span
+                  className={`kc-tool-stat kc-tool-stat-${
+                    health ? (health[tool] ? 'ok' : 'missing') : healthError ? 'missing' : 'unknown'
+                  }`}
+                  role="status"
+                >
+                  {health
+                    ? health[tool] ? 'Installed' : 'Not found'
+                    : healthError ? 'Couldn’t check' : 'Checking…'}
+                </span>
+              </div>
+            ))}
+          </section>
+
+          {/* About + reset (MS-5). */}
+          <section className="kc-set-card">
+            <h2 className="kc-set-h">About</h2>
+            <div className="kc-set-row">
+              <span>KimCad</span>
+              <span className="muted kc-set-about">
+                {health ? `v${health.version} · ` : ''}open-source (Apache-2.0)
+              </span>
+            </div>
+            <div className="kc-set-row">
+              <span>Reset all settings to defaults</span>
+              {confirmingReset ? (
+                <span className="kc-reset-confirm">
+                  <button type="button" className="kc-btn-sm kc-btn-danger-sm" onClick={resetAll}>
+                    Reset everything
+                  </button>
+                  <button type="button" className="kc-btn-sm" onClick={() => setConfirmingReset(false)}>
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="kc-btn-sm" onClick={() => setConfirmingReset(true)}>
+                  Reset…
+                </button>
+              )}
             </div>
           </section>
         </div>
