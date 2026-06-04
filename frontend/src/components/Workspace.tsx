@@ -1,14 +1,13 @@
-import type { DesignResponse } from '../api'
+import type { DesignResponse, Message } from '../api'
 import ChatPanel from './ChatPanel'
 import RightPanel from './RightPanel'
 import Viewport from './Viewport'
 
-// The three-column working view (conversation · viewport · parameters/printability), wired to
-// the design result in Slice 4. The right column owns the live parameter sliders (Stage 5): a
-// drag debounces a deterministic re-render via `onRerender`, and `rerendering` keeps the last
-// mesh on screen with a quiet "Updating…" while the new geometry lands.
+// The three-column working view (conversation · viewport · parameters/printability).
+// Stage 8.5 Slice 2: the left column now receives the full message thread and an onRefine
+// callback so the user can follow up ("make it 10mm taller") without leaving the workspace.
 export default function Workspace({
-  prompt,
+  messages,
   result,
   meshUrl,
   busy,
@@ -16,9 +15,10 @@ export default function Workspace({
   rerendering,
   rerenderError,
   onRerender,
+  onRefine,
   onModelReady,
 }: {
-  prompt: string
+  messages: Message[]
   result: DesignResponse | null
   meshUrl: string | null
   busy: boolean
@@ -26,11 +26,18 @@ export default function Workspace({
   rerendering: boolean
   rerenderError: string | null
   onRerender: (values: Record<string, number>) => void
+  onRefine: (text: string) => void
   onModelReady?: (capture: () => string | null) => void
 }) {
   return (
     <div className="kc-workspace">
-      <ChatPanel prompt={prompt} result={result} busy={busy} error={error} />
+      <ChatPanel
+        messages={messages}
+        result={result}
+        busy={busy}
+        error={error}
+        onRefine={onRefine}
+      />
       <Viewport meshUrl={meshUrl} busy={busy} onModelReady={onModelReady} />
       <RightPanel
         result={result}

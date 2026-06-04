@@ -175,8 +175,22 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T
 }
 
-export function postDesign(prompt: string): Promise<DesignResponse> {
-  return postJson<DesignResponse>('/api/design', { prompt })
+/** One turn of the design conversation, as sent back to the model on a follow-up. */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** A turn as rendered in the conversation thread — a ChatTurn plus an optional error tone for a
+ * failed reply (the failure reads as a failure, not a neutral message). */
+export interface Message extends ChatTurn {
+  tone?: 'error'
+}
+
+/** Submit a prompt. On a follow-up/refine turn, pass the prior `history` so the model refines the
+ * current part in context (Stage 8.5 Slice 2); omit it for a brand-new design. */
+export function postDesign(prompt: string, history?: ChatTurn[]): Promise<DesignResponse> {
+  return postJson<DesignResponse>('/api/design', history?.length ? { prompt, history } : { prompt })
 }
 
 /** Deterministically re-render a template-backed design at new slider values — no model call.

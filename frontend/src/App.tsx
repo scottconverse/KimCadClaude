@@ -5,8 +5,11 @@ import {
   postRender,
   reopenDesign,
   saveDesign,
+  type ChatTurn,
   type DesignResponse,
+  type Message,
 } from './api'
+import { assistantMessage, isFailureStatus } from './designStatus'
 import Landing from './components/Landing'
 import MyDesigns from './components/MyDesigns'
 import Topbar from './components/Topbar'
@@ -16,46 +19,42 @@ import { useHashRoute } from './useHashRoute'
 // without the 3D bundle; three is fetched the first time a part is designed.
 const Workspace = lazy(() => import('./components/Workspace'))
 
-// Minimum time the "Re-rendering…" note stays up, so a sub-second render reads as a deliberate
-// signal rather than a flicker (UX-003).
 const RERENDER_MIN_DWELL_MS = 350
-// Debounce window for re-saving a design after a slider change, so a rapid drag persists once.
 const RESAVE_DEBOUNCE_MS = 800
 
 // KimCad SPA — application shell + the design flow.
-//
-// Stage 8.5 Slice 1: the app now has routes (`#/`, `#/designs`, `#/design/<id>`) and persists work.
-// A completed design auto-saves to the local "My Designs" library and the URL becomes
-// `#/design/<id>`, so a refresh restores it (no more lost work). Slider changes re-save the same
-// entry (debounced). The library is reachable from the Topbar.
+// Stage 8.5 Slice 2: the app now maintains a multi-turn conversation thread. Each user prompt
+// and assistant reply is appended as a Message, so the chat panel renders a real conversation.
+// A "Refine your part" input in the workspace lets the user add follow-up turns ("make it 10mm
+// taller") that thread the prior conversation into the model for context. Clarifying questions
+// are answered inline — the answer continues from the same thread.
 export default function App() {
   const { route, navigate } = useHashRoute()
-  const [prompt, setPrompt] = useState('')
+
+  // Slice 2: the full conversation thread (all user + assistant turns for this design session).
+  // A new design resets this; a follow-up refine/clarify appends to it.
+  const [messages, setMessages] = useState<Message[]>([])
+  // The most recent completed design result — drives the viewport + right panel.
   const [result, setResult] = useState<DesignResponse | null>(null)
   const [busy, setBusy] = useState(false)
+  // A top-level network/unexpected error (not a pipeline status failure — those surface as
+  // assistant messages with error tone in the thread).
   const [error, setError] = useState<string | null>(null)
   const [rerendering, setRerendering] = useState(false)
   const [rerenderError, setRerenderError] = useState<string | null>(null)
   const renderSeq = useRef(0)
   const resultRef = useRef<DesignResponse | null>(null)
   resultRef.current = result
-  // The latest viewport thumbnail-capture fn (handed over when a part is framed).
   const captureRef = useRef<(() => string | null) | null>(null)
   const resaveTimer = useRef<number | null>(null)
-  // Guards a create-save in flight, so a re-render during the initial save can't start a second
-  // create (which would spawn a duplicate library entry). The in-flight create sets saved_id;
-  // subsequent re-renders then re-save the single entry.
+  // Guards a create-save in flight so a re-render during the initial save can't spawn a duplicate.
   const creatingRef = useRef(false)
-  // L-2 (wiring-audit): set when a design is freshly reopened/restored, so the model-ready that
-  // follows doesn't fire a redundant re-save of unchanged, already-saved work. Cleared on the next
-  // frame or a new design; an actual edit (re-render) re-saves normally.
+  // Set on reopen/restore so the model-ready that follows doesn't re-save unchanged saved work.
   const restoredRef = useRef(false)
-  // UX-001: a visible save indicator so the user can SEE auto-save work, instead of wondering
-  // whether their part survived. 'saving' is transient; once persisted the Topbar shows a resting
-  // "Saved · My Designs" (driven by result.saved_id); 'error' self-heals via one delayed retry.
+  // UX-001: 'saving' is transient; 'saved' shows "Saved · My Designs"; 'error' self-heals via retry.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const retryRef = useRef<number | null>(null)
-  // Latest persist fn, so the error-retry timer can re-invoke it without a self-referential closure.
+  // Latest persist fn so the error-retry timer can re-invoke it without a self-referential closure.
   const persistRef = useRef<((opts?: { immediate?: boolean }) => Promise<void>) | null>(null)
 
   const applyResult = useCallback((r: DesignResponse | null) => {
@@ -64,9 +63,6 @@ export default function App() {
   }, [])
 
   // --- save / persistence -------------------------------------------------
-  // Persist the current design. A first save (no saved_id) creates a library entry and routes to
-  // `#/design/<id>`; a later save updates that entry in place. Best-effort — a save failure leaves
-  // the live part untouched (it just isn't persisted yet).
   const persist = useCallback(
     async (opts?: { immediate?: boolean }) => {
       const r = resultRef.current
@@ -76,13 +72,11 @@ export default function App() {
       const thumb = captureRef.current?.() ?? null
       const isCreate = !r.saved_id
       const run = async () => {
-        // Don't start a second create while one is in flight (avoids a duplicate library entry).
         if (isCreate && creatingRef.current) return
         if (isCreate) creatingRef.current = true
         setSaveState('saving')
         try {
           const saved = await saveDesign(designId, '', thumb, r.saved_id)
-          // Mark the result as saved + give it a durable URL (only on the first save).
           if (
             resultRef.current &&
             resultRef.current.mesh_url === r.mesh_url &&
@@ -93,8 +87,6 @@ export default function App() {
           }
           setSaveState('saved')
         } catch {
-          // Best-effort: a save failure is non-fatal (the live part is untouched). Surface it
-          // (UX-001) and schedule a single delayed retry so a transient miss self-heals.
           setSaveState('error')
           if (retryRef.current === null) {
             retryRef.current = window.setTimeout(() => {
@@ -117,13 +109,9 @@ export default function App() {
   )
   persistRef.current = persist
 
-  // The viewport frames a part -> capture it and persist (create on the first frame, debounced
-  // re-save on a re-render).
   const handleModelReady = useCallback(
     (capture: () => string | null) => {
       captureRef.current = capture
-      // L-2: a just-restored design is already saved + unchanged — don't re-save it merely because
-      // the viewport framed it. The next real edit (a re-render) clears this and re-saves normally.
       if (restoredRef.current) {
         restoredRef.current = false
         return
@@ -133,7 +121,7 @@ export default function App() {
     [persist],
   )
 
-  // --- design / re-render -------------------------------------------------
+  // --- helpers -----------------------------------------------------------
   function resetSaveIndicator() {
     if (resaveTimer.current !== null) window.clearTimeout(resaveTimer.current)
     if (retryRef.current !== null) {
@@ -144,23 +132,59 @@ export default function App() {
     setSaveState('idle')
   }
 
+  /** Build the history list the backend needs from the current messages thread.
+   *  We send only completed user+assistant pairs (not the in-progress user turn). */
+  function buildHistory(): ChatTurn[] {
+    return messages
+      .filter((m): m is Message & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+      .map(({ role, content }) => ({ role, content }))
+  }
+
+  /** Run a design prompt (first turn or follow-up) and append the result to the thread.
+   *  Pass history=undefined for a brand-new design, or the current thread for a refine turn. */
+  async function runDesign(userPrompt: string, history?: ChatTurn[]) {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await postDesign(userPrompt, history)
+      // Append the assistant reply as a message with appropriate tone.
+      const tone = isFailureStatus(r.status) ? 'error' : undefined
+      setMessages((prev) => [...prev, { role: 'assistant', content: assistantMessage(r), tone }])
+      applyResult(r)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong.'
+      setMessages((prev) => [...prev, { role: 'assistant', content: msg, tone: 'error' }])
+      setError(msg)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // --- design / refine / re-render ---------------------------------------
   async function handleSubmit(submitted: string) {
     resetSaveIndicator()
-    navigate('', { replace: true }) // a brand-new design has no saved id yet
-    setPrompt(submitted)
+    navigate('', { replace: true })
+    // Reset to a fresh conversation for a brand-new design.
+    setMessages([{ role: 'user', content: submitted }])
     applyResult(null)
     setError(null)
     setRerenderError(null)
     setRerendering(false)
-    renderSeq.current++ // abandon any in-flight re-render of the previous design
-    setBusy(true)
-    try {
-      applyResult(await postDesign(submitted))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
-    } finally {
-      setBusy(false)
-    }
+    renderSeq.current++
+    await runDesign(submitted)
+  }
+
+  /** Follow-up: "make it 10mm taller", or answering a clarifying question.
+   *  Threads the full prior conversation as history so the model has context. */
+  async function handleRefine(followUp: string) {
+    // Snapshot the current thread as history BEFORE appending the new user turn,
+    // so the backend receives the prior conversation (not the turn being sent).
+    const history = buildHistory()
+    setMessages((prev) => [...prev, { role: 'user', content: followUp }])
+    setError(null)
+    setRerenderError(null)
+    renderSeq.current++ // abandon any stale in-flight render
+    await runDesign(followUp, history)
   }
 
   async function handleRerender(values: Record<string, number>) {
@@ -173,7 +197,6 @@ export default function App() {
     try {
       const next = await postRender(designId, values)
       if (seq === renderSeq.current) {
-        // Carry the saved_id forward so a re-render of a saved design re-saves the same entry.
         applyResult({ ...next, saved_id: resultRef.current?.saved_id })
       }
     } catch (err) {
@@ -197,7 +220,7 @@ export default function App() {
   function handleNewDesign() {
     resetSaveIndicator()
     navigate('', { replace: true })
-    setPrompt('')
+    setMessages([])
     applyResult(null)
     setError(null)
     setRerenderError(null)
@@ -206,22 +229,25 @@ export default function App() {
     setBusy(false)
   }
 
-  // Restore a saved design when the route points at one we don't already have loaded (a fresh
-  // page load on `#/design/<id>`, or opening one from the library).
+  // Restore a saved design on a fresh page load at #/design/<id>.
   useEffect(() => {
     if (route.name !== 'design') return
     if (resultRef.current?.saved_id === route.id) return
     let cancelled = false
-    renderSeq.current++ // abandon any in-flight re-render of a previous design
+    renderSeq.current++
     setBusy(true)
     setError(null)
     setRerenderError(null)
     reopenDesign(route.id)
       .then((r) => {
         if (cancelled) return
-        setPrompt(r.prompt ?? '')
+        // Restore the single original prompt as the thread seed.
+        setMessages([
+          { role: 'user', content: r.prompt ?? '' },
+          { role: 'assistant', content: assistantMessage(r) },
+        ])
         applyResult(r)
-        restoredRef.current = true // L-2: skip the redundant re-save on the restore's model-ready
+        restoredRef.current = true
       })
       .catch(() => {
         if (!cancelled) setError("That design couldn't be opened.")
@@ -229,9 +255,7 @@ export default function App() {
       .finally(() => {
         if (!cancelled) setBusy(false)
       })
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [route, applyResult])
 
   const meshUrl = result?.has_mesh && result.mesh_url ? result.mesh_url : null
@@ -254,7 +278,7 @@ export default function App() {
       ) : (
         <Suspense fallback={<div className="kc-workspace-loading">Loading workspace…</div>}>
           <Workspace
-            prompt={prompt}
+            messages={messages}
             result={result}
             meshUrl={meshUrl}
             busy={busy}
@@ -262,6 +286,7 @@ export default function App() {
             rerendering={rerendering}
             rerenderError={rerenderError}
             onRerender={handleRerender}
+            onRefine={handleRefine}
             onModelReady={handleModelReady}
           />
         </Suspense>
