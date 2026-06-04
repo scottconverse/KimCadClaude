@@ -883,6 +883,75 @@ input {
   color: var(--kc-ink);
 }
 
+/* Slice 3: the value display is now a button so the user can click to type an exact number. */
+.kc-pval-btn {
+  border: 0;
+  background: none;
+  padding: 1px 4px;
+  margin-right: -4px;
+  border-radius: var(--kc-r-btn);
+  cursor: text;
+  text-align: right;
+}
+.kc-pval-btn:hover {
+  background: var(--kc-surface-2);
+}
+.kc-pval-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-pval-edit-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: 0 0 auto;
+  position: relative;
+}
+.kc-pval-input {
+  width: 60px;
+  font-family: var(--kc-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-ink);
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-accent);
+  border-radius: var(--kc-r-input);
+  padding: 1px 5px;
+  text-align: right;
+  /* Hide the browser's native spinner arrows — the slider is the coarse control */
+  -moz-appearance: textfield;
+}
+.kc-pval-input::-webkit-inner-spin-button,
+.kc-pval-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+.kc-pval-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-pval-input-err {
+  border-color: var(--kc-fail);
+  color: var(--kc-fail);
+}
+.kc-pval-unit {
+  font-size: 11px;
+  color: var(--kc-muted);
+  font-style: normal;
+}
+.kc-pval-err {
+  position: absolute;
+  top: calc(100% + 3px);
+  right: 0;
+  font-size: 11px;
+  color: var(--kc-fail);
+  white-space: nowrap;
+  background: var(--kc-surface);
+  padding: 1px 4px;
+  border-radius: var(--kc-r-btn);
+  border: 1px solid color-mix(in srgb, var(--kc-fail) 30%, transparent);
+  z-index: 1;
+}
+
 .kc-pval i {
   margin-left: 2px;
   color: var(--kc-muted);

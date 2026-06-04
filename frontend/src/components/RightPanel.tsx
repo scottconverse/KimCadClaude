@@ -19,6 +19,15 @@ function formatValue(value: number, spec: ParamSpec): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
+/** Clamp and round a raw number to the spec's valid range. */
+function clampToSpec(raw: number, spec: ParamSpec): number {
+  const clamped = Math.max(spec.min, Math.min(spec.max, raw))
+  return spec.integer ? Math.round(clamped) : clamped
+}
+
+// Slice 3: the value label is now clickable — it opens an inline text input so the user can
+// type an exact number instead of dragging. Enter/blur commits (clamping to the valid range);
+// Escape cancels. Arrow keys on the slider already nudge by step (native range behaviour).
 function SliderRow({
   spec,
   value,
@@ -30,6 +39,46 @@ function SliderRow({
 }) {
   const span = spec.max - spec.min
   const pct = span > 0 ? Math.min(100, Math.max(0, ((value - spec.min) / span) * 100)) : 0
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [inputError, setInputError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function startEdit() {
+    setDraft(formatValue(value, spec))
+    setInputError(null)
+    setEditing(true)
+    setTimeout(() => {
+      inputRef.current?.select()
+    }, 0)
+  }
+
+  function commitEdit() {
+    setEditing(false)
+    setInputError(null)
+    const raw = parseFloat(draft)
+    if (Number.isNaN(raw)) return // silently revert to current value on empty/garbage
+    // clampToSpec handles both in-range and out-of-range values; live error was shown while typing.
+    onChange(spec.name, clampToSpec(raw, spec))
+  }
+
+  function handleDraftChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setDraft(val)
+    const n = parseFloat(val)
+    if (!Number.isNaN(n) && (n < spec.min || n > spec.max)) {
+      setInputError(`${spec.min}–${spec.max}${spec.unit ? ` ${spec.unit}` : ''}`)
+    } else {
+      setInputError(null)
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+    if (e.key === 'Escape') { setEditing(false); setInputError(null) }
+  }
+
   return (
     <div className="kc-prow">
       <div className="kc-plabel">
@@ -37,24 +86,55 @@ function SliderRow({
           {spec.label}
           {spec.axis && <i className="kc-axis">{spec.axis}</i>}
         </span>
-        <span className="kc-pval">
-          {formatValue(value, spec)}
-          {spec.unit && <i>{spec.unit}</i>}
-        </span>
+        {editing ? (
+          <span className="kc-pval-edit-wrap">
+            <input
+              ref={inputRef}
+              type="number"
+              className={`kc-pval-input${inputError ? ' kc-pval-input-err' : ''}`}
+              value={draft}
+              min={spec.min}
+              max={spec.max}
+              step={spec.step}
+              aria-label={`${spec.label} value${spec.unit ? ` in ${spec.unit}` : ''}`}
+              aria-invalid={inputError ? 'true' : undefined}
+              aria-describedby={inputError ? `${spec.name}-err` : undefined}
+              onChange={handleDraftChange}
+              onBlur={commitEdit}
+              onKeyDown={handleKeyDown}
+            />
+            {spec.unit && <i className="kc-pval-unit">{spec.unit}</i>}
+            {inputError && (
+              <span id={`${spec.name}-err`} className="kc-pval-err" role="alert">
+                {inputError}
+              </span>
+            )}
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="kc-pval kc-pval-btn"
+            onClick={startEdit}
+            title={`Click to type an exact value (${spec.min}–${spec.max}${spec.unit ? ` ${spec.unit}` : ''})`}
+            aria-label={`${spec.label}: ${formatValue(value, spec)}${spec.unit ? ` ${spec.unit}` : ''}. Click to edit.`}
+          >
+            {formatValue(value, spec)}
+            {spec.unit && <i>{spec.unit}</i>}
+          </button>
+        )}
       </div>
       <input
         type="range"
         className="kc-range"
         name={spec.name}
         aria-label={spec.label}
-        // Announce the unit too — the native value ("150") alone drops the "mm".
         aria-valuetext={`${formatValue(value, spec)}${spec.unit ? ` ${spec.unit}` : ''}`}
         min={spec.min}
         max={spec.max}
         step={spec.step}
         value={value}
         style={{ '--pct': `${pct}%` } as CSSProperties}
-        onChange={(e) => onChange(spec.name, Number(e.target.value))}
+        onChange={(e) => { setEditing(false); onChange(spec.name, Number(e.target.value)) }}
       />
     </div>
   )
@@ -154,10 +234,13 @@ function ParametersCard({
               </div>
             )}
           </dl>
+          {/* Slice 3 / Slice 2: LLM-backed parts have no sliders, but the refine input in the
+              conversation panel lets the user describe exact changes and get a new version. */}
           <p className="kc-muted-note kc-param-hint">
-            This part was generated directly rather than from a parametric template, so it has no
-            preset sliders — but you can still slice and download it, or describe a change to start
-            a new version.
+            No live sliders for this part — it was generated directly, not from a parametric
+            template. To adjust it, use the conversation on the left: type an exact change like
+            <em> "make it 10mm taller"</em> or <em>"add M3 mounting holes"</em> and a new version
+            will appear.
           </p>
         </>
       ) : isFailureStatus(result?.status) ? (

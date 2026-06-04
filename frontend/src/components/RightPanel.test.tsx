@@ -350,4 +350,65 @@ describe('RightPanel live sliders', () => {
     })
     expect(props.onRerender).not.toHaveBeenCalled()
   })
+
+  // Slice 3: numeric editing — clicking the value display opens an inline text input.
+  it('clicking the value display opens an inline numeric input (Slice 3)', () => {
+    stubFetch()
+    renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    // The value is shown as a clickable button initially.
+    const valBtn = screen.getByRole('button', { name: /Width: 80 mm/i })
+    expect(valBtn).toBeTruthy()
+    fireEvent.click(valBtn)
+    // After clicking, a number input replaces it.
+    const numInput = screen.getByRole('spinbutton', { name: /Width value/i })
+    expect(numInput).toBeTruthy()
+    expect((numInput as HTMLInputElement).value).toBe('80')
+  })
+
+  it('Enter on the numeric input commits the value via the debounce (Slice 3)', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Width: 80 mm/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value/i })
+    fireEvent.change(numInput, { target: { value: '120' } })
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).toHaveBeenCalledWith(expect.objectContaining({ width: 120 }))
+  })
+
+  it('clamps an out-of-range numeric input to the spec bounds on commit (Slice 3)', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Width: 80 mm/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value/i })
+    fireEvent.change(numInput, { target: { value: '500' } }) // over max
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    // Clamped to max=200
+    expect(props.onRerender).toHaveBeenCalledWith(expect.objectContaining({ width: 200 }))
+  })
+
+  it('Escape cancels the numeric input without committing (Slice 3)', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Width: 80 mm/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value/i })
+    fireEvent.change(numInput, { target: { value: '999' } })
+    fireEvent.keyDown(numInput, { key: 'Escape' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).not.toHaveBeenCalled()
+    // The value button is restored
+    expect(screen.getByRole('button', { name: /Width: 80 mm/i })).toBeTruthy()
+  })
 })
