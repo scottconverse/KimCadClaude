@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import type { DesignResponse, ParamSpec, ReadinessPayload } from '../api'
 import { gateLabel, gateTone, isFailureStatus, readinessTone } from '../designStatus'
+import { type Unit, useUnits } from '../useUnits'
 import ExportPanel from './ExportPanel'
 
 // Right column — parameters + printability, rendered from the design result.
@@ -28,47 +29,78 @@ function clampToSpec(raw: number, spec: ParamSpec): number {
 // Slice 3: the value label is now clickable — it opens an inline text input so the user can
 // type an exact number instead of dragging. Enter/blur commits (clamping to the valid range);
 // Escape cancels. Arrow keys on the slider already nudge by step (native range behaviour).
+// Slice 4: SliderRow receives the current unit and conversion helpers so it can display values
+// and accept numeric input in mm or inches while keeping internal state (and onChange calls) in mm.
 function SliderRow({
   spec,
   value,
   onChange,
+  unit,
+  toDisplay,
+  fromDisplay,
 }: {
   spec: ParamSpec
-  value: number
-  onChange: (name: string, value: number) => void
+  value: number   // always in mm
+  onChange: (name: string, value: number) => void  // always emits mm
+  unit: Unit
+  toDisplay: (mm: number) => number
+  fromDisplay: (val: number) => number
 }) {
   const span = spec.max - spec.min
   const pct = span > 0 ? Math.min(100, Math.max(0, ((value - spec.min) / span) * 100)) : 0
+
+  // The label for the display unit — backend spec.unit is always 'mm'; in inch mode we override.
+  const displayUnit = unit === 'in' && spec.unit === 'mm' ? 'in' : (spec.unit ?? '')
+
+  // The display-unit range bounds (the value itself is formatted via formatDisplay below).
+  const displayMin = toDisplay(spec.min)
+  const displayMax = toDisplay(spec.max)
+  // Step in the display unit; for inch mode scale down so nudges feel right.
+  const displayStep = unit === 'in' && spec.unit === 'mm' ? spec.step / 25.4 : spec.step
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [inputError, setInputError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // The label/edit string for a mm value in the current display unit. In inch mode this is the
+  // 2-dp inch reading; in mm mode it's the exact value. Used both to render the value and to
+  // detect a no-op edit on commit (so a focus+blur with no change can't drift the value).
+  function formatDisplay(mm: number): string {
+    return unit === 'in' ? parseFloat(toDisplay(mm).toFixed(2)).toString() : formatValue(mm, spec)
+  }
+
   function startEdit() {
-    setDraft(formatValue(value, spec))
+    // Seed draft in the current display unit.
+    setDraft(formatDisplay(value))
     setInputError(null)
     setEditing(true)
-    setTimeout(() => {
-      inputRef.current?.select()
-    }, 0)
+    setTimeout(() => { inputRef.current?.select() }, 0)
   }
 
   function commitEdit() {
     setEditing(false)
     setInputError(null)
-    const raw = parseFloat(draft)
-    if (Number.isNaN(raw)) return // silently revert to current value on empty/garbage
-    // clampToSpec handles both in-range and out-of-range values; live error was shown while typing.
-    onChange(spec.name, clampToSpec(raw, spec))
+    const rawDisplay = parseFloat(draft)
+    if (Number.isNaN(rawDisplay)) return
+    // Convert from display unit back to mm, then clamp to the mm spec range.
+    const mm = clampToSpec(fromDisplay(rawDisplay), spec)
+    // No-op guard: the inch seed is 2-dp rounded, so converting it back to mm won't equal the
+    // original (e.g. 2.0mm shows as 0.08in → 2.032mm). If the committed value reads identically
+    // in the current unit, the user didn't actually change anything — skip the change so we don't
+    // drift the dimension or fire a wasted re-render.
+    if (formatDisplay(mm) === formatDisplay(value)) return
+    onChange(spec.name, mm)
   }
 
   function handleDraftChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setDraft(val)
     const n = parseFloat(val)
-    if (!Number.isNaN(n) && (n < spec.min || n > spec.max)) {
-      setInputError(`${spec.min}–${spec.max}${spec.unit ? ` ${spec.unit}` : ''}`)
+    if (!Number.isNaN(n) && (n < displayMin || n > displayMax)) {
+      setInputError(
+        `${parseFloat(displayMin.toFixed(2))}–${parseFloat(displayMax.toFixed(2))} ${displayUnit}`
+      )
     } else {
       setInputError(null)
     }
@@ -78,6 +110,8 @@ function SliderRow({
     if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
     if (e.key === 'Escape') { setEditing(false); setInputError(null) }
   }
+
+  const displayStr = formatDisplay(value)
 
   return (
     <div className="kc-prow">
@@ -93,17 +127,17 @@ function SliderRow({
               type="number"
               className={`kc-pval-input${inputError ? ' kc-pval-input-err' : ''}`}
               value={draft}
-              min={spec.min}
-              max={spec.max}
-              step={spec.step}
-              aria-label={`${spec.label} value${spec.unit ? ` in ${spec.unit}` : ''}`}
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              aria-label={`${spec.label} value${displayUnit ? ` in ${displayUnit}` : ''}`}
               aria-invalid={inputError ? 'true' : undefined}
               aria-describedby={inputError ? `${spec.name}-err` : undefined}
               onChange={handleDraftChange}
               onBlur={commitEdit}
               onKeyDown={handleKeyDown}
             />
-            {spec.unit && <i className="kc-pval-unit">{spec.unit}</i>}
+            {displayUnit && <i className="kc-pval-unit">{displayUnit}</i>}
             {inputError && (
               <span id={`${spec.name}-err`} className="kc-pval-err" role="alert">
                 {inputError}
@@ -115,11 +149,11 @@ function SliderRow({
             type="button"
             className="kc-pval kc-pval-btn"
             onClick={startEdit}
-            title={`Click to type an exact value (${spec.min}–${spec.max}${spec.unit ? ` ${spec.unit}` : ''})`}
-            aria-label={`${spec.label}: ${formatValue(value, spec)}${spec.unit ? ` ${spec.unit}` : ''}. Click to edit.`}
+            title={`Click to type an exact value (${parseFloat(displayMin.toFixed(2))}–${parseFloat(displayMax.toFixed(2))} ${displayUnit})`}
+            aria-label={`${spec.label}: ${displayStr}${displayUnit ? ` ${displayUnit}` : ''}. Click to edit.`}
           >
-            {formatValue(value, spec)}
-            {spec.unit && <i>{spec.unit}</i>}
+            {displayStr}
+            {displayUnit && <i>{displayUnit}</i>}
           </button>
         )}
       </div>
@@ -128,7 +162,7 @@ function SliderRow({
         className="kc-range"
         name={spec.name}
         aria-label={spec.label}
-        aria-valuetext={`${formatValue(value, spec)}${spec.unit ? ` ${spec.unit}` : ''}`}
+        aria-valuetext={`${displayStr}${displayUnit ? ` ${displayUnit}` : ''}`}
         min={spec.min}
         max={spec.max}
         step={spec.step}
@@ -153,10 +187,10 @@ function ParametersCard({
 }) {
   const plan = result?.plan
   const parameters = result?.parameters
+  // Slice 4: units preference — mm or inch. Persisted in localStorage; toggled here.
+  const { unit, setUnit, toDisplay, fromDisplay, formatMm } = useUnits()
 
-  // Local slider values, re-synced to the server's truth whenever the result's parameters change
-  // (a new design, or the clamped values a re-render returns). `valuesRef` mirrors them so the
-  // debounced post always sends the latest merged set without a stale closure.
+  // Local slider values (always in mm), re-synced to server truth on result change.
   const [values, setValues] = useState<Record<string, number>>({})
   const valuesRef = useRef<Record<string, number>>({})
   const timer = useRef<number | null>(null)
@@ -189,17 +223,36 @@ function ParametersCard({
     <section className="kc-card">
       <div className="kc-card-hd">
         <h2 className="kc-card-title">Parameters</h2>
-        {rerendering && (
-          <span className="kc-param-updating" role="status">
-            Re-rendering…
-          </span>
-        )}
+        <div className="kc-card-hd-right">
+          {rerendering && (
+            <span className="kc-param-updating" role="status">Re-rendering…</span>
+          )}
+          {/* Slice 4: unit toggle — 🟡 quick access near the dimensions, not buried in settings. */}
+          <div className="kc-unit-toggle" role="group" aria-label="Display units">
+            <button
+              type="button"
+              className={`kc-unit-btn${unit === 'mm' ? ' kc-unit-btn-active' : ''}`}
+              onClick={() => setUnit('mm')}
+              aria-pressed={unit === 'mm'}
+            >
+              mm
+            </button>
+            <button
+              type="button"
+              className={`kc-unit-btn${unit === 'in' ? ' kc-unit-btn-active' : ''}`}
+              onClick={() => setUnit('in')}
+              aria-pressed={unit === 'in'}
+            >
+              in
+            </button>
+          </div>
+        </div>
       </div>
 
       {parameters && parameters.length > 0 ? (
         <>
           <p className="kc-card-sub">
-            Drag a slider — the part re-renders locally in under a second, no AI round-trip.
+            Drag or click a value to type — the part re-renders locally, no AI round-trip.
           </p>
           <div className="kc-params">
             {parameters.map((p) => (
@@ -208,6 +261,9 @@ function ParametersCard({
                 spec={p}
                 value={values[p.name] ?? p.value}
                 onChange={handleSlide}
+                unit={unit}
+                toDisplay={toDisplay}
+                fromDisplay={fromDisplay}
               />
             ))}
           </div>
@@ -229,7 +285,8 @@ function ParametersCard({
               <div className="kc-paramrow">
                 <dt>Size</dt>
                 <dd className="kc-mono">
-                  {plan.target_bbox_mm.map((n) => Math.round(n)).join(' × ')} mm
+                  {/* Slice 4: bbox display in the current unit */}
+                  {plan.target_bbox_mm.map((n) => formatMm(n)).join(' × ')} {unit}
                 </dd>
               </div>
             )}
@@ -385,6 +442,8 @@ function ReadinessCard({ result }: { result: DesignResponse | null }) {
 
 function PrintabilityCard({ result }: { result: DesignResponse | null }) {
   const report = result?.report
+  // Slice 4: dims table shows converted values in the user's chosen unit.
+  const { unit, formatMm } = useUnits()
   return (
     <section className="kc-card">
       <h2 className="kc-card-title">Printability</h2>
@@ -400,17 +459,17 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
               <thead>
                 <tr>
                   <th scope="col">Axis</th>
-                  <th scope="col">Target</th>
-                  <th scope="col">Actual</th>
+                  <th scope="col">Target ({unit})</th>
+                  <th scope="col">Actual ({unit})</th>
                 </tr>
               </thead>
               <tbody>
                 {report.dims.map((d) => (
                   <tr key={d.axis} className={d.ok ? undefined : 'kc-dim-off'}>
                     <td>{d.axis}</td>
-                    <td className="kc-mono">{d.target}</td>
+                    <td className="kc-mono">{formatMm(d.target)}</td>
                     <td className="kc-mono">
-                      {d.actual}
+                      {formatMm(d.actual)}
                       {d.ok ? '' : ' ⚠'}
                     </td>
                   </tr>

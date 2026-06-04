@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ComponentProps } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesignResponse, ParamSpec } from '../api'
 import RightPanel from './RightPanel'
 
@@ -9,6 +9,9 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.useRealTimers()
+  // Slice 4: the units preference is persisted in localStorage — clear it so a test that
+  // switches to inches can't leak that choice into the mm-assuming tests that follow.
+  localStorage.clear()
 })
 
 // RightPanel embeds ExportPanel, which fetches /api/options + /api/connectors on mount — stub
@@ -410,5 +413,137 @@ describe('RightPanel live sliders', () => {
     expect(props.onRerender).not.toHaveBeenCalled()
     // The value button is restored
     expect(screen.getByRole('button', { name: /Width: 80 mm/i })).toBeTruthy()
+  })
+})
+
+// Slice 4 — mm / inch units. The backend always works in mm; the unit toggle only changes the
+// display + the unit numbers are entered in. Every onRerender call must still emit mm.
+describe('RightPanel units (Slice 4)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('defaults to mm and offers a mm/in toggle', () => {
+    stubFetch()
+    renderPanel({ result: passResult })
+    const mmBtn = screen.getByRole('button', { name: 'mm' })
+    const inBtn = screen.getByRole('button', { name: 'in' })
+    expect(mmBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(inBtn.getAttribute('aria-pressed')).toBe('false')
+    // Default size is shown in mm.
+    expect(screen.getByText(/80 × 60 × 40 mm/)).toBeTruthy()
+  })
+
+  it('switching to inches converts the size readout and the unit label', () => {
+    stubFetch()
+    renderPanel({ result: passResult })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    // 80/60/40 mm → 3.15/2.36/1.57 in (2dp, trailing zeros trimmed).
+    expect(screen.getByText(/3\.15 × 2\.36 × 1\.57 in/)).toBeTruthy()
+    expect(screen.queryByText(/80 × 60 × 40 mm/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'in' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('converts the printability dims table header and cells to inches', () => {
+    stubFetch()
+    renderPanel({ result: passResult })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    // Column headers now read "(in)".
+    expect(screen.getByRole('columnheader', { name: /Target \(in\)/ })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: /Actual \(in\)/ })).toBeTruthy()
+    // The 80mm target/actual cells convert to 3.15.
+    expect(screen.getAllByText('3.15').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('converts a slider value display and its aria-valuetext to inches', () => {
+    stubFetch()
+    renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    // The value label is now "3.15 in" and the slider announces inches.
+    expect(screen.getByRole('button', { name: /Width: 3\.15 in/i })).toBeTruthy()
+    const slider = screen.getByRole('slider', { name: 'Width' })
+    expect(slider.getAttribute('aria-valuetext')).toBe('3.15 in')
+  })
+
+  it('a numeric edit entered in inches commits the mm-converted value', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    // Open the inline input (seeded with 3.15 in) and type a fresh inch value.
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    fireEvent.change(numInput, { target: { value: '4' } }) // 4 in → 101.6 mm
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).toHaveBeenCalledTimes(1)
+    const emitted = vi.mocked(props.onRerender).mock.calls[0][0] as Record<string, number>
+    // The backend still receives mm, not inches.
+    expect(emitted.width).toBeCloseTo(101.6, 5)
+  })
+
+  it('an out-of-range inch entry clamps to the mm spec bounds', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    fireEvent.change(numInput, { target: { value: '40' } }) // 40 in → 1016 mm, over max 200
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).toHaveBeenCalledTimes(1)
+    const emitted = vi.mocked(props.onRerender).mock.calls[0][0] as Record<string, number>
+    expect(emitted.width).toBe(200) // clamped to the mm max
+  })
+
+  it('restores the persisted inch preference on mount', () => {
+    stubFetch()
+    localStorage.setItem('kc-units', 'in')
+    renderPanel({ result: passResult })
+    expect(screen.getByRole('button', { name: 'in' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText(/3\.15 × 2\.36 × 1\.57 in/)).toBeTruthy()
+  })
+
+  // FOUND-001: opening the inch editor and committing the unchanged (2dp-rounded) seed must NOT
+  // drift the mm value or fire a re-render — the value reads identically, so it's a no-op.
+  it('does not re-render when an inch numeric edit is committed unchanged', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    // 80mm shows as 3.15in. Open the editor and commit without changing the seeded value.
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    expect((numInput as HTMLInputElement).value).toBe('3.15') // seeded from the rounded display
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    // No drift to 80.01mm, no wasted re-render.
+    expect(props.onRerender).not.toHaveBeenCalled()
+  })
+
+  it('still re-renders when an inch numeric edit is a real change', () => {
+    stubFetch()
+    vi.useFakeTimers()
+    const { props } = renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'in' }))
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    const numInput = screen.getByRole('spinbutton', { name: /Width value in in/i })
+    fireEvent.change(numInput, { target: { value: '3.5' } }) // 3.5in → 88.9mm, a real change
+    fireEvent.keyDown(numInput, { key: 'Enter' })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(props.onRerender).toHaveBeenCalledTimes(1)
+    const emitted = vi.mocked(props.onRerender).mock.calls[0][0] as Record<string, number>
+    expect(emitted.width).toBeCloseTo(88.9, 5)
   })
 })

@@ -815,9 +815,44 @@ input {
 /* Live parameter sliders (Stage 5) — the deterministic re-render controls. */
 .kc-card-hd {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+}
+/* Slice 4: right cluster in the Parameters card header (re-rendering note + unit toggle). */
+.kc-card-hd-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.kc-unit-toggle {
+  display: flex;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-btn);
+  overflow: hidden;
+}
+.kc-unit-btn {
+  border: 0;
+  background: none;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kc-muted);
+  cursor: pointer;
+  line-height: 1.6;
+}
+.kc-unit-btn:hover {
+  color: var(--kc-ink);
+  background: var(--kc-surface-2);
+}
+.kc-unit-btn-active {
+  background: var(--kc-accent);
+  color: #fff;
+}
+.kc-unit-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: -1px;
 }
 
 .kc-card-sub {
