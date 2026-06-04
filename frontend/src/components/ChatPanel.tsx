@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DesignResponse, Message } from '../api'
+import type { CompareMessage, DesignResponse, Message } from '../api'
 
 // Left column — the design conversation thread.
 // Stage 8.5 Slice 2: renders all turns (user + assistant) as a scrollable thread, plus a
@@ -17,14 +17,48 @@ function CubeGlyph() {
   )
 }
 
+function CompareCard({ card }: { card: CompareMessage }) {
+  const { a, b } = card
+  const sumA = a.result.plan?.summary ?? `v${a.index}`
+  const sumB = b.result.plan?.summary ?? `v${b.index}`
+  const gateA = a.result.report?.gate_status
+  const gateB = b.result.report?.gate_status
+  const scoreA = a.result.report?.readiness?.score
+  const scoreB = b.result.report?.readiness?.score
+  return (
+    <div className="kc-compare-card" aria-label={`Comparing v${a.index} and v${b.index}`}>
+      <div className="kc-compare-header">
+        <span className="kc-compare-title">Comparing v{a.index} → v{b.index}</span>
+      </div>
+      <div className="kc-compare-cols">
+        <div className="kc-compare-col">
+          <div className="kc-compare-col-head">v{a.index}</div>
+          <p className="kc-compare-sum">{sumA}</p>
+          {gateA && <span className={`kc-compare-gate kc-gate-${gateA}`}>{gateA}</span>}
+          {scoreA != null && <span className="kc-compare-score">Readiness {scoreA}/100</span>}
+        </div>
+        <div className="kc-compare-divider" aria-hidden="true" />
+        <div className="kc-compare-col">
+          <div className="kc-compare-col-head">v{b.index}</div>
+          <p className="kc-compare-sum">{sumB}</p>
+          {gateB && <span className={`kc-compare-gate kc-gate-${gateB}`}>{gateB}</span>}
+          {scoreB != null && <span className="kc-compare-score">Readiness {scoreB}/100</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ChatPanel({
   messages,
+  compareCard,
   result,
   busy,
   error,
   onRefine,
 }: {
   messages: Message[]
+  compareCard: CompareMessage | null
   result: DesignResponse | null
   busy: boolean
   error: string | null
@@ -98,6 +132,9 @@ export default function ChatPanel({
             </div>
           </div>
         )}
+
+        {/* Compare card — injected when the user clicks Compare in the VersionRail */}
+        {compareCard && <CompareCard card={compareCard} />}
 
         {/* Top-level network error (not a pipeline failure — those go into the thread) */}
         {!busy && error !== null && messages.every(m => m.content !== error) && (

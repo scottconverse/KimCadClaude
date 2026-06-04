@@ -1,15 +1,12 @@
-import type { DesignResponse, DesignVersion, Message } from '../api'
+import type { CompareMessage, DesignResponse, DesignVersion, Message } from '../api'
 import ChatPanel from './ChatPanel'
 import RightPanel from './RightPanel'
 import VersionRail from './VersionRail'
 import Viewport from './Viewport'
 
-// The three-column working view (conversation · viewport · parameters/printability).
-// Stage 8.5 Slice 2: the left column renders the full message thread + refine input.
-// The VersionRail appears above the workspace when the session has 2+ versions, giving
-// the user one-click access to any prior design and an undo button.
 export default function Workspace({
   messages,
+  compareCard,
   versions,
   versionIdx,
   result,
@@ -21,9 +18,11 @@ export default function Workspace({
   onRerender,
   onRefine,
   onSwitchVersion,
+  onCompare,
   onModelReady,
 }: {
   messages: Message[]
+  compareCard: CompareMessage | null
   versions: DesignVersion[]
   versionIdx: number
   result: DesignResponse | null
@@ -35,14 +34,21 @@ export default function Workspace({
   onRerender: (values: Record<string, number>) => void
   onRefine: (text: string) => void
   onSwitchVersion: (idx: number) => void
+  onCompare: (aIdx: number, bIdx: number) => void
   onModelReady?: (capture: () => string | null) => void
 }) {
   return (
     <div className="kc-workspace-wrap">
-      <VersionRail versions={versions} versionIdx={versionIdx} onSwitch={onSwitchVersion} />
+      <VersionRail
+        versions={versions}
+        versionIdx={versionIdx}
+        onSwitch={onSwitchVersion}
+        onCompare={onCompare}
+      />
       <div className="kc-workspace">
         <ChatPanel
           messages={messages}
+          compareCard={compareCard}
           result={result}
           busy={busy}
           error={error}

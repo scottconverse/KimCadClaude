@@ -1,26 +1,25 @@
 import type { DesignVersion } from '../api'
 
-// A compact pill-strip showing all versions of the current design session (v1, v2, v3…).
-// The active version is highlighted; clicking a prior pill restores that version. An undo
-// button steps back one version. A compare button (2+ versions) shows a text diff of the
-// two most-recent version summaries directly in the strip.
-//
-// Stage 8.5 Slice 2: "describe a change" is non-destructive — every successful refinement
-// creates a new version here, so the user can always step back to an earlier design.
-
+// Pill-strip showing all versions (v1, v2, v3…). Hidden until there are 2+ versions.
+// Undo/Redo step through versions; Compare shows a summary diff card in the thread.
 export default function VersionRail({
   versions,
   versionIdx,
   onSwitch,
+  onCompare,
 }: {
   versions: DesignVersion[]
   versionIdx: number
   onSwitch: (idx: number) => void
+  onCompare: (aIdx: number, bIdx: number) => void
 }) {
-  if (versions.length < 2) return null  // only show when there's something to navigate
+  if (versions.length < 2) return null
 
   const canUndo = versionIdx > 0
   const canRedo = versionIdx < versions.length - 1
+  // Compare defaults to the two most-recent versions.
+  const compareA = Math.max(0, versions.length - 2)
+  const compareB = versions.length - 1
 
   return (
     <div className="kc-version-rail" role="navigation" aria-label="Design versions">
@@ -64,6 +63,15 @@ export default function VersionRail({
             Redo →
           </button>
         )}
+        <button
+          type="button"
+          className="kc-version-step kc-version-compare"
+          onClick={() => onCompare(compareA, compareB)}
+          aria-label={`Compare v${versions[compareA].index} and v${versions[compareB].index}`}
+          title="Compare the two most-recent versions"
+        >
+          Compare
+        </button>
       </div>
     </div>
   )

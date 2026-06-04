@@ -196,6 +196,14 @@ export interface DesignVersion {
   label: string            // the user prompt that created this version (for the tooltip)
 }
 
+/** A special message type rendered as a version comparison card in the thread.
+ * Injected when the user clicks Compare in the VersionRail. */
+export interface CompareMessage {
+  type: 'compare'
+  a: DesignVersion
+  b: DesignVersion
+}
+
 /** Submit a prompt. On a follow-up/refine turn, pass the prior `history` so the model refines the
  * current part in context (Stage 8.5 Slice 2); omit it for a brand-new design. */
 export function postDesign(prompt: string, history?: ChatTurn[]): Promise<DesignResponse> {

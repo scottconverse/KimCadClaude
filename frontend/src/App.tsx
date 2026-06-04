@@ -6,6 +6,7 @@ import {
   reopenDesign,
   saveDesign,
   type ChatTurn,
+  type CompareMessage,
   type DesignResponse,
   type DesignVersion,
   type Message,
@@ -39,6 +40,8 @@ export default function App() {
   const [versions, setVersions] = useState<DesignVersion[]>([])
   // Which version is currently active (0-based index into versions, or -1 when no versions yet).
   const [versionIdx, setVersionIdx] = useState(-1)
+  // A pending compare card (injected into the thread when the user clicks Compare).
+  const [compareCard, setCompareCard] = useState<CompareMessage | null>(null)
   // The most recent completed design result — drives the viewport + right panel.
   const [result, setResult] = useState<DesignResponse | null>(null)
   const [busy, setBusy] = useState(false)
@@ -194,6 +197,7 @@ export default function App() {
     setMessages([{ role: 'user', content: submitted }])
     setVersions([])
     setVersionIdx(-1)
+    setCompareCard(null)
     applyResult(null)
     setError(null)
     setRerenderError(null)
@@ -214,6 +218,14 @@ export default function App() {
     setRerenderError(null)
     renderSeq.current++
     await runDesign(followUp, history, fromIdx)
+  }
+
+  /** Show a comparison card between two versions (default: the two most recent). */
+  function handleCompare(aIdx: number, bIdx: number) {
+    const a = versions[aIdx]
+    const b = versions[bIdx]
+    if (!a || !b) return
+    setCompareCard({ type: 'compare', a, b })
   }
 
   /** Step back/forward to a specific version. Restores the messages + result from that snapshot. */
@@ -264,6 +276,7 @@ export default function App() {
     setMessages([])
     setVersions([])
     setVersionIdx(-1)
+    setCompareCard(null)
     applyResult(null)
     setError(null)
     setRerenderError(null)
@@ -334,6 +347,7 @@ export default function App() {
         <Suspense fallback={<div className="kc-workspace-loading">Loading workspace…</div>}>
           <Workspace
             messages={messages}
+            compareCard={compareCard}
             versions={versions}
             versionIdx={versionIdx}
             result={result}
@@ -345,6 +359,7 @@ export default function App() {
             onRerender={handleRerender}
             onRefine={handleRefine}
             onSwitchVersion={handleSwitchVersion}
+            onCompare={handleCompare}
             onModelReady={handleModelReady}
           />
         </Suspense>

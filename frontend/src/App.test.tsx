@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
-import type { DesignResponse, DesignVersion, Message } from './api'
+import type { CompareMessage, DesignResponse, DesignVersion, Message } from './api'
 import App from './App'
 
 // Mock the API so we control timing without a server.
@@ -17,22 +17,26 @@ vi.mock('./api', () => ({
 vi.mock('./components/Workspace', () => ({
   default: ({
     messages,
+    compareCard,
     versions,
     versionIdx,
     rerendering,
     onRerender,
     onRefine,
     onSwitchVersion,
+    onCompare,
     onModelReady,
     result,
   }: {
     messages: Message[]
+    compareCard: CompareMessage | null
     versions: DesignVersion[]
     versionIdx: number
     rerendering: boolean
     onRerender: (values: Record<string, number>) => void
     onRefine: (text: string) => void
     onSwitchVersion: (idx: number) => void
+    onCompare: (a: number, b: number) => void
     onModelReady: (capture: () => string | null) => void
     result: DesignResponse | null
   }) => (
@@ -42,10 +46,12 @@ vi.mock('./components/Workspace', () => ({
       <span data-testid="msg-count">{messages.length}</span>
       <span data-testid="version-count">{versions.length}</span>
       <span data-testid="version-idx">{versionIdx}</span>
+      <span data-testid="compare-card">{compareCard ? 'yes' : 'no'}</span>
       <button type="button" onClick={() => onRerender({ width: 1 })}>do-rerender</button>
       <button type="button" onClick={() => onModelReady(() => 'data:image/png;base64,AA')}>frame-model</button>
       <button type="button" onClick={() => onRefine('make it bigger')}>do-refine</button>
       <button type="button" onClick={() => onSwitchVersion(0)}>switch-v1</button>
+      <button type="button" onClick={() => onCompare(0, 1)}>do-compare</button>
     </div>
   ),
 }))
@@ -281,6 +287,22 @@ describe('App refinement thread (Stage 8.5 Slice 2)', () => {
     await waitFor(() => expect(api.postDesign).toHaveBeenCalledTimes(3))
     // Still 2 versions (v1 + new v2), not 3
     expect(screen.getByTestId('version-count').textContent).toBe('2')
+  })
+
+  it('compare sets a compareCard with both versions', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock)
+      .mockResolvedValueOnce(templateResult('/api/mesh/1'))
+      .mockResolvedValueOnce(templateResult('/api/mesh/2'))
+
+    render(<App />)
+    await designFrom('a box')
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(screen.getByTestId('version-count').textContent).toBe('2'))
+
+    expect(screen.getByTestId('compare-card').textContent).toBe('no')
+    fireEvent.click(screen.getByRole('button', { name: 'do-compare' }))
+    expect(screen.getByTestId('compare-card').textContent).toBe('yes')
   })
 
   it('resets the thread on new design', async () => {
