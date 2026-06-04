@@ -235,6 +235,21 @@ export function getSettings(): Promise<SettingsResponse> {
   return getJson<SettingsResponse>('/api/settings')
 }
 
+// Stage 8.5 Slice 6 MS-2 — the AI model's health for the Settings screen. For the local (Ollama)
+// backend, `running` is whether Ollama answered and `model_present` whether the active model is
+// pulled, so the UI can show Running / Start Ollama / Get the model. A cloud backend reports
+// running:true (it's configured; reachability isn't probed in-band).
+export interface ModelStatus {
+  model: string
+  backend: 'local' | 'cloud'
+  running: boolean
+  model_present: boolean
+}
+
+export function getModelStatus(): Promise<ModelStatus> {
+  return getJson<ModelStatus>('/api/model-status')
+}
+
 /** Persist a settings change. Pass only the fields you're changing; `null` clears an override
  * (restoring the shipped config default). */
 export function postSettings(updates: {

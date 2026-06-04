@@ -27,6 +27,7 @@ import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -240,14 +241,7 @@ def friendly_label(installed_name: str, catalog: tuple[ModelSpec, ...] = MODEL_C
     return best.label if best is not None else None
 
 
-def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[InstalledModel]:
-    """Ask Ollama (at ``base_url``) which models are pulled, via `/api/tags`. Returns [] if
-    Ollama isn't running or the response is unreadable -- never raises."""
-    try:
-        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as r:
-            data = json.load(r)
-    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
-        return []
+def _parse_tags(data: Any) -> list[InstalledModel]:
     out: list[InstalledModel] = []
     for m in data.get("models", []) if isinstance(data, dict) else []:
         name = m.get("name") or m.get("model")
@@ -256,6 +250,31 @@ def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[Insta
         size = m.get("size")
         out.append(InstalledModel(name=name, size_gb=size / 1e9 if isinstance(size, (int, float)) else None))
     return out
+
+
+def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[InstalledModel]:
+    """Ask Ollama (at ``base_url``) which models are pulled, via `/api/tags`. Returns [] if
+    Ollama isn't running or the response is unreadable -- never raises."""
+    try:
+        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as r:
+            data = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return []
+    return _parse_tags(data)
+
+
+def probe_ollama(base_url: str, *, timeout: float = 3.0) -> tuple[bool, list[InstalledModel]]:
+    """``(reachable, installed-models)``. Unlike :func:`probe_installed_models` (which returns []
+    for both a down server AND an up-but-empty one), this distinguishes the two: ``reachable`` is
+    True whenever Ollama answered `/api/tags`, even with no models. Used by the Settings model-status
+    so the UI can tell "not running" (start Ollama) apart from "running, model not pulled" (get the
+    model). Never raises."""
+    try:
+        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as r:
+            data = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return False, []
+    return True, _parse_tags(data)
 
 
 # --- the pure decision (unit-tested without the machine) -------------------------

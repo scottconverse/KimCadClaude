@@ -1801,3 +1801,85 @@ def test_settings_post_reports_unsaved_when_store_write_fails(tmp_path, monkeypa
         st, resp = _jreq(host, port, "POST", "/api/settings", {"default_printer": new_printer})
         assert st == 200
         assert resp["saved"] is False
+
+
+# --- Stage 8.5 Slice 6 MS-2: the model-status endpoint ----------------------
+
+
+def test_model_status_local_running_with_model(tmp_path, monkeypatch):
+    """The local (Ollama) backend, reachable and with the model pulled, reports running + present."""
+    from kimcad import model_advisor as ma
+    from kimcad.model_advisor import InstalledModel
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (True, [InstalledModel(name="gemma4:e4b")]))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["backend"] == "local"
+        assert s["model"] == "gemma4:e4b"
+        assert s["running"] is True and s["model_present"] is True
+
+
+def test_model_status_matches_quantized_variant(tmp_path, monkeypatch):
+    """A quantized install (gemma4:e4b-it-q4_K_M) still counts as the model being present."""
+    from kimcad import model_advisor as ma
+    from kimcad.model_advisor import InstalledModel
+
+    monkeypatch.setattr(ma, "probe_ollama",
+                        lambda base_url, timeout=3.0: (True, [InstalledModel(name="gemma4:e4b-it-q4_K_M")]))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200 and s["model_present"] is True
+
+
+def test_model_status_ollama_down_is_not_running(tmp_path, monkeypatch):
+    """Ollama unreachable -> running:false (the UI says "start Ollama"); a STATUS, never a 500."""
+    from kimcad import model_advisor as ma
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (False, []))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["running"] is False and s["model_present"] is False
+
+
+def test_model_status_running_but_model_absent(tmp_path, monkeypatch):
+    """Ollama up but the model not pulled -> running:true, model_present:false (the UI says
+    "get the model") — distinct from the down case, which the (reachable, models) probe enables."""
+    from kimcad import model_advisor as ma
+    from kimcad.model_advisor import InstalledModel
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (True, [InstalledModel(name="llama3:8b")]))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["running"] is True and s["model_present"] is False
+
+
+def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):
+    """A cloud backend reports backend:'cloud' + running:true (configured) and does NOT probe
+    Ollama — the cloud path MS-3 builds on."""
+    from kimcad import config as config_mod
+    from kimcad import model_advisor as ma
+    from kimcad.config import LLMBackend
+
+    cloud = LLMBackend(
+        key="cloud_deepseek", provider="deepseek", base_url="https://api.deepseek.com/v1",
+        model_name="deepseek-v4-flash", api_key_env="DEEPSEEK_API_KEY", temperature=0.2,
+        max_tokens=8192, supports_structured_output=True,
+    )
+    monkeypatch.setattr(config_mod.Config, "llm_backend", lambda self, key=None: cloud)
+    # If the handler wrongly probed Ollama for a cloud backend, this would blow up the test.
+    def _boom(*a, **k):  # noqa: ANN002, ANN003
+        raise AssertionError("cloud backend must not probe Ollama")
+    monkeypatch.setattr(ma, "probe_ollama", _boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["backend"] == "cloud"
+        assert s["running"] is True and s["model"] == "deepseek-v4-flash"

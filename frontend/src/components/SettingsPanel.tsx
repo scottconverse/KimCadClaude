@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react'
-import { getSettings, postSettings, type SettingsResponse } from '../api'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  getModelStatus,
+  getSettings,
+  postSettings,
+  type ModelStatus,
+  type SettingsResponse,
+} from '../api'
 import { useUnits } from '../useUnits'
 
 // Stage 8.5 Slice 6 — the in-app Settings screen.
@@ -13,11 +19,36 @@ import { useUnits } from '../useUnits'
 
 type SaveNote = 'idle' | 'saving' | 'saved' | 'error'
 
+// The model-status dot tone + label. gemma4:e4b is THE model — this is a health readout, never a
+// menu of alternatives (trust rule 1).
+function modelTone(m: ModelStatus): 'ok' | 'warn' {
+  if (m.backend === 'cloud') return 'ok'
+  return m.running && m.model_present ? 'ok' : 'warn'
+}
+function modelLabel(m: ModelStatus): string {
+  if (m.backend === 'cloud') return 'Cloud'
+  if (!m.running) return 'Not running'
+  if (!m.model_present) return 'Model not pulled'
+  return 'Running'
+}
+
 export default function SettingsPanel() {
   const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveNote, setSaveNote] = useState<SaveNote>('idle')
   const { unit, setUnit } = useUnits()
+
+  // The model status loads independently of the printer/material settings: the Ollama probe can
+  // take a moment, so it shouldn't hold up the rest of the screen.
+  const [model, setModel] = useState<ModelStatus | null>(null)
+  const [modelState, setModelState] = useState<'checking' | 'ready' | 'error'>('checking')
+
+  const checkModel = useCallback(() => {
+    setModelState('checking')
+    getModelStatus()
+      .then((m) => { setModel(m); setModelState('ready') })
+      .catch(() => setModelState('error'))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -26,6 +57,8 @@ export default function SettingsPanel() {
       .catch(() => { if (!cancelled) setLoadError('Couldn’t load your settings.') })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => { checkModel() }, [checkModel])
 
   async function change(updates: { default_printer?: string; default_material?: string }) {
     setSaveNote('saving')
@@ -124,6 +157,54 @@ export default function SettingsPanel() {
                 </button>
               </div>
             </div>
+          </section>
+
+          {/* AI model (Surface A) — gemma4:e4b shown as THE model with its health. No menu of
+              alternatives; the manual backend override stays CLI-only (trust rule 1). */}
+          <section className="kc-set-card">
+            <div className="kc-set-cardhead">
+              <h2 className="kc-set-h">AI model</h2>
+              {modelState === 'ready' && model && (
+                <span className={`kc-set-badge kc-set-badge-${model.backend}`}>
+                  {model.backend === 'local' ? 'Local' : 'Cloud'}
+                </span>
+              )}
+              <span className="kc-set-grow" />
+              {modelState === 'checking' ? (
+                <span className="kc-model-stat" role="status">
+                  <span className="kc-spin-sm" aria-hidden="true" /> Checking…
+                </span>
+              ) : modelState === 'error' ? (
+                <span className="kc-model-stat kc-model-stat-warn" role="status">Couldn’t check</span>
+              ) : model ? (
+                <span className={`kc-model-stat kc-model-stat-${modelTone(model)}`} role="status">
+                  <span className="kc-statdot" aria-hidden="true" /> {modelLabel(model)}
+                </span>
+              ) : null}
+            </div>
+            <p className="kc-set-sub">
+              <code className="kc-mono">{model?.model ?? 'gemma4:e4b'}</code> — KimCad’s local AI. Runs
+              on your machine, on your CPU. No internet required; nothing leaves your computer.
+            </p>
+            {/* A concrete next action whenever it isn't simply running (no dead-end). */}
+            {modelState === 'ready' && model?.backend === 'local' && !model.running && (
+              <p className="kc-model-action">
+                Ollama isn’t running. Start it, then{' '}
+                <button type="button" className="kc-link-btn" onClick={checkModel}>check again</button>.
+              </p>
+            )}
+            {modelState === 'ready' && model?.backend === 'local' && model.running && !model.model_present && (
+              <p className="kc-model-action">
+                The model isn’t pulled yet. Pull <code className="kc-mono">{model.model}</code> in
+                Ollama, then{' '}
+                <button type="button" className="kc-link-btn" onClick={checkModel}>check again</button>.
+              </p>
+            )}
+            {(modelState === 'error' || (modelState === 'ready' && model?.running && model?.model_present)) && (
+              <button type="button" className="kc-link-btn kc-model-refresh" onClick={checkModel}>
+                Refresh
+              </button>
+            )}
           </section>
         </div>
       )}

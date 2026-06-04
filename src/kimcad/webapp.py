@@ -577,6 +577,9 @@ def make_handler(
             if self.path == "/api/settings":
                 self._handle_settings_get()
                 return
+            if self.path == "/api/model-status":
+                self._handle_model_status()
+                return
             if self.path == "/api/connectors":
                 from kimcad.connectors import connector_is_simulated
 
@@ -785,6 +788,43 @@ def make_handler(
             materials, and the active default of each). Mirrors /api/options so the screen has
             everything in one call."""
             self._json(200, web_options(get_config(), saved_settings()))
+
+        def _handle_model_status(self) -> None:
+            """The AI model's health for the Settings screen (Slice 6 MS-2). For the local (Ollama)
+            backend: whether Ollama is reachable and the active model (gemma4:e4b) is pulled — so the
+            UI can show Running / Start Ollama / Get the model. Best-effort + bounded (a short probe
+            timeout); a config gap or a down model server is a STATUS, never a 500."""
+            cfg = get_config()
+            try:
+                backend = cfg.llm_backend()
+            except Exception:  # noqa: BLE001 - a config gap shouldn't 500 the status
+                backend = None
+            model_name = (backend.model_name if backend else "gemma4:e4b") or "gemma4:e4b"
+            base_url = (backend.base_url if backend else "") or ""
+            # Local (Ollama) vs a cloud backend: an ollama provider or a localhost:11434 base_url.
+            is_local = backend is not None and (backend.provider == "ollama" or "11434" in base_url)
+            payload: dict[str, Any] = {
+                "model": model_name,
+                "backend": "local" if is_local else "cloud",
+            }
+            if is_local:
+                from kimcad.model_advisor import probe_ollama
+
+                running, installed = probe_ollama(base_url)
+                names = {m.name for m in installed}
+                # gemma4:e4b may be pulled as the bare tag or a quantized variant
+                # (gemma4:e4b-it-q4_K_M). Match the exact tag, or one that extends it with a
+                # `-<variant>` suffix — the separator anchors the prefix so an unrelated tag that
+                # merely starts with the same characters can't false-match.
+                present = any(n == model_name or n.startswith(model_name + "-") for n in names)
+                payload["running"] = running
+                payload["model_present"] = present
+            else:
+                # A cloud backend is "ready" when configured; reachability isn't probed in-band (it
+                # would need the key). MS-3 surfaces the cloud label + key state separately.
+                payload["running"] = True
+                payload["model_present"] = True
+            self._json(200, payload)
 
         def _handle_settings_post(self) -> None:
             """Persist a Settings change (default printer / material). Each key is validated against
