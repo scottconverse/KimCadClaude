@@ -99,11 +99,15 @@ describe('ChatPanel CompareCard', () => {
       a: ver(1, { report: { gate_status: 'pass', headline: '', dims: [], findings: [] } }),
       b: ver(2, { report: { gate_status: 'warn', headline: '', dims: [], findings: [] } }),
     }
-    renderPanel({ compareCard: card })
+    const { container } = renderPanel({ compareCard: card })
     expect(screen.getByText('Passed')).toBeTruthy()
     expect(screen.getByText('Needs review')).toBeTruthy()
     expect(screen.queryByText('pass')).toBeNull()
     expect(screen.queryByText('warn')).toBeNull()
+    // Both chips use the gate tone class (not a mismatched kc-tone-* token) so they paint consistently.
+    const chips = container.querySelectorAll('.kc-compare-gate')
+    expect(chips).toHaveLength(2)
+    chips.forEach((c) => expect(c.className).toMatch(/kc-gate-(pass|warn|fail|neutral)/))
   })
 
   it('surfaces the dimensional + readiness delta (UX-006)', () => {

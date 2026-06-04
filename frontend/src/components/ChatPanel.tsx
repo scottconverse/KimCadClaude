@@ -78,7 +78,7 @@ function CompareCard({ card }: { card: CompareMessage }) {
         <div className="kc-compare-col">
           <div className="kc-compare-col-head">v{b.index}</div>
           <p className="kc-compare-sum">{sumB}</p>
-          {gateB && <span className={`kc-compare-gate kc-tone-${gateTone(gateB)}`}>{gateLabel(gateB)}</span>}
+          {gateB && <span className={`kc-compare-gate kc-gate-${gateTone(gateB)}`}>{gateLabel(gateB)}</span>}
           {scoreB != null && <span className="kc-compare-score">Readiness {scoreB}/100</span>}
         </div>
       </div>
