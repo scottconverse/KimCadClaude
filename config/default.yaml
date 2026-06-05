@@ -143,11 +143,17 @@ printers:
 # orca_filament_profiles above) — Bambu-branded where one exists, an Elegoo/Generic profile
 # otherwise. A few combinations still use a vendor "Generic <MATERIAL>" profile (e.g. P2S
 # PETG, the Elegoo's PLA/PETG/ABS); the UI flags those as generic.
+#
+# `density` is nominal filament density in g/cm³ (PLA ~1.24, PETG ~1.27, TPU ~1.21, ABS ~1.04).
+# It's used ONLY to estimate print *weight* from the slicer's reported filament volume when the
+# OrcaSlicer profile carries no density of its own (several shipped vendor profiles set
+# filament_density=0, so they emit volume but no grams). A real spool's density varies by
+# brand/colour, so a weight derived from this is an estimate — the UI labels it as one.
 materials:
-  pla:   { name: "PLA",     nozzle_temp: 210, bed_temp: 55,  wall_multiplier: 2.0, shrinkage: 0.002 }
-  petg:  { name: "PETG",    nozzle_temp: 240, bed_temp: 75,  wall_multiplier: 2.5, shrinkage: 0.004 }
-  tpu:   { name: "TPU",     nozzle_temp: 225, bed_temp: 45,  wall_multiplier: 3.0, shrinkage: 0.008 }
-  abs:   { name: "ABS/ASA", nozzle_temp: 250, bed_temp: 100, wall_multiplier: 2.5, shrinkage: 0.006 }
+  pla:   { name: "PLA",     nozzle_temp: 210, bed_temp: 55,  wall_multiplier: 2.0, shrinkage: 0.002, density: 1.24 }
+  petg:  { name: "PETG",    nozzle_temp: 240, bed_temp: 75,  wall_multiplier: 2.5, shrinkage: 0.004, density: 1.27 }
+  tpu:   { name: "TPU",     nozzle_temp: 225, bed_temp: 45,  wall_multiplier: 3.0, shrinkage: 0.008, density: 1.21 }
+  abs:   { name: "ABS/ASA", nozzle_temp: 250, bed_temp: 100, wall_multiplier: 2.5, shrinkage: 0.006, density: 1.04 }
 
 # Send-to-printer connectors. Each named target the CLI `--send <name>` / the web can
 # print to. The API key is read from the named env var at send time, never stored here.

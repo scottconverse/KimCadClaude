@@ -11,6 +11,7 @@ from kimcad.config import Config
 from kimcad.pipeline import Pipeline
 from kimcad.webapp import (
     DemoProvider,
+    _estimate_detail_with_weight,
     design_response,
     make_handler,
     slice_registered_mesh,
@@ -501,6 +502,16 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
         assert sdata["gcode_lines"] > 100
         assert sdata["estimate"]  # print estimate surfaced to the UI
         assert sdata["profiles"]["process"] == "0.20mm Standard @BBL P2S"
+        # Slice 10: the structured breakout reaches the UI (layer count + a filament weight),
+        # and the print file carries a recognizable .gcode.3mf name. The shipped Bambu PLA
+        # profile reports filament_density=0, so the slicer emits no grams — KimCad fills the
+        # weight from the reported volume × the material's nominal density and flags it estimated.
+        detail = sdata["estimate_detail"]
+        assert detail is not None
+        assert detail["layers"] and detail["layers"] > 0
+        assert detail["filament_g"] and detail["filament_g"] > 0
+        assert detail["filament_g_estimated"] is True
+        assert sdata["gcode_filename"].endswith(".gcode.3mf")
         gcode_url = sdata["gcode_url"]
 
         # ENG-003: an identical re-confirm is served from cache, same proven result.
@@ -1044,6 +1055,100 @@ def test_slice_is_idempotent_one_real_slice_per_key(tmp_path, monkeypatch):
         d2 = slice_once()
     assert calls["n"] == 1  # the second identical request was served from cache
     assert d1["gcode_url"] == d2["gcode_url"]
+
+
+def test_slice_response_carries_structured_estimate_and_filename(tmp_path, monkeypatch):
+    """Slice 10: the slice HTTP response forwards the structured estimate breakout and the
+    print file's name, so the SPA can lay out labeled stats + name the download (offline)."""
+    import json
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    detail = {
+        "time": "1h 12m",
+        "layers": 84,
+        "filament_mm": 3120.0,
+        "filament_cm3": 7.5,
+        "filament_g": 9.3,
+    }
+
+    def stub_slice(config, mesh_path, printer, material):
+        gp = mesh_path.parent / "part_bambu_p2s_pla.gcode.3mf"
+        gp.write_bytes(b"PKfake")
+        return (
+            {"sliced": True, "printer": printer, "material": material, "gcode_lines": 9,
+             "estimate": "~1h 12m, 84 layers, 9.3 g filament", "estimate_detail": detail,
+             "profiles": {"machine": "m", "process": "p", "filament": "f"}},
+            gp,
+        )
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub_slice)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        s = json.load(urllib.request.urlopen(
+            urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=30))
+    assert s["estimate_detail"] == detail
+    assert s["gcode_filename"] == "part_bambu_p2s_pla.gcode.3mf"
+
+
+class _FakeProof:
+    def __init__(self, detail):
+        self._d = detail
+
+    def estimate_detail(self):
+        return dict(self._d)
+
+
+class _Mat:
+    def __init__(self, density):
+        self.density = density
+
+
+def test_weight_estimated_from_volume_when_slicer_emits_none():
+    # Slice 10: the profile reported no grams (filament_density=0) but did report volume, so
+    # KimCad estimates weight from cm³ × the material's nominal density and flags it estimated.
+    proof = _FakeProof(
+        {"time": "1h", "layers": 100, "filament_mm": 5000.0, "filament_cm3": 10.0,
+         "filament_g": None}
+    )
+    detail = _estimate_detail_with_weight(proof, _Mat(1.24))
+    assert detail["filament_g"] == 12.4
+    assert detail["filament_g_estimated"] is True
+
+
+def test_weight_prefers_slicer_grams_when_present():
+    # When the slicer DID compute grams (profile carried a real density), use them as-is.
+    proof = _FakeProof(
+        {"filament_mm": None, "filament_cm3": 10.0, "filament_g": 11.0}
+    )
+    detail = _estimate_detail_with_weight(proof, _Mat(1.24))
+    assert detail["filament_g"] == 11.0
+    assert detail["filament_g_estimated"] is False
+
+
+def test_weight_omitted_when_no_density_or_no_volume():
+    # No density → can't estimate; no volume → nothing to estimate from. Either way: no grams,
+    # not a fabricated zero.
+    no_density = _estimate_detail_with_weight(
+        _FakeProof({"filament_cm3": 10.0, "filament_g": None}), _Mat(None)
+    )
+    assert no_density["filament_g"] is None and no_density["filament_g_estimated"] is False
+    no_vol = _estimate_detail_with_weight(
+        _FakeProof({"filament_cm3": None, "filament_g": None}), _Mat(1.24)
+    )
+    assert no_vol["filament_g"] is None and no_vol["filament_g_estimated"] is False
+    # A degenerate zero-volume slice must NOT derive a "0.0 g (estimated)" — stays honestly None.
+    zero_vol = _estimate_detail_with_weight(
+        _FakeProof({"filament_cm3": 0.0, "filament_g": None}), _Mat(1.24)
+    )
+    assert zero_vol["filament_g"] is None and zero_vol["filament_g_estimated"] is False
 
 
 def test_slice_unexpected_error_is_clean_500(tmp_path, monkeypatch):

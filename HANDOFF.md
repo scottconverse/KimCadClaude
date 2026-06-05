@@ -289,7 +289,10 @@ contradictory ones. The `stage-4` tag and the `main` head are therefore the same
 **Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
 {status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
 findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `POST /api/slice/<id>`
-{printer,material} → {sliced,reason?,estimate,gcode_url?}; `GET /api/gcode/<id>`; `GET /api/options`;
+{printer,material} → {sliced,reason?,estimate,estimate_detail{time,layers,filament_mm,filament_cm3,
+filament_g,filament_g_estimated}?,gcode_url?,gcode_filename?} (Slice 10: `estimate_detail` is the
+structured breakout the SPA lays out as labeled stats — weight is volume×material-density when the
+profile reports none, flagged `filament_g_estimated`); `GET /api/gcode/<id>`; `GET /api/options`;
 `GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}. The
 server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API.
 Browser **send** is intentionally NOT wired in the SPA (it's Stage 10) — the web UI is status +

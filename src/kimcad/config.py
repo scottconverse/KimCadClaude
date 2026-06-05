@@ -43,6 +43,11 @@ class Material:
     bed_temp: int
     wall_multiplier: float
     shrinkage: float
+    # Nominal filament density (g/cm³). Used to estimate print *weight* from the slicer's
+    # reported filament volume when the OrcaSlicer profile itself carries no density (several
+    # shipped vendor profiles set ``filament_density = 0``, so the slicer emits volume but no
+    # grams). A real spool varies by brand/colour, so a weight derived from this is an estimate.
+    density: float | None = None
 
     def min_wall_mm(self, nozzle_diameter: float) -> float:
         """Minimum recommended wall thickness for this material on a given nozzle."""
@@ -187,6 +192,7 @@ class Config:
     def material(self, key: str | None = None) -> Material:
         key = key or self._d["defaults"]["material"]
         m = self._d["materials"][key]
+        density = m.get("density")
         return Material(
             key=key,
             name=m["name"],
@@ -194,6 +200,7 @@ class Config:
             bed_temp=int(m["bed_temp"]),
             wall_multiplier=float(m["wall_multiplier"]),
             shrinkage=float(m["shrinkage"]),
+            density=float(density) if density is not None else None,
         )
 
     # --- connectors (send-to-printer) --------------------------------------

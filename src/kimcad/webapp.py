@@ -483,6 +483,27 @@ def web_options(config: Any, saved_settings: dict[str, Any] | None = None) -> di
     }
 
 
+def _estimate_detail_with_weight(proof: Any, material: Any) -> dict[str, Any]:
+    """The slicer's structured estimate, with a filament *weight* filled in.
+
+    Prefer the slicer's own grams (it used the profile's real density). When the profile
+    carried no density — several shipped vendor profiles set ``filament_density = 0``, so the
+    slicer reports volume but no weight — estimate grams from the reported volume (cm³) and the
+    material's nominal density, and flag it (``filament_g_estimated``) so the UI can say so."""
+    detail = proof.estimate_detail()
+    estimated = False
+    if detail.get("filament_g") is None:
+        cm3 = detail.get("filament_cm3")
+        density = getattr(material, "density", None)
+        # Require a real positive volume: a degenerate cm3 of 0 would derive a "0.0 g (estimated)"
+        # that the UI can't honestly show (no weight, but an "estimated" caption) — keep it None.
+        if cm3 and cm3 > 0 and density:
+            detail["filament_g"] = round(cm3 * density, 1)
+            estimated = True
+    detail["filament_g_estimated"] = estimated
+    return detail
+
+
 def slice_registered_mesh(
     config: Any, mesh_path: Path, printer_key: str | None, material_key: str | None
 ) -> tuple[dict[str, Any], Path | None]:
@@ -525,6 +546,14 @@ def slice_registered_mesh(
             "material": material.name,
             "gcode_lines": result.gcode_proof.line_count if result.gcode_proof else None,
             "estimate": result.gcode_proof.estimate_summary() if result.gcode_proof else "",
+            # Structured estimate so the SPA can lay out a labeled breakout (time / layers /
+            # filament length / filament weight) instead of the single ``estimate`` string.
+            # Weight is filled from volume × the material's density when the profile emits none.
+            "estimate_detail": (
+                _estimate_detail_with_weight(result.gcode_proof, material)
+                if result.gcode_proof
+                else None
+            ),
             "profiles": {
                 "machine": settings.machine.stem,
                 "process": settings.process.stem,
@@ -1535,6 +1564,9 @@ def make_handler(
                 with lock:
                     gcode_registry[rid] = gcode_path
                 out["gcode_url"] = f"/api/gcode/{rid}"
+                # The on-disk basename of the print file, so the UI can name it and the
+                # download lands as a recognizable .gcode.3mf (not an opaque id).
+                out["gcode_filename"] = gcode_path.name
             self._json(200, out)
 
         def _handle_slice(self, raw_id: str) -> None:

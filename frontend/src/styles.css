@@ -1670,6 +1670,107 @@ input {
   color: var(--kc-fail);
 }
 
+/* Slice 10 — print summary (the sliced result): a "your design → print file" flow strip, the
+ * estimate broken out into labeled stats (time / layers / filament length + weight) instead of
+ * one blob, the print file with a copy-the-link affordance, and the export-format clarity note. */
+.kc-print-lead {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+
+.kc-print-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--kc-muted);
+}
+.kc-flow-step::before {
+  content: '✓';
+  font-size: 10px;
+  color: var(--kc-accent-strong);
+}
+.kc-flow-done {
+  color: var(--kc-ink);
+}
+
+.kc-print-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 0;
+}
+.kc-print-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+}
+.kc-print-stat dt {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kc-muted);
+}
+.kc-print-stat dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+
+.kc-print-file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.kc-print-file .kc-download {
+  flex: 1 1 auto;
+}
+.kc-copy-link {
+  flex: 0 0 auto;
+}
+
+.kc-file-name {
+  margin: 0;
+  font-size: 11px;
+  color: var(--kc-muted);
+  word-break: break-all;
+}
+
+.kc-formats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.kc-formats-note {
+  font-size: 11.5px;
+}
+.kc-est-note {
+  font-size: 11px;
+}
+
 /* Assistant message rows carry a small cube avatar. */
 .kc-ai-row {
   display: flex;

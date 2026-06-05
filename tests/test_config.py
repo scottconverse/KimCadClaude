@@ -17,6 +17,16 @@ def test_material_min_wall():
     assert abs(pla.min_wall_mm(0.4) - 0.8) < 1e-9
 
 
+def test_material_carries_nominal_density():
+    # Slice 10: materials carry a nominal density (g/cm³) so print weight can be estimated from
+    # the slicer's reported volume when the OrcaSlicer profile itself reports none.
+    cfg = Config.load()
+    assert cfg.material("pla").density == 1.24
+    assert cfg.material("petg").density == 1.27
+    assert cfg.material("tpu").density == 1.21
+    assert cfg.material("abs").density == 1.04
+
+
 def test_llm_backend_default_is_local():
     # KimCad is local-first: the default backend needs no API key and no network.
     cfg = Config.load()

@@ -119,6 +119,20 @@ export interface OptionsResponse {
   default_material: string | null
 }
 
+// Structured slice estimate (parsed by the slicer from the G-code header). Any field can be
+// null when the printer's profile didn't emit that line. Lets the UI lay out a labeled
+// breakout — print time, layers, filament length + weight — instead of one text blob.
+export interface EstimateDetail {
+  time: string | null
+  layers: number | null
+  filament_mm: number | null
+  filament_cm3: number | null
+  filament_g: number | null
+  // True when the weight was estimated by KimCad from volume × nominal density (because the
+  // slicer profile reported no grams), rather than computed by the slicer itself.
+  filament_g_estimated?: boolean
+}
+
 export interface SliceResponse {
   sliced: boolean
   reason?: string
@@ -127,8 +141,10 @@ export interface SliceResponse {
   material?: string
   gcode_lines?: number | null
   estimate?: string
+  estimate_detail?: EstimateDetail | null
   profiles?: { machine: string; process: string; filament: string }
   gcode_url?: string
+  gcode_filename?: string
 }
 
 export interface ConnectorStatusResponse {
