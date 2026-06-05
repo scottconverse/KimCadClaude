@@ -14,6 +14,7 @@ import {
   type Message,
 } from './api'
 import { assistantMessage, isFailureStatus } from './designStatus'
+import FirstRunWizard from './components/FirstRunWizard'
 import Landing from './components/Landing'
 import MyDesigns from './components/MyDesigns'
 import SettingsPanel from './components/SettingsPanel'
@@ -77,6 +78,24 @@ export default function App() {
   // cancelable, elapsed-timed model call — so the busy overlay must know which it is (ENG-001/002:
   // a reopen was showing the "Designing…" overlay with a garbage timer and a dead Cancel).
   const [restoring, setRestoring] = useState(false)
+  // MS-4: the first-run setup wizard shows until the user finishes or skips it (a persisted flag).
+  // Read once on mount; localStorage is the right home for a per-install "have we onboarded" bit
+  // (the actual choices — printer, cloud — persist server-side via the settings endpoints).
+  const [showWizard, setShowWizard] = useState(() => {
+    try {
+      return localStorage.getItem('kc-first-run-done') !== '1'
+    } catch {
+      return false
+    }
+  })
+  const dismissWizard = useCallback(() => {
+    try {
+      localStorage.setItem('kc-first-run-done', '1')
+    } catch {
+      /* a private-mode storage failure just means the wizard may show again next time — harmless. */
+    }
+    setShowWizard(false)
+  }, [])
   // A top-level network/unexpected error (not a pipeline status failure — those surface as
   // assistant messages with error tone in the thread).
   const [error, setError] = useState<string | null>(null)
@@ -485,6 +504,7 @@ export default function App() {
 
   return (
     <div className="kc-shell">
+      {showWizard && <FirstRunWizard onClose={dismissWizard} />}
       <Topbar
         showNewDesign={onWorkspace}
         onNewDesign={handleNewDesign}

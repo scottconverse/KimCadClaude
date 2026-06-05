@@ -2828,3 +2828,429 @@ input {
   align-items: center;
   gap: 6px;
 }
+
+/* Slice 9 MS-4 — the first-run setup wizard (built to docs/design/prototype/jsx/wizard.jsx). A
+ * full-screen modal: a left step rail + a step body with a footer nav. Stacks on narrow screens. */
+.kc-wiz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--kc-ink) 55%, transparent);
+}
+.kc-wiz-overlay:focus {
+  outline: none;
+}
+.kc-wiz {
+  display: flex;
+  width: 100%;
+  max-width: 880px;
+  max-height: 90vh;
+  overflow: hidden;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-hero);
+}
+.kc-wiz-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 0 0 232px;
+  padding: 22px 20px;
+  background: var(--kc-surface-2);
+  border-right: 1px solid var(--kc-hair);
+}
+.kc-wiz-brand {
+  font-family: var(--kc-font-display);
+  font-size: 18px;
+  color: var(--kc-ink);
+}
+.kc-wiz-brand b {
+  color: var(--kc-accent);
+}
+.kc-wiz-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-wiz-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--kc-muted);
+}
+.kc-wiz-step.on {
+  background: color-mix(in srgb, var(--kc-accent) 12%, var(--kc-surface));
+  color: var(--kc-ink);
+  font-weight: 600;
+}
+.kc-wiz-step.done {
+  color: var(--kc-ink);
+}
+.kc-wiz-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+.kc-wiz-step.on .kc-wiz-num {
+  background: var(--kc-accent);
+  border-color: var(--kc-accent);
+  color: #fff;
+}
+.kc-wiz-step.done .kc-wiz-num {
+  background: color-mix(in srgb, var(--kc-accent) 70%, #fff);
+  border-color: transparent;
+  color: var(--kc-ink);
+}
+.kc-wiz-budget {
+  margin: auto 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--kc-muted);
+}
+.kc-wiz-skip {
+  align-self: flex-start;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--kc-muted);
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.kc-wiz-skip:hover {
+  color: var(--kc-ink);
+}
+.kc-wiz-skip:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-wiz-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kc-wiz-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 30px 32px 18px;
+}
+.kc-wiz-h1 {
+  margin: 0 0 8px;
+  font-family: var(--kc-font-display);
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--kc-ink);
+}
+.kc-wiz-lede {
+  margin: 0 0 18px;
+  max-width: 52ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--kc-muted);
+}
+.kc-wiz-bullets {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13.5px;
+  color: var(--kc-ink);
+}
+.kc-wiz-modelcard {
+  padding: 15px 16px;
+  border: 1px solid var(--kc-hair-strong);
+  border-left: 3px solid var(--kc-accent);
+  border-radius: 11px;
+  background: var(--kc-surface);
+}
+.kc-wiz-modelcard-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kc-wiz-model-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--kc-ink);
+}
+.kc-wiz-model-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-model-ok .kc-statdot {
+  background: var(--kc-pass);
+}
+.kc-wiz-model-warn {
+  color: var(--kc-ink);
+}
+.kc-wiz-model-warn .kc-statdot {
+  background: var(--kc-warn-accent);
+}
+.kc-wiz-model-desc {
+  margin: 9px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kc-muted);
+}
+.kc-wiz-model-action {
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  color: var(--kc-ink);
+}
+.kc-wiz-cloud {
+  margin-top: 16px;
+}
+.kc-wiz-cloud-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--kc-ink);
+  cursor: pointer;
+}
+.kc-opt {
+  color: var(--kc-muted);
+  font-style: italic;
+}
+.kc-wiz-cloud-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.kc-text-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: 9px;
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font-size: 13px;
+}
+.kc-text-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+  border-color: var(--kc-accent);
+}
+.kc-wiz-cloud-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--kc-muted);
+}
+.kc-wiz-printers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-wiz-printer {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: 11px;
+  background: var(--kc-surface);
+  font-size: 14px;
+  color: var(--kc-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.kc-wiz-printer:hover {
+  border-color: var(--kc-accent);
+}
+.kc-wiz-printer.on {
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 8%, var(--kc-surface));
+}
+.kc-wiz-printer:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-wiz-printer-radio {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--kc-hair-strong);
+}
+.kc-wiz-printer.on .kc-wiz-printer-radio {
+  border-color: var(--kc-accent);
+  background:
+    radial-gradient(circle, var(--kc-accent) 0 4px, transparent 5px);
+}
+.kc-wiz-printer-name {
+  font-weight: 600;
+}
+.kc-wiz-printer-note {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-direct {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kc-wiz-direct-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: 11px;
+  background: var(--kc-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.kc-wiz-direct-opt:hover {
+  border-color: var(--kc-accent);
+}
+.kc-wiz-direct-opt.on {
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 8%, var(--kc-surface));
+}
+.kc-wiz-direct-opt:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-wiz-direct-t {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-wiz-direct-d {
+  font-size: 12.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-done-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--kc-pass) 18%, var(--kc-surface));
+  color: var(--kc-pass);
+  font-size: 26px;
+  font-weight: 700;
+}
+.kc-wiz-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.kc-wiz-recap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--kc-hair);
+  border-radius: 9px;
+  background: var(--kc-surface-2);
+  font-size: 13.5px;
+}
+.kc-wiz-recap-row dt {
+  color: var(--kc-muted);
+}
+.kc-wiz-recap-row dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-wiz-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 32px;
+  border-top: 1px solid var(--kc-hair);
+}
+.kc-wiz-dots {
+  display: flex;
+  gap: 7px;
+}
+.kc-wiz-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--kc-hair-strong);
+}
+.kc-wiz-dot.on {
+  background: var(--kc-accent);
+  transform: scale(1.3);
+}
+
+/* Stack the wizard on narrow screens: the rail becomes a slim top strip with horizontal steps. */
+@media (max-width: 720px) {
+  .kc-wiz {
+    flex-direction: column;
+    max-height: 94vh;
+  }
+  .kc-wiz-rail {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--kc-hair);
+    padding: 14px 18px;
+  }
+  .kc-wiz-steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+  .kc-wiz-step {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+  .kc-wiz-budget {
+    display: none;
+  }
+  .kc-wiz-skip {
+    margin-left: auto;
+  }
+  .kc-wiz-content {
+    padding: 22px 20px 14px;
+  }
+  .kc-wiz-foot {
+    padding: 12px 20px;
+  }
+}

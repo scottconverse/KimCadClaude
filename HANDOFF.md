@@ -1,4 +1,4 @@
-# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 MS-1/MS-2/MS-3 done & pushed; Stage 7 DONE + tagged `stage-7`)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 MS-1/MS-2/MS-3/MS-4 done & pushed; Stage 7 DONE + tagged `stage-7`)
 
 ## ⛔ READ FIRST
 
@@ -15,9 +15,16 @@
   the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
   (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
   DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
-  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 9 MS-4 (first-run
-  wizard — `FirstRunWizard`: detect Ollama, pull the model with progress, pick a printer), then the
-  empty/loading/error-state copy sweep, then the Slice-9 close-out.** MS-2 (in-app help/glossary
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 9 final micro-slice
+  — the empty/loading/error-state copy sweep — then close out Slice 9; then Slice 10 (output
+  clarity + print preview), Slice 11 (responsive/a11y/copy/polish); then the Stage 8.5 gate
+  (`audit-team` + `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`).** MS-4 (first-run
+  wizard) is DONE + pushed: `frontend/src/components/FirstRunWizard.tsx` — a 5-step modal
+  (Welcome → Your AI model → Your printer → Direct printing → Ready) wired to the existing
+  `/api/settings` + `/api/model-status` endpoints; **gemma4:e4b is THE model (never qwen)**; honest
+  download-vs-connect-later step; NO model-pull/SmartScreen (those are Stage 11). First-run gating =
+  the `localStorage` flag `kc-first-run-done` (read in `App.tsx`; "Start designing"/"Skip setup"/Esc
+  set it). Focus-trapped accessible dialog. audit-lite + independent re-audit → 0/0/0/0/0. MS-2 (in-app help/glossary
   "(i)" tips — `frontend/src/glossary.ts` + `components/InfoTip.tsx`, wired onto
   Readiness/Confidence/Risks/Recommendations/Printability/Gate) and MS-3 (real step progress —
   pipeline phase callback `planning→generating→rendering→validating` → `GET /api/design/progress/<id>`

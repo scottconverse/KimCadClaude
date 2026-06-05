@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { CompareMessage, DesignResponse, DesignVersion, Message } from './api'
 import App from './App'
 
@@ -14,6 +14,15 @@ vi.mock('./api', () => ({
   // MS-3: the busy-screen phase poll. Resolve to a null phase (== the initial state, so no extra
   // re-render/act churn) — these tests assert the busy lifecycle, not the live phase itself.
   getDesignProgress: vi.fn().mockResolvedValue({ phase: null }),
+  // MS-4: the first-run wizard (mounted by App on first run) reads these — give safe defaults.
+  getSettings: vi.fn().mockResolvedValue({ printers: [], materials: [], default_printer: null }),
+  getModelStatus: vi.fn().mockResolvedValue({
+    model: 'gemma4:e4b',
+    backend: 'local',
+    running: true,
+    model_present: true,
+  }),
+  postSettings: vi.fn().mockResolvedValue({ saved: true }),
   // Real-ish helper so the cancel path classifies an AbortError correctly.
   isAbortError: (e: unknown) => (e as { name?: string })?.name === 'AbortError',
 }))
@@ -75,6 +84,12 @@ vi.mock('./components/Workspace', () => ({
     </div>
   ),
 }))
+
+// MS-4: suppress the first-run wizard for the existing lifecycle tests (they assert the landing /
+// workspace directly). The dedicated "first-run wizard" describe below clears this flag to test it.
+beforeEach(() => {
+  localStorage.setItem('kc-first-run-done', '1')
+})
 
 afterEach(() => {
   cleanup()
@@ -435,6 +450,24 @@ describe('App cancel / escape the "Designing…" screen (Stage 8.5)', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' }) // keydown bubbles to the window listener
     await waitFor(() => expect(screen.getByLabelText(/describe the part/i)).toBeTruthy())
     expect(screen.queryByTestId('busy')).toBeNull()
+  })
+})
+
+describe('App first-run wizard (MS-4)', () => {
+  it('shows the wizard on first run, and clears it (with the flag set) once dismissed', async () => {
+    localStorage.removeItem('kc-first-run-done')
+    render(<App />)
+    expect(await screen.findByText('Welcome to KimCad')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /skip setup/i }))
+    await waitFor(() => expect(screen.queryByText('Welcome to KimCad')).toBeNull())
+    expect(localStorage.getItem('kc-first-run-done')).toBe('1')
+  })
+
+  it('does not show the wizard once the first-run flag is set (shows the landing)', () => {
+    localStorage.setItem('kc-first-run-done', '1')
+    render(<App />)
+    expect(screen.queryByText('Welcome to KimCad')).toBeNull()
+    expect(screen.getByLabelText(/describe the part/i)).toBeTruthy()
   })
 })
 
