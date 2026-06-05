@@ -152,7 +152,26 @@ describe('MyDesigns', () => {
     const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad', { type: 'application/zip' })
     const input = container.querySelector('input[type=file]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [file] } })
-    await waitFor(() => expect(impSpy).toHaveBeenCalledWith(file))
+    // importDesign now also receives an AbortSignal (so the import can be cancelled).
+    await waitFor(() => expect(impSpy).toHaveBeenCalledWith(file, expect.any(AbortSignal)))
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith('imp9'))
+  })
+
+  it('lets the user cancel an in-flight import and return to the button — never stuck (escape)', async () => {
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
+    vi.spyOn(api, 'importDesign').mockImplementation((_file: File, signal?: AbortSignal) =>
+      new Promise((_res, rej) => {
+        signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+      }))
+    const { container } = render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad', { type: 'application/zip' })
+    fireEvent.change(container.querySelector('input[type=file]') as HTMLInputElement, { target: { files: [file] } })
+    // Importing… + a Cancel.
+    expect(await screen.findByRole('button', { name: /^Cancel$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Importing/i })).toBeTruthy()
+    // Cancel returns to the Import button, no error surfaced.
+    fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Import$/i })).toBeTruthy())
   })
 })

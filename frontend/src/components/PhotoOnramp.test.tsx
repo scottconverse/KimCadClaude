@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PhotoOnramp from './PhotoOnramp'
 import * as api from '../api'
@@ -124,6 +124,23 @@ describe('PhotoOnramp', () => {
     render(<PhotoOnramp onSeed={vi.fn()} disabled />)
     const btn = screen.getByRole('button', { name: /Describe with a photo/i }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
+  })
+
+  it('Cancel during the read aborts it and returns to the affordance — never stuck (escape)', async () => {
+    // uploadPhoto honors the abort signal: it rejects with an AbortError when cancelled.
+    mockUpload.mockImplementation((_file: File, signal?: AbortSignal) =>
+      new Promise((_res, rej) => {
+        signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+      }))
+    const onSeed = vi.fn()
+    const { container } = render(<PhotoOnramp onSeed={onSeed} />)
+    pickFile(container)
+    expect(await screen.findByText(/Reading your photo/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
+    // Back to the affordance, no error card, no seed submitted.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Describe with a photo/i })).toBeTruthy())
+    expect(screen.queryByText(/Reading your photo/i)).toBeNull()
+    expect(onSeed).not.toHaveBeenCalled()
   })
 
   it('accepts a dropped photo (drag-and-drop) and runs the read flow (TEST-703)', async () => {

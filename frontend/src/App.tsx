@@ -100,6 +100,16 @@ export default function App() {
     return () => window.clearInterval(id)
   }, [busy])
 
+  // Escape key cancels an in-flight design too — a keyboard escape from the "Designing…" screen.
+  useEffect(() => {
+    if (!busy) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') designAbortRef.current?.abort()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy])
+
   // --- save / persistence -------------------------------------------------
   const persist = useCallback(
     async (opts?: { immediate?: boolean }) => {

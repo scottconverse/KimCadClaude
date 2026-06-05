@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import { uploadPhoto } from '../api'
+import { isAbortError, uploadPhoto } from '../api'
 
 // Stage 8.5 Slice 7 (Surface D) — the "describe with a photo" on-ramp.
 // A secondary affordance beside the text box: pick (or drop) a photo, KimCad's LOCAL vision reads
@@ -35,6 +35,9 @@ export default function PhotoOnramp({
   const [errorMsg, setErrorMsg] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const seedRef = useRef<HTMLTextAreaElement>(null)
+  // Lets the user cancel a slow local-vision read (the photo never auto-sends, but the read can take
+  // ~15-20s on CPU — they must be able to back out).
+  const readAbortRef = useRef<AbortController | null>(null)
 
   // MS2-001: revoke the preview blob URL on change/unmount so a photo read that's abandoned
   // mid-flow (navigate away from the confirm/error card) doesn't leak the object URL.
@@ -61,8 +64,19 @@ export default function PhotoOnramp({
     setPhase('idle')
   }
 
+  // Cancel an in-flight vision read and return to the affordance (the abort throws in handleFile,
+  // whose catch resets to idle). Abort any in-flight read on unmount too, so navigating away doesn't
+  // leave it running.
+  function cancelRead() {
+    readAbortRef.current?.abort()
+  }
+  useEffect(() => () => readAbortRef.current?.abort(), [])
+
   async function handleFile(file: File | undefined | null) {
     if (!file || disabled) return
+    readAbortRef.current?.abort() // supersede any prior read
+    const controller = new AbortController()
+    readAbortRef.current = controller
     // Show a local preview thumbnail immediately ("I saw your photo") — created from the in-memory
     // file, nothing uploaded for the preview. Revoke the previous object URL so we don't leak it.
     clearPreview()
@@ -70,7 +84,7 @@ export default function PhotoOnramp({
     setErrorMsg('')
     setPhase('reading')
     try {
-      const res = await uploadPhoto(file)
+      const res = await uploadPhoto(file, controller.signal)
       const text = (res.seed ?? '').trim()
       if (!text) {
         setErrorMsg('Couldn’t read that photo — try a clearer shot, or cancel and describe the part in words.')
@@ -80,8 +94,14 @@ export default function PhotoOnramp({
       setSeed(text)
       setPhase('confirm')
     } catch (err) {
+      if (isAbortError(err)) {
+        reset() // the user cancelled — back to the affordance, quietly (no error)
+        return
+      }
       setErrorMsg(err instanceof Error ? err.message : 'Couldn’t read that photo — try again, or cancel and describe it in words.')
       setPhase('error')
+    } finally {
+      if (readAbortRef.current === controller) readAbortRef.current = null
     }
   }
 
@@ -146,18 +166,26 @@ export default function PhotoOnramp({
           }
         >
           {phase === 'reading' && (
-            <div className="kc-photo-row" aria-live="polite">
-              {previewUrl && <img className="kc-photo-thumb" src={previewUrl} alt="" />}
-              <div className="kc-photo-body">
-                <span className="kc-photo-title">
-                  <span className="kc-spin" aria-hidden="true" /> Reading your photo…
-                </span>
-                <p className="kc-photo-privacy">
-                  Your photo stays on your computer — KimCad’s local vision reads it into a rough
-                  starting point. It never leaves your machine.
-                </p>
+            <>
+              <div className="kc-photo-row" aria-live="polite">
+                {previewUrl && <img className="kc-photo-thumb" src={previewUrl} alt="" />}
+                <div className="kc-photo-body">
+                  <span className="kc-photo-title">
+                    <span className="kc-spin" aria-hidden="true" /> Reading your photo…
+                  </span>
+                  <p className="kc-photo-privacy">
+                    Your photo stays on your computer — KimCad’s local vision reads it into a rough
+                    starting point. It never leaves your machine. This can take a moment on your
+                    computer’s AI.
+                  </p>
+                </div>
               </div>
-            </div>
+              <div className="kc-photo-actions">
+                <button type="button" className="kc-btn kc-btn-ghost" onClick={cancelRead}>
+                  Cancel
+                </button>
+              </div>
+            </>
           )}
 
           {phase === 'confirm' && (

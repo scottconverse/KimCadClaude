@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DesignResponse } from '../api'
 import ExportPanel from './ExportPanel'
@@ -59,5 +59,45 @@ describe('ExportPanel gate-awareness', () => {
     stubFetch()
     render(<ExportPanel result={null} />)
     expect(screen.getByText(/once a part is designed/i)).toBeTruthy()
+  })
+
+  it('lets the user cancel an in-flight slice and return to the button — never stuck (escape)', async () => {
+    // options resolve; the slice hangs until its AbortSignal fires (mirrors a slow OrcaSlicer run).
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/options')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              printers: [{ key: 'p', name: 'P', sliceable: true, materials: ['pla'], generic_materials: [] }],
+              materials: [{ key: 'pla', name: 'PLA' }],
+              default_printer: 'p',
+              default_material: 'pla',
+            }),
+          }
+        }
+        if (String(url).includes('/api/slice/')) {
+          return await new Promise((_res, rej) => {
+            init?.signal?.addEventListener('abort', () =>
+              rej(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+            )
+          })
+        }
+        return { ok: true, status: 200, json: async () => ({ connectors: [], default: null }) }
+      }),
+    )
+    render(<ExportPanel result={base('pass')} />)
+    const sliceBtn = await screen.findByRole('button', { name: /slice & prepare/i })
+    await waitFor(() => expect((sliceBtn as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(sliceBtn)
+    // Slicing… + a Cancel appears.
+    expect(await screen.findByRole('button', { name: /^Cancel$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Slicing/i })).toBeTruthy()
+    // Cancel aborts and returns to the slice button, no error.
+    fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /slice & prepare/i })).toBeTruthy())
+    expect(screen.queryByText(/slicing failed/i)).toBeNull()
   })
 })

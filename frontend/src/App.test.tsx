@@ -383,4 +383,24 @@ describe('App cancel / escape the "Designing…" screen (Stage 8.5)', () => {
     expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/2')
     expect(screen.getByTestId('version-count').textContent).toBe('1') // no stale extra version
   })
+
+  it('Escape key cancels an in-flight design (keyboard escape)', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock).mockImplementation(
+      (_p: string, _h: unknown, _e: boolean, signal?: AbortSignal) =>
+        new Promise<DesignResponse>((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          )
+        }),
+    )
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'a box' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+    expect((await screen.findByTestId('busy')).textContent).toBe('true')
+
+    fireEvent.keyDown(document.body, { key: 'Escape' }) // keydown bubbles to the window listener
+    await waitFor(() => expect(screen.getByLabelText(/describe the part/i)).toBeTruthy())
+    expect(screen.queryByTestId('busy')).toBeNull()
+  })
 })

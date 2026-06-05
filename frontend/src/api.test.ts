@@ -115,6 +115,16 @@ describe('uploadPhoto (Slice 7)', () => {
     expect(f.mock.calls.length).toBe(0)
   })
 
+  // The user must be able to cancel a slow local-vision read — uploadPhoto forwards an AbortSignal.
+  it('forwards an AbortSignal to fetch so a slow read can be cancelled', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'x' }) }))
+    const ctrl = new AbortController()
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    await uploadPhoto(file, ctrl.signal)
+    const init = (f.mock.calls[0] as unknown[])[1] as RequestInit
+    expect(init.signal).toBe(ctrl.signal)
+  })
+
   // TEST-702: the server's friendly 422/413 message must reach the UI (the error-recovery copy is
   // the user's only feedback on a vision failure). Exercises the real throwIfNotOk/readJson seam.
   it('throws the backend error message on a non-2xx (422 vision failure)', async () => {

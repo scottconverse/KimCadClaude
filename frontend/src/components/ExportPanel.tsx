@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   designIdFromMeshUrl,
   getOptions,
+  isAbortError,
   postSlice,
   type DesignResponse,
   type OptionsResponse,
@@ -20,6 +21,8 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
   const [slicing, setSlicing] = useState(false)
   const [slice, setSlice] = useState<SliceResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Slicing (OrcaSlicer) can take a while — let the user cancel and escape the "Slicing…" wait.
+  const sliceAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -75,17 +78,28 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
 
   async function handleSlice() {
     if (designId == null || !canSlice) return
+    const controller = new AbortController()
+    sliceAbortRef.current = controller
     setSlicing(true)
     setError(null)
     setSlice(null)
     try {
-      setSlice(await postSlice(designId, printer, selectedMaterial))
+      setSlice(await postSlice(designId, printer, selectedMaterial, controller.signal))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Slicing failed.')
+      if (!isAbortError(err)) setError(err instanceof Error ? err.message : 'Slicing failed.')
+      // a cancel just returns to the button — no error
     } finally {
+      if (sliceAbortRef.current === controller) sliceAbortRef.current = null
       setSlicing(false)
     }
   }
+
+  function cancelSlice() {
+    sliceAbortRef.current?.abort()
+  }
+
+  // Abort any in-flight slice on unmount (e.g. navigating away) so it doesn't linger.
+  useEffect(() => () => sliceAbortRef.current?.abort(), [])
 
   if (!result?.has_mesh) {
     return (
@@ -134,14 +148,21 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
             </select>
           </label>
 
-          <button
-            type="button"
-            className="kc-btn kc-btn-accent kc-slice-btn"
-            onClick={handleSlice}
-            disabled={!canSlice}
-          >
-            {slicing ? 'Slicing…' : 'Slice & prepare file'}
-          </button>
+          <div className="kc-slice-actions">
+            <button
+              type="button"
+              className="kc-btn kc-btn-accent kc-slice-btn"
+              onClick={handleSlice}
+              disabled={!canSlice}
+            >
+              {slicing ? 'Slicing…' : 'Slice & prepare file'}
+            </button>
+            {slicing && (
+              <button type="button" className="kc-btn kc-btn-ghost" onClick={cancelSlice}>
+                Cancel
+              </button>
+            )}
+          </div>
 
           {error !== null && <p className="kc-muted-note kc-export-error">{error}</p>}
           {slice && !slice.sliced && (

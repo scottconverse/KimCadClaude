@@ -164,11 +164,12 @@ async function getJson<T>(url: string): Promise<T> {
   return data as T
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
   const data = await readJson(res)
   throwIfNotOk(res, data)
@@ -307,7 +308,7 @@ export interface PhotoSeedResponse {
  * photo gets a precise message instead of a connection reset. */
 export const MAX_PHOTO_BYTES = 12 * 1024 * 1024
 
-export async function uploadPhoto(file: File): Promise<PhotoSeedResponse> {
+export async function uploadPhoto(file: File, signal?: AbortSignal): Promise<PhotoSeedResponse> {
   if (file.size > MAX_PHOTO_BYTES) {
     throw new Error('That photo is too large to read (max 12 MB).')
   }
@@ -317,8 +318,10 @@ export async function uploadPhoto(file: File): Promise<PhotoSeedResponse> {
       method: 'POST',
       headers: { 'Content-Type': file.type || 'image/jpeg' },
       body: file,
+      signal,
     })
-  } catch {
+  } catch (err) {
+    if (isAbortError(err)) throw err // a cancel is a cancel — let the caller treat it as one
     throw new Error('Couldn’t read that photo — it may be too large or unreadable.')
   }
   const data = await readJson(res)
@@ -353,8 +356,9 @@ export function postSlice(
   designId: number,
   printer: string,
   material: string,
+  signal?: AbortSignal,
 ): Promise<SliceResponse> {
-  return postJson<SliceResponse>(`/api/slice/${designId}`, { printer, material })
+  return postJson<SliceResponse>(`/api/slice/${designId}`, { printer, material }, signal)
 }
 
 /** The design id is the trailing path segment of mesh_url (`/api/mesh/<id>`); slicing + g-code
@@ -421,7 +425,7 @@ export function exportDesignUrl(id: string): string {
 export const MAX_IMPORT_BYTES = 32 * 1024 * 1024
 
 /** Import a `.kimcad` export file (the raw zip is the POST body); returns the new design's id. */
-export async function importDesign(file: File): Promise<{ id: string }> {
+export async function importDesign(file: File, signal?: AbortSignal): Promise<{ id: string }> {
   // QA-004: reject an over-cap file up front with a friendly message — otherwise the server closes
   // the oversized upload mid-stream and the browser surfaces an opaque "network error".
   if (file.size > MAX_IMPORT_BYTES) {
@@ -433,8 +437,10 @@ export async function importDesign(file: File): Promise<{ id: string }> {
       method: 'POST',
       headers: { 'Content-Type': 'application/zip' },
       body: file,
+      signal,
     })
-  } catch {
+  } catch (err) {
+    if (isAbortError(err)) throw err // a cancel is a cancel, not an import failure
     // A connection error mid-upload (e.g. the server closed an oversized stream) lands here.
     throw new Error('Couldn’t import that file — it may be too large (max 32 MB) or unreadable.')
   }

@@ -5,6 +5,7 @@ import {
   exportDesignUrl,
   getDesigns,
   importDesign,
+  isAbortError,
   renameDesign,
   type SavedDesignSummary,
 } from '../api'
@@ -198,6 +199,7 @@ export default function MyDesigns({
   const [sort, setSort] = useState<SortKey>('newest')
   const [importing, setImporting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const importAbortRef = useRef<AbortController | null>(null)
 
   const load = useCallback(() => {
     getDesigns()
@@ -225,18 +227,30 @@ export default function MyDesigns({
 
   async function handleImportFile(file: File | undefined) {
     if (!file) return
+    const controller = new AbortController()
+    importAbortRef.current = controller
     setImporting(true)
     try {
-      const r = await importDesign(file)
+      const r = await importDesign(file, controller.signal)
       load()
       onOpen(r.id) // open the freshly imported design
     } catch (e) {
-      setError(e instanceof Error ? e.message : "That file couldn't be imported.")
+      if (!isAbortError(e)) setError(e instanceof Error ? e.message : "That file couldn't be imported.")
+      // a cancel just returns to the Import button — no error
     } finally {
+      if (importAbortRef.current === controller) importAbortRef.current = null
       setImporting(false)
       if (fileRef.current) fileRef.current.value = '' // allow re-importing the same file
     }
   }
+
+  function cancelImport() {
+    importAbortRef.current?.abort()
+  }
+
+  // Abort an in-flight import on unmount (navigating away) so it doesn't finish in the background and
+  // yank the user into the imported design — matches ExportPanel/PhotoOnramp.
+  useEffect(() => () => importAbortRef.current?.abort(), [])
 
   const hasAny = designs !== null && designs.length > 0
 
@@ -260,6 +274,11 @@ export default function MyDesigns({
           >
             {importing ? 'Importing…' : 'Import'}
           </button>
+          {importing && (
+            <button type="button" className="kc-btn kc-btn-ghost" onClick={cancelImport}>
+              Cancel
+            </button>
+          )}
           <button type="button" className="kc-btn kc-btn-accent" onClick={onNew}>
             New design
           </button>
