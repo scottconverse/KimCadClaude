@@ -21,6 +21,28 @@ from kimcad.config import Material, Printer
 from kimcad.ir import DesignPlan
 from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
 
+
+# ENG-007 (stage-8.5 gate remediation): fail FAST and CLEARLY if a declared geometry backend is
+# missing, instead of letting tests degrade into a wall of misleading "logic" errors (auto_orient
+# not flattening, trimesh scene-graph load failing). These are hard deps in pyproject.toml; a bare
+# environment that skips the geometry extras should see ONE actionable message, not 30 red herrings.
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+    missing = []
+    for mod in ("scipy", "networkx", "manifold3d"):
+        try:
+            __import__(mod)
+        except Exception:  # noqa: BLE001 - any import failure means the backend is unusable
+            missing.append(mod)
+    if missing:
+        raise pytest.UsageError(
+            "Missing required geometry dependencies: "
+            + ", ".join(missing)
+            + ". They are pinned in pyproject.toml — install the project ("
+            "`pip install -e .`) before running the suite. Without them, mesh validation, "
+            "auto-orient, and manifold hardening silently degrade and ~30 tests fail with "
+            "misleading geometry errors rather than a clear 'missing dependency'."
+        )
+
 @pytest.fixture(autouse=True)
 def _isolate_kimcad_home(tmp_path, monkeypatch):
     """Isolate the per-user ``~/.kimcad`` stores (settings / designs / history) to a fresh tmp dir

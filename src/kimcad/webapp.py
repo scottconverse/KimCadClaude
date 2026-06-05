@@ -356,7 +356,10 @@ class _SettingsAwareProvider:
     def __init__(self, local: Any, config: Any):
         self._local = local
         self._config = config
-        self._cloud_cache: dict[tuple[str, str], Any] = {}
+        # ENG-005: bounded LRU so rotating keys/models can't accumulate provider objects (each
+        # holding key material) for the process lifetime. Building a provider is cheap vs. a design.
+        self._cloud_cache: "OrderedDict[tuple[str, str], Any]" = OrderedDict()
+        self._cloud_cache_max = 4
 
     def _settings(self) -> dict[str, Any]:
         try:
@@ -376,6 +379,8 @@ class _SettingsAwareProvider:
             return self._local  # enabled but not fully configured -> local
         cache_key = (key, model)
         prov = self._cloud_cache.get(cache_key)
+        if prov is not None:
+            self._cloud_cache.move_to_end(cache_key)  # LRU touch
         if prov is None:
             try:
                 from dataclasses import replace
@@ -385,6 +390,8 @@ class _SettingsAwareProvider:
                 backend = replace(self._config.llm_backend("custom_openrouter"), model_name=model)
                 prov = LLMProvider(backend, api_key=key)
                 self._cloud_cache[cache_key] = prov
+                while len(self._cloud_cache) > self._cloud_cache_max:
+                    self._cloud_cache.popitem(last=False)  # evict the oldest (and its key material)
             except Exception:  # noqa: BLE001 - a cloud build failure degrades to local
                 return self._local
         return prov
@@ -504,6 +511,28 @@ def _estimate_detail_with_weight(proof: Any, material: Any) -> dict[str, Any]:
     return detail
 
 
+def _regate_mesh(config: Any, mesh_path: Path, plan_dict: Any) -> str | None:
+    """ENG-002 (stage-8.5 gate remediation): re-derive the printability gate_status from the ACTUAL
+    mesh + plan, so a reopened/imported design is trusted on fresh validation rather than on its own
+    stored metadata. A crafted ``.kimcad`` could otherwise claim ``gate_status: "pass"`` over an
+    unprintable mesh and become sliceable. Returns ``"pass"``/``"warn"``/``"fail"``, or ``None`` if
+    re-validation couldn't run (the caller then falls back to the stored value rather than
+    false-failing a legitimate design when, e.g., the geometry backends are unavailable)."""
+    if not plan_dict:
+        return None
+    try:
+        from kimcad.ir import DesignPlan
+        from kimcad.printability import run_gate
+        from kimcad.validation import load_mesh, validate_mesh
+
+        plan = DesignPlan.model_validate(plan_dict)
+        _, mesh_report = validate_mesh(load_mesh(mesh_path))
+        gate = run_gate(mesh_report, plan, config.printer(), config.material())
+        return str(gate.status)
+    except Exception:
+        return None
+
+
 def slice_registered_mesh(
     config: Any, mesh_path: Path, printer_key: str | None, material_key: str | None
 ) -> tuple[dict[str, Any], Path | None]:
@@ -589,6 +618,13 @@ def make_handler(
     # browser, which hides the controls) can't dispatch a part the gate rejected. Evicted in
     # lockstep with `registry` via `_evict`.
     gate_status_by_rid: dict[int, str] = {}
+    # ENG-001 (stage-8.5 gate remediation): a per-design geometry version, bumped on every
+    # re-render. A slice captures the version it sliced; the slice is only registered/cached if the
+    # version still matches at register time — so a re-render that lands WHILE a slice is in flight
+    # (the two use different locks) can't leave a stale-geometry G-code registered after it
+    # invalidated the cache. Closes the one same-rid slice/render race in the re-render-invalidates-
+    # slice invariant. Evicted via _evict.
+    geometry_version: dict[int, int] = {}
     # ENG-003: cache slices by (rid, printer, material) so an identical re-confirm doesn't
     # re-run the (multi-minute, CPU-bound) slicer; serialize actual slices to protect the
     # target box and stop two OrcaSlicer runs racing on disk.
@@ -678,6 +714,7 @@ def make_handler(
         ``lock``."""
         gcode_registry.pop(rid, None)
         gate_status_by_rid.pop(rid, None)
+        geometry_version.pop(rid, None)
         template_state.pop(rid, None)
         design_snapshot.pop(rid, None)
         rid_saved_id.pop(rid, None)
@@ -728,7 +765,17 @@ def make_handler(
                 self.wfile.write(body)
 
         def _json(self, status: int, obj: dict[str, Any]) -> None:
-            self._send(status, json.dumps(obj).encode("utf-8"), "application/json")
+            # ENG-003: allow_nan=False so a stray NaN/Infinity (e.g. a degenerate volume or score)
+            # surfaces as a clean 500 rather than emitting invalid JSON the browser silently rejects
+            # ("KimCad returned an unreadable response"). The stores already serialize this way.
+            try:
+                body = json.dumps(obj, allow_nan=False).encode("utf-8")
+            except ValueError:
+                body = json.dumps(
+                    {"error": "The server produced an out-of-range number."}
+                ).encode("utf-8")
+                status = 500
+            self._send(status, body, "application/json")
 
         def _send_download(self, body: bytes, content_type: str, filename: str) -> None:
             self.send_response(200)
@@ -1459,9 +1506,13 @@ def make_handler(
             except OSError:
                 self._json(500, {"error": "Couldn't open that design."})
                 return
+            # ENG-002: re-derive the gate from the copied mesh; a reopened/imported design is not
+            # trusted on its stored verdict. If re-validation can't run, fall back to the stored
+            # value (don't false-fail a legitimate reopen when the geometry backends are absent).
+            regated = _regate_mesh(get_config(), mesh_dest, d.plan)
             with lock:
                 registry[rid] = mesh_dest
-                gate_status_by_rid[rid] = d.gate_status or "fail"
+                gate_status_by_rid[rid] = regated or d.gate_status or "fail"
                 if d.template_family and d.plan is not None:
                     try:
                         from kimcad.ir import DesignPlan
@@ -1558,10 +1609,22 @@ def make_handler(
                 return None
             return self.rfile.read(declared)
 
-        def _respond_slice(self, rid: int, info: dict[str, Any], gcode_path: Path | None) -> None:
+        def _respond_slice(
+            self, rid: int, info: dict[str, Any], gcode_path: Path | None, sliced_ver: int = 0
+        ) -> None:
             out = dict(info)
             if gcode_path is not None and gcode_path.exists():
                 with lock:
+                    # ENG-001: register the G-code ONLY if the geometry hasn't changed since we
+                    # sliced. If a re-render landed mid-slice (version bumped), this slice is of the
+                    # old shape — refuse to register/serve it so a stale slice can't be sent.
+                    if geometry_version.get(rid, 0) != sliced_ver:
+                        self._json(200, {
+                            "sliced": False, "reason": "stale",
+                            "note": "The part changed while it was slicing — adjust if needed and "
+                            "slice again.",
+                        })
+                        return
                     gcode_registry[rid] = gcode_path
                 out["gcode_url"] = f"/api/gcode/{rid}"
                 # The on-disk basename of the print file, so the UI can name it and the
@@ -1587,6 +1650,9 @@ def make_handler(
             with lock:
                 mesh_path = registry.get(rid)
                 gate_failed = gate_status_by_rid.get(rid) == "fail"
+                # ENG-001: remember which geometry version we're about to slice, so a re-render
+                # landing mid-slice can invalidate this result at register time.
+                sliced_ver = geometry_version.get(rid, 0)
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "Design the part first, then send it to a printer."})
                 return
@@ -1604,7 +1670,7 @@ def make_handler(
             with lock:
                 cached = slice_cache.get(key)
             if cached is not None and cached[1] is not None and cached[1].exists():
-                self._respond_slice(rid, cached[0], cached[1])
+                self._respond_slice(rid, cached[0], cached[1], sliced_ver)
                 return
             with slice_lock:
                 with lock:  # re-check: another thread may have just sliced this key
@@ -1623,10 +1689,13 @@ def make_handler(
                         self._json(500, {"error": f"{type(e).__name__}: {e}"})
                         return
                     with lock:
-                        slice_cache[key] = (info, gcode_path)
-                        while len(slice_cache) > MAX_REGISTRY:
-                            slice_cache.popitem(last=False)
-            self._respond_slice(rid, info, gcode_path)
+                        # ENG-001: a re-render that landed while we were slicing bumped the version
+                        # and cleared the cache. Don't cache (or serve) a slice of the stale shape.
+                        if geometry_version.get(rid, 0) == sliced_ver:
+                            slice_cache[key] = (info, gcode_path)
+                            while len(slice_cache) > MAX_REGISTRY:
+                                slice_cache.popitem(last=False)
+            self._respond_slice(rid, info, gcode_path, sliced_ver)
 
         def _handle_render(self, raw_id: str) -> None:
             """Stage 5 live-slider re-render: rebuild a template-backed part (by id) at new
@@ -1673,6 +1742,10 @@ def make_handler(
                     registry.move_to_end(rid)  # an actively re-rendered design stays LRU-fresh
                     rep = payload.get("report") or {}
                     gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
+                    # ENG-001: bump the geometry version so any slice still in flight for this id
+                    # (sliced from the OLD shape) is dropped at register time instead of overwriting
+                    # the cache we're about to clear.
+                    geometry_version[rid] = geometry_version.get(rid, 0) + 1
                     # Geometry changed: drop any cached slice + G-code for this id so the old
                     # shape can't be downloaded or sent after the part was re-shaped (safety).
                     gcode_registry.pop(rid, None)

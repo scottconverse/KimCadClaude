@@ -96,22 +96,28 @@ class ModelSpec:
 
 # The choosable catalog. Local-first; cloud entries are opt-in alternatives (need a key).
 # RAM floors are conservative heuristics (see module docstring). Tiers are relative.
+# ENG-006 (stage-8.5 gate remediation): gemma4:e4b is THE model. It is now the highest LOCAL tier,
+# so the advisor NEVER recommends a Chinese model over it, and if a user has manually pulled Qwen the
+# non-China escape surfaces gemma4 as the alternative — the "gemma4 is THE model" rule, enforced.
+# Qwen was evaluated via the live Stage-6 bake-off and REJECTED (0/10); it's kept here only as a
+# hard-deprioritized, never-recommended-over-gemma4 entry (the `local_qwen` config backend remains
+# selectable via `--backend` for power users re-running the bake-off — separate from this advisor).
 MODEL_CATALOG: tuple[ModelSpec, ...] = (
-    ModelSpec("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B", 1.5, min_ram_gb=6, tier=2,
-              origin="Alibaba", non_china=False,
-              notes="Small, fast, code-tuned -- the Stage 6 candidate default."),
-    ModelSpec("qwen2.5-coder:3b", "Qwen2.5-Coder 3B", 3.0, min_ram_gb=10, tier=3,
-              origin="Alibaba", non_china=False,
-              notes="More capable than 1.5B; needs a bit more headroom."),
-    ModelSpec("qwen2.5-coder:7b", "Qwen2.5-Coder 7B", 7.0, min_ram_gb=18, tier=5,
-              origin="Alibaba", non_china=False,
-              notes="Strong code model for a roomy box."),
-    ModelSpec("gemma4:e4b", "Gemma E4B", 4.0, min_ram_gb=8, tier=3,
+    ModelSpec("gemma4:e4b", "Gemma E4B", 4.0, min_ram_gb=8, tier=7,
               origin="Google", non_china=True,
-              notes="The current default; the non-China local alternative + vision-capable."),
+              notes="THE model: the local default — text, codegen, AND vision. Always recommended."),
+    ModelSpec("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B", 1.5, min_ram_gb=6, tier=1,
+              origin="Alibaba", non_china=False,
+              notes="REJECTED in the Stage-6 bake-off (0/10); never recommended over gemma4:e4b."),
+    ModelSpec("qwen2.5-coder:3b", "Qwen2.5-Coder 3B", 3.0, min_ram_gb=10, tier=1,
+              origin="Alibaba", non_china=False,
+              notes="REJECTED candidate; deprioritized below gemma4:e4b."),
+    ModelSpec("qwen2.5-coder:7b", "Qwen2.5-Coder 7B", 7.0, min_ram_gb=18, tier=2,
+              origin="Alibaba", non_china=False,
+              notes="REJECTED candidate; deprioritized below gemma4:e4b."),
     ModelSpec("llama3.1:8b", "Llama 3.1 8B", 8.0, min_ram_gb=18, tier=4,
               origin="Meta", non_china=True,
-              notes="Non-China general model for a roomy box."),
+              notes="Non-China general model for a roomy box (alternative, not the default)."),
     ModelSpec("cloud_deepseek", "DeepSeek (cloud)", 0.0, min_ram_gb=0, tier=6,
               origin="DeepSeek", non_china=False, location="cloud",
               notes="Opt-in cloud fallback -- needs DEEPSEEK_API_KEY; not local-first."),

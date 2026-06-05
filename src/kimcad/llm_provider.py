@@ -89,6 +89,16 @@ class Provider(Protocol):
         history: list[dict[str, str]] | None = None,
     ) -> str: ...
 
+    # ENG-004: the photo on-ramp's local-vision entry point. Declared on the Protocol so the
+    # contract is total and type-checked — every provider must answer it (FallbackProvider delegates
+    # to its primary). The trust rule (vision stays local) is enforced by the caller, not here.
+    def describe_photo(
+        self,
+        image_bytes: bytes,
+        printer: Printer,
+        material: Material,
+    ) -> str: ...
+
 
 def _load_prompt(name: str) -> str:
     return (PROMPT_DIR / name).read_text(encoding="utf-8")
@@ -371,3 +381,9 @@ class FallbackProvider:
         history: list[dict[str, str]] | None = None,
     ) -> str:
         return self._call("generate_openscad", plan, printer, material, history=history)
+
+    def describe_photo(self, image_bytes: bytes, printer: Printer, material: Material) -> str:
+        # ENG-004: complete the Provider contract. Delegates through the same primary→alt fallback
+        # as the other calls. (The web photo path routes vision to a dedicated LOCAL provider per the
+        # trust rule and doesn't reach this; this makes the contract total + type-checked regardless.)
+        return self._call("describe_photo", image_bytes, printer, material)

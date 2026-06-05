@@ -1434,6 +1434,69 @@ def test_rerender_invalidates_a_cached_slice(tmp_path, monkeypatch):
     assert calls["n"] == 2, "re-render must invalidate the cached slice, forcing a re-slice"
 
 
+def test_a_slice_that_finishes_after_a_rerender_is_dropped_as_stale(tmp_path, monkeypatch):
+    # ENG-001: a re-render landing WHILE a slice is in flight (the two use different locks) makes
+    # that slice's geometry stale. The stub slicer simulates the interleave by firing a re-render
+    # for the same id mid-slice (bumping the geometry version, clearing the cache) before returning
+    # its g-code; the slice must then respond sliced:false reason:stale and register NO g-code, so
+    # the old shape can never be downloaded or sent.
+    import kimcad.webapp as webapp_mod
+    where = {}
+
+    def _fake_slice(config, mesh_path, printer, material):
+        rid = int(mesh_path.parent.name)
+        gp = mesh_path.parent / "part.gcode.3mf"
+        gp.write_bytes(b"PK\x03\x04")
+        # A concurrent re-render lands now.
+        _req_json(where["host"], where["port"], "POST", f"/api/render/{rid}",
+                  {"values": {"width": 90, "depth": 70, "height": 50, "wall": 2}})
+        return {"sliced": True}, gp
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", _fake_slice)
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()))  # real renderer
+    with _serve(pipe, tmp_path) as (host, port):
+        where["host"], where["port"] = host, port
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        _s, s = _req_json(host, port, "POST", f"/api/slice/{rid}",
+                          {"printer": "bambu_p2s", "material": "pla"})
+        # The stale slice is refused and left unregistered.
+        assert s.get("sliced") is False and s.get("reason") == "stale", s
+        assert "gcode_url" not in s
+        g_status, _ = _req_json(host, port, "GET", f"/api/gcode/{rid}", None)
+        assert g_status == 404, "no g-code should be registered for the stale slice"
+
+
+def test_regate_mesh_rederives_fail_for_an_oversized_mesh(tmp_path):
+    # ENG-002: re-gating is independent of any stored verdict — an oversized mesh re-derives "fail"
+    # even if a tampered .kimcad claimed gate_status "pass", so it can't become sliceable on reopen.
+    import trimesh
+
+    from kimcad.webapp import _regate_mesh
+
+    cfg = Config.load()
+    big = tmp_path / "big.stl"
+    trimesh.creation.box(extents=(300.0, 60.0, 40.0)).export(big)  # 300mm > 256mm Bambu build
+    plan = _box_plan(width=300, depth=60, height=40, wall=2).model_dump()
+    assert _regate_mesh(cfg, big, plan) == "fail"
+
+
+def test_regate_mesh_passes_in_bounds_and_returns_none_on_error(tmp_path):
+    # ENG-002: an in-bounds watertight mesh re-gates non-fail; an unreadable mesh / missing plan
+    # returns None so the caller falls back to the stored value (never false-fails a real reopen).
+    import trimesh
+
+    from kimcad.webapp import _regate_mesh
+
+    cfg = Config.load()
+    small = tmp_path / "small.stl"
+    trimesh.creation.box(extents=(50.0, 40.0, 30.0)).export(small)
+    plan = _box_plan(width=50, depth=40, height=30, wall=2).model_dump()
+    assert _regate_mesh(cfg, small, plan) != "fail"
+    assert _regate_mesh(cfg, tmp_path / "nope.stl", plan) is None
+    assert _regate_mesh(cfg, small, None) is None
+
+
 def test_concurrent_rerenders_are_serialized(tmp_path):
     # RENDER-001: a deliberately slow renderer records its [enter, exit] interval; with the
     # render_lock, two concurrent /api/render calls for the same id must NOT overlap (else they

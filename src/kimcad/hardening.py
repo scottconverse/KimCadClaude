@@ -8,9 +8,12 @@ run it through Manifold3D, whose data model is a *guaranteed* 2-manifold: buildi
 ``Manifold`` from the mesh merges coincident vertices, drops degenerate triangles, and
 either yields a clean manifold or reports precisely why it could not.
 
-Manifold3D is an optional runtime dependency. If it is not installed, hardening is a
-no-op pass-through and says so in the report — the mesh has already passed the
-Printability Gate's watertight check, so slicing still proceeds on the validated mesh.
+Manifold3D is a HARD dependency (pinned in pyproject.toml: ``manifold3d>=3.0``). The import
+guard below is DEFENSIVE, not an "optional feature" switch: if the package is somehow absent
+(a broken/partial install), hardening degrades to a no-op pass-through and says so in the report
+rather than crashing — the mesh has already passed the Printability Gate's watertight check, so
+slicing still proceeds on the validated mesh. (ENG-007: the comment is reconciled with the hard
+pin — install the project and it's always present; the fallback exists only for resilience.)
 """
 
 from __future__ import annotations
