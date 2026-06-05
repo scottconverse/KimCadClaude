@@ -116,6 +116,10 @@ class PipelineStatus(str, Enum):
     render_failed = "render_failed"
     gate_failed = "gate_failed"
     completed = "completed"
+    # Stage 8.5 Slice 9: the local AI server (Ollama) couldn't be reached. The pipeline itself
+    # PROPAGATES the connection error (the caller owns it); the WEB LAYER maps that to this status
+    # so the SPA shows a recoverable "your local AI isn't running" wall, not a raw 500/traceback.
+    model_unavailable = "model_unavailable"
     # Stage 8.5 Slice 6 MS-4: no deterministic template fits and the experimental LLM-OpenSCAD
     # generator wasn't allowed for this request — so we OFFER it rather than auto-run it (no codegen
     # call, no dead-end). The web layer renders this as the "try the experimental generator" prompt.
@@ -131,6 +135,20 @@ PLAN_FAILED_MESSAGE = (
     "not suited to structured planning. Try a different model (run `kimcad models` to "
     "see what fits your machine) or rephrase the request."
 )
+
+# Shown when the local model server (Ollama) can't be reached — a recoverable, actionable
+# message, not a raw connection traceback.
+MODEL_UNAVAILABLE_MESSAGE = (
+    "KimCad couldn't reach your local AI. Make sure Ollama is running, then try again. "
+    "You can check the AI's status in Settings."
+)
+
+
+def _is_model_unreachable(e: BaseException) -> bool:
+    """True if ``e`` is a model-server connection/timeout (Ollama down). Duck-typed by class name
+    so the pipeline needn't import the OpenAI client and a fake provider can raise a stand-in."""
+    return type(e).__name__ in {"APIConnectionError", "APITimeoutError"}
+
 
 @dataclass
 class PrintReport:
@@ -355,6 +373,9 @@ class Pipeline:
                 prompt=prompt,
                 error=f"{PLAN_FAILED_MESSAGE} (details: {detail})",
             )
+        # NOTE: a connection/timeout error is deliberately NOT caught here — the pipeline
+        # propagates it so the caller owns it (the CLI's handler; the web layer maps it to the
+        # recoverable `model_unavailable` response). See test_connection_error_is_not_swallowed.
         clarification = first_clarification(plan)
         if clarification is not None:
             return PipelineResult(

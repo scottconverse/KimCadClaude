@@ -309,6 +309,17 @@ export default function App() {
     await runDesign(a.prompt, a.history, a.fromVersionIdx, true)
   }
 
+  /** Retry the last design attempt unchanged — the model-down wall's "Try again" (start Ollama,
+   *  then retry). Re-runs the same prompt/history; no new user turn. */
+  async function handleRetry() {
+    const a = lastAttemptRef.current
+    if (!a) return
+    setError(null)
+    setRerenderError(null)
+    renderSeq.current++
+    await runDesign(a.prompt, a.history, a.fromVersionIdx)
+  }
+
   /** Show a comparison card between two versions (default: the two most recent). */
   function handleCompare(aIdx: number, bIdx: number) {
     const a = versions[aIdx]
@@ -470,6 +481,7 @@ export default function App() {
             onCompare={handleCompare}
             onTryExperimental={handleTryExperimental}
             onPhotoSeed={handleSubmit}
+            onRetry={handleRetry}
             onModelReady={handleModelReady}
           />
         </Suspense>

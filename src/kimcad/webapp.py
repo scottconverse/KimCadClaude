@@ -1212,6 +1212,20 @@ def make_handler(
                     allow_experimental=allow_experimental,
                 )
             except Exception as e:  # never leak a traceback to the browser
+                # Local import: avoids an import cycle (pipeline pulls in webapp helpers elsewhere).
+                from kimcad.pipeline import (
+                    MODEL_UNAVAILABLE_MESSAGE,
+                    PipelineStatus,
+                    _is_model_unreachable,
+                )
+
+                # Slice 9: an Ollama drop anywhere in the run (the plan step, or codegen past it) is
+                # a recoverable model-down state, not a 500. The pipeline propagates the connection
+                # error (the caller owns it); the web layer maps it to the typed status the SPA shows.
+                if _is_model_unreachable(e):
+                    self._json(200, {"status": PipelineStatus.model_unavailable.value,
+                                     "error": MODEL_UNAVAILABLE_MESSAGE, "has_mesh": False})
+                    return
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return
             if mesh_path is not None:

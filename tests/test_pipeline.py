@@ -486,3 +486,14 @@ def test_successful_slice_recorded_in_report(tmp_path):
     assert "G-code produced" in text
     assert "0.20mm Standard @BBL P2S" in text  # resolved profile shown to the user
     assert "Estimate:" in text and "14m 45s" in text  # print estimate surfaced
+
+
+def test_is_model_unreachable_detects_connection_and_timeout_by_name():
+    # The web layer's duck-typed detector: matches the OpenAI client's connection/timeout errors
+    # by class name (so the pipeline needn't import openai), and nothing else.
+    from kimcad.pipeline import _is_model_unreachable
+
+    assert _is_model_unreachable(type("APIConnectionError", (Exception,), {})())
+    assert _is_model_unreachable(type("APITimeoutError", (Exception,), {})())
+    assert not _is_model_unreachable(ValueError("a real bug"))
+    assert not _is_model_unreachable(RuntimeError("something else"))

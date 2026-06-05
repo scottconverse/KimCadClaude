@@ -26,6 +26,7 @@ export default function Workspace({
   onCompare,
   onTryExperimental,
   onPhotoSeed,
+  onRetry,
   onModelReady,
 }: {
   messages: Message[]
@@ -47,6 +48,7 @@ export default function Workspace({
   onCompare: (aIdx: number, bIdx: number) => void
   onTryExperimental: () => void
   onPhotoSeed: (seed: string) => void
+  onRetry?: () => void
   onModelReady?: (capture: () => string | null) => void
 }) {
   // Slice 8: problem highlights on the model. The risks with geometry (from PrintProof3D) are
@@ -84,6 +86,7 @@ export default function Workspace({
           onRefine={onRefine}
           onTryExperimental={onTryExperimental}
           onPhotoSeed={onPhotoSeed}
+          onRetry={onRetry}
         />
         <Viewport
           meshUrl={meshUrl}

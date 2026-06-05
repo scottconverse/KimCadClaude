@@ -109,6 +109,7 @@ export default function ChatPanel({
   onRefine,
   onTryExperimental,
   onPhotoSeed,
+  onRetry,
 }: {
   messages: Message[]
   compareCard: CompareMessage | null
@@ -119,6 +120,7 @@ export default function ChatPanel({
   onRefine: (text: string) => void
   onTryExperimental: () => void
   onPhotoSeed: (seed: string) => void
+  onRetry?: () => void
 }) {
   const [draft, setDraft] = useState('')
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -204,6 +206,20 @@ export default function ChatPanel({
                 Try the experimental generator
               </button>
               <p className="kc-exp-decline">Or describe it differently below.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Slice 9 MS-1: the model-down wall. The thread already shows the recoverable message;
+            this adds a one-click "Try again" (re-runs the same attempt) so recovery isn't a retype. */}
+        {!busy && result?.status === 'model_unavailable' && onRetry && (
+          <div className="kc-ai-row">
+            <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+            <div className="kc-exp-offer">
+              <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onRetry}>
+                Try again
+              </button>
+              <p className="kc-exp-decline">Start Ollama first — see the AI’s status in Settings.</p>
             </div>
           </div>
         )}

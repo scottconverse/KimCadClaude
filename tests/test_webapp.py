@@ -2337,3 +2337,70 @@ def test_photo_never_routes_to_cloud_even_when_cloud_enabled(tmp_path, monkeypat
     # TEXT is fully enabled above.
     assert built == [cfg.llm_backend("local").key]
     assert "custom_openrouter" not in built
+
+
+def test_design_with_model_down_returns_recoverable_status_not_500(tmp_path):
+    """Slice 9 MS-1: when the local AI (Ollama) is unreachable, /api/design returns a recoverable
+    `model_unavailable` status with a friendly message — never a raw 500/traceback."""
+    import json
+    import urllib.request
+
+    class _OllamaDown:
+        openscad_calls = 0
+
+        def generate_design_plan(self, prompt, printer, material, history=None):
+            # A connection error named like the OpenAI client's, matched by the duck-typed backstop.
+            raise type("APIConnectionError", (Exception,), {})("connection refused")
+
+        def generate_openscad(self, plan, printer, material, history=None):
+            return ""
+
+    pipe = _pipeline(_OllamaDown(), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            urllib.request.Request(
+                f"http://{host}:{port}/api/design",
+                data=json.dumps({"prompt": "a box", "experimental": True}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=15,
+        )
+        assert resp.status == 200  # recoverable status, not a 500
+        d = json.load(resp)
+    assert d["status"] == "model_unavailable"
+    assert d["has_mesh"] is False
+    assert "Ollama" in d["error"]
+
+
+def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
+    """Slice 9 MS-1: a connection drop during CODEGEN (past the plan step) is ALSO mapped to the
+    recoverable model_unavailable status, not a 500 — the web backstop covers any propagated error,
+    wherever in the run it was raised."""
+    import json
+    import urllib.request
+
+    from kimcad.templates import TemplateRegistry
+
+    class _DownAtCodegen:
+        openscad_calls = 0
+
+        def generate_design_plan(self, prompt, printer, material, history=None):
+            return _plan([20, 20, 20])  # a valid plan -> proceeds toward codegen
+
+        def generate_openscad(self, plan, printer, material, history=None):
+            raise type("APIConnectionError", (Exception,), {})("dropped mid-codegen")
+
+    # Empty registry -> no template matches -> the LLM codegen path runs (and raises).
+    pipe = _pipeline(_DownAtCodegen(), _box_renderer((20, 20, 20)), registry=TemplateRegistry(()))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            urllib.request.Request(
+                f"http://{host}:{port}/api/design",
+                data=json.dumps({"prompt": "a box", "experimental": True}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=15,
+        )
+        assert resp.status == 200
+        d = json.load(resp)
+    assert d["status"] == "model_unavailable" and d["has_mesh"] is False

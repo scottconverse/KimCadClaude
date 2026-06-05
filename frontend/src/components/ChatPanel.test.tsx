@@ -105,6 +105,18 @@ describe('ChatPanel thread', () => {
     expect(props.onTryExperimental).toHaveBeenCalledTimes(1)
   })
 
+  it('offers a one-click Try again on model_unavailable and it calls onRetry (Slice 9 MS-1)', () => {
+    const onRetry = vi.fn()
+    const { props } = renderPanel({
+      messages: [{ role: 'assistant', content: "Your local AI isn't running. Start Ollama…" }],
+      result: { status: 'model_unavailable', has_mesh: false },
+      onRetry,
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Try again/i }))
+    expect(props.onRetry).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Settings/i)).toBeTruthy() // points to where to check Ollama status
+  })
+
   it('does not show the experimental offer for a normal completed result', () => {
     renderPanel({ result: completed })
     expect(screen.queryByRole('button', { name: /Try the experimental generator/i })).toBeNull()
