@@ -25,6 +25,72 @@ export interface Dimensions {
   z: number
 }
 
+// Slice 8: a printability/readiness problem to show ON the model. `geometry` is the sanitized
+// shape PrintProof3D returns (coords in the same mm space as the loaded STL).
+export type HLGeometry =
+  | { type: 'point'; x: number; y: number; z: number }
+  | { type: 'bounding_box'; min_x: number; min_y: number; min_z: number; max_x: number; max_y: number; max_z: number }
+  | { type: 'triangles'; triangles: Array<{ v0: number[]; v1: number[]; v2: number[] }> }
+
+export interface HighlightRisk {
+  issueId: string
+  tone: string // 'fail' | 'warn' — drives the highlight color
+  geometry: HLGeometry
+}
+
+const HL_FAIL = 0xe5484d // red — a fail-tone problem region
+const HL_WARN = 0xf5a623 // amber — a warn-tone problem region
+
+function hlColor(tone: string): number {
+  return tone === 'fail' ? HL_FAIL : HL_WARN
+}
+
+/** The net translation loadMesh bakes into the displayed mesh — center XY+Z, then sit on z=0 —
+ * reduces to (-center.x, -center.y, -min.z) (the z-center cancels). Highlight geometry (in raw
+ * STL mm coords) gets this same offset so it lines up exactly with the rendered part. Pure. */
+export function meshDisplayOffset(bb: THREE.Box3): THREE.Vector3 {
+  const c = bb.getCenter(new THREE.Vector3())
+  return new THREE.Vector3(-c.x, -c.y, -bb.min.z)
+}
+
+/** Build the Three.js object for one problem highlight (triangles overlay / bbox wireframe /
+ * point marker), translated by `offset` to align with the displayed mesh. Pure (no GL context),
+ * so it's unit-testable. Returns null for an empty triangle set. */
+export function buildHighlightObject(
+  risk: HighlightRisk,
+  offset: THREE.Vector3,
+): THREE.Object3D | null {
+  const color = hlColor(risk.tone)
+  const g = risk.geometry
+  if (g.type === 'triangles') {
+    const pos: number[] = []
+    for (const t of g.triangles) pos.push(...t.v0, ...t.v1, ...t.v2)
+    if (pos.length === 0) return null
+    const geom = new THREE.BufferGeometry()
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    geom.translate(offset.x, offset.y, offset.z)
+    geom.computeVertexNormals()
+    return new THREE.Mesh(
+      geom,
+      new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+        depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+      }),
+    )
+  }
+  if (g.type === 'bounding_box') {
+    const min = new THREE.Vector3(g.min_x, g.min_y, g.min_z).add(offset)
+    const max = new THREE.Vector3(g.max_x, g.max_y, g.max_z).add(offset)
+    return new THREE.Box3Helper(new THREE.Box3(min, max), color)
+  }
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(3, 16, 12),
+    new THREE.MeshBasicMaterial({ color }),
+  )
+  sphere.position.set(g.x, g.y, g.z).add(offset)
+  return sphere
+}
+
 export class KCViewport {
   private container: HTMLElement
   private renderer: THREE.WebGLRenderer
@@ -33,6 +99,14 @@ export class KCViewport {
   private modelGroup: THREE.Group
   private target = new THREE.Vector3(0, 0, 0)
   private labels: DimLabels | null
+
+  // Slice 8: problem highlights, in their own group so they don't get wiped by a mesh reload.
+  // `meshOffset` mirrors the transform loadMesh bakes into the displayed mesh, so highlight
+  // geometry (in raw STL mm coords) lines up exactly.
+  private highlightGroup = new THREE.Group()
+  private highlights: Array<{ issueId: string; object: THREE.Object3D }> = []
+  private latestRisks: HighlightRisk[] = []
+  private meshOffset = new THREE.Vector3(0, 0, 0)
 
   // Spherical camera (azimuth, polar, radius), auto-rotating when idle.
   private theta = -0.7
@@ -83,6 +157,7 @@ export class KCViewport {
 
     this.modelGroup = new THREE.Group()
     this.scene.add(this.modelGroup)
+    this.scene.add(this.highlightGroup)
 
     this.buildPlate(256)
     this.bindInteractions(canvas)
@@ -101,6 +176,11 @@ export class KCViewport {
     }
     this.removeModelChildren()
     geometry.computeVertexNormals()
+    // Capture the original bounds BEFORE centering so highlights can reproduce the exact display
+    // transform. Net offset applied to an original vertex p is (-center0.x, -center0.y, -min0.z).
+    geometry.computeBoundingBox()
+    const bb0 = geometry.boundingBox
+    this.meshOffset.copy(bb0 ? meshDisplayOffset(bb0) : new THREE.Vector3(0, 0, 0))
     geometry.center()
     geometry.computeBoundingBox()
     const bb = geometry.boundingBox
@@ -120,12 +200,68 @@ export class KCViewport {
     )
     this.buildBBoxAndDims()
     this.frameToModel()
+    this._rebuildHighlights() // re-apply any pending problem highlights against the new transform
+  }
+
+  // ---- Slice 8: problem highlights -------------------------------------------
+
+  /** Show problem regions on the model. Idempotent; safe to call before or after a mesh load
+   * (highlights are (re)built against the current mesh transform). */
+  setHighlights(risks: HighlightRisk[]): void {
+    this.latestRisks = (risks || []).filter((r) => r && r.geometry && r.issueId)
+    this._rebuildHighlights()
+  }
+
+  /** Toggle all highlights on/off without discarding them. */
+  setHighlightsVisible(visible: boolean): void {
+    this.highlightGroup.visible = visible
+  }
+
+  /** Frame the camera on one highlighted problem (click-to-focus from the readiness card). */
+  focusHighlight(issueId: string): void {
+    const hit = this.highlights.find((h) => h.issueId === issueId)
+    if (!hit) return
+    this.highlightGroup.visible = true
+    // A Box3Helper's geometry is a unit cube until updateMatrixWorld bakes its box corners in —
+    // without this, setFromObject would frame the origin, not the region (Slice-8 audit Major).
+    hit.object.updateMatrixWorld(true)
+    const box = new THREE.Box3().setFromObject(hit.object)
+    if (box.isEmpty()) return
+    box.getCenter(this.target)
+    const size = box.getSize(new THREE.Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z, 8)
+    this.radius = Math.max(80, maxDim * 3)
+    this.autoRotate = false // hold still on the region the user asked to see
+  }
+
+  private _rebuildHighlights(): void {
+    this._clearHighlights()
+    for (const r of this.latestRisks) {
+      const obj = buildHighlightObject(r, this.meshOffset)
+      if (!obj) continue
+      this.highlightGroup.add(obj)
+      this.highlights.push({ issueId: r.issueId, object: obj })
+    }
+  }
+
+  private _clearHighlights(): void {
+    for (const h of this.highlights) {
+      this.highlightGroup.remove(h.object)
+      const o = h.object as THREE.Mesh
+      o.geometry?.dispose?.()
+      const mat = o.material
+      if (Array.isArray(mat)) mat.forEach((m) => m.dispose())
+      else (mat as THREE.Material | undefined)?.dispose?.()
+    }
+    this.highlights = []
   }
 
   /** Remove the current model (back to the empty plate) and cancel any in-flight load. */
   clearModel(): void {
     this.loadToken++ // a pending load is no longer the latest → it will discard its result
     this.removeModelChildren()
+    this.latestRisks = []
+    this._clearHighlights()
     this.dims = null
     this.labelAnchors = null
     this.hideLabels()

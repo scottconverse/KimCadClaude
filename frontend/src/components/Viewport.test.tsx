@@ -1,10 +1,18 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { HighlightRisk } from '../viewport/KCViewport'
 import Viewport from './Viewport'
 
-// Stub the three.js/WebGL viewport so the component renders in jsdom — we're testing the overlay,
-// not the 3D scene.
+// Shared spies for the highlight API so tests can assert what the wrapper forwards to the engine.
+const hl = vi.hoisted(() => ({
+  setHighlights: vi.fn(),
+  setHighlightsVisible: vi.fn(),
+  focusHighlight: vi.fn(),
+}))
+
+// Stub the three.js/WebGL viewport so the component renders in jsdom — we're testing the overlay
+// + the highlight forwarding, not the 3D scene.
 vi.mock('../viewport/KCViewport', () => ({
   KCViewport: class {
     loadMesh() {
@@ -17,11 +25,19 @@ vi.mock('../viewport/KCViewport', () => ({
     captureThumbnail() {
       return null
     }
+    setHighlights = hl.setHighlights
+    setHighlightsVisible = hl.setHighlightsVisible
+    focusHighlight = hl.focusHighlight
     dispose() {}
   },
 }))
 
 afterEach(() => cleanup())
+beforeEach(() => {
+  hl.setHighlights.mockClear()
+  hl.setHighlightsVisible.mockClear()
+  hl.focusHighlight.mockClear()
+})
 
 const baseProps = {
   meshUrl: null,
@@ -48,5 +64,43 @@ describe('Viewport busy overlay (escape)', () => {
     expect(screen.queryByText(/Designing your part/i)).toBeNull()
     expect(screen.queryByText(/elapsed/i)).toBeNull() // no garbage timer on a reopen
     expect(screen.queryByRole('button', { name: /^Cancel$/i })).toBeNull() // no dead Cancel
+  })
+})
+
+describe('Viewport problem highlights (Slice 8)', () => {
+  const risks: HighlightRisk[] = [
+    { issueId: 'OVERHANG_UNSUPPORTED', tone: 'warn', geometry: { type: 'point', x: 0, y: 0, z: 0 } },
+  ]
+
+  it('forwards highlights + visibility to the engine', () => {
+    render(<Viewport {...baseProps} meshUrl="/api/mesh/1" highlights={risks} showHighlights />)
+    expect(hl.setHighlights).toHaveBeenCalledWith(risks)
+    expect(hl.setHighlightsVisible).toHaveBeenLastCalledWith(true)
+  })
+
+  it('toggling visibility off forwards false', () => {
+    const { rerender } = render(
+      <Viewport {...baseProps} meshUrl="/api/mesh/1" highlights={risks} showHighlights />,
+    )
+    rerender(
+      <Viewport {...baseProps} meshUrl="/api/mesh/1" highlights={risks} showHighlights={false} />,
+    )
+    expect(hl.setHighlightsVisible).toHaveBeenLastCalledWith(false)
+  })
+
+  it('a focus request (with a changing nonce) focuses that issue each time', () => {
+    const { rerender } = render(
+      <Viewport {...baseProps} meshUrl="/api/mesh/1" highlights={risks} focus={null} />,
+    )
+    rerender(
+      <Viewport {...baseProps} meshUrl="/api/mesh/1" highlights={risks}
+        focus={{ id: 'OVERHANG_UNSUPPORTED', n: 1 }} />,
+    )
+    expect(hl.focusHighlight).toHaveBeenLastCalledWith('OVERHANG_UNSUPPORTED')
+    rerender(
+      <Viewport {...baseProps} meshUrl="/api/mesh/1" highlights={risks}
+        focus={{ id: 'OVERHANG_UNSUPPORTED', n: 2 }} />,
+    )
+    expect(hl.focusHighlight).toHaveBeenCalledTimes(2) // re-focus on a repeat click
   })
 })

@@ -170,6 +170,58 @@ describe('RightPanel readiness card', () => {
     expect(screen.getByText(/Warning:/)).toBeTruthy()
   })
 
+  it('makes a located risk clickable (focus) and offers a show-on-model toggle (Slice 8)', () => {
+    stubFetch()
+    const located: DesignResponse = {
+      status: 'completed',
+      has_mesh: true,
+      mesh_url: '/api/mesh/9',
+      plan: { object_type: 'box', summary: 'a box', target_bbox_mm: [80, 60, 40] },
+      report: {
+        gate_status: 'warn',
+        headline: '',
+        dims: [],
+        findings: [],
+        readiness: {
+          score: 72,
+          verdict: 'Printable with notes',
+          tone: 'warn',
+          confidence: 'High',
+          risks: [
+            {
+              title: 'Overhang unsupported',
+              detail: 'A 55° overhang has no support.',
+              tone: 'warn',
+              issueId: 'OVERHANG_UNSUPPORTED',
+              region: 'overhangs',
+              geometry: { type: 'point', x: 0, y: 0, z: 0 },
+            },
+          ],
+          recommendations: [],
+          comparison: null,
+          attribution: 'PrintProof3D validation engine',
+        },
+      },
+    }
+    const onFocusRisk = vi.fn()
+    const onToggleHighlights = vi.fn()
+    renderPanel({ result: located, onFocusRisk, highlightsOn: true, onToggleHighlights })
+    // The located risk is a button; clicking it asks the viewport to focus that issue.
+    fireEvent.click(screen.getByRole('button', { name: /Overhang unsupported/i }))
+    expect(onFocusRisk).toHaveBeenCalledWith('OVERHANG_UNSUPPORTED')
+    // The "Show on model" toggle drives the on-model overlay.
+    fireEvent.click(screen.getByLabelText(/Show on model/i))
+    expect(onToggleHighlights).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a non-located risk as plain text (no button, no toggle) when no geometry', () => {
+    stubFetch()
+    renderPanel({ result: readinessResult, onFocusRisk: vi.fn(), onToggleHighlights: vi.fn() })
+    // readinessResult's risk has no geometry → not a button, and no "Show on model" toggle.
+    expect(screen.queryByRole('button', { name: /Overhang unsupported/i })).toBeNull()
+    expect(screen.queryByLabelText(/Show on model/i)).toBeNull()
+  })
+
   it('applies the pass tone class and the honest gate-only attribution for a passing part', () => {
     stubFetch()
     const passReadiness: DesignResponse = {

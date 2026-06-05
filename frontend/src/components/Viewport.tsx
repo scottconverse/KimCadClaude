@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { KCViewport, type Dimensions } from '../viewport/KCViewport'
+import { type Dimensions, type HighlightRisk, KCViewport } from '../viewport/KCViewport'
 
 // React wrapper around the vanilla KCViewport. It owns the viewport's lifecycle, loads the real
 // mesh from `meshUrl` (served at /api/mesh/<id>), and surfaces the print-aware affordances: the
@@ -17,6 +17,9 @@ export default function Viewport({
   busyElapsed,
   onCancelDesign,
   onModelReady,
+  highlights = [],
+  showHighlights = true,
+  focus = null,
 }: {
   meshUrl: string | null
   busy: boolean
@@ -31,6 +34,11 @@ export default function Viewport({
   // Stage 8.5: fired after a mesh is framed, handing back a thumbnail-capture fn so the app can
   // snapshot the rendered part (for the "My Designs" gallery) at the moment it's on screen.
   onModelReady?: (capture: () => string | null) => void
+  // Slice 8: problem highlights to show ON the model, a visibility toggle, and a focus request
+  // ({id, nonce} so repeated clicks re-focus). KCViewport aligns highlights to the mesh transform.
+  highlights?: HighlightRisk[]
+  showHighlights?: boolean
+  focus?: { id: string; n: number } | null
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -107,6 +115,21 @@ export default function Viewport({
     // from the deps — re-running on a model landing would reload the same mesh; the closure's
     // captured value (set by the prior load, guarded by `cancelled`) is correct here.
   }, [meshUrl])
+
+  // Slice 8: push problem highlights to the engine. KCViewport re-applies them against the mesh
+  // transform on the next load too, so order (highlights vs mesh) doesn't matter.
+  useEffect(() => {
+    vpRef.current?.setHighlights(highlights)
+  }, [highlights])
+
+  useEffect(() => {
+    vpRef.current?.setHighlightsVisible(showHighlights)
+  }, [showHighlights])
+
+  // Focus the requested problem region; `focus.n` changes on every click so re-focus works.
+  useEffect(() => {
+    if (focus) vpRef.current?.focusHighlight(focus.id)
+  }, [focus])
 
   const showModel = hasModel && !busy && error === null
   // The full-cover overlay is for when there's NO model to show: the initial design call, the

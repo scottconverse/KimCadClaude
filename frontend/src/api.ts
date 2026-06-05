@@ -15,10 +15,15 @@ export interface ReportDim {
 
 // One readiness risk shown on the Smart Mesh card — a short title + a plain detail + a tone
 // ('warn' | 'fail') that drives the amber/red treatment. Mirrors smart_mesh.Risk.
+// Slice 8: a risk located by PrintProof3D also carries its geometry (so the viewport can show it
+// ON the model) plus an issueId/region (click-to-focus). Gate-derived risks omit these.
 export interface ReadinessRisk {
   title: string
   detail: string
   tone: string
+  issueId?: string
+  region?: string
+  geometry?: import('./viewport/KCViewport').HLGeometry
 }
 
 // The Smart Mesh readiness verdict (Stage 7): a 0-100 score, a plain verdict, a confidence, the

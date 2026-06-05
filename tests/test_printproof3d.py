@@ -11,7 +11,9 @@ from pathlib import Path
 
 from kimcad.config import Config, Material, Printer
 from kimcad.printproof3d import (
+    _MAX_HL_TRIANGLES,
     _parse_report,
+    _sanitize_geometry,
     material_profile,
     printer_profile,
     validate_model,
@@ -176,3 +178,55 @@ def test_material_profile_risklevels_track_shrinkage():
 def test_config_printproof3d_binary_is_none_when_unset_or_missing():
     assert Config({"binaries": {}}).printproof3d_binary() is None
     assert Config({"binaries": {"printproof3d": "tools/nope/printproof3d.exe"}}).printproof3d_binary() is None
+
+
+# --- Slice 8: capturing the issue location geometry (for viewport highlighting) -------------
+
+def test_sanitize_geometry_accepts_the_three_engine_shapes():
+    assert _sanitize_geometry({"type": "point", "x": 1, "y": 2, "z": 3}) == {
+        "type": "point", "x": 1.0, "y": 2.0, "z": 3.0}
+    bb = {"type": "bounding_box", "min_x": 0, "min_y": 0, "min_z": 0,
+          "max_x": 1, "max_y": 2, "max_z": 3}
+    assert _sanitize_geometry(bb) == {"type": "bounding_box", "min_x": 0.0, "min_y": 0.0,
+                                      "min_z": 0.0, "max_x": 1.0, "max_y": 2.0, "max_z": 3.0}
+    tri = {"type": "triangles", "triangles": [{"v0": [0, 0, 0], "v1": [1, 0, 0], "v2": [0, 1, 0]}]}
+    out = _sanitize_geometry(tri)
+    assert out["type"] == "triangles" and out["triangles"][0]["v1"] == [1.0, 0.0, 0.0]
+
+
+def test_sanitize_geometry_rejects_malformed():
+    assert _sanitize_geometry(None) is None
+    assert _sanitize_geometry({"type": "bogus"}) is None
+    assert _sanitize_geometry({"type": "point", "x": "nan", "y": 1, "z": 1}) is None
+    assert _sanitize_geometry({"type": "point", "x": True, "y": 1, "z": 1}) is None  # bool != coord
+    assert _sanitize_geometry({"type": "bounding_box", "min_x": 0}) is None  # missing fields
+    # a triangle list with no VALID triangle degrades to None (not an empty highlight)
+    assert _sanitize_geometry({"type": "triangles", "triangles": [{"v0": [0, 0]}]}) is None
+
+
+def test_sanitize_geometry_caps_triangle_count():
+    one = {"v0": [0, 0, 0], "v1": [1, 0, 0], "v2": [0, 1, 0]}
+    out = _sanitize_geometry({"type": "triangles", "triangles": [one] * (_MAX_HL_TRIANGLES + 500)})
+    assert len(out["triangles"]) == _MAX_HL_TRIANGLES
+
+
+def test_parse_report_captures_issue_geometry():
+    data = {
+        "status": "warning", "confidence_level": "high",
+        "issues": [{
+            "id": "OVERHANG_UNSUPPORTED", "severity": "major", "message": "m",
+            "suggested_fixes": [],
+            "location": {"region": "overhangs", "geometry": {
+                "type": "triangles", "triangles": [{"v0": [0, 0, 0], "v1": [1, 0, 0], "v2": [0, 1, 0]}]}},
+        }],
+    }
+    rep = _parse_report(data)
+    assert rep.issues[0].region == "overhangs"
+    assert rep.issues[0].geometry["type"] == "triangles"
+
+
+def test_parse_report_geometry_is_none_when_engine_gives_none():
+    # The existing canned report has geometry: None / location: None — both must yield geometry None.
+    rep = _parse_report(_CANNED)
+    assert rep is not None
+    assert all(i.geometry is None for i in rep.issues)

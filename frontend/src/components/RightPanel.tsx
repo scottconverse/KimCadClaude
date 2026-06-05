@@ -376,8 +376,21 @@ function ScoreGauge({ score }: { score: number }) {
   )
 }
 
-function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
+function ReadinessBody({
+  readiness,
+  onFocusRisk,
+  highlightsOn,
+  onToggleHighlights,
+}: {
+  readiness: ReadinessPayload
+  onFocusRisk?: (issueId: string) => void
+  highlightsOn?: boolean
+  onToggleHighlights?: () => void
+}) {
   const tone = readinessTone(readiness.tone)
+  // Slice 8: some risks (from PrintProof3D) carry geometry → they can be shown ON the model and
+  // clicked to focus. Only show the toggle/legend + make risks clickable when that's available.
+  const anyLocatable = readiness.risks.some((r) => r.geometry && r.issueId)
   return (
     <div className={`kc-readiness kc-rtone-${tone}`}>
       <ScoreGauge score={readiness.score} />
@@ -391,18 +404,55 @@ function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
 
       {readiness.risks.length > 0 && (
         <div className="kc-readiness-sec">
-          <h3 className="kc-readiness-h">Risks</h3>
+          <div className="kc-risks-head">
+            <h3 className="kc-readiness-h">Risks</h3>
+            {anyLocatable && onToggleHighlights && (
+              <label className="kc-hl-toggle">
+                <input
+                  type="checkbox"
+                  checked={highlightsOn ?? true}
+                  onChange={onToggleHighlights}
+                />
+                Show on model
+              </label>
+            )}
+          </div>
+          {anyLocatable && (
+            <p className="kc-hl-legend">
+              <span className="kc-hl-swatch kc-hl-fail" aria-hidden="true" /> issue
+              <span className="kc-hl-swatch kc-hl-warn" aria-hidden="true" /> caution
+              <span className="kc-hl-hint"> · click a located risk to focus it</span>
+            </p>
+          )}
           <ul className="kc-risks">
             {readiness.risks.map((r) => {
               const rtone = readinessTone(r.tone)
-              return (
-                <li key={`${r.title}:${r.detail}`} className={`kc-risk kc-rtone-${rtone}`}>
+              const locatable = Boolean(r.geometry && r.issueId && onFocusRisk)
+              const inner = (
+                <>
                   <span className="kc-risk-dot" aria-hidden="true" />
                   <span className="kc-risk-text">
                     <span className="kc-sr-only">{RISK_TONE_WORD[rtone] ?? 'Note'}: </span>
                     <b>{r.title}</b>
                     {r.detail && <span className="kc-risk-detail">{r.detail}</span>}
                   </span>
+                  {locatable && <span className="kc-risk-locate" aria-hidden="true">⊙ on model</span>}
+                </>
+              )
+              return (
+                <li key={`${r.title}:${r.detail}`} className={`kc-risk kc-rtone-${rtone}`}>
+                  {locatable ? (
+                    <button
+                      type="button"
+                      className="kc-risk-btn"
+                      onClick={() => onFocusRisk?.(r.issueId as string)}
+                      title="Show this problem on the model"
+                    >
+                      {inner}
+                    </button>
+                  ) : (
+                    inner
+                  )}
                 </li>
               )
             })}
@@ -434,13 +484,28 @@ function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
   )
 }
 
-function ReadinessCard({ result }: { result: DesignResponse | null }) {
+function ReadinessCard({
+  result,
+  onFocusRisk,
+  highlightsOn,
+  onToggleHighlights,
+}: {
+  result: DesignResponse | null
+  onFocusRisk?: (issueId: string) => void
+  highlightsOn?: boolean
+  onToggleHighlights?: () => void
+}) {
   const readiness = result?.report?.readiness
   return (
     <section className="kc-card">
       <h2 className="kc-card-title">Readiness</h2>
       {readiness ? (
-        <ReadinessBody readiness={readiness} />
+        <ReadinessBody
+          readiness={readiness}
+          onFocusRisk={onFocusRisk}
+          highlightsOn={highlightsOn}
+          onToggleHighlights={onToggleHighlights}
+        />
       ) : isFailureStatus(result?.status) ? (
         <p className="kc-muted-note" role="status">
           No part to assess — the last attempt didn&rsquo;t produce a model.
@@ -522,11 +587,17 @@ export default function RightPanel({
   rerendering,
   rerenderError,
   onRerender,
+  onFocusRisk,
+  highlightsOn,
+  onToggleHighlights,
 }: {
   result: DesignResponse | null
   rerendering: boolean
   rerenderError: string | null
   onRerender: (values: Record<string, number>) => void
+  onFocusRisk?: (issueId: string) => void
+  highlightsOn?: boolean
+  onToggleHighlights?: () => void
 }) {
   return (
     <aside className="kc-col-right">
@@ -536,7 +607,12 @@ export default function RightPanel({
         rerenderError={rerenderError}
         onRerender={onRerender}
       />
-      <ReadinessCard result={result} />
+      <ReadinessCard
+        result={result}
+        onFocusRisk={onFocusRisk}
+        highlightsOn={highlightsOn}
+        onToggleHighlights={onToggleHighlights}
+      />
       <PrintabilityCard result={result} />
       <ExportPanel result={result} />
     </aside>

@@ -1,4 +1,6 @@
+import { useMemo, useState } from 'react'
 import type { CompareMessage, DesignResponse, DesignVersion, Message } from '../api'
+import type { HighlightRisk } from '../viewport/KCViewport'
 import ChatPanel from './ChatPanel'
 import RightPanel from './RightPanel'
 import VersionRail from './VersionRail'
@@ -47,6 +49,22 @@ export default function Workspace({
   onPhotoSeed: (seed: string) => void
   onModelReady?: (capture: () => string | null) => void
 }) {
+  // Slice 8: problem highlights on the model. The risks with geometry (from PrintProof3D) are
+  // shown on the part; clicking a located risk in the readiness card focuses it in the viewport.
+  const [highlightsOn, setHighlightsOn] = useState(true)
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null)
+  const highlights = useMemo<HighlightRisk[]>(() => {
+    const risks = result?.report?.readiness?.risks ?? []
+    return risks
+      .filter((r) => r.geometry && r.issueId)
+      .map((r) => ({ issueId: r.issueId as string, tone: r.tone, geometry: r.geometry! }))
+  }, [result])
+  // A nonce so clicking the same risk twice still re-focuses it.
+  const focusRisk = (id: string) => {
+    setHighlightsOn(true)
+    setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
+  }
+
   return (
     <div className="kc-workspace-wrap">
       <VersionRail
@@ -74,12 +92,18 @@ export default function Workspace({
           busyElapsed={busyElapsed}
           onCancelDesign={onCancelDesign}
           onModelReady={onModelReady}
+          highlights={highlights}
+          showHighlights={highlightsOn}
+          focus={focus}
         />
         <RightPanel
           result={result}
           rerendering={rerendering}
           rerenderError={rerenderError}
           onRerender={onRerender}
+          onFocusRisk={focusRisk}
+          highlightsOn={highlightsOn}
+          onToggleHighlights={() => setHighlightsOn((v) => !v)}
         />
       </div>
     </div>

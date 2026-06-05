@@ -97,7 +97,17 @@ def _readiness_payload(readiness: Any) -> dict[str, Any] | None:
         "tone": readiness.tone,
         "confidence": readiness.confidence,
         "risks": [
-            {"title": r.title, "detail": r.detail, "tone": r.tone} for r in readiness.risks
+            {
+                "title": r.title,
+                "detail": r.detail,
+                "tone": r.tone,
+                # Slice 8: forward the highlight geometry + id/region when this risk has a located
+                # problem, so the viewport can show it on the model and the card can click-to-focus.
+                **({"issueId": r.issue_id} if getattr(r, "issue_id", None) else {}),
+                **({"region": r.region} if getattr(r, "region", None) else {}),
+                **({"geometry": r.geometry} if getattr(r, "geometry", None) else {}),
+            }
+            for r in readiness.risks
         ],
         "recommendations": list(readiness.recommendations),
         "comparison": readiness.comparison,
