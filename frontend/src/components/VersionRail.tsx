@@ -13,7 +13,17 @@ export default function VersionRail({
   onSwitch: (idx: number) => void
   onCompare: (aIdx: number, bIdx: number) => void
 }) {
-  if (versions.length < 2) return null
+  if (versions.length === 0) return null
+  if (versions.length < 2) {
+    // UX-011: at v1, a quiet cue that refining creates a navigable history — otherwise the version
+    // / undo feature is invisible until the user happens to refine.
+    return (
+      <div className="kc-version-rail kc-version-rail-hint" role="note">
+        <span className="kc-version-label" aria-hidden="true">Versions</span>
+        <span className="kc-version-v1cue">v1 — refine to create versions you can step back to.</span>
+      </div>
+    )
+  }
 
   const canUndo = versionIdx > 0
   const canRedo = versionIdx < versions.length - 1

@@ -180,13 +180,16 @@ export default function ChatPanel({
           )
         )}
 
-        {/* Thinking indicator while a request is in flight */}
-        {busy && (
+        {/* Thinking indicator while a request is in flight. UX-008: during a FIRST design / reopen
+            (no part on screen yet) the viewport's full overlay owns the progress — showing the same
+            "Designing…" here too is a redundant duplicate. So only show this row for an in-thread
+            REFINE (a part is already framed in the viewport), where it's the progress cue. */}
+        {busy && result !== null && (
           <div className="kc-ai-row">
             <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
             <div className="kc-think">
               <span className="kc-spin" aria-hidden="true" />
-              <span>{restoring ? 'Reopening your design…' : 'Designing your part…'}</span>
+              <span>{restoring ? 'Reopening your design…' : 'Refining your part…'}</span>
             </div>
           </div>
         )}
@@ -239,6 +242,29 @@ export default function ChatPanel({
       {/* Refine input — appears once there's a design to refine (or a clarification to answer) */}
       {canRefine && (
         <div className="kc-refine-wrap">
+          {/* UX-003 / UX-010: one-tap refine chips + a persistent hint, so refine-by-talking isn't a
+              blank box the user has to guess at. Hidden when the model is asking a clarifying
+              question (the user must answer that, not request a generic change). Each chip threads a
+              change through the same onRefine path as a typed message. */}
+          {result?.status !== 'clarification_needed' && (
+            <>
+              <span className="kc-refine-hint">Refine by talking — tap a change or describe your own:</span>
+              <div className="kc-refine-chips" role="group" aria-label="Quick refinements">
+                {['Make it wider', 'Make it taller', 'Thicker walls', 'Add mounting holes'].map(
+                  (chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      className="kc-chip kc-refine-chip"
+                      onClick={() => onRefine(chip)}
+                    >
+                      {chip}
+                    </button>
+                  ),
+                )}
+              </div>
+            </>
+          )}
           <textarea
             ref={inputRef}
             className="kc-refine-input"

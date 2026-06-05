@@ -53,10 +53,16 @@ describe('ChatPanel thread', () => {
     expect(screen.getByText('Here you go — a box.')).toBeTruthy()
   })
 
-  it('shows the thinking indicator while busy and hides the refine input', () => {
+  it('UX-008: on a first design (no part yet) the refine input is hidden and the duplicate "Designing" row is suppressed', () => {
     renderPanel({ messages: [{ role: 'user', content: 'a box' }], busy: true, result: null })
-    expect(screen.getByText(/Designing your part/i)).toBeTruthy()
+    // The viewport's full overlay owns the progress on a first design — no duplicate chat row.
+    expect(screen.queryByText(/Designing your part/i)).toBeNull()
     expect(screen.queryByRole('textbox', { name: /Refine your part/i })).toBeNull()
+  })
+
+  it('UX-008: shows an in-thread "Refining" row when busy with a part already on screen', () => {
+    renderPanel({ messages: [{ role: 'user', content: 'a box' }], busy: true, result: completed })
+    expect(screen.getByText(/Refining your part/i)).toBeTruthy()
   })
 
   it('shows the refine input once there is a result', () => {

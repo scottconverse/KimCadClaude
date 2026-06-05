@@ -1861,6 +1861,68 @@ input {
   font-weight: 600;
 }
 
+/* UX-003 / UX-010: refine-by-talking chips + a persistent hint above the composer. */
+.kc-refine-hint {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+.kc-refine-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.kc-refine-chip {
+  font-size: 12px;
+}
+
+/* UX-011: the quiet v1 "history exists" cue (the rail proper appears at v2+). */
+.kc-version-rail-hint {
+  align-items: center;
+}
+.kc-version-v1cue {
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+
+/* UX-002: the Printability checks as scannable icon tiles (✓ pass / ⚠ needs-review) instead of a
+ * flat bullet list — the product's core trust moment reads at a glance. */
+.kc-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kc-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--kc-ink);
+}
+.kc-check-ico {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--kc-pass, #3f8f5b) 16%, var(--kc-surface));
+  color: var(--kc-pass, #3f8f5b);
+}
+.kc-check-warn .kc-check-ico {
+  background: color-mix(in srgb, var(--kc-fail) 15%, var(--kc-surface));
+  color: var(--kc-fail);
+}
+
 /* Assistant message rows carry a small cube avatar. */
 .kc-ai-row {
   display: flex;

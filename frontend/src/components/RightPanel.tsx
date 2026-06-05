@@ -567,12 +567,20 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
           )}
 
           {report.findings.length > 0 && (
-            <ul className="kc-findings">
-              {report.findings.map((f) => (
-                <li key={`${f.code}:${f.message}`} className={`kc-finding kc-finding-${f.level}`}>
-                  {f.message}
-                </li>
-              ))}
+            // UX-002: scannable icon-led checks (✓ pass / ⚠ needs-review) — the gate is the core
+            // trust moment; a glanceable verdict list reads better than a flat bullet list. The
+            // icon is reinforced by an SR-only word so the status isn't conveyed by colour alone.
+            <ul className="kc-checks">
+              {report.findings.map((f) => {
+                const warn = f.level !== 'pass'
+                return (
+                  <li key={`${f.code}:${f.message}`} className={`kc-check${warn ? ' kc-check-warn' : ''}`}>
+                    <span className="kc-check-ico" aria-hidden="true">{warn ? '⚠' : '✓'}</span>
+                    <span className="kc-sr-only">{warn ? 'Needs review: ' : 'OK: '}</span>
+                    <span>{f.message}</span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </>

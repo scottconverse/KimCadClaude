@@ -30,9 +30,15 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof VersionRail>>
 }
 
 describe('VersionRail', () => {
-  it('renders nothing with fewer than two versions', () => {
-    const { container } = renderRail({ versions: [version(1, 'only')], versionIdx: 0 })
+  it('renders nothing with zero versions', () => {
+    const { container } = renderRail({ versions: [], versionIdx: -1 })
     expect(container.firstChild).toBeNull()
+  })
+
+  it('UX-011: shows a quiet v1 cue (not the full rail) with one version', () => {
+    renderRail({ versions: [version(1, 'only')], versionIdx: 0 })
+    expect(screen.getByText(/refine to create versions/i)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^v1/i })).toBeNull() // no pills until v2
   })
 
   it('renders a pill per version and marks the active one with aria-current', () => {
