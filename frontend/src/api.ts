@@ -102,6 +102,8 @@ export interface SavedDesignSummary {
 export interface PrinterOption {
   key: string
   name: string
+  // Build envelope [x, y, z] in mm (null when not configured) — drives the Topbar printer chip.
+  build_volume?: [number, number, number] | null
   sliceable: boolean
   materials: string[]
   generic_materials: string[]

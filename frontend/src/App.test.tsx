@@ -25,6 +25,13 @@ vi.mock('./api', () => ({
   postSettings: vi.fn().mockResolvedValue({ saved: true }),
   // Slice 11: the "d" shortcut navigates to My Designs, which loads the (empty) library on mount.
   getDesigns: vi.fn().mockResolvedValue({ designs: [] }),
+  // UX-006: the Topbar printer chip loads options on mount.
+  getOptions: vi.fn().mockResolvedValue({
+    printers: [{ key: 'p', name: 'Test Printer', build_volume: [256, 256, 256], sliceable: true, materials: ['pla'], generic_materials: [] }],
+    materials: [{ key: 'pla', name: 'PLA' }],
+    default_printer: 'p',
+    default_material: 'pla',
+  }),
   // Real-ish helper so the cancel path classifies an AbortError correctly.
   isAbortError: (e: unknown) => (e as { name?: string })?.name === 'AbortError',
 }))

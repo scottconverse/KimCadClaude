@@ -32,7 +32,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 ## Stage 8.5 stage-gate remediation tracker (fix all 44 → re-audit → 0/0/0/0/0 → merge → tag)
 - ✅ **Docs (9)** — DOC-001..006 + DOC-N1/N2/N3 — commit `d2764ad`.
 - ✅ **Engineering (7)** — ENG-001..007 (incl. geometry-version stamp + reopen re-gate + tests) — commit `c1261f2`.
-- ◐ **UI/UX (20)** — IN PROGRESS. **Sub-batch A done:** UX-001/009 (right-column hierarchy CSS), UX-005 ("?" Help button), UX-007 (landing badge), UX-012 (format-purpose note), UX-013 (dedup save link), UX-015 (disabled-slice reason), UX-017 (lighter rec arrow). **Remaining (sub-batch B):** UX-002 (printability icon-tile checks — needs finding label/detail), UX-003+010 (refine chips), UX-004 (mobile sticky CTA), UX-006 (printer-status chip), UX-008 (dup "Designing…" row), UX-011 (v1 version cue), UX-014 (apostrophe consistency), UX-016/018 (confirm-intentional nits — document, no code change).
+- ✅ **UI/UX (20)** — DONE. A (`bf1006c`): UX-001/009/005/007/012/013/015/017. B1 (`3fa1655`): UX-002/003/010/008/011. B2: UX-004 (shorter mobile viewport + sticky "Check & download" CTA), UX-006 (Topbar printer-status chip incl. build_volume on /api/options). Nits: UX-014 (apostrophe style — convention noted, no mass rewrite), UX-016 (photo alt="" confirmed intentional — decorative; the editable seed is the content), UX-018 (InfoTip italic-i kept — hit-area meets WCAG 2.5.8; documented). All UX findings closed.
 - ☐ **Tests (5)** — TEST-001..005.
 - ☐ **QA (3)** — QA-001..003.
 - ☐ Re-audit (audit-team + re-check wiring) → 0/0/0/0/0 → merge `main` → tag `stage-8.5`.

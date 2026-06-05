@@ -115,7 +115,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
   }
 
   return (
-    <section className="kc-card">
+    <section className="kc-card" id="kc-export-card">
       <h2 className="kc-card-title">Export &amp; print</h2>
       <ConnectorStatus />
 

@@ -466,6 +466,9 @@ def web_options(config: Any, saved_settings: dict[str, Any] | None = None) -> di
         return {
             "key": key,
             "name": p.name,
+            # UX-006: the build envelope (mm) so the chrome can show an always-on "what am I
+            # targeting" chip (printer name + build volume). None when not configured.
+            "build_volume": list(p.build_volume) if p.build_volume else None,
             "sliceable": p.orca_process_profile is not None,
             # Materials this printer can actually print (has a verified filament profile for),
             # so the UI offers only what each printer supports — e.g. the Elegoo Neptune 4 Max

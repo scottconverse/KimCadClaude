@@ -112,6 +112,21 @@ export default function Workspace({
           onToggleHighlights={() => setHighlightsOn((v) => !v)}
         />
       </div>
+      {/* UX-004: on a phone the readiness verdict + Slice/Download sit below a tall viewport, off the
+          fold. A mobile-only sticky bar jumps straight to those print actions. Hidden on desktop. */}
+      {result?.has_mesh && (
+        <button
+          type="button"
+          className="kc-mobile-cta"
+          onClick={() =>
+            document
+              .getElementById('kc-export-card')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
+          ↓ Check &amp; download
+        </button>
+      )}
     </div>
   )
 }

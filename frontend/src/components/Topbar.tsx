@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { getOptions } from '../api'
+
 // Top chrome: brand on the left; a save indicator + "My Designs" + "New design" on the right.
 //
 // "My Designs" (Stage 8.5) opens the saved-designs library and shows an active state on that route;
@@ -42,6 +45,30 @@ export default function Topbar({
 }) {
   const onDesigns = activeRoute === 'designs'
   const onSettingsRoute = activeRoute === 'settings'
+  // UX-006: an always-on printer-status chip — the persistent "what am I targeting?" cue (name +
+  // build volume) the design is checked against. A status READOUT, not a model/printer menu (the
+  // printer is chosen in Settings / the Export card). Best-effort; absent if options can't load.
+  const [printerChip, setPrinterChip] = useState<{ name: string; volume: string | null } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    // Async IIFE with a total try/catch so a missing fetch (tests) or any options-load failure is
+    // swallowed — the chip is best-effort chrome, absent rather than a dead/erroring control.
+    void (async () => {
+      try {
+        const o = await getOptions()
+        if (cancelled) return
+        const p = o.printers.find((x) => x.key === o.default_printer) ?? o.printers[0]
+        if (!p) return
+        const v = p.build_volume
+        setPrinterChip({ name: p.name, volume: v ? `${v[0]}×${v[1]}×${v[2]} mm` : null })
+      } catch {
+        /* best-effort */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
   // UX-001: surface auto-save. While saving -> "Saving…"; once persisted (just saved, or a saved
   // design at rest) -> a "Saved · My Designs" link to the user's work; on failure -> "Couldn't
   // save — retrying" (the app retries automatically). These branches are mutually exclusive.
@@ -58,6 +85,17 @@ export default function Topbar({
         </span>
       </button>
       <div className="kc-topbar-actions">
+        {printerChip && (
+          <span
+            className="kc-printer-chip"
+            title="Target printer — change it in Settings"
+            aria-label={`Target printer: ${printerChip.name}${printerChip.volume ? `, build volume ${printerChip.volume}` : ''}`}
+          >
+            <span className="kc-printer-dot" aria-hidden="true" />
+            <span className="kc-printer-chip-name">{printerChip.name}</span>
+            {printerChip.volume && <span className="kc-printer-chip-vol">{printerChip.volume}</span>}
+          </span>
+        )}
         {saveState === 'saving' && (
           <span className="kc-savestate kc-savestate-saving" role="status" aria-live="polite">
             <span className="kc-savedot" aria-hidden="true" /> Saving…
