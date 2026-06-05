@@ -25,10 +25,12 @@ import base64
 import hashlib
 import itertools
 import json
+import re
 import shutil
 import threading
 import uuid
 from collections import OrderedDict
+from collections.abc import Callable
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -194,6 +196,17 @@ def _sanitize_history(raw: Any) -> list[dict[str, str]] | None:
     return out or None
 
 
+# MS-3: cap on live design-progress slots (abandoned/cancelled runs are LRU-evicted).
+_MAX_PROGRESS_SLOTS = 32
+# A client-supplied job_id keys in-memory progress state, so it's validated to a short, safe token
+# (a UUID fits) before use; anything else disables progress tracking for that run (best-effort).
+_JOB_ID_RE = re.compile(r"\A[A-Za-z0-9-]{1,64}\Z")
+
+
+def _valid_job_id(value: Any) -> str | None:
+    return value if isinstance(value, str) and _JOB_ID_RE.match(value) else None
+
+
 def design_response(
     pipeline: Any,
     prompt: str,
@@ -201,17 +214,23 @@ def design_response(
     history: list[dict[str, str]] | None = None,
     *,
     allow_experimental: bool = True,
+    progress: Callable[[str], None] | None = None,
 ) -> tuple[dict[str, Any], Path | None, Any]:
     """Run one prompt through the pipeline and shape the result for the UI.
 
     ``history`` is the prior conversation (``[{role, content}]``) for a follow-up/refine turn, so the
     model sees the context of the part being changed; ``None`` runs the prompt standalone.
 
+    ``progress`` (MS-3) is an optional phase callback forwarded to the pipeline so a long run can
+    report planning→generating→rendering→validating to the UI's progress poll.
+
     Returns the JSON-able payload, the rendered mesh path (or None) for the 3D preview, and
     the :class:`PipelineResult` itself so the HTTP layer can register per-design re-render
     state (the base plan + template family) for the live-slider endpoint.
     """
-    result = pipeline.run(prompt, out_dir, history=history, allow_experimental=allow_experimental)
+    result = pipeline.run(
+        prompt, out_dir, history=history, allow_experimental=allow_experimental, progress=progress
+    )
     payload = _result_to_payload(result)
     payload["prompt"] = prompt
     mesh_path = result.mesh_path if (result.mesh_path and result.mesh_path.exists()) else None
@@ -571,6 +590,13 @@ def make_handler(
     counter = itertools.count(1)
     version_counter = itertools.count(1)  # cache-busting suffix for re-rendered meshes
     lock = threading.Lock()
+    # MS-3: live design-phase slots keyed by a client-supplied job_id, so the SPA can poll
+    # GET /api/design/progress/<job_id> WHILE a (multi-minute) design runs on another request
+    # thread and show the current phase. Bounded + LRU-evicted; an entry is removed when its run
+    # finishes (the poll then gets a null phase and the client, whose POST has resolved, stops).
+    # Its own lock so a poll never contends with the rid counter / registry lock.
+    design_progress: "OrderedDict[str, str]" = OrderedDict()
+    progress_lock = threading.Lock()
     index_html = (WEB_DIR / "index.html").read_bytes()
     config_box: dict[str, Any] = {"config": config}
 
@@ -735,6 +761,17 @@ def make_handler(
                 return
             if self.path.startswith("/api/gcode/"):
                 self._serve_gcode(urlsplit(self.path).path.rsplit("/", 1)[-1])
+                return
+            # MS-3: poll the live phase of an in-flight design (planning/generating/rendering/
+            # validating). Always 200 — an unknown or finished id returns a null phase, so the
+            # client's poller never errors. Distinct from "/api/designs" (the saved-designs list).
+            if self.path.startswith("/api/design/progress/"):
+                # The id isn't re-validated here: it only does a dict lookup (no path/IO), and an
+                # invalid id simply misses an entry that could only have been seeded by a valid one.
+                jid = unquote(urlsplit(self.path).path[len("/api/design/progress/") :])
+                with progress_lock:
+                    phase = design_progress.get(jid)
+                self._json(200, {"phase": phase})
                 return
             # Stage 8.5 — saved designs ("My Designs").
             if self.path == "/api/designs":
@@ -1204,12 +1241,35 @@ def make_handler(
             allow_experimental = bool(data.get("experimental", True)) or bool(
                 saved_settings().get("experimental_enabled")
             )
+            # MS-3: optional client-supplied progress id. When valid, the run reports each phase
+            # into design_progress so a parallel poll (GET /api/design/progress/<id>) shows it. The
+            # phase callback no-ops when no (valid) job_id was sent, so progress is purely additive.
+            job_id = _valid_job_id(data.get("job_id"))
+
+            def _on_phase(phase: str) -> None:
+                if job_id is None:
+                    return
+                with progress_lock:
+                    # If the slot was already popped (run finished) this no-ops — a late phase
+                    # write can never resurrect a cleaned-up entry.
+                    if job_id in design_progress:
+                        design_progress[job_id] = phase
+
             with lock:
                 rid = next(counter)
             try:
+                # Seed the progress slot INSIDE the try so the finally below ALWAYS clears it (no
+                # leak even if the run raises). The pipeline emits "planning" first, so the slot
+                # exists before the first _on_phase write.
+                if job_id is not None:
+                    with progress_lock:
+                        design_progress[job_id] = "planning"
+                        design_progress.move_to_end(job_id)
+                        while len(design_progress) > _MAX_PROGRESS_SLOTS:
+                            design_progress.popitem(last=False)
                 payload, mesh_path, result = design_response(
                     pipeline, prompt, web_root / str(rid), history=history,
-                    allow_experimental=allow_experimental,
+                    allow_experimental=allow_experimental, progress=_on_phase,
                 )
             except Exception as e:  # never leak a traceback to the browser
                 # Local import: avoids an import cycle (pipeline pulls in webapp helpers elsewhere).
@@ -1228,6 +1288,12 @@ def make_handler(
                     return
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return
+            finally:
+                # The run is done (success, model-down, or error) — drop the progress slot. A poll
+                # racing this gets a null phase; the client's POST has resolved, so it stops polling.
+                if job_id is not None:
+                    with progress_lock:
+                        design_progress.pop(job_id, None)
             if mesh_path is not None:
                 with lock:
                     registry[rid] = mesh_path

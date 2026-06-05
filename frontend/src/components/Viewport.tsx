@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { DESIGN_PHASES, phaseLabel, phaseStep } from '../designPhase'
 import { type Dimensions, type HighlightRisk, KCViewport } from '../viewport/KCViewport'
 
 // React wrapper around the vanilla KCViewport. It owns the viewport's lifecycle, loads the real
@@ -15,6 +16,7 @@ export default function Viewport({
   busy,
   restoring,
   busyElapsed,
+  busyPhase = null,
   onCancelDesign,
   onModelReady,
   highlights = [],
@@ -30,6 +32,9 @@ export default function Viewport({
   // Live elapsed seconds while a design runs, and a cancel hook — so the "Designing…" screen shows
   // progress and is never a trap (the local model can run for minutes).
   busyElapsed: number
+  // MS-3: the current run's phase (planning/generating/rendering/validating), or null before the
+  // first phase is reported — drives the live step label + stepper on the "Designing…" screen.
+  busyPhase?: string | null
   onCancelDesign: () => void
   // Stage 8.5: fired after a mesh is framed, handing back a thumbnail-capture fn so the app can
   // snapshot the rendered part (for the "My Designs" gallery) at the moment it's on screen.
@@ -178,6 +183,20 @@ export default function Viewport({
             <div className="kc-viewport-overlay kc-viewport-busy" role="status">
               <span className="kc-spin kc-spin-lg" aria-hidden="true" />
               <div className="kc-busy-title">Designing your part…</div>
+              {/* MS-3: the live step. aria-live polite so a screen reader announces each phase
+                  change (infrequent — 4 over minutes), unlike the per-second elapsed tick. */}
+              {phaseLabel(busyPhase) && (
+                <div className="kc-busy-phase" aria-live="polite">{phaseLabel(busyPhase)}</div>
+              )}
+              {phaseStep(busyPhase) > 0 && (
+                <ol className="kc-busy-steps" aria-hidden="true">
+                  {DESIGN_PHASES.map((p, i) => {
+                    const cur = phaseStep(busyPhase)
+                    const state = i + 1 < cur ? 'done' : i + 1 === cur ? 'active' : 'todo'
+                    return <li key={p} className={`kc-busy-step kc-busy-step-${state}`} />
+                  })}
+                </ol>
+              )}
               <p className="kc-busy-sub">
                 This runs on your computer&rsquo;s AI — it can take a few minutes, especially for a
                 brand-new shape. Nothing leaves your machine.

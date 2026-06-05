@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   designIdFromMeshUrl,
+  getDesignProgress,
   isAbortError,
   postDesign,
   postRender,
@@ -22,6 +23,14 @@ import { useHashRoute } from './useHashRoute'
 // The workspace pulls in three.js (the viewport). Code-split it so the landing screen loads
 // without the 3D bundle; three is fetched the first time a part is designed.
 const Workspace = lazy(() => import('./components/Workspace'))
+
+// MS-3: a short, URL-safe id for one design run so the UI can poll its progress. Matches the
+// server's job-id rule ([A-Za-z0-9-]{1,64}): crypto.randomUUID where available, else a random token.
+function makeJobId(): string {
+  const c = globalThis.crypto as Crypto | undefined
+  if (c?.randomUUID) return c.randomUUID()
+  return `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 const RERENDER_MIN_DWELL_MS = 350
 // QA-001: autosave coalescing window. Each settled re-render lands a new mesh and would otherwise
@@ -60,6 +69,10 @@ export default function App() {
   // analogue of `renderSeq` below.
   const designSeqRef = useRef(0)
   const [designElapsed, setDesignElapsed] = useState(0)
+  // MS-3: the current run's phase (planning/generating/rendering/validating), polled from the
+  // server while busy so the "Designing…" screen shows WHAT it's doing, not just elapsed time.
+  const [designPhase, setDesignPhase] = useState<string | null>(null)
+  const designJobRef = useRef<string | null>(null)
   // `busy` covers both a model design run AND reopening a saved design. Only the former is a
   // cancelable, elapsed-timed model call — so the busy overlay must know which it is (ENG-001/002:
   // a reopen was showing the "Designing…" overlay with a garbage timer and a dead Cancel).
@@ -103,6 +116,29 @@ export default function App() {
     const id = window.setInterval(tick, 500)
     return () => window.clearInterval(id)
   }, [busy])
+
+  // MS-3: while a real design run is in flight (not a reopen), poll its phase (~1.2 s) so the
+  // "Designing…" screen shows a live step — planning → generating → rendering → validating —
+  // instead of only an elapsed timer. The phase resets to null whenever a run isn't active.
+  useEffect(() => {
+    if (!busy || restoring) {
+      setDesignPhase(null)
+      return
+    }
+    let stopped = false
+    const poll = async () => {
+      const jobId = designJobRef.current
+      if (!jobId) return
+      const { phase } = await getDesignProgress(jobId)
+      if (!stopped) setDesignPhase(phase)
+    }
+    void poll()
+    const id = window.setInterval(poll, 1200)
+    return () => {
+      stopped = true
+      window.clearInterval(id)
+    }
+  }, [busy, restoring])
 
   // Escape key cancels an in-flight design too — a keyboard escape from the "Designing…" screen.
   useEffect(() => {
@@ -209,12 +245,16 @@ export default function App() {
     designAbortRef.current?.abort()
     const controller = new AbortController()
     designAbortRef.current = controller
+    // MS-3: a fresh job id for this run's progress poll; clear any stale phase from a prior run.
+    const jobId = makeJobId()
+    designJobRef.current = jobId
+    setDesignPhase(null)
     busyStartRef.current = Date.now()
     setRestoring(false) // this is a real model design run, not a reopen
     setBusy(true)
     setError(null)
     try {
-      const r = await postDesign(userPrompt, history, experimental, controller.signal)
+      const r = await postDesign(userPrompt, history, experimental, controller.signal, jobId)
       if (seq !== designSeqRef.current) return // a newer design replaced this one — drop the result
       const tone = isFailureStatus(r.status) ? 'error' : undefined
       const assistantMsg: Message = { role: 'assistant', content: assistantMessage(r), tone }
@@ -254,6 +294,8 @@ export default function App() {
         setError(msg)
       }
     } finally {
+      // Clear the progress job only if it's still ours (a newer run already replaced it otherwise).
+      if (designJobRef.current === jobId) designJobRef.current = null
       if (seq === designSeqRef.current) {
         if (designAbortRef.current === controller) designAbortRef.current = null
         setBusy(false)
@@ -471,6 +513,7 @@ export default function App() {
             busy={busy}
             restoring={restoring}
             busyElapsed={designElapsed}
+            busyPhase={designPhase}
             onCancelDesign={handleCancelDesign}
             error={error}
             rerendering={rerendering}

@@ -54,6 +54,17 @@ from kimcad.validation import MeshReport, load_mesh, validate_mesh
 Renderer = Callable[[str, Path, str], RenderResult]
 Slicer = Callable[[Path, Path, str], Any]
 
+# MS-3 (real step progress): a design run reports the coarse phase it's working through, so a
+# multi-minute local run can show WHAT it's doing rather than just an elapsed timer. The callback
+# is optional and best-effort — it must never raise into the pipeline — and is called in order with
+# these phase keys (the web layer relays them to the SPA; see frontend/src/designPhase.ts):
+#   planning   — the model is turning the prompt into a design plan (the slow step)
+#   generating — the model is writing the OpenSCAD (LLM path only; skipped for template parts)
+#   rendering  — the SCAD is being rendered into a 3D mesh
+#   validating — orient + harden + the printability gate + readiness
+ProgressFn = Callable[[str], None]
+DESIGN_PHASES = ("planning", "generating", "rendering", "validating")
+
 # Gate failures the model can plausibly fix by regenerating geometry. A thin wall or
 # stray-shell WARN doesn't FAIL the gate; these two are the only FAIL codes, and both
 # are codegen mistakes (wrong size, doesn't fit) rather than dead ends.
@@ -354,9 +365,13 @@ class Pipeline:
         confirm_print: bool = False,
         allow_experimental: bool = True,
         basename: str = "part",
+        progress: ProgressFn | None = None,
     ) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # MS-3: a no-op default so the rest of the method calls emit() unconditionally.
+        emit = progress or (lambda _phase: None)
+        emit("planning")
         try:
             plan = self.provider.generate_design_plan(
                 prompt, self.printer, self.material, history=history
@@ -412,7 +427,7 @@ class Pipeline:
             )
 
         render, scad, mesh, mesh_report, gate, attempts, error = self._build_geometry(
-            plan, out_dir, basename, gate_retry=not proceed_anyway, match=match
+            plan, out_dir, basename, gate_retry=not proceed_anyway, match=match, progress=emit
         )
         if render is None:
             return PipelineResult(
@@ -425,6 +440,7 @@ class Pipeline:
                 template=match,
             )
 
+        emit("validating")
         return self._assemble_result(
             prompt=prompt,
             plan=plan,
@@ -725,6 +741,7 @@ class Pipeline:
         *,
         gate_retry: bool = True,
         match: TemplateMatch | None = None,
+        progress: ProgressFn | None = None,
     ) -> tuple[
         RenderResult | None,
         str | None,
@@ -748,10 +765,12 @@ class Pipeline:
         Returns (render, scad, mesh, mesh_report, gate, attempts, error). ``render`` is
         None only when geometry never rendered (caller maps that to render_failed).
         """
+        emit = progress or (lambda _phase: None)
         if match is not None:
-            return self._build_from_template(match, plan, out_dir, basename)
+            return self._build_from_template(match, plan, out_dir, basename, progress=emit)
 
         thread: list[dict[str, str]] = []
+        emit("generating")
         scad = self.provider.generate_openscad(plan, self.printer, self.material, history=thread)
         last_error: str | None = None
         render: RenderResult | None = None
@@ -761,12 +780,14 @@ class Pipeline:
 
         for attempt in range(1, self.max_render_retries + 2):
             try:
+                emit("rendering")
                 render = self.renderer(scad, out_dir, basename)
             except (RenderError, BlockedCodeError) as e:
                 last_error = str(e)
                 if attempt > self.max_render_retries:
                     return None, scad, None, None, None, attempt, last_error
                 self._feed_back(thread, scad, _render_feedback(last_error))
+                emit("generating")
                 scad = self.provider.generate_openscad(
                     plan, self.printer, self.material, history=thread
                 )
@@ -779,6 +800,7 @@ class Pipeline:
             fixable = _fixable_gate_failures(gate) if gate_retry else []
             if fixable and attempt <= self.max_render_retries:
                 self._feed_back(thread, scad, _gate_feedback(fixable, plan, mesh_report))
+                emit("generating")
                 scad = self.provider.generate_openscad(
                     plan, self.printer, self.material, history=thread
                 )
@@ -794,6 +816,8 @@ class Pipeline:
         plan: DesignPlan,
         out_dir: Path,
         basename: str,
+        *,
+        progress: ProgressFn | None = None,
     ) -> tuple[
         RenderResult | None,
         str | None,
@@ -813,8 +837,11 @@ class Pipeline:
         adjust a parameter (a live-slider re-render), not to regenerate geometry. Returns
         the same 7-tuple as the LLM path with ``attempts`` fixed at 1.
         """
+        emit = progress or (lambda _phase: None)
         scad = match.scad()
         try:
+            # No "generating" phase here — the template SCAD is a pure function, no model call.
+            emit("rendering")
             render = self.renderer(scad, out_dir, basename)
         except (RenderError, BlockedCodeError) as e:
             # A proven library module shouldn't fail to render; surface it as a real defect

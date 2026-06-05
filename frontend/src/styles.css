@@ -581,6 +581,36 @@ input {
   font-weight: 600;
   color: #fff;
 }
+/* MS-3: the live phase label + a 4-step stepper on the "Designing…" screen. Light-on-dark for
+ * contrast; a warm tint on the label, the accent reserved for the active/done step dots. */
+.kc-busy-phase {
+  font-family: var(--kc-font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--kc-accent) 28%, #fff);
+}
+.kc-busy-steps {
+  display: flex;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-busy-step {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.kc-busy-step-done {
+  background: color-mix(in srgb, var(--kc-accent) 70%, #fff);
+}
+.kc-busy-step-active {
+  background: var(--kc-accent);
+  transform: scale(1.45);
+}
 .kc-busy-sub {
   margin: 0;
   max-width: 36ch;

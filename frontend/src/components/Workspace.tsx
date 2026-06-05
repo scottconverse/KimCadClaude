@@ -16,6 +16,7 @@ export default function Workspace({
   busy,
   restoring,
   busyElapsed,
+  busyPhase,
   onCancelDesign,
   error,
   rerendering,
@@ -38,6 +39,7 @@ export default function Workspace({
   busy: boolean
   restoring: boolean
   busyElapsed: number
+  busyPhase?: string | null
   onCancelDesign: () => void
   error: string | null
   rerendering: boolean
@@ -93,6 +95,7 @@ export default function Workspace({
           busy={busy}
           restoring={restoring}
           busyElapsed={busyElapsed}
+          busyPhase={busyPhase}
           onCancelDesign={onCancelDesign}
           onModelReady={onModelReady}
           highlights={highlights}

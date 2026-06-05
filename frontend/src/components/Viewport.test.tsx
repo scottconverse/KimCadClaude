@@ -67,6 +67,30 @@ describe('Viewport busy overlay (escape)', () => {
   })
 })
 
+describe('Viewport busy phase (MS-3)', () => {
+  it('shows the live phase label and a 4-step stepper while a design runs', () => {
+    const { container } = render(<Viewport {...baseProps} busy busyPhase="rendering" busyElapsed={5} />)
+    expect(screen.getByText('Building the 3D model')).toBeTruthy()
+    expect(container.querySelectorAll('.kc-busy-step')).toHaveLength(4)
+    // 'rendering' is step 3 of 4: steps 1–2 done, 3 active, 4 to-do.
+    expect(container.querySelectorAll('.kc-busy-step-done')).toHaveLength(2)
+    expect(container.querySelectorAll('.kc-busy-step-active')).toHaveLength(1)
+  })
+
+  it('shows no phase label or stepper before the first phase is reported', () => {
+    const { container } = render(<Viewport {...baseProps} busy busyPhase={null} busyElapsed={1} />)
+    expect(screen.getByText(/Designing your part/i)).toBeTruthy() // the generic title still shows
+    expect(container.querySelector('.kc-busy-phase')).toBeNull()
+    expect(container.querySelector('.kc-busy-steps')).toBeNull()
+  })
+
+  it('a reopen (restoring) shows no design phase even if one is passed', () => {
+    const { container } = render(<Viewport {...baseProps} busy restoring busyPhase="planning" />)
+    expect(screen.getByText(/Reopening your design/i)).toBeTruthy()
+    expect(container.querySelector('.kc-busy-phase')).toBeNull()
+  })
+})
+
 describe('Viewport problem highlights (Slice 8)', () => {
   const risks: HighlightRisk[] = [
     { issueId: 'OVERHANG_UNSUPPORTED', tone: 'warn', geometry: { type: 'point', x: 0, y: 0, z: 0 } },

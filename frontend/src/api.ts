@@ -222,9 +222,13 @@ export async function postDesign(
   history?: ChatTurn[],
   experimental = false,
   signal?: AbortSignal,
+  jobId?: string,
 ): Promise<DesignResponse> {
   const body: Record<string, unknown> = { prompt, experimental }
   if (history?.length) body.history = history
+  // MS-3: an optional client-generated job id lets the UI poll GET /api/design/progress/<id> for
+  // the live phase while this (multi-minute) request is in flight. Absent → no progress tracking.
+  if (jobId) body.job_id = jobId
   // Own fetch (not postJson) so the caller can pass an AbortSignal — a design can run the local
   // model for minutes, so the user must be able to cancel and escape the "Designing…" screen.
   const res = await fetch('/api/design', {
@@ -236,6 +240,19 @@ export async function postDesign(
   const data = await readJson(res)
   throwIfNotOk(res, data)
   return data as DesignResponse
+}
+
+/** MS-3: poll the live phase of an in-flight design. Best-effort — any error (the run just
+ *  finished, a transient blip) resolves to `{ phase: null }` so the poller never throws. */
+export async function getDesignProgress(jobId: string): Promise<{ phase: string | null }> {
+  try {
+    const res = await fetch(`/api/design/progress/${encodeURIComponent(jobId)}`)
+    if (!res.ok) return { phase: null }
+    const data = await res.json()
+    return { phase: typeof data?.phase === 'string' ? data.phase : null }
+  } catch {
+    return { phase: null }
+  }
 }
 
 /** True for the error thrown when a fetch is aborted (the user hit Cancel) — distinct from a real

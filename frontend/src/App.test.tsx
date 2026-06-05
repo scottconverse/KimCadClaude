@@ -11,6 +11,9 @@ vi.mock('./api', () => ({
   reopenDesign: vi.fn(),
   saveDesign: vi.fn().mockResolvedValue({ id: 'x', name: 'n' }),
   designIdFromMeshUrl: () => 1,
+  // MS-3: the busy-screen phase poll. Resolve to a null phase (== the initial state, so no extra
+  // re-render/act churn) — these tests assert the busy lifecycle, not the live phase itself.
+  getDesignProgress: vi.fn().mockResolvedValue({ phase: null }),
   // Real-ish helper so the cancel path classifies an AbortError correctly.
   isAbortError: (e: unknown) => (e as { name?: string })?.name === 'AbortError',
 }))
@@ -25,6 +28,7 @@ vi.mock('./components/Workspace', () => ({
     rerendering,
     busy,
     busyElapsed,
+    busyPhase,
     onCancelDesign,
     onRerender,
     onRefine,
@@ -41,6 +45,7 @@ vi.mock('./components/Workspace', () => ({
     rerendering: boolean
     busy: boolean
     busyElapsed: number
+    busyPhase?: string | null
     onCancelDesign: () => void
     onRerender: (values: Record<string, number>) => void
     onRefine: (text: string) => void
@@ -55,6 +60,7 @@ vi.mock('./components/Workspace', () => ({
       <span data-testid="busy">{String(busy)}</span>
       <span data-testid="error">{error ?? ''}</span>
       <span data-testid="busy-elapsed">{busyElapsed}</span>
+      <span data-testid="busy-phase">{busyPhase ?? ''}</span>
       <span data-testid="mesh-url">{result?.mesh_url ?? ''}</span>
       <span data-testid="msg-count">{messages.length}</span>
       <span data-testid="version-count">{versions.length}</span>
@@ -429,5 +435,54 @@ describe('App cancel / escape the "Designing…" screen (Stage 8.5)', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' }) // keydown bubbles to the window listener
     await waitFor(() => expect(screen.getByLabelText(/describe the part/i)).toBeTruthy())
     expect(screen.queryByTestId('busy')).toBeNull()
+  })
+})
+
+describe('App live design phase (MS-3)', () => {
+  it('polls the run phase while busy and surfaces it, then resets when the run finishes', async () => {
+    const api = await import('./api')
+    let resolveDesign: (v: DesignResponse) => void = () => {}
+    ;(api.postDesign as Mock).mockReturnValue(
+      new Promise<DesignResponse>((r) => {
+        resolveDesign = r
+      }),
+    )
+    ;(api.getDesignProgress as Mock).mockResolvedValue({ phase: 'rendering' })
+
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'a box' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+
+    // The immediate poll (fired when the run goes busy) surfaces the phase to the overlay.
+    await waitFor(() => expect(screen.getByTestId('busy-phase').textContent).toBe('rendering'))
+    expect(api.getDesignProgress).toHaveBeenCalled()
+
+    // Finishing the run flips busy off, which stops the poll and clears the phase.
+    resolveDesign(templateResult('/api/mesh/1'))
+    await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('false'))
+    await waitFor(() => expect(screen.getByTestId('busy-phase').textContent).toBe(''))
+  })
+
+  it('tracks the newer run’s phase when a refine supersedes an in-flight design (no stale flash)', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock).mockResolvedValueOnce(templateResult('/api/mesh/1'))
+    ;(api.getDesignProgress as Mock).mockResolvedValue({ phase: 'planning' })
+
+    render(<App />)
+    await designFrom('a box') // first design completes → the workspace is mounted
+
+    // Refine but keep this run in flight (stays busy); the poll now reports the new run's phase.
+    let resolveRefine: (v: DesignResponse) => void = () => {}
+    ;(api.postDesign as Mock).mockReturnValueOnce(
+      new Promise<DesignResponse>((r) => {
+        resolveRefine = r
+      }),
+    )
+    ;(api.getDesignProgress as Mock).mockResolvedValue({ phase: 'generating' })
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+
+    await waitFor(() => expect(screen.getByTestId('busy-phase').textContent).toBe('generating'))
+    resolveRefine(templateResult('/api/mesh/2'))
+    await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('false'))
   })
 })

@@ -1,4 +1,4 @@
-# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 MS-1 done & pushed @ `12a9686`; Stage 7 DONE + tagged `stage-7`)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 MS-1/MS-2/MS-3 done & pushed; Stage 7 DONE + tagged `stage-7`)
 
 ## ⛔ READ FIRST
 
@@ -15,8 +15,14 @@
   the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
   (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
   DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
-  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 9 MS-2 (in-app
-  help/glossary — frontend-only, the smallest next unit).** Slices 1–8 plus Slice 9 MS-1 are built
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 9 MS-4 (first-run
+  wizard — `FirstRunWizard`: detect Ollama, pull the model with progress, pick a printer), then the
+  empty/loading/error-state copy sweep, then the Slice-9 close-out.** MS-2 (in-app help/glossary
+  "(i)" tips — `frontend/src/glossary.ts` + `components/InfoTip.tsx`, wired onto
+  Readiness/Confidence/Risks/Recommendations/Printability/Gate) and MS-3 (real step progress —
+  pipeline phase callback `planning→generating→rendering→validating` → `GET /api/design/progress/<id>`
+  poll → the busy-screen phase label + 4-dot stepper; `frontend/src/designPhase.ts`) are DONE +
+  pushed, each audit-lite + independent re-audit to 0/0/0/0/0. Slices 1–8 plus Slice 9 MS-1 are built
   on branch `stage-8.5-usability` and gated: Slice 1, the Slice 2–4 batch, Slice 6, and **Slice 7
   (the photo on-ramp — MS-1 backend + MS-2 UI)** each passed their full `audit-team` (Slices 2–4 and
   Slice 7 also a `wiring-audit`); Slice 5 was design-only (the three advanced on-ramps + the trust

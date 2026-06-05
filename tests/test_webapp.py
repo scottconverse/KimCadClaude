@@ -2404,3 +2404,83 @@ def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
         assert resp.status == 200
         d = json.load(resp)
     assert d["status"] == "model_unavailable" and d["has_mesh"] is False
+
+
+# MS-3 — live design-progress poll (planning/generating/rendering/validating).
+def test_progress_endpoint_unknown_id_returns_null(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        data = json.load(
+            urllib.request.urlopen(base + "/api/design/progress/never-started", timeout=10)
+        )
+    assert data == {"phase": None}
+
+
+def test_progress_reports_planning_midrun_then_clears(tmp_path):
+    import json
+    import threading as _t
+    import urllib.request
+
+    started = _t.Event()
+    release = _t.Event()
+
+    class _BlockingProvider(FakeProvider):
+        # Park the run inside the plan step (after the pipeline emits "planning") until the test
+        # has observed the phase, so the cross-thread progress read is deterministic, not racy.
+        def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
+            started.set()
+            release.wait(timeout=10)
+            return super().generate_design_plan(prompt, printer, material, history=history)
+
+    pipe = _pipeline(_BlockingProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        job = "job-abc123"
+        out: dict = {}
+
+        def _post():
+            req = urllib.request.Request(
+                base + "/api/design",
+                data=json.dumps({"prompt": "a block", "job_id": job}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            out["data"] = json.load(urllib.request.urlopen(req, timeout=30))
+
+        th = _t.Thread(target=_post)
+        th.start()
+        assert started.wait(timeout=10)  # the run is parked in the plan step
+        prog = json.load(
+            urllib.request.urlopen(base + f"/api/design/progress/{job}", timeout=10)
+        )
+        assert prog == {"phase": "planning"}
+        release.set()
+        th.join(timeout=30)
+        assert out["data"]["status"] == "completed"
+        # The slot is cleaned up once the run finishes.
+        after = json.load(
+            urllib.request.urlopen(base + f"/api/design/progress/{job}", timeout=10)
+        )
+    assert after == {"phase": None}
+
+
+def test_design_accepts_invalid_job_id_without_tracking(tmp_path):
+    # A malformed job_id must not 400 the design — progress is best-effort; the run still completes.
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        req = urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a block", "job_id": "bad id!#"}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        data = json.load(urllib.request.urlopen(req, timeout=30))
+    assert data["status"] == "completed"

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   designIdFromMeshUrl,
   exportDesignUrl,
+  getDesignProgress,
   getOptions,
   importDesign,
   isAbortError,
@@ -77,6 +78,33 @@ describe('postDesign', () => {
     await postDesign('a box', undefined, false, ctrl.signal)
     const init = (f.mock.calls[0] as unknown[])[1] as RequestInit
     expect(init.signal).toBe(ctrl.signal)
+  })
+
+  // MS-3: a job id lets the UI poll the run's live phase; it's only sent when provided.
+  it('includes the job_id in the body when one is provided', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    await postDesign('a box', undefined, false, undefined, 'job-123')
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body.job_id).toBe('job-123')
+  })
+})
+
+describe('getDesignProgress (MS-3)', () => {
+  it('returns the phase from a 200 body', async () => {
+    mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ phase: 'rendering' }) }))
+    expect(await getDesignProgress('job-1')).toEqual({ phase: 'rendering' })
+  })
+
+  it('resolves to a null phase on a non-ok response (never throws — polling is best-effort)', async () => {
+    mockFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }))
+    expect(await getDesignProgress('job-1')).toEqual({ phase: null })
+  })
+
+  it('resolves to a null phase when fetch itself rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }))
+    expect(await getDesignProgress('job-1')).toEqual({ phase: null })
   })
 })
 
