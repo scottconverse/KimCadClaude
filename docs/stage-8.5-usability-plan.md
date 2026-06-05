@@ -117,11 +117,11 @@ action / blocking state has a working escape — Cancel / back / Esc — so the 
 - 🟠 **In-app help / a glossary** — plain-language tooltips on gate / readiness / manifold / slice.
 - 🟡 Audit **every** surface's empty / loading / error state for human, recoverable copy (the "no too small" sweep).
 
-## Slice 10 — Output clarity & print preview
+## Slice 10 — Output clarity & print preview — ✅ DONE (on branch `stage-8.5-usability`, commit `7fc5415`; audit-lite + independent re-audit → 0/0/0/0/0; gate-green push; pending the Stage 8.5 stage gate + Scott's approval)
 **Goal:** you can see what you're actually going to get.
-- 🟠 **Break out the estimate** — time, filament length **and** weight, layer count (maybe a rough cost), not one text blob.
-- 🟠 **A print preview** — a sliced/layer view, or at least a clearer "this is your part → this is the print."
-- 🟡 Surface the export formats clearly (STL / 3MF today; STEP / BREP arrives with Stage 8); a copy-the-file affordance.
+- 🟠 **Break out the estimate** — ✅ **Built:** print time, layer count, filament length **and** weight as labeled stats (a `<dl>` grid) instead of one text blob. Weight comes from the slicer when its profile carries a density; when it doesn't (the shipped Bambu P2S profile reports `filament_density=0`, so OrcaSlicer emits volume but no grams), KimCad estimates weight = volume × the material's nominal `density` and labels it "estimated" (never a fabricated 0 g). **Deferred:** a rough *cost* (no per-spool price is configured — inventing a $/kg would be dishonest).
+- 🟠 **A print preview** — ✅ **Built (clearer-framing option):** a "your design → sliced → print file ready" flow strip + the broken-out facts, framed as "here's your print." **Deferred (by design):** a true sliced/layer (G-code toolpath) viewer — that's a large feature belonging to **Stage 10's direct-print UI**; the plan explicitly sanctions the clearer-framing alternative here.
+- 🟡 Surface the export formats clearly — ✅ **Built:** the `.3mf` print file (named, with a copy-the-link affordance) + the STL model, each labeled for what it's for; STEP/BREP noted as arriving with the CAD engine (Stage 8). (A web "copy the file" = copy the absolute download link to the clipboard, graceful when the browser denies permission.)
 
 ## Slice 11 — Responsive, accessibility, copy, polish (cross-cutting)
 **Goal:** finished, not just functional. The explicit "no too small" tier.

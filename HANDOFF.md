@@ -1,4 +1,4 @@
-# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 MS-1/MS-2/MS-3/MS-4 done & pushed; Stage 7 DONE + tagged `stage-7`)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 (MS-1..MS-4) + Slice 10 done & pushed; Stage 7 DONE + tagged `stage-7`)
 
 ## ⛔ READ FIRST
 
@@ -15,8 +15,24 @@
   the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
   (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
   DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
-  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 10 (output clarity +
-  print preview). Slice 9 is COMPLETE** — MS-1 (model-down wall), MS-2 (in-app help/glossary), MS-3
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 11
+  (responsive/a11y/copy/polish). Slices 9 and 10 are COMPLETE.** **Slice 10 (output clarity +
+  print preview, commit `7fc5415`) is DONE + pushed:** the sliced result now shows a broken-out
+  estimate (print time / layers / filament length + weight) as labeled stats instead of one blob,
+  a "your design → sliced → print file ready" framing, the print file named with a copy-the-link
+  affordance, and the export formats spelled out (STL model + `.3mf` print file; STEP/BREP noted as
+  arriving with the CAD engine). Backend parses filament weight from the G-code (Prusa/Elegoo
+  `filament used [g] = N` + Bambu `total filament weight [g] : N`) and returns a structured
+  `estimate_detail` + `gcode_filename` on `/api/slice`. **A RENDERED check caught a real gap:** the
+  shipped Bambu P2S filament profile reports `filament_density=0`, so OrcaSlicer emits volume but no
+  grams — so `Material` gained a nominal `density` (config), and KimCad estimates weight = volume ×
+  density when the profile reports none, flagged `filament_g_estimated` and labeled "estimated" in
+  the UI (never a fabricated 0 g; zero-volume guarded at both layers). A true G-code layer viewer is
+  deliberately deferred to Stage 10's direct-print UI (the plan sanctions the clearer-framing option
+  here). audit-lite (independent) → 1 Major + 1 Minor + 1 Nit (stale API-contract doc; zero-volume
+  honesty edge; missing guard test) → all fixed → independent re-audit 0/0/0/0/0; gate-green push
+  (761 pytest incl. live + 231 vitest, build reproducible). Slice 9's micro-slices: MS-1
+  (model-down wall), MS-2 (in-app help/glossary), MS-3
   (real step progress), MS-4 (first-run wizard), each audit-lite + independent re-audit → 0/0/0/0/0
   and CI-green-pushed. **The "empty/loading/error-state copy sweep" item is satisfied:** those
   states were built + audited comprehensively as each slice shipped (ChatPanel empty-thread/error/
@@ -24,8 +40,9 @@
   RightPanel placeholders + failed-attempt notes; Viewport busy/restoring/error/phase overlays;
   FirstRunWizard model + settings errors; ConnectorStatus silent-on-failure by design) — a 2026-06-05
   sweep verified them all present + plain-English. Broader copy/tone polish folds into **Slice 11
-  (responsive/a11y/copy/polish)**. After Slice 10 + Slice 11 → the Stage 8.5 gate (`audit-team` +
-  `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`). MS-4 (first-run wizard) is DONE + pushed: `frontend/src/components/FirstRunWizard.tsx` — a 5-step modal
+  (responsive/a11y/copy/polish)** — the LAST slice before the gate. After Slice 11 → the Stage 8.5
+  gate (`audit-team` + `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`). **Defer to the
+  stage-merge:** the Stage 8.5 CHANGELOG block (batch-at-merge, as for Slices 8–10). MS-4 (first-run wizard) is DONE + pushed: `frontend/src/components/FirstRunWizard.tsx` — a 5-step modal
   (Welcome → Your AI model → Your printer → Direct printing → Ready) wired to the existing
   `/api/settings` + `/api/model-status` endpoints; **gemma4:e4b is THE model (never qwen)**; honest
   download-vs-connect-later step; NO model-pull/SmartScreen (those are Stage 11). First-run gating =
