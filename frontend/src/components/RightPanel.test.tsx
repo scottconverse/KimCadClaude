@@ -283,6 +283,58 @@ describe('RightPanel readiness card', () => {
   })
 })
 
+// Slice 9 MS-2 — in-app help / glossary "(i)" tips wired onto the jargon terms in the cards.
+describe('RightPanel help tips (Slice 9 MS-2)', () => {
+  const tip = (term: string) => new RegExp(`what does .*${term}.* mean`, 'i')
+
+  it('renders a help (i) tip on every jargon term across the readiness + printability cards', () => {
+    stubFetch()
+    // readinessResult carries risks, recommendations, a confidence, and a gate verdict → all 6.
+    renderPanel({ result: readinessResult })
+    for (const term of ['Readiness', 'Confidence', 'Risks', 'Recommendations', 'Printability', 'Gate']) {
+      expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
+    }
+  })
+
+  it('omits the Risks tip when there are no risks (its block is conditional), keeping the rest', () => {
+    stubFetch()
+    const noRisks: DesignResponse = {
+      status: 'completed',
+      has_mesh: true,
+      mesh_url: '/api/mesh/7',
+      plan: { object_type: 'box', summary: 'a box', target_bbox_mm: [80, 60, 40] },
+      report: {
+        gate_status: 'pass',
+        headline: '',
+        dims: [],
+        findings: [],
+        readiness: {
+          score: 95,
+          verdict: 'Ready to print',
+          tone: 'pass',
+          confidence: 'Medium',
+          risks: [],
+          recommendations: ['Slice for PLA on the selected printer’s profile.'],
+          comparison: null,
+          attribution: 'KimCad printability gate',
+        },
+      },
+    }
+    renderPanel({ result: noRisks })
+    expect(screen.queryByRole('button', { name: tip('Risks') })).toBeNull()
+    for (const term of ['Readiness', 'Recommendations', 'Printability', 'Gate', 'Confidence']) {
+      expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
+    }
+  })
+
+  it('clicking a card tip reveals its plain-language definition inline', () => {
+    stubFetch()
+    renderPanel({ result: readinessResult })
+    fireEvent.click(screen.getByRole('button', { name: tip('Gate') }))
+    expect(screen.getByRole('note').textContent).toMatch(/pass-or-fail/i)
+  })
+})
+
 describe('RightPanel live sliders', () => {
   it('renders one slider per backend parameter for a template-backed design', () => {
     stubFetch()

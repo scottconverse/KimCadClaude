@@ -3,6 +3,7 @@ import type { DesignResponse, ParamSpec, ReadinessPayload } from '../api'
 import { gateLabel, gateTone, isFailureStatus, readinessTone } from '../designStatus'
 import { type Unit, useUnits } from '../useUnits'
 import ExportPanel from './ExportPanel'
+import InfoTip from './InfoTip'
 
 // Right column — parameters + printability, rendered from the design result.
 //
@@ -396,16 +397,19 @@ function ReadinessBody({
       <ScoreGauge score={readiness.score} />
       <p className="kc-readiness-verdict">{readiness.verdict}</p>
       {readiness.confidence && (
-        <p className="kc-readiness-conf">
-          <span className="kc-conf-badge">{readiness.confidence} confidence</span>
+        <p className="kc-readiness-conf kc-tip-host">
+          <span className="kc-conf-line">
+            <span className="kc-conf-badge">{readiness.confidence} confidence</span>
+            <InfoTip term="confidence" />
+          </span>
           <span className="kc-conf-blurb">{CONFIDENCE_BLURB[readiness.confidence] ?? ''}</span>
         </p>
       )}
 
       {readiness.risks.length > 0 && (
         <div className="kc-readiness-sec">
-          <div className="kc-risks-head">
-            <h3 className="kc-readiness-h">Risks</h3>
+          <div className="kc-risks-head kc-tip-host">
+            <h3 className="kc-readiness-h">Risks<InfoTip term="risks" /></h3>
             {anyLocatable && onToggleHighlights && (
               <label className="kc-hl-toggle">
                 <input
@@ -462,7 +466,7 @@ function ReadinessBody({
 
       {readiness.recommendations.length > 0 && (
         <div className="kc-readiness-sec">
-          <h3 className="kc-readiness-h">Recommendations</h3>
+          <h3 className="kc-readiness-h kc-tip-host">Recommendations<InfoTip term="recommendations" /></h3>
           <ul className="kc-recs">
             {readiness.recommendations.map((rec) => (
               <li key={rec} className="kc-rec">
@@ -498,7 +502,7 @@ function ReadinessCard({
   const readiness = result?.report?.readiness
   return (
     <section className="kc-card">
-      <h2 className="kc-card-title">Readiness</h2>
+      <h2 className="kc-card-title kc-tip-host">Readiness<InfoTip term="readiness" /></h2>
       {readiness ? (
         <ReadinessBody
           readiness={readiness}
@@ -526,12 +530,15 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
   const { unit, formatMm } = useUnits()
   return (
     <section className="kc-card">
-      <h2 className="kc-card-title">Printability</h2>
+      <h2 className="kc-card-title kc-tip-host">Printability<InfoTip term="printability" /></h2>
       {report ? (
         <>
-          <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
-            Gate: {gateLabel(report.gate_status)}
-          </span>
+          <div className="kc-gate-row kc-tip-host">
+            <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
+              Gate: {gateLabel(report.gate_status)}
+            </span>
+            <InfoTip term="gate" />
+          </div>
           {report.headline && <p className="kc-muted-note">{report.headline}</p>}
 
           {report.dims.length > 0 && (

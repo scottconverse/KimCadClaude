@@ -2709,3 +2709,92 @@ input {
     min-height: 44px;
   }
 }
+
+/* Slice 9 MS-2 — in-app help / glossary "(i)" tips. A click-to-toggle disclosure: the definition
+ * drops in below the term's row, anchored to a full-width `.kc-tip-host` ancestor so it spans the
+ * card and never clips inside the scrolling side panel (a floating tooltip would). */
+.kc-tip-host {
+  position: relative;
+}
+/* The wrapper must NOT be a positioned/containing box, so the panel anchors to .kc-tip-host. */
+.kc-infotip {
+  display: inline;
+}
+.kc-infotip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 5px;
+  padding: 0;
+  vertical-align: middle;
+  position: relative;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+  font: italic 700 10px/1 var(--kc-font-display);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+/* Expand the pointer hit area to ~25px (WCAG 2.5.8 ≥24px) without enlarging the 15px visual chip. */
+.kc-infotip-btn::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+.kc-infotip-btn:hover {
+  color: var(--kc-accent-strong);
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 10%, var(--kc-surface));
+}
+.kc-infotip-btn[aria-expanded='true'] {
+  color: #fff;
+  background: var(--kc-accent);
+  border-color: var(--kc-accent);
+}
+.kc-infotip-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-infotip-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-left: 3px solid var(--kc-accent);
+  border-radius: 9px;
+  background: var(--kc-surface);
+  box-shadow: var(--kc-shadow-hero);
+  color: var(--kc-ink);
+  font-family: var(--kc-font-body, inherit);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+}
+/* The confidence row keeps the badge and its "(i)" together; the panel still drops full-width
+ * below (anchored to the .kc-readiness-conf host). */
+.kc-conf-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* The gate badge + its "(i)" sit on one row; the row stretches full card width so the help panel
+ * below spans the card. The badge keeps its natural chip width at the left. */
+.kc-gate-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
