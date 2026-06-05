@@ -23,6 +23,8 @@ vi.mock('./api', () => ({
     model_present: true,
   }),
   postSettings: vi.fn().mockResolvedValue({ saved: true }),
+  // Slice 11: the "d" shortcut navigates to My Designs, which loads the (empty) library on mount.
+  getDesigns: vi.fn().mockResolvedValue({ designs: [] }),
   // Real-ish helper so the cancel path classifies an AbortError correctly.
   isAbortError: (e: unknown) => (e as { name?: string })?.name === 'AbortError',
 }))
@@ -517,5 +519,72 @@ describe('App live design phase (MS-3)', () => {
     await waitFor(() => expect(screen.getByTestId('busy-phase').textContent).toBe('generating'))
     resolveRefine(templateResult('/api/mesh/2'))
     await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('false'))
+  })
+})
+
+describe('App keyboard shortcuts (Slice 11)', () => {
+  it('"?" toggles the shortcuts help; Escape closes it', () => {
+    render(<App />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.keyDown(document.body, { key: '?' })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText(/keyboard shortcuts/i)).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('does not fire a shortcut while typing in a textarea or contentEditable field', () => {
+    render(<App />)
+    // The landing prompt is a <textarea>.
+    fireEvent.keyDown(screen.getByLabelText(/describe the part/i), { key: '?' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // A contentEditable element is also exempt. (Set the attribute directly: jsdom doesn't reflect
+    // the contentEditable IDL property to the attribute the guard reads; real browsers do.)
+    const ce = document.createElement('div')
+    ce.setAttribute('contenteditable', 'true')
+    document.body.appendChild(ce)
+    fireEvent.keyDown(ce, { key: '?' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    ce.remove()
+  })
+
+  it('"d" navigates to My Designs', async () => {
+    render(<App />)
+    fireEvent.keyDown(document.body, { key: 'd' })
+    expect(await screen.findByRole('heading', { name: /my designs/i })).toBeTruthy()
+  })
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { altKey: true }])(
+    'ignores bare shortcuts when a modifier is held (%o) — browser/OS combos pass through',
+    (mods) => {
+      render(<App />)
+      fireEvent.keyDown(document.body, { key: '?', ...mods })
+      expect(screen.queryByRole('dialog')).toBeNull()
+    },
+  )
+
+  it('Esc closes the help without cancelling a running design (FINDING-001)', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock).mockImplementation(
+      (_p: string, _h: unknown, _e: boolean, signal?: AbortSignal) =>
+        new Promise<DesignResponse>((_res, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          )
+        }),
+    )
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'a box' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+    expect((await screen.findByTestId('busy')).textContent).toBe('true')
+
+    // Open the help over the running design, then Esc.
+    fireEvent.keyDown(document.body, { key: '?' })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    // The help closed; the design is STILL running — Esc dismissed the overlay, not the run.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('busy').textContent).toBe('true')
   })
 })

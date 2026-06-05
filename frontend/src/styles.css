@@ -1771,6 +1771,70 @@ input {
   font-size: 11px;
 }
 
+/* Slice 11 — keyboard-shortcuts help modal (opened with "?"). Mirrors the wizard overlay tokens. */
+.kc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above the first-run wizard's overlay (z 200) — they can't co-render today (the wizard guards
+   * the shortcut keys), but keep the shortcuts help on top if that ever changes. */
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--kc-ink) 55%, transparent);
+}
+.kc-shortcuts-dialog {
+  width: 100%;
+  max-width: 380px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 22px 24px;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-hero);
+}
+.kc-shortcuts-title {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--kc-ink);
+}
+.kc-shortcuts-list {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kc-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kc-shortcut-row dt {
+  flex: 0 0 56px;
+}
+.kc-shortcut-row dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--kc-ink);
+}
+.kc-kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 7px;
+  text-align: center;
+  font-family: var(--kc-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kc-ink);
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+}
+
 /* Assistant message rows carry a small cube avatar. */
 .kc-ai-row {
   display: flex;

@@ -131,7 +131,7 @@ describe('RightPanel', () => {
     stubFetch()
     renderPanel({ result: passResult })
     expect(screen.queryAllByRole('slider')).toHaveLength(0)
-    expect(screen.getByText(/generated directly/i)).toBeTruthy()
+    expect(screen.getByText(/doesn.t have adjustable sliders/i)).toBeTruthy()
   })
 
   it('shows the idle placeholder (not a Size readout) for the experimental-offer state (MS-4)', () => {

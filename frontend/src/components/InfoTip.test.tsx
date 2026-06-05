@@ -37,6 +37,19 @@ describe('InfoTip', () => {
     expect(screen.queryByRole('note')).toBeNull()
   })
 
+  it('closes when focus moves outside the tip (e.g. another surface takes focus)', () => {
+    const outside = document.createElement('button')
+    document.body.appendChild(outside)
+    render(<InfoTip term="gate" />)
+    fireEvent.click(screen.getByRole('button', { name: /gate/i }))
+    expect(screen.getByRole('note')).toBeTruthy()
+    // Focus lands on an element outside the tip wrapper → the disclosure closes.
+    outside.focus()
+    fireEvent.focusIn(outside)
+    expect(screen.queryByRole('note')).toBeNull()
+    outside.remove()
+  })
+
   it('surfaces real plain-language copy — not an empty or term-restating definition', () => {
     render(<InfoTip term="confidence" />)
     fireEvent.click(screen.getByRole('button'))

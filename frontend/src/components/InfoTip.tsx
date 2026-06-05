@@ -28,11 +28,18 @@ export default function InfoTip({ term }: { term: GlossaryKey }) {
     const onPointerDown = (e: PointerEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
     }
+    // Close when focus leaves the tip (Tab away, or another surface — e.g. the shortcuts modal —
+    // taking focus): a disclosure popover shouldn't linger behind whatever the user moved to.
+    const onFocusIn = (e: FocusEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
     document.addEventListener('keydown', onKey)
     document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('focusin', onFocusIn)
     return () => {
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('focusin', onFocusIn)
     }
   }, [open])
 

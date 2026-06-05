@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import type { DesignResponse, ParamSpec, ReadinessPayload } from '../api'
 import { gateLabel, gateTone, isFailureStatus, readinessTone } from '../designStatus'
+import { humanizeObjectType } from '../objectType'
 import { type Unit, useUnits } from '../useUnits'
 import ExportPanel from './ExportPanel'
 import InfoTip from './InfoTip'
@@ -295,7 +296,7 @@ function ParametersCard({
           <dl className="kc-paramlist">
             <div className="kc-paramrow">
               <dt>Type</dt>
-              <dd>{plan.object_type}</dd>
+              <dd>{humanizeObjectType(plan.object_type)}</dd>
             </div>
             {plan.target_bbox_mm && (
               <div className="kc-paramrow">
@@ -310,10 +311,10 @@ function ParametersCard({
           {/* Slice 3 / Slice 2: LLM-backed parts have no sliders, but the refine input in the
               conversation panel lets the user describe exact changes and get a new version. */}
           <p className="kc-muted-note kc-param-hint">
-            No live sliders for this part — it was generated directly, not from a parametric
-            template. To adjust it, use the conversation on the left: type an exact change like
-            <em> "make it 10mm taller"</em> or <em>"add M3 mounting holes"</em> and a new version
-            will appear.
+            This part doesn&rsquo;t have adjustable sliders — it was built straight from your
+            description rather than a ready-made shape with options. To change it, use the
+            conversation on the left: type an exact change like <em>"make it 10mm taller"</em> or
+            <em>"add M3 mounting holes"</em> and a new version will appear.
           </p>
         </>
       ) : isFailureStatus(result?.status) ? (

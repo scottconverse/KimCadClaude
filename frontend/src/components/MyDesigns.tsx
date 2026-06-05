@@ -9,6 +9,7 @@ import {
   renameDesign,
   type SavedDesignSummary,
 } from '../api'
+import { humanizeObjectType } from '../objectType'
 
 type SortKey = 'newest' | 'oldest' | 'name'
 
@@ -101,7 +102,7 @@ function DesignCard({
               <path d="M3 7l9 5 9-5" />
               <path d="M12 12v10" />
             </svg>
-            <span>{design.object_type || 'part'}</span>
+            <span>{humanizeObjectType(design.object_type)}</span>
           </div>
         )}
       </button>

@@ -18,6 +18,7 @@ import FirstRunWizard from './components/FirstRunWizard'
 import Landing from './components/Landing'
 import MyDesigns from './components/MyDesigns'
 import SettingsPanel from './components/SettingsPanel'
+import ShortcutsHelp from './components/ShortcutsHelp'
 import Topbar from './components/Topbar'
 import { useHashRoute } from './useHashRoute'
 
@@ -96,6 +97,15 @@ export default function App() {
     }
     setShowWizard(false)
   }, [])
+  // Slice 11: the keyboard-shortcuts help overlay (opened with "?").
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  // Latest shortcut actions, so the global keydown listener calls current handlers without
+  // re-binding on every render (handlers close over fresh state each render).
+  const shortcutsRef = useRef<{ newDesign: () => void; goDesigns: () => void; goSettings: () => void }>({
+    newDesign: () => {},
+    goDesigns: () => {},
+    goSettings: () => {},
+  })
   // A top-level network/unexpected error (not a pipeline status failure — those surface as
   // assistant messages with error tone in the thread).
   const [error, setError] = useState<string | null>(null)
@@ -160,14 +170,62 @@ export default function App() {
   }, [busy, restoring])
 
   // Escape key cancels an in-flight design too — a keyboard escape from the "Designing…" screen.
+  // But when the shortcuts help is open, Esc belongs to the help (close it first), not the design —
+  // otherwise dismissing the overlay would also abort the run underneath it.
   useEffect(() => {
     if (!busy) return
     const onKey = (e: KeyboardEvent) => {
+      if (showShortcuts) return
       if (e.key === 'Escape') designAbortRef.current?.abort()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [busy])
+  }, [busy, showShortcuts])
+
+  // Slice 11: global keyboard shortcuts. Bare-key shortcuts fire ONLY when the user isn't typing in
+  // a field and no modifier is held, so browser/OS combos (Ctrl/Cmd+N, etc.) pass straight through.
+  // "?" toggles the shortcuts help; n/d/, navigate; Esc closes the help (design-cancel Esc is above).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      // Don't hijack keys while the user is typing. `isContentEditable` is the right semantic in a
+      // real browser; the attribute check is the fallback (and what jsdom understands in tests).
+      const ce = t?.getAttribute?.('contenteditable')
+      if (
+        t &&
+        (t.tagName === 'INPUT' ||
+          t.tagName === 'TEXTAREA' ||
+          t.tagName === 'SELECT' ||
+          t.isContentEditable ||
+          (ce != null && ce !== 'false'))
+      )
+        return
+      if (showWizard) return // the wizard owns the keyboard while it's open
+      if (e.key === '?') {
+        e.preventDefault()
+        setShowShortcuts((s) => !s)
+        return
+      }
+      if (showShortcuts) {
+        if (e.key === 'Escape') setShowShortcuts(false)
+        return // while the help is open, don't also trigger navigation
+      }
+      const a = shortcutsRef.current
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault()
+        a.newDesign()
+      } else if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault()
+        a.goDesigns()
+      } else if (e.key === ',') {
+        e.preventDefault()
+        a.goSettings()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showWizard, showShortcuts])
 
   // --- save / persistence -------------------------------------------------
   const persist = useCallback(
@@ -451,6 +509,13 @@ export default function App() {
     setBusy(false)
   }
 
+  // Keep the shortcut actions current for the global keydown listener (declared once, above).
+  shortcutsRef.current = {
+    newDesign: handleNewDesign,
+    goDesigns: () => navigate('designs'),
+    goSettings: () => navigate('settings'),
+  }
+
   // Restore a saved design on a fresh page load at #/design/<id>.
   useEffect(() => {
     if (route.name !== 'design') return
@@ -505,6 +570,7 @@ export default function App() {
   return (
     <div className="kc-shell">
       {showWizard && <FirstRunWizard onClose={dismissWizard} />}
+      {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       <Topbar
         showNewDesign={onWorkspace}
         onNewDesign={handleNewDesign}
