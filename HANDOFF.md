@@ -1,4 +1,4 @@
-# KimCad — Handoff (2026-06-04 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`; Stage 7 DONE + tagged `stage-7`)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 MS-1 done & pushed @ `12a9686`; Stage 7 DONE + tagged `stage-7`)
 
 ## ⛔ READ FIRST
 
@@ -15,11 +15,23 @@
   the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
   (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
   DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
-  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 8 (problems on
-  the model).** Slices 1–7 are built on branch `stage-8.5-usability` and gated 0/0/0/0/0: Slice 1,
-  the Slice 2–4 batch, Slice 6, and **Slice 7 (the photo on-ramp — MS-1 backend + MS-2 UI)** have
-  each passed their full `audit-team` (Slices 2–4 and Slice 7 also a `wiring-audit`); Slice 5 was
-  design-only (the three advanced on-ramps + the trust rules, approved by Scott). **Plus an
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 9 MS-2 (in-app
+  help/glossary — frontend-only, the smallest next unit).** Slices 1–8 plus Slice 9 MS-1 are built
+  on branch `stage-8.5-usability` and gated: Slice 1, the Slice 2–4 batch, Slice 6, and **Slice 7
+  (the photo on-ramp — MS-1 backend + MS-2 UI)** each passed their full `audit-team` (Slices 2–4 and
+  Slice 7 also a `wiring-audit`); Slice 5 was design-only (the three advanced on-ramps + the trust
+  rules, approved by Scott). **Slice 8 (problems ON the model — viewport raycast/highlight, commit
+  `391c89c`)** and **Slice 9 MS-1 (the model-down wall — Ollama-unreachable → recoverable + one-click
+  Try-again, commit `12a9686`)** each passed the real `audit-lite` to 0/0/0/0/0 with a CI-green push.
+  **Slice 9 micro-slices REMAINING:** MS-2 in-app help/glossary (frontend-only — plain-language
+  tooltips for gate/readiness/manifold/slice/overhang on the RightPanel card titles); MS-3 real step
+  progress (planning→generating→rendering→validating — **NEEDS backend progress events**, a larger
+  change); MS-4 first-run wizard (`FirstRunWizard` — detect Ollama, pull the model with progress,
+  pick a printer); plus an empty/loading/error-state copy sweep. (The escape-paths elapsed-timer +
+  Cancel overlay already shipped, pulling some "progress on long runs" scope forward.) Then **Slice
+  10** (output clarity + print preview) and **Slice 11** (responsive/a11y/copy/polish), then the
+  **Stage 8.5 stage gate: `audit-team` AND `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`.**
+  Branch head `12a9686`, working tree clean, synced with `origin/stage-8.5-usability`. **Plus an
   ESCAPE-PATHS stage inserted ahead of Slice 8** (after Scott hit an unkillable "Designing…" screen):
   every blocking action (design, photo read, slice, import) is now cancelable — `audit-team` +
   `wiring-audit` gated 0/0/0/0/0; load-bearing rule captured in
