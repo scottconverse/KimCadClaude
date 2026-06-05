@@ -211,14 +211,31 @@ export interface CompareMessage {
  * `false` — so a request with no deterministic template OFFERS the generator (status
  * `needs_experimental`) instead of auto-running it; the offer's "try it" button re-sends `true`.
  * (The server force-enables it when the user turned the experimental toggle on in Settings.) */
-export function postDesign(
+export async function postDesign(
   prompt: string,
   history?: ChatTurn[],
   experimental = false,
+  signal?: AbortSignal,
 ): Promise<DesignResponse> {
   const body: Record<string, unknown> = { prompt, experimental }
   if (history?.length) body.history = history
-  return postJson<DesignResponse>('/api/design', body)
+  // Own fetch (not postJson) so the caller can pass an AbortSignal — a design can run the local
+  // model for minutes, so the user must be able to cancel and escape the "Designing…" screen.
+  const res = await fetch('/api/design', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  })
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  return data as DesignResponse
+}
+
+/** True for the error thrown when a fetch is aborted (the user hit Cancel) — distinct from a real
+ *  failure, so the UI can return quietly to the prompt instead of showing an error. */
+export function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException ? err.name === 'AbortError' : (err as { name?: string })?.name === 'AbortError'
 }
 
 /** Deterministically re-render a template-backed design at new slider values — no model call.

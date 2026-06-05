@@ -195,7 +195,8 @@ export default function ChatPanel({
             <div className="kc-exp-offer">
               <p className="kc-exp-warn">
                 <b>Experimental · may not be perfect.</b> It runs in a locked sandbox and still has to
-                pass the printability check — you’ll see exactly what happens.
+                pass the printability check — you’ll see exactly what happens. It writes the design on
+                your computer’s AI, so it can take a few minutes; you can cancel anytime.
               </p>
               <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onTryExperimental}>
                 Try the experimental generator

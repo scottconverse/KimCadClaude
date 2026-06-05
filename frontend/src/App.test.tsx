@@ -11,6 +11,8 @@ vi.mock('./api', () => ({
   reopenDesign: vi.fn(),
   saveDesign: vi.fn().mockResolvedValue({ id: 'x', name: 'n' }),
   designIdFromMeshUrl: () => 1,
+  // Real-ish helper so the cancel path classifies an AbortError correctly.
+  isAbortError: (e: unknown) => (e as { name?: string })?.name === 'AbortError',
 }))
 
 // Replace the (three.js) Workspace so the test doesn't pull in WebGL.
@@ -21,6 +23,9 @@ vi.mock('./components/Workspace', () => ({
     versions,
     versionIdx,
     rerendering,
+    busy,
+    busyElapsed,
+    onCancelDesign,
     onRerender,
     onRefine,
     onSwitchVersion,
@@ -33,6 +38,9 @@ vi.mock('./components/Workspace', () => ({
     versions: DesignVersion[]
     versionIdx: number
     rerendering: boolean
+    busy: boolean
+    busyElapsed: number
+    onCancelDesign: () => void
     onRerender: (values: Record<string, number>) => void
     onRefine: (text: string) => void
     onSwitchVersion: (idx: number) => void
@@ -42,6 +50,8 @@ vi.mock('./components/Workspace', () => ({
   }) => (
     <div>
       <span data-testid="rerendering">{String(rerendering)}</span>
+      <span data-testid="busy">{String(busy)}</span>
+      <span data-testid="busy-elapsed">{busyElapsed}</span>
       <span data-testid="mesh-url">{result?.mesh_url ?? ''}</span>
       <span data-testid="msg-count">{messages.length}</span>
       <span data-testid="version-count">{versions.length}</span>
@@ -52,6 +62,7 @@ vi.mock('./components/Workspace', () => ({
       <button type="button" onClick={() => onRefine('make it bigger')}>do-refine</button>
       <button type="button" onClick={() => onSwitchVersion(0)}>switch-v1</button>
       <button type="button" onClick={() => onCompare(0, 1)}>do-compare</button>
+      <button type="button" onClick={onCancelDesign}>cancel-design</button>
     </div>
   ),
 }))
@@ -317,5 +328,59 @@ describe('App refinement thread (Stage 8.5 Slice 2)', () => {
     fireEvent.click(screen.getByRole('button', { name: /new design/i }))
     // Landing shown, no workspace thread
     expect(screen.queryByTestId('msg-count')).toBeNull()
+  })
+})
+
+describe('App cancel / escape the "Designing…" screen (Stage 8.5)', () => {
+  it('cancel aborts the in-flight design and returns to the prompt (never stuck)', async () => {
+    const api = await import('./api')
+    // postDesign honors the AbortSignal (4th arg) — it rejects with an AbortError when cancelled,
+    // exactly like a real aborted fetch. Otherwise it stays pending (the model is "working").
+    ;(api.postDesign as Mock).mockImplementation(
+      (_p: string, _h: unknown, _e: boolean, signal?: AbortSignal) =>
+        new Promise<DesignResponse>((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          )
+        }),
+    )
+
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'a frame stand' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+
+    // We're in the workspace, busy, with the elapsed counter wired.
+    expect((await screen.findByTestId('busy')).textContent).toBe('true')
+    expect(screen.getByTestId('busy-elapsed').textContent).toMatch(/^\d+$/)
+
+    // Hit Cancel — the request aborts and we drop back to the landing prompt, no longer stuck.
+    fireEvent.click(screen.getByRole('button', { name: 'cancel-design' }))
+    await waitFor(() => expect(screen.getByLabelText(/describe the part/i)).toBeTruthy())
+    expect(screen.queryByTestId('busy')).toBeNull()
+  })
+
+  it('drops a superseded design’s late result (escape via New Design must not be polluted)', async () => {
+    const api = await import('./api')
+    let resolveA: (v: DesignResponse) => void = () => {}
+    ;(api.postDesign as Mock)
+      .mockImplementationOnce(() => new Promise<DesignResponse>((res) => { resolveA = res })) // A hangs
+      .mockResolvedValueOnce(templateResult('/api/mesh/2')) // B completes
+
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'design A' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+    expect((await screen.findByTestId('busy')).textContent).toBe('true')
+
+    // Escape via New Design, then run B to completion.
+    fireEvent.click(screen.getByRole('button', { name: /new design/i }))
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'design B' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+    await screen.findByTestId('mesh-url')
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/2')
+
+    // A resolves LATE — the seq guard must drop it so B's session isn't clobbered.
+    await act(async () => { resolveA(templateResult('/api/mesh/1')) })
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/2')
+    expect(screen.getByTestId('version-count').textContent).toBe('1') // no stale extra version
   })
 })

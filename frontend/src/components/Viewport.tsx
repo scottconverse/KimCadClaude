@@ -5,13 +5,24 @@ import { KCViewport, type Dimensions } from '../viewport/KCViewport'
 // mesh from `meshUrl` (served at /api/mesh/<id>), and surfaces the print-aware affordances: the
 // W/D/H dimension pills (positioned by KCViewport each frame), an orientation chip, a drag hint,
 // and a dimensions-aware aria-label. `busy` is the design call in flight before a mesh exists.
+function fmtElapsed(s: number): string {
+  const m = Math.floor(s / 60)
+  return `${m}:${String(Math.max(0, s) % 60).padStart(2, '0')}`
+}
+
 export default function Viewport({
   meshUrl,
   busy,
+  busyElapsed,
+  onCancelDesign,
   onModelReady,
 }: {
   meshUrl: string | null
   busy: boolean
+  // Live elapsed seconds while a design runs, and a cancel hook — so the "Designing…" screen shows
+  // progress and is never a trap (the local model can run for minutes).
+  busyElapsed: number
+  onCancelDesign: () => void
   // Stage 8.5: fired after a mesh is framed, handing back a thumbnail-capture fn so the app can
   // snapshot the rendered part (for the "My Designs" gallery) at the moment it's on screen.
   onModelReady?: (capture: () => string | null) => void
@@ -96,9 +107,10 @@ export default function Viewport({
   // The full-cover overlay is for when there's NO model to show: the initial design call, the
   // first render, a hard load error, or the empty state. A re-render (model already framed) swaps
   // quietly underneath — no overlay.
-  const overlay = busy
-    ? 'Designing your part…'
-    : loading && !hasModel
+  // The busy (model-in-flight) state gets its own rich overlay below (message + timer + Cancel);
+  // this string overlay is for the remaining no-model states.
+  const overlay =
+    loading && !hasModel
       ? 'Rendering…'
       : error && !hasModel
         ? error
@@ -129,14 +141,31 @@ export default function Viewport({
               Preview couldn&rsquo;t update — refine to regenerate this version.
             </span>
           )}
-          {overlay && (
+          {busy ? (
+            <div className="kc-viewport-overlay kc-viewport-busy" role="status">
+              <span className="kc-spin kc-spin-lg" aria-hidden="true" />
+              <div className="kc-busy-title">Designing your part…</div>
+              <p className="kc-busy-sub">
+                This runs on your computer&rsquo;s AI — it can take a few minutes, especially for a
+                brand-new shape. Nothing leaves your machine.
+              </p>
+              <div className="kc-busy-elapsed">{fmtElapsed(busyElapsed)} elapsed</div>
+              <button
+                type="button"
+                className="kc-btn kc-busy-cancel"
+                onClick={onCancelDesign}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : overlay ? (
             <div
               className={`kc-viewport-overlay${error ? ' kc-viewport-overlay-error' : ''}`}
               role="status"
             >
               {overlay}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import {
   exportDesignUrl,
   getOptions,
   importDesign,
+  isAbortError,
   postDesign,
   postRender,
   postSettings,
@@ -67,6 +68,23 @@ describe('postDesign', () => {
     const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
     expect(body.experimental).toBe(true)
     expect(body.history).toEqual([{ role: 'user', content: 'a box' }])
+  })
+
+  // The user must be able to cancel a long local-model run — postDesign forwards an AbortSignal.
+  it('passes the AbortSignal to fetch so a design can be cancelled', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    const ctrl = new AbortController()
+    await postDesign('a box', undefined, false, ctrl.signal)
+    const init = (f.mock.calls[0] as unknown[])[1] as RequestInit
+    expect(init.signal).toBe(ctrl.signal)
+  })
+})
+
+describe('isAbortError', () => {
+  it('recognizes an aborted-fetch error and nothing else', () => {
+    expect(isAbortError(Object.assign(new Error('x'), { name: 'AbortError' }))).toBe(true)
+    expect(isAbortError(new Error('a real failure'))).toBe(false)
+    expect(isAbortError(null)).toBe(false)
   })
 })
 

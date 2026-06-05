@@ -12,6 +12,8 @@ export default function Workspace({
   result,
   meshUrl,
   busy,
+  busyElapsed,
+  onCancelDesign,
   error,
   rerendering,
   rerenderError,
@@ -30,6 +32,8 @@ export default function Workspace({
   result: DesignResponse | null
   meshUrl: string | null
   busy: boolean
+  busyElapsed: number
+  onCancelDesign: () => void
   error: string | null
   rerendering: boolean
   rerenderError: string | null
@@ -60,7 +64,13 @@ export default function Workspace({
           onTryExperimental={onTryExperimental}
           onPhotoSeed={onPhotoSeed}
         />
-        <Viewport meshUrl={meshUrl} busy={busy} onModelReady={onModelReady} />
+        <Viewport
+          meshUrl={meshUrl}
+          busy={busy}
+          busyElapsed={busyElapsed}
+          onCancelDesign={onCancelDesign}
+          onModelReady={onModelReady}
+        />
         <RightPanel
           result={result}
           rerendering={rerendering}

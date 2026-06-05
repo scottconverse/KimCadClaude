@@ -558,6 +558,62 @@ input {
   color: #e9a08a;
 }
 
+/* The design-in-flight overlay is INTERACTIVE (carries a Cancel button) and honest: a
+   "runs on your machine, can take a few minutes" line + a live elapsed timer + Cancel, so the
+   "Designing…" screen always shows progress and is never a trap. */
+/* Compound selector (not just .kc-viewport-busy) so the pointer-events override always beats the
+   base .kc-viewport-overlay { pointer-events: none } regardless of source order — Cancel must stay
+   clickable; a CSS reorder must never silently re-trap the user. */
+.kc-viewport-overlay.kc-viewport-busy {
+  flex-direction: column;
+  gap: 9px;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--kc-viewport-bg) 80%, transparent);
+}
+.kc-busy-title {
+  font-family: var(--kc-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+.kc-busy-sub {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+}
+.kc-busy-elapsed {
+  font-family: var(--kc-font-mono);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.46);
+  font-variant-numeric: tabular-nums;
+}
+.kc-busy-cancel {
+  margin-top: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+}
+.kc-busy-cancel:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+}
+.kc-busy-cancel:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.kc-spin-lg {
+  width: 26px;
+  height: 26px;
+  border-width: 3px;
+}
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-busy-cancel {
+    min-height: 44px;
+  }
+}
+
 /* Print-aware viewport affordances: projected W/D/H dimension pills (positioned by KCViewport),
  * an orientation chip, and a drag hint. */
 .kc-dim-pill {

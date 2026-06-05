@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   designIdFromMeshUrl,
+  isAbortError,
   postDesign,
   postRender,
   reopenDesign,
@@ -50,6 +51,15 @@ export default function App() {
   // The most recent completed design result — drives the viewport + right panel.
   const [result, setResult] = useState<DesignResponse | null>(null)
   const [busy, setBusy] = useState(false)
+  // Lets the user cancel an in-flight design (the local model can run for minutes) and escape the
+  // "Designing your part…" screen. The elapsed seconds tick a live counter so it never looks frozen.
+  const designAbortRef = useRef<AbortController | null>(null)
+  const busyStartRef = useRef<number>(0)
+  // Monotonic guard so a superseded design (cancelled, or replaced by a New Design / new submit
+  // while it was still in flight) can't apply its late result into a fresh session — the design
+  // analogue of `renderSeq` below.
+  const designSeqRef = useRef(0)
+  const [designElapsed, setDesignElapsed] = useState(0)
   // A top-level network/unexpected error (not a pipeline status failure — those surface as
   // assistant messages with error tone in the thread).
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +86,19 @@ export default function App() {
     resultRef.current = r
     setResult(r)
   }, [])
+
+  // While a design is running, tick an elapsed-seconds counter (~2 Hz) so the "Designing…" screen
+  // shows live progress rather than a frozen spinner. Reset to 0 when the run ends.
+  useEffect(() => {
+    if (!busy) {
+      setDesignElapsed(0)
+      return
+    }
+    const tick = () => setDesignElapsed(Math.max(0, Math.round((Date.now() - busyStartRef.current) / 1000)))
+    tick()
+    const id = window.setInterval(tick, 500)
+    return () => window.clearInterval(id)
+  }, [busy])
 
   // --- save / persistence -------------------------------------------------
   const persist = useCallback(
@@ -167,10 +190,17 @@ export default function App() {
   ) {
     // Remember this attempt so the "try the experimental generator" offer can re-run it.
     lastAttemptRef.current = { prompt: userPrompt, history, fromVersionIdx }
+    const seq = ++designSeqRef.current
+    // Supersede any still-in-flight design so its late resolve can't pollute this run.
+    designAbortRef.current?.abort()
+    const controller = new AbortController()
+    designAbortRef.current = controller
+    busyStartRef.current = Date.now()
     setBusy(true)
     setError(null)
     try {
-      const r = await postDesign(userPrompt, history, experimental)
+      const r = await postDesign(userPrompt, history, experimental, controller.signal)
+      if (seq !== designSeqRef.current) return // a newer design replaced this one — drop the result
       const tone = isFailureStatus(r.status) ? 'error' : undefined
       const assistantMsg: Message = { role: 'assistant', content: assistantMessage(r), tone }
       setMessages((prev) => {
@@ -196,12 +226,31 @@ export default function App() {
       })
       applyResult(r)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong.'
-      setMessages((prev) => [...prev, { role: 'assistant', content: msg, tone: 'error' }])
-      setError(msg)
+      if (seq !== designSeqRef.current) return // superseded (incl. our own abort on replace) — ignore
+      if (isAbortError(err)) {
+        // The user cancelled — return quietly. Only worth a thread note if they stay in the
+        // workspace (a refine); a first-design cancel returns to the landing, where it'd be unseen.
+        if (resultRef.current) {
+          setMessages((prev) => [...prev, { role: 'assistant', content: 'Cancelled — back to you.' }])
+        }
+      } else {
+        const msg = err instanceof Error ? err.message : 'Something went wrong.'
+        setMessages((prev) => [...prev, { role: 'assistant', content: msg, tone: 'error' }])
+        setError(msg)
+      }
     } finally {
-      setBusy(false)
+      if (seq === designSeqRef.current) {
+        if (designAbortRef.current === controller) designAbortRef.current = null
+        setBusy(false)
+      }
     }
+  }
+
+  /** Cancel an in-flight design and escape the "Designing your part…" screen. Aborts the request so
+   *  the UI returns to the prompt immediately (the local model may finish its current pass in the
+   *  background, but the user is no longer stuck waiting on it). */
+  function handleCancelDesign() {
+    designAbortRef.current?.abort()
   }
 
   // --- design / refine / re-render ---------------------------------------
@@ -307,6 +356,10 @@ export default function App() {
     setRerenderError(null)
     setRerendering(false)
     renderSeq.current++
+    // Supersede + abort any in-flight design so a late resolve can't repopulate this fresh slate.
+    designSeqRef.current++
+    designAbortRef.current?.abort()
+    designAbortRef.current = null
     setBusy(false)
   }
 
@@ -385,6 +438,8 @@ export default function App() {
             result={result}
             meshUrl={meshUrl}
             busy={busy}
+            busyElapsed={designElapsed}
+            onCancelDesign={handleCancelDesign}
             error={error}
             rerendering={rerendering}
             rerenderError={rerenderError}
