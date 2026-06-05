@@ -95,9 +95,12 @@ describe('ExportPanel gate-awareness', () => {
     // Slicing… + a Cancel appears.
     expect(await screen.findByRole('button', { name: /^Cancel$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Slicing/i })).toBeTruthy()
-    // Cancel aborts and returns to the slice button, no error.
+    // Cancel aborts and returns to the slice button, with NO error surfaced (a cancel isn't a
+    // failure — this catches an isAbortError-miss that would leak the raw "aborted" message).
     fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: /slice & prepare/i })).toBeTruthy())
     expect(screen.queryByText(/slicing failed/i)).toBeNull()
+    expect(document.querySelector('.kc-export-error')).toBeNull()
+    expect(screen.queryByText(/aborted/i)).toBeNull()
   })
 })

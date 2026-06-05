@@ -12,6 +12,7 @@ export default function Workspace({
   result,
   meshUrl,
   busy,
+  restoring,
   busyElapsed,
   onCancelDesign,
   error,
@@ -32,6 +33,7 @@ export default function Workspace({
   result: DesignResponse | null
   meshUrl: string | null
   busy: boolean
+  restoring: boolean
   busyElapsed: number
   onCancelDesign: () => void
   error: string | null
@@ -59,6 +61,7 @@ export default function Workspace({
           compareCard={compareCard}
           result={result}
           busy={busy}
+          restoring={restoring}
           error={error}
           onRefine={onRefine}
           onTryExperimental={onTryExperimental}
@@ -67,6 +70,7 @@ export default function Workspace({
         <Viewport
           meshUrl={meshUrl}
           busy={busy}
+          restoring={restoring}
           busyElapsed={busyElapsed}
           onCancelDesign={onCancelDesign}
           onModelReady={onModelReady}

@@ -32,6 +32,7 @@ vi.mock('./components/Workspace', () => ({
     onCompare,
     onModelReady,
     result,
+    error,
   }: {
     messages: Message[]
     compareCard: CompareMessage | null
@@ -47,10 +48,12 @@ vi.mock('./components/Workspace', () => ({
     onCompare: (a: number, b: number) => void
     onModelReady: (capture: () => string | null) => void
     result: DesignResponse | null
+    error: string | null
   }) => (
     <div>
       <span data-testid="rerendering">{String(rerendering)}</span>
       <span data-testid="busy">{String(busy)}</span>
+      <span data-testid="error">{error ?? ''}</span>
       <span data-testid="busy-elapsed">{busyElapsed}</span>
       <span data-testid="mesh-url">{result?.mesh_url ?? ''}</span>
       <span data-testid="msg-count">{messages.length}</span>
@@ -382,6 +385,30 @@ describe('App cancel / escape the "Designing…" screen (Stage 8.5)', () => {
     await act(async () => { resolveA(templateResult('/api/mesh/1')) })
     expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/2')
     expect(screen.getByTestId('version-count').textContent).toBe('1') // no stale extra version
+  })
+
+  it('cancelling a refine returns to the workspace with the prior part and NO error', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock)
+      .mockResolvedValueOnce(templateResult('/api/mesh/1')) // first design completes
+      .mockImplementationOnce((_p: string, _h: unknown, _e: boolean, signal?: AbortSignal) =>
+        new Promise<DesignResponse>((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          )
+        })) // the refine hangs until cancelled
+
+    render(<App />)
+    await designFrom('a box')
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('true'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'cancel-design' }))
+    // Stays in the workspace (a part is present), busy clears, the prior part is intact, NO error
+    // (a leaked raw "aborted" via an isAbortError-miss would show here).
+    await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('false'))
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/1')
+    expect(screen.getByTestId('error').textContent).toBe('')
   })
 
   it('Escape key cancels an in-flight design (keyboard escape)', async () => {

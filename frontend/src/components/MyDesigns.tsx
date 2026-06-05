@@ -227,6 +227,7 @@ export default function MyDesigns({
 
   async function handleImportFile(file: File | undefined) {
     if (!file) return
+    importAbortRef.current?.abort() // supersede any prior in-flight import
     const controller = new AbortController()
     importAbortRef.current = controller
     setImporting(true)

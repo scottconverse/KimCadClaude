@@ -13,12 +13,17 @@ function fmtElapsed(s: number): string {
 export default function Viewport({
   meshUrl,
   busy,
+  restoring,
   busyElapsed,
   onCancelDesign,
   onModelReady,
 }: {
   meshUrl: string | null
   busy: boolean
+  // `restoring` = reopening a saved design (a fast load), as opposed to a model design run. The two
+  // share `busy` but get different overlays: a reopen shows a plain "Reopening…" (no timer/Cancel),
+  // a design run shows the cancelable, elapsed-timed overlay.
+  restoring: boolean
   // Live elapsed seconds while a design runs, and a cancel hook — so the "Designing…" screen shows
   // progress and is never a trap (the local model can run for minutes).
   busyElapsed: number
@@ -141,7 +146,12 @@ export default function Viewport({
               Preview couldn&rsquo;t update — refine to regenerate this version.
             </span>
           )}
-          {busy ? (
+          {busy && restoring ? (
+            <div className="kc-viewport-overlay kc-viewport-restoring" role="status">
+              <span className="kc-spin kc-spin-lg" aria-hidden="true" />
+              <span>Reopening your design…</span>
+            </div>
+          ) : busy ? (
             <div className="kc-viewport-overlay kc-viewport-busy" role="status">
               <span className="kc-spin kc-spin-lg" aria-hidden="true" />
               <div className="kc-busy-title">Designing your part…</div>
@@ -149,7 +159,8 @@ export default function Viewport({
                 This runs on your computer&rsquo;s AI — it can take a few minutes, especially for a
                 brand-new shape. Nothing leaves your machine.
               </p>
-              <div className="kc-busy-elapsed">{fmtElapsed(busyElapsed)} elapsed</div>
+              {/* aria-hidden: the ~2 Hz tick would otherwise chant in a screen reader (UX-801). */}
+              <div className="kc-busy-elapsed" aria-hidden="true">{fmtElapsed(busyElapsed)} elapsed</div>
               <button
                 type="button"
                 className="kc-btn kc-busy-cancel"

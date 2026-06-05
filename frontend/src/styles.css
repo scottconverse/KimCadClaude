@@ -568,7 +568,12 @@ input {
   flex-direction: column;
   gap: 9px;
   pointer-events: auto;
-  background: color-mix(in srgb, var(--kc-viewport-bg) 80%, transparent);
+  /* UX-802: near-solid so the dark copy + Cancel keep their contrast even when a part is framed
+     underneath during a refine (an 80% wash let the model show through and weaken it). */
+  background: color-mix(in srgb, var(--kc-viewport-bg) 94%, transparent);
+}
+.kc-viewport-restoring {
+  gap: 10px;
 }
 .kc-busy-title {
   font-family: var(--kc-font-display);

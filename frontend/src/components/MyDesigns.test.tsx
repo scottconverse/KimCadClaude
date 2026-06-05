@@ -170,8 +170,11 @@ describe('MyDesigns', () => {
     // Importing… + a Cancel.
     expect(await screen.findByRole('button', { name: /^Cancel$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Importing/i })).toBeTruthy()
-    // Cancel returns to the Import button, no error surfaced.
+    // Cancel returns to the Import button, with NO error surfaced (catches an isAbortError-miss that
+    // would leak the raw "aborted" message instead of treating a cancel as a cancel).
     fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: /^Import$/i })).toBeTruthy())
+    expect(screen.queryByText(/aborted/i)).toBeNull()
+    expect(screen.queryByText(/couldn.t be imported/i)).toBeNull()
   })
 })

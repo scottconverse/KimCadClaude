@@ -19,10 +19,14 @@
   the model).** Slices 1–7 are built on branch `stage-8.5-usability` and gated 0/0/0/0/0: Slice 1,
   the Slice 2–4 batch, Slice 6, and **Slice 7 (the photo on-ramp — MS-1 backend + MS-2 UI)** have
   each passed their full `audit-team` (Slices 2–4 and Slice 7 also a `wiring-audit`); Slice 5 was
-  design-only (the three advanced on-ramps + the trust rules, approved by Scott). **Slice 7 is now
-  gated and pending Scott's walkthrough.** The plan was RENUMBERED 2026-06-03 — the on-ramps design
-  is Slice 5, so settings became Slice 6 and the photo on-ramp is Slice 7 (was "8" in the old
-  prototype list above).
+  design-only (the three advanced on-ramps + the trust rules, approved by Scott). **Plus an
+  ESCAPE-PATHS stage inserted ahead of Slice 8** (after Scott hit an unkillable "Designing…" screen):
+  every blocking action (design, photo read, slice, import) is now cancelable — `audit-team` +
+  `wiring-audit` gated 0/0/0/0/0; load-bearing rule captured in
+  [feedback_escape_path_everywhere](memory). **Slice 7 + the escape stage are gated and pending
+  Scott's walkthrough.** (Some "real progress on long runs" scope was pulled forward from Slice 9
+  here.) The plan was RENUMBERED 2026-06-03 — the on-ramps design is Slice 5, so settings became
+  Slice 6 and the photo on-ramp is Slice 7 (was "8" in the old prototype list above).
   NOT merged/tagged — that's Scott's authorization. CadQuery (Stage 8) is feasibility-proven (CadQuery
   2.7 + OCCT on 3.13, arm's-length subprocess worker — the main venv is 3.14) but comes AFTER 8.5.
 

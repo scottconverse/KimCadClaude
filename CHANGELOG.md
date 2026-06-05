@@ -24,6 +24,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 8.5 — escape paths on every action (on branch, not yet merged/tagged):** every long or
+  blocking action is now cancelable, so the app never traps you. The "Designing your part…" screen
+  shows an honest "this runs on your computer's AI — it can take a few minutes" note, a live elapsed
+  timer, and a **Cancel** (plus Esc); the photo "Reading…" read, slicing, and importing each get a
+  **Cancel** that aborts the request and returns you to the prior control with no error. Requests are
+  abortable end to end (an AbortSignal threaded through the API client).
 - **Stage 8.5 Slice 7 — "describe with a photo" on-ramp (on branch, not yet merged/tagged):** a
   secondary affordance on the landing + workspace reads a photo with gemma4:e4b's **local** vision
   into a rough, editable text seed that pre-fills the existing text→DesignPlan path. It's a starting

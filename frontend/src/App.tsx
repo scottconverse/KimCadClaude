@@ -60,6 +60,10 @@ export default function App() {
   // analogue of `renderSeq` below.
   const designSeqRef = useRef(0)
   const [designElapsed, setDesignElapsed] = useState(0)
+  // `busy` covers both a model design run AND reopening a saved design. Only the former is a
+  // cancelable, elapsed-timed model call — so the busy overlay must know which it is (ENG-001/002:
+  // a reopen was showing the "Designing…" overlay with a garbage timer and a dead Cancel).
+  const [restoring, setRestoring] = useState(false)
   // A top-level network/unexpected error (not a pipeline status failure — those surface as
   // assistant messages with error tone in the thread).
   const [error, setError] = useState<string | null>(null)
@@ -206,6 +210,7 @@ export default function App() {
     const controller = new AbortController()
     designAbortRef.current = controller
     busyStartRef.current = Date.now()
+    setRestoring(false) // this is a real model design run, not a reopen
     setBusy(true)
     setError(null)
     try {
@@ -370,6 +375,7 @@ export default function App() {
     designSeqRef.current++
     designAbortRef.current?.abort()
     designAbortRef.current = null
+    setRestoring(false)
     setBusy(false)
   }
 
@@ -379,6 +385,7 @@ export default function App() {
     if (resultRef.current?.saved_id === route.id) return
     let cancelled = false
     renderSeq.current++
+    setRestoring(true) // a reopen, not a design run — the overlay shows "Reopening…", no timer/Cancel
     setBusy(true)
     setError(null)
     setRerenderError(null)
@@ -409,7 +416,10 @@ export default function App() {
         if (!cancelled) setError("That design couldn't be opened.")
       })
       .finally(() => {
-        if (!cancelled) setBusy(false)
+        if (!cancelled) {
+          setRestoring(false)
+          setBusy(false)
+        }
       })
     return () => { cancelled = true }
   }, [route, applyResult])
@@ -448,6 +458,7 @@ export default function App() {
             result={result}
             meshUrl={meshUrl}
             busy={busy}
+            restoring={restoring}
             busyElapsed={designElapsed}
             onCancelDesign={handleCancelDesign}
             error={error}

@@ -93,6 +93,16 @@ both. UX is the acceptance gate, not an afterthought.
 - 🟠 **The photo never auto-sends** — local vision by default; any cloud vision path is opt-in + labeled per the trust rules.
 - 🟡 Sensible states — an unreadable / over-large image, a "couldn't read that photo," and real progress while the vision model runs on CPU.
 
+## Escape paths everywhere (inserted ahead of Slice 8) — ✅ IMPLEMENTED (`audit-team` + `wiring-audit` → 0/0/0/0/0; pending Scott's approval)
+**Goal (load-bearing rule, 2026-06-04, after Scott hit an unkillable "Designing…" screen):** every
+action / blocking state has a working escape — Cancel / back / Esc — so the user is NEVER trapped.
+- ✅ The design "Designing…" overlay: honest "runs on your computer's AI, can take a few minutes" copy,
+  a live elapsed timer, a **Cancel**, and **Esc** (this pulls forward part of Slice 9's "real progress
+  on long runs" — see below).
+- ✅ Cancel on the photo "Reading…" read, slicing, and importing; requests abortable end to end.
+- ⏭️ Deferred to their own slices: a global request **timeout** ("nothing hangs forever"); **Esc** on
+  the photo/slice/import in-flight states (the broader Esc-everywhere); modal Esc-to-close.
+
 ## Slice 8 — Show problems on the model (text → visual)
 **Goal:** the validator already knows *where* the overhang is — show it.
 - 🟠🔴 **Highlight problem regions in the 3D viewport** — overhangs, poor bed contact, etc., colored on the actual model. (PrintProof3D returns the exact triangles; KimCad currently throws that geometry away and shows a word. Keep + forward it.)

@@ -104,6 +104,7 @@ export default function ChatPanel({
   compareCard,
   result,
   busy,
+  restoring,
   error,
   onRefine,
   onTryExperimental,
@@ -113,6 +114,7 @@ export default function ChatPanel({
   compareCard: CompareMessage | null
   result: DesignResponse | null
   busy: boolean
+  restoring?: boolean
   error: string | null
   onRefine: (text: string) => void
   onTryExperimental: () => void
@@ -182,7 +184,7 @@ export default function ChatPanel({
             <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
             <div className="kc-think">
               <span className="kc-spin" aria-hidden="true" />
-              <span>Designing your part…</span>
+              <span>{restoring ? 'Reopening your design…' : 'Designing your part…'}</span>
             </div>
           </div>
         )}

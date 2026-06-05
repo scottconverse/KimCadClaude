@@ -78,6 +78,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
 
   async function handleSlice() {
     if (designId == null || !canSlice) return
+    sliceAbortRef.current?.abort() // supersede any prior in-flight slice
     const controller = new AbortController()
     sliceAbortRef.current = controller
     setSlicing(true)

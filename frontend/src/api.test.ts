@@ -83,6 +83,9 @@ describe('postDesign', () => {
 describe('isAbortError', () => {
   it('recognizes an aborted-fetch error and nothing else', () => {
     expect(isAbortError(Object.assign(new Error('x'), { name: 'AbortError' }))).toBe(true)
+    // The real browser path: fetch rejects with a DOMException named 'AbortError'.
+    expect(isAbortError(new DOMException('aborted', 'AbortError'))).toBe(true)
+    expect(isAbortError(new DOMException('boom', 'NetworkError'))).toBe(false)
     expect(isAbortError(new Error('a real failure'))).toBe(false)
     expect(isAbortError(null)).toBe(false)
   })
@@ -307,5 +310,12 @@ describe('getOptions / postSlice', () => {
     expect(result.sliced).toBe(true)
     expect(result.gcode_url).toBe('/api/gcode/7')
     expect(fetchMock).toHaveBeenCalledWith('/api/slice/7', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('postSlice forwards an AbortSignal so a slow slice can be cancelled', async () => {
+    const fetchMock = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ sliced: true }) }))
+    const ctrl = new AbortController()
+    await postSlice(7, 'p2s', 'pla', ctrl.signal)
+    expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ signal: ctrl.signal })
   })
 })
