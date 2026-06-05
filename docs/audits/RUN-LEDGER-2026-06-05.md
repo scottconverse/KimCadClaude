@@ -12,8 +12,8 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 
 | # | Phase | wiring-audit | audit-team 0/0/0/0/0 | merge+tag | status |
 |---|---|---|---|---|---|
-| 1 | Stage 8.5 Slice 11 (responsive/a11y/copy/polish) — build + audit-lite | n/a (slice) | audit-lite per micro-slice | n/a | ⏳ IN PROGRESS |
-| 2 | Stage 8.5 STAGE GATE (whole stage) | ☐ | ☐ | ☐ tag `stage-8.5` | ☐ |
+| 1 | Stage 8.5 Slice 11 (responsive/a11y/copy/polish) — build + audit-lite | n/a (slice) | ✅ audit-lite 0/0/0/0/0 (`95b25e0`) | n/a | ✅ DONE |
+| 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS 0/0/0/0 | ⏳ audit-team ran (0B/0C/11Maj/22Min/11Nit=44); REMEDIATING to 0/0/0/0/0 | ☐ tag `stage-8.5` | ⏳ IN PROGRESS |
 | 3 | Backfill Stage 4 (SPA) audits | ☐ | ☐ (refresh) | n/a (already on main) | ☐ |
 | 4 | Backfill Stage 5 (templates/sliders) audits | ☐ | ☐ (refresh) | n/a | ☐ |
 | 5 | Backfill Stage 6 (model layer) audits | ☐ | ☐ (refresh) | n/a | ☐ |
