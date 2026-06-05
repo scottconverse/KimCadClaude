@@ -146,7 +146,7 @@ and the Elegoo Neptune 4 Max — are fully sliceable and proven end to end again
 bundled OrcaSlicer. (If a printer were ever configured without a process profile, a
 slice for it reports that cleanly and the validated model is still produced.)
 
-### Web UI (Phase 2, early)
+### Web UI
 
 For a browser experience instead of the CLI:
 

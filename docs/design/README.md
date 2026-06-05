@@ -1,5 +1,21 @@
 # Handoff: KimCad — Consumer AI → 3D-Print Interface
 
+> ## ⚠ SUPERSEDED POSTURE — read before building to this doc
+> This design reference predates two **settled, load-bearing** product decisions. Where the prototype
+> below contradicts these, the decisions win (build to them, not to the prototype's visuals):
+> - **Model:** `gemma4:e4b` is THE default and the only model the UI presents (text, codegen, AND
+>   vision). The "Choose a model" step's **Qwen2.5-Coder "RECOMMENDED"** card (§ first-run wizard) is
+>   superseded — Qwen was evaluated via a live bake-off and **rejected (0/10)**; it is not a default,
+>   not "recommended", and not bundled. The model surface is a **status readout** (is gemma4:e4b
+>   pulled / running?), never a menu of alternatives, and never a Chinese model.
+> - **Photo on-ramp vision is LOCAL by default.** The image on-ramp's "Default analysis runs on a
+>   free OpenRouter vision model — your photo leaves the device" is superseded: the photo is read by
+>   **gemma4:e4b's local vision** by default and never auto-sends. Any cloud vision path is strictly
+>   opt-in and labeled at the point of use. Cloud (OpenRouter) is OFF by default everywhere.
+>
+> Everything else in this doc (layout, Workshop tokens, states, copy craft) remains the build target.
+> The controlling spec (`KimCad-Unified-Product-Spec-v3.0.md`) carries the same corrections.
+
 ## Overview
 
 KimCad is a Windows-first desktop app that turns a **plain-English description — or a photo — of a functional part** into a printer-ready file, and optionally sends it to a real printer, through a conversation. The user describes what they want, sees a print-aware 3D preview with real dimensions, refines it by talking and by dragging parameter sliders, passes a Printability Gate, reviews a print report + Smart Mesh readiness score, and either downloads a file or prints directly. **No CAD skills, and the user never edits OpenSCAD.**

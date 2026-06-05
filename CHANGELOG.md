@@ -6,7 +6,7 @@ All notable changes to KimCad are documented here. Format follows
 ## [Unreleased]
 
 > The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
-> **Stages 1–6 are tagged (`stage-1` … `stage-6`).** Stage 5 (deterministic template engine +
+> **Stages 0–7 are tagged (`stage-0` … `stage-7`).** Stage 5 (deterministic template engine +
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness

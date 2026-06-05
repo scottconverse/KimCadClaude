@@ -1,5 +1,12 @@
 # KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 (MS-1..MS-4) + Slice 10 done & pushed; Stage 7 DONE + tagged `stage-7`)
 
+## ▶ RESUME HERE (5-line orientation)
+- **Where:** branch `stage-8.5-usability` (off `main`/`stage-7`). `main` is tagged `stage-0`…`stage-7`.
+- **What's done:** Stage 8.5 Slices 1–11 built + pushed; the stage gate ran (wiring-audit PASS; 5-role audit-team).
+- **Active task:** remediate the Stage 8.5 audit-team findings to 0/0/0/0/0 → merge → tag `stage-8.5`. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
+- **Then:** backfill the owed audits on shipped stages 0–7, then build Stages 8 → 9 → 10 → 11 to the beta.
+- **Rules:** per-slice audit-lite + stage-gate audit-team + wiring-audit, fix EVERY finding, real skills via independent agents, evidence committed. Full detail below.
+
 ## ⛔ READ FIRST
 
 - **🔧 STAGE 8.5 (Usability) IN PROGRESS — branch `stage-8.5-usability`** (off `main`/`stage-7`).
@@ -303,17 +310,25 @@ docs-consistency commit** so the tagged artifact carries the corrected docs rath
 contradictory ones. The `stage-4` tag and the `main` head are therefore the same commit (verify:
 `git rev-parse stage-4` == `git rev-parse main`); `dcbcd1a` remains the merge commit for provenance.
 
-**Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
-{status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
-findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `POST /api/slice/<id>`
-{printer,material} → {sliced,reason?,estimate,estimate_detail{time,layers,filament_mm,filament_cm3,
-filament_g,filament_g_estimated}?,gcode_url?,gcode_filename?} (Slice 10: `estimate_detail` is the
-structured breakout the SPA lays out as labeled stats — weight is volume×material-density when the
-profile reports none, flagged `filament_g_estimated`); `GET /api/gcode/<id>`; `GET /api/options`;
-`GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}. The
-server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API.
-Browser **send** is intentionally NOT wired in the SPA (it's Stage 10) — the web UI is status +
-slice + download; the CLI (`--send`) and MCP are the send paths today.
+**Backend API contract — AUTHORITATIVE LIST IS `ARCHITECTURE.md` (kept current per stage).** The
+SPA seam GREW substantially across Stages 5–8.5; this block is a summary, not the full enumeration —
+read `ARCHITECTURE.md` for the complete, current route list. Core design/slice/send seam:
+`POST /api/design` {prompt} → {status, clarification?, plan{object_type,summary,target_bbox_mm},
+report{gate_status,headline,dims,findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>`
+(STL/3MF); `POST /api/slice/<id>` {printer,material} → {sliced,reason?,estimate,estimate_detail{time,
+layers,filament_mm,filament_cm3,filament_g,filament_g_estimated}?,gcode_url?,gcode_filename?} (Slice
+10: `estimate_detail` is the structured breakout; weight is volume×material-density when the profile
+reports none, flagged `filament_g_estimated`); `GET /api/gcode/<id>`; `GET /api/options`;
+`GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}.
+**Added Stage 5–8.5 (also in ARCHITECTURE.md):** `POST /api/render/<id>` (deterministic live-slider
+re-render, no model call); the `/api/designs*` family (list / reopen `<id>` / thumb / save / import /
+export / rename / delete / duplicate — local persistence + "My Designs"); `GET /api/settings` +
+`POST /api/settings` (defaults/units/cloud-opt-in/experimental; key masked, never echoed);
+`GET /api/model-status`; `GET /api/health`; `GET /api/design/progress/<job_id>` (the step-progress
+poll); `POST /api/photo-seed` (local-vision photo on-ramp). The server reads `web/index.html` at
+startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API. Browser **send** is intentionally
+NOT wired in the SPA (it's Stage 10) — the web UI is status + slice + download; the CLI (`--send`)
+and MCP are the send paths today.
 
 ---
 

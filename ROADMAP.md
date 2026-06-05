@@ -10,7 +10,9 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
 `docs/design/KimCad-Unified-Product-Spec-v3.0.md` (+ the design handoff under `docs/design/`).
 
 ## The target (this is the whole game)
-- **Hardware: a 32 GB-RAM machine with an AMD 780M integrated GPU — no discrete GPU.**
+- **Hardware: a 32 GB-RAM machine with an AMD 780M integrated GPU — no discrete GPU.** (The v3.0
+  spec's reference box is the slightly stronger Beelink **890M**; KimCad targets the 780M, so anything
+  that runs here runs on the spec reference too — see HANDOFF §9.)
   This is *both* the development target and the deployment target. If it doesn't run well
   here, it doesn't ship. There is no GPU box coming; "wait for the GPU" is off the table.
 - **Model: `gemma4:e4b`** — a small (~4B-effective) on-device model via local Ollama that fits and
@@ -211,7 +213,9 @@ passing parts are genuinely print-ready. **Remaining for the stage gate:** the f
 
 ## Stage 8.5 — Usability: turn the demo into a tool people keep  🔧 IN PROGRESS (branch `stage-8.5-usability`)
 **Status: IN PROGRESS — executed BEFORE the Stage 8 CadQuery backend (8.5-first, ratified 2026-06-03;
-spec Addendum B).** Full punch list: `docs/stage-8.5-usability-plan.md`.
+spec Addendum B).** Full punch list (AUTHORITATIVE): `docs/stage-8.5-usability-plan.md` — **renumbered
+to 11 slices 2026-06-03** (the on-ramps design became Slice 5, so settings/photo shifted up); spec
+Addendum B's "9 slices" predates the renumber. The plan doc is the source of truth for the slice list.
 **Goal:** fix the deal-killers that make the working core loop unusable for real, repeated use — and
 finish the design-spec surfaces (`docs/design/`) that were deferred during the build.
 **Why first:** the built UI is all in-memory (a refresh wipes the part), has no saved-designs

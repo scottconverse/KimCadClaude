@@ -159,9 +159,11 @@ download stays as the fallback, as does the validated model itself.
 
 **Stage 8.5 additions (on the `stage-8.5-usability` branch):** `/api/designs*` persist + reopen the
 "My Designs" library; `/api/settings` + `/api/model-status` back the in-app Settings screen (the
-saved cloud API key is masked on redisplay and never echoed back in full); and `POST /api/photo-seed`
-reads an uploaded photo with the **local** vision model into a rough text seed (never persisted,
-never logged, never auto-sent). `_SettingsAwareProvider` routes a design prompt to the user's
+saved cloud API key is masked on redisplay and never echoed back in full); `GET /api/health` is a
+lightweight liveness check; `GET /api/design/progress/<job_id>` is the step-progress poll the
+"Designing…" screen reads; `POST /api/render/<id>` is the deterministic live-slider re-render (no
+model call); and `POST /api/photo-seed` reads an uploaded photo with the **local** vision model into
+a rough text seed (never persisted, never logged, never auto-sent). `_SettingsAwareProvider` routes a design prompt to the user's
 opt-in cloud model when configured, but `describe_photo` always builds a dedicated **local** provider,
 so the photo path is unreachable from the cloud-TEXT routing — the photo can't leave the machine.
 
