@@ -32,6 +32,14 @@ describe('Topbar', () => {
     expect(props.onHome).toHaveBeenCalledTimes(1)
   })
 
+  it('TEST-004: My Designs shows the active state on the designs route and navigates', () => {
+    const { props } = renderBar({ activeRoute: 'designs' })
+    const myDesigns = screen.getByRole('button', { name: 'My Designs' })
+    expect(myDesigns.getAttribute('aria-current')).toBe('page')
+    fireEvent.click(myDesigns)
+    expect(props.onMyDesigns).toHaveBeenCalledTimes(1)
+  })
+
   it('Settings navigates and shows an active state on the settings route', () => {
     const { props } = renderBar({ activeRoute: 'settings' })
     const settings = screen.getByRole('button', { name: 'Settings' })

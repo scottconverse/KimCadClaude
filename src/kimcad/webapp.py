@@ -287,9 +287,22 @@ class DemoProvider:
     def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
         from kimcad.ir import DesignPlan
 
+        # QA-002: prompt-keyword demo scenarios so the error/offer states are reachable in the LIVE
+        # demo (the default demo always makes a clean, gate-passing box, so a hands-on walkthrough
+        # never sees them). Both scenarios route through a NON-template object_type, which makes the
+        # pipeline OFFER the experimental generator; "demo:gatefail" then emits an oversized cube
+        # that fails the build-volume gate when the user opts to run it — so the gate-failed refusal
+        # is demoable end to end, not only unit-tested.
+        p = (prompt or "").lower()
+        if "demo:gatefail" in p:
+            object_type, summary = "oversized_block", "Demo: a part that fails the printability gate"
+        elif "demo:experimental" in p:
+            object_type, summary = "demo_widget", "Demo: an out-of-template part (experimental offer)"
+        else:
+            object_type, summary = "box", f"Demo part for: {prompt[:80]}"
         return DesignPlan(
-            object_type="box",
-            summary=f"Demo part for: {prompt[:80]}",
+            object_type=object_type,
+            summary=summary,
             dimensions={"wall": 2.0},
             bounding_box_mm=[80, 60, 40],
             printer=printer.key,
@@ -297,11 +310,13 @@ class DemoProvider:
         )
 
     def generate_openscad(self, plan, printer, material, history=None):  # noqa: ANN001
-        # ENG-506: in demo mode this is now SHADOWED by the template tier — object_type "box"
+        # ENG-506: in demo mode this is normally SHADOWED by the template tier — object_type "box"
         # matches the snap_box family, so the geometry is emitted deterministically and this
-        # never runs. Kept as the documented LLM-codegen contract shape (and exercised by the
-        # LLM-path tests via FakeProvider); it would run only if the demo plan named a
-        # non-template object_type.
+        # never runs. It DOES run for the QA-002 non-template demo scenarios (the experimental path).
+        if getattr(plan, "object_type", "") == "oversized_block":
+            # A cube larger than any configured build plate -> the gate fails on build volume, so the
+            # gate-failed state (slice/send refused) is exercisable in the running demo.
+            return "cube([300, 300, 300]);"
         return "use <library/containers.scad>;\nsnap_box(width=80, depth=60, height=40, wall=2);"
 
     def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
@@ -1718,7 +1733,8 @@ def make_handler(
                 # simply has no template parameters — so an API consumer isn't sent debugging the
                 # wrong thing. Both are 404 (no sliders to drive either way).
                 if not known:
-                    self._json(404, {"error": "Design not found."})
+                    # QA-003: match the reopen handler's wording for a missing design.
+                    self._json(404, {"error": "That design couldn't be found."})
                 else:
                     self._json(404, {"error": "This design has no adjustable parameters."})
                 return
@@ -1739,6 +1755,22 @@ def make_handler(
                 self._json(500, {"error": f"{type(e).__name__}: {e}"})
                 return
             payload = _result_to_payload(result)
+            # QA-001: signal when requested values were clamped/coerced. The SPA sliders are
+            # range-bounded so they never trip this, but a raw API client otherwise gets a silent
+            # 200 with corrected geometry and no indication its input was adjusted.
+            applied = {p["name"]: p["value"] for p in payload.get("parameters", []) if "name" in p}
+            adjusted = []
+            for name, req in values.items():
+                if name not in applied:
+                    continue
+                try:
+                    same = abs(float(req) - float(applied[name])) <= 1e-6
+                except (TypeError, ValueError):
+                    same = False
+                if not same:
+                    adjusted.append({"name": name, "requested": req, "applied": applied[name]})
+            if adjusted:
+                payload["adjusted_params"] = adjusted
             if result.mesh_path is not None and result.mesh_path.exists():
                 with lock:
                     registry[rid] = result.mesh_path

@@ -33,9 +33,11 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 - ✅ **Docs (9)** — DOC-001..006 + DOC-N1/N2/N3 — commit `d2764ad`.
 - ✅ **Engineering (7)** — ENG-001..007 (incl. geometry-version stamp + reopen re-gate + tests) — commit `c1261f2`.
 - ✅ **UI/UX (20)** — DONE. A (`bf1006c`): UX-001/009/005/007/012/013/015/017. B1 (`3fa1655`): UX-002/003/010/008/011. B2: UX-004 (shorter mobile viewport + sticky "Check & download" CTA), UX-006 (Topbar printer-status chip incl. build_volume on /api/options). Nits: UX-014 (apostrophe style — convention noted, no mass rewrite), UX-016 (photo alt="" confirmed intentional — decorative; the editable seed is the content), UX-018 (InfoTip italic-i kept — hit-area meets WCAG 2.5.8; documented). All UX findings closed.
-- ☐ **Tests (5)** — TEST-001..005.
-- ☐ **QA (3)** — QA-001..003.
+- ✅ **Tests (5)** — TEST-001 (hosted frontend CI job, `be1e138`); TEST-002 (useHashRoute hook tests); TEST-003 (cloud key never in logs — capsys); TEST-004 (My Designs active-route behavior assertion); TEST-005 (api-mock seam accepted — strong socket-level backend coverage; documented).
+- ✅ **QA (3)** — QA-001 (/api/render `adjusted_params` clamp hint); QA-002 (prompt-keyword demo scenarios `demo:gatefail` / `demo:experimental` so error/offer states are live-reachable); QA-003 (bad-id wording unified).
 - ☐ Re-audit (audit-team + re-check wiring) → 0/0/0/0/0 → merge `main` → tag `stage-8.5`.
+
+**All 44 audit-team findings remediated.** Next: re-audit to confirm 0/0/0/0/0, then merge + tag.
 
 ## Log
 - 2026-06-05: Run started. Slices 1–10 of Stage 8.5 built + pushed (Slice 10 = `7fc5415`). Slice 11 built + gated + pushed (`95b25e0`). Stage-8.5 stage gate ran: wiring-audit PASS; audit-team 44 findings. Remediation: docs (`d2764ad`) + engineering (`c1261f2`) done; UX/test/QA next.

@@ -1328,7 +1328,8 @@ def test_render_endpoint_unknown_id_is_design_not_found(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         status, body = _req_json(host, port, "POST", "/api/render/999999", {"values": {"width": 50}})
     assert status == 404
-    assert "not found" in body["error"].lower()
+    # QA-003: wording unified with the reopen handler ("That design couldn't be found.").
+    assert "couldn't be found" in body["error"].lower()
     assert "no adjustable parameters" not in body["error"]
 
 
@@ -2296,6 +2297,32 @@ def test_cloud_key_saved_locally_but_never_returned_in_full(tmp_path, monkeypatc
         # And model-status now reports the user's cloud model, not the local default.
         st, ms = _jreq(host, port, "GET", "/api/model-status")
         assert ms["backend"] == "cloud" and ms["model"] == "anthropic/claude-sonnet"
+
+
+def test_cloud_key_never_appears_in_logs(tmp_path, monkeypatch, capsys):
+    """TEST-003: the second leak vector — the key must not reach logs/exceptions either. Exercise
+    every endpoint that handles the key-bearing settings (POST + GET settings, model-status) and
+    assert the raw key is in neither stdout nor stderr (the server's request log + any print)."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    SECRET = "or-fake-openrouter-key-LEAKCHECK987"
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _jreq(host, port, "POST", "/api/settings", {
+            "cloud_enabled": True, "openrouter_api_key": SECRET, "cloud_model": "x/y",
+        })
+        assert st == 200
+        _jreq(host, port, "GET", "/api/settings")
+        _jreq(host, port, "GET", "/api/model-status")
+    captured = capsys.readouterr()
+    assert SECRET not in captured.out, "cloud key leaked to stdout"
+    assert SECRET not in captured.err, "cloud key leaked to stderr"
+    # Sanity: it really did persist (so the test exercised the real key path, not a no-op).
+    assert _j.loads(settings_file.read_text(encoding="utf-8"))["openrouter_api_key"] == SECRET
 
 
 def test_cloud_key_can_be_cleared(tmp_path, monkeypatch):
