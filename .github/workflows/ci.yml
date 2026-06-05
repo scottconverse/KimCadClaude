@@ -1,19 +1,23 @@
 name: CI
 
-# PARTIAL smoke check, NOT the authoritative gate. This runs Python lint + pytest only,
-# on a Linux runner. It deliberately does NOT run the frontend Vitest suite, the SPA
-# build / build-reproducibility check, npm audit, external-tool fetch, or the live
-# (Windows-only) OrcaSlicer slice proof — those can't run on a hosted Linux runner.
-# The authoritative gate is the LOCAL Windows pre-push hook (.githooks/pre-push ->
-# scripts/ci.sh), which runs all of the above. A green check here is not equivalent to
-# the local gate. (Currently disabled to save Actions minutes; `gh workflow enable CI`.)
+# Hosted gate. Runs the Python lint + pytest (Linux) AND the frontend Vitest suite + SPA build on a
+# hosted runner — so a UI-logic regression or a frontend that won't build no longer ships green just
+# because a developer hasn't armed the local pre-push hook (TEST-001, stage-8.5 gate).
+#
+# Still NOT a full substitute for the LOCAL Windows gate (.githooks/pre-push -> scripts/ci.sh): the
+# live (Windows-only) OrcaSlicer slice proof and npm audit run there. BYTE-EXACT build reproducibility
+# (committed assets == fresh build) is also enforced by the Windows hook; here the reproducibility
+# diff is informational because Vite/Rolldown output can differ across platforms (the hosted runner
+# uses the Linux Rolldown binding, the committed assets are built on Windows).
+#
+# Enable with `gh workflow enable CI` when ready to spend Actions minutes.
 on:
   push:
   pull_request:
   workflow_dispatch:
 
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,5 +28,23 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check src tests
-      - name: Test
-        run: pytest -q
+      - name: Test (non-live; the live OrcaSlicer proof runs in the local Windows gate)
+        run: pytest -q -m "not live"
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install (clean, gets the Linux Rolldown binding)
+        run: npm --prefix frontend ci
+      - name: Vitest
+        run: npm --prefix frontend run test -- --run
+      - name: Build (must compile from source)
+        run: npm --prefix frontend run build
+      - name: Build reproducibility (informational — byte-exact is enforced by the Windows hook)
+        run: |
+          git diff --stat -- src/kimcad/web || true
+          echo "Note: cross-platform Vite output may differ; byte-exact repro is the Windows pre-push hook's job."
