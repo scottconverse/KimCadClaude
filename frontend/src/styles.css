@@ -1481,7 +1481,7 @@ input {
 .kc-rec-arrow {
   flex: none;
   color: var(--kc-accent-deep);
-  font-weight: 800;
+  font-weight: 600; /* UX-017: lighter (was 800) */
   margin-top: 1px;
 }
 
@@ -1858,11 +1858,6 @@ input {
   border-color: color-mix(in srgb, var(--kc-accent) 22%, var(--kc-hair-strong));
 }
 
-/* UX-017: lighten the recommendations "→" marker (was 800 — visually heavy). */
-.kc-rec-arrow {
-  font-weight: 600;
-}
-
 /* UX-003 / UX-010: refine-by-talking chips + a persistent hint above the composer. */
 .kc-refine-hint {
   display: block;
@@ -1981,6 +1976,12 @@ input {
     font-weight: 700;
     box-shadow: var(--kc-shadow-hero);
     cursor: pointer;
+  }
+  /* UX-NEW-1: the branded focus ring (matches .kc-btn) so the primary mobile action has a clear,
+     consistent keyboard-focus indicator. */
+  .kc-mobile-cta:focus-visible {
+    outline: 2px solid var(--kc-accent);
+    outline-offset: 2px;
   }
 }
 

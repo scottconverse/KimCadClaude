@@ -1498,6 +1498,51 @@ def test_regate_mesh_passes_in_bounds_and_returns_none_on_error(tmp_path):
     assert _regate_mesh(cfg, small, None) is None
 
 
+def test_render_flags_adjusted_params_when_values_are_clamped(tmp_path):
+    # QA-001 / RTEST-005: an out-of-range render value is clamped and the response flags it; an
+    # in-range value produces no flag (so a raw API client knows when its input was changed).
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        _s, clamped = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": 99999}})
+        assert "adjusted_params" in clamped
+        assert "width" in [a["name"] for a in clamped["adjusted_params"]]
+        _s, ok = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": 100}})
+        assert "adjusted_params" not in ok
+
+
+def test_demo_gatefail_scenario_offers_experimental_then_gate_fails(tmp_path):
+    # QA-002 / RTEST-006: the demo:gatefail prompt routes to a non-template part (needs_experimental,
+    # an OFFER not an auto-run); running it experimental emits an oversized cube whose mesh FAILS the
+    # gate, and /api/slice then refuses it — so the gate-failed state is reachable in the live demo
+    # AND still correctly refused. Uses the real OpenSCAD renderer (present in the supported env).
+    from kimcad.config import Config
+
+    pipe = Pipeline(Config.load(), BAMBU, PLA, DemoProvider())
+    with _serve(pipe, tmp_path) as (host, port):
+        # The SPA always sends experimental:false, so a template miss is OFFERED, not auto-run.
+        _s, offer = _req_json(
+            host, port, "POST", "/api/design", {"prompt": "demo:gatefail", "experimental": False}
+        )
+        assert offer["status"] == "needs_experimental"  # offered, never auto-run
+        # Opting in (the "Try the experimental generator" button) runs it -> the oversized cube fails.
+        _s, e = _req_json(
+            host, port, "POST", "/api/design", {"prompt": "demo:gatefail", "experimental": True}
+        )
+        rid = int(e["mesh_url"].rsplit("/", 1)[-1])
+        assert e["report"]["gate_status"] == "fail"  # the 300mm cube exceeds the build plate
+        _s, sl = _req_json(
+            host, port, "POST", f"/api/slice/{rid}", {"printer": "bambu_p2s", "material": "pla"}
+        )
+        assert sl["sliced"] is False and sl["reason"] == "gate_failed"
+        # A default demo prompt is still a clean, gate-passing box (the template path).
+        _s, ok = _req_json(
+            host, port, "POST", "/api/design", {"prompt": "a normal box", "experimental": False}
+        )
+        assert ok["report"]["gate_status"] != "fail"
+
+
 def test_concurrent_rerenders_are_serialized(tmp_path):
     # RENDER-001: a deliberately slow renderer records its [enter, exit] interval; with the
     # render_lock, two concurrent /api/render calls for the same id must NOT overlap (else they

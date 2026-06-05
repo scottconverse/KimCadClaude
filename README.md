@@ -100,8 +100,9 @@ builds are not yet verified (spec §7.5); install those manually and point
 
 Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
 `localhost:11434`, running `gemma4:e4b` — a small (~4B-effective) model picked because
-it fits the target machine (a 32 GB box with a 780M iGPU) and stays fast and stable
-there:
+it fits the target machine (a 32 GB box with a 780M iGPU — the v3.0 spec's reference box is the
+slightly stronger Beelink 890M, so anything that runs here runs on the spec reference too) and stays
+fast and stable there:
 
 ```
 ollama pull gemma4:e4b

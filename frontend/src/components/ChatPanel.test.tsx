@@ -70,6 +70,22 @@ describe('ChatPanel thread', () => {
     expect(screen.getByRole('textbox', { name: /Refine your part/i })).toBeTruthy()
   })
 
+  it('RTEST-002: a refine chip fires onRefine with its text', () => {
+    const { props } = renderPanel({ messages: [{ role: 'assistant', content: 'done' }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Make it taller' }))
+    expect(props.onRefine).toHaveBeenCalledWith('Make it taller')
+  })
+
+  it('RTEST-002: refine chips are hidden while the model is asking a clarifying question', () => {
+    renderPanel({
+      messages: [{ role: 'assistant', content: 'What size?' }],
+      result: { status: 'clarification_needed', has_mesh: false },
+    })
+    expect(screen.queryByRole('button', { name: 'Make it taller' })).toBeNull()
+    // the input is still there to answer the question
+    expect(screen.getByRole('textbox', { name: /Refine your part/i })).toBeTruthy()
+  })
+
   it('Enter submits the refinement; Shift+Enter does not', () => {
     const { props } = renderPanel({ messages: [{ role: 'assistant', content: 'done' }] })
     const box = screen.getByRole('textbox', { name: /Refine your part/i })

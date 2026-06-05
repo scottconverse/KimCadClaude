@@ -3,6 +3,25 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Topbar from './Topbar'
 
+// UX-006 / RTEST-003: the Topbar loads printer options on mount for the status chip.
+vi.mock('../api', () => ({
+  getOptions: vi.fn().mockResolvedValue({
+    printers: [
+      {
+        key: 'p',
+        name: 'Bambu Lab P2S',
+        build_volume: [256, 256, 256],
+        sliceable: true,
+        materials: [],
+        generic_materials: [],
+      },
+    ],
+    materials: [],
+    default_printer: 'p',
+    default_material: null,
+  }),
+}))
+
 afterEach(cleanup)
 
 function renderBar(overrides: Partial<React.ComponentProps<typeof Topbar>> = {}) {
@@ -76,5 +95,11 @@ describe('Topbar', () => {
     const saved = screen.getByRole('button', { name: /saved.*my designs/i })
     expect(saved.textContent).toMatch(/Saved/)
     expect(saved.textContent).not.toMatch(/Saved · My Designs/)
+  })
+
+  it('RTEST-003: shows the printer-status chip (name + build volume) from options', async () => {
+    renderBar()
+    expect(await screen.findByText('Bambu Lab P2S')).toBeTruthy()
+    expect(screen.getByText('256×256×256 mm')).toBeTruthy()
   })
 })

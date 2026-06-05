@@ -1,11 +1,16 @@
-# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) IN PROGRESS on `stage-8.5-usability`, Slices 1–8 + Slice 9 (MS-1..MS-4) + Slice 10 done & pushed; Stage 7 DONE + tagged `stage-7`)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability): all 11 slices built & pushed; stage gate ran (wiring-audit + 5-role audit-team), remediation → merge/tag pending on `stage-8.5-usability`; Stage 7 DONE + tagged `stage-7`)
 
-## ▶ RESUME HERE (5-line orientation)
+## ▶ RESUME HERE (5-line orientation) — THIS BOX + the RUN-LEDGER are the SINGLE SOURCE OF TRUTH
 - **Where:** branch `stage-8.5-usability` (off `main`/`stage-7`). `main` is tagged `stage-0`…`stage-7`.
-- **What's done:** Stage 8.5 Slices 1–11 built + pushed; the stage gate ran (wiring-audit PASS; 5-role audit-team).
-- **Active task:** remediate the Stage 8.5 audit-team findings to 0/0/0/0/0 → merge → tag `stage-8.5`. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
+- **What's done:** Stage 8.5 Slices 1–11 built + pushed; the stage gate ran (wiring-audit PASS; 5-role audit-team); findings remediated.
+- **Active task:** finish the stage-gate re-audit → 0/0/0/0/0 → merge → tag `stage-8.5`. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
 - **Then:** backfill the owed audits on shipped stages 0–7, then build Stages 8 → 9 → 10 → 11 to the beta.
-- **Rules:** per-slice audit-lite + stage-gate audit-team + wiring-audit, fix EVERY finding, real skills via independent agents, evidence committed. Full detail below.
+- **Rules:** per-slice audit-lite + stage-gate audit-team + wiring-audit, fix EVERY finding, real skills via independent agents, evidence committed.
+
+> ⚠ **The slice-by-slice narrative below is HISTORICAL build-log detail** (written through Slice 9/10
+> and not line-by-line current — stale SHAs, "RESUME = Slice 10", "Slice 9 MS-x REMAINING", etc.). For
+> current state use the RESUME box above + `docs/audits/RUN-LEDGER-2026-06-05.md`. The detail is kept
+> for provenance; do not treat its resume pointers as live.
 
 ## ⛔ READ FIRST
 

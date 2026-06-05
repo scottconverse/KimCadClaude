@@ -222,12 +222,14 @@ finish the design-spec surfaces (`docs/design/`) that were deferred during the b
 library, no in-workspace refinement (the "conversation" is one-shot), no settings screen, mm-only,
 shows problems as text not on the model, and gives no real progress on long model runs. CadQuery
 would otherwise stack a second power feature on a base that loses your work on refresh.
-**Slices** (each `audit-lite` → 0/0/0/0/0 with a rendered desktop+mobile check; stage-end `audit-team`
+**Slices (renumbered to 11 — the authoritative list is `docs/stage-8.5-usability-plan.md`)** (each
+`audit-lite` → 0/0/0/0/0 with a rendered desktop+mobile check; stage-end `audit-team` + `wiring-audit`
 → 0/0/0/0/0 → merge → tag): (1) persistence + "My Designs"; (2) iterative refinement + version
-history (build the prototype's `VersionRail`); (3) direct numeric editing; (4) units (mm/inch);
-(5) settings + engine discoverability (`ModelPicker`); (6) problems shown on the model (viewport
-raycast/highlight); (7) onboarding / model-down / progress / help (`FirstRunWizard`); (8) output
-clarity + print preview; (9) responsive, accessibility, copy, polish.
+history (`VersionRail`); (3) direct numeric editing; (4) units (mm/inch); (5) advanced on-ramps
+design (no code); (6) settings + engine discoverability; (7) photo on-ramp; (escape-paths sweep);
+(8) problems shown on the model (viewport raycast/highlight); (9) onboarding / model-down / progress
+/ help (`FirstRunWizard`); (10) output clarity + print estimate breakout; (11) responsive,
+accessibility, copy, polish.
 **Exit:** a person can make a part, leave, come back, refine it, set units, see problems on the model,
 and discover the optional engines — without hitting a wall. **Needs:** target box. **Size:** large.
 

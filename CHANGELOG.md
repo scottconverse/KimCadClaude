@@ -12,7 +12,9 @@ All notable changes to KimCad are documented here. Format follows
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
 > report + learning store) merged + tagged `stage-7` 2026-06-02** — through the full 5-role
 > `audit-team` stage gate + remediation at 0/0/0/0/0. **Stage 8.5 (Usability) is IN PROGRESS on
-> branch `stage-8.5-usability` — not yet merged or tagged.** Slices 1–7 are built on the branch:
+> branch `stage-8.5-usability` — not yet merged or tagged.** All 11 slices are built on the branch
+> and the stage gate ran (wiring-audit + 5-role audit-team; remediation to 0/0/0/0/0 in progress —
+> see `docs/audits/stage-8.5/stage-gate-2026-06-05/`). Slices 1–7 below for reference:
 > Slice 1 (persistence + "My Designs"), Slices 2–4 (refine-as-a-conversation + version history,
 > numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
 > in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the

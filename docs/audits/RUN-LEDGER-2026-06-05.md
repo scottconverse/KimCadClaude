@@ -35,9 +35,10 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 - ✅ **UI/UX (20)** — DONE. A (`bf1006c`): UX-001/009/005/007/012/013/015/017. B1 (`3fa1655`): UX-002/003/010/008/011. B2: UX-004 (shorter mobile viewport + sticky "Check & download" CTA), UX-006 (Topbar printer-status chip incl. build_volume on /api/options). Nits: UX-014 (apostrophe style — convention noted, no mass rewrite), UX-016 (photo alt="" confirmed intentional — decorative; the editable seed is the content), UX-018 (InfoTip italic-i kept — hit-area meets WCAG 2.5.8; documented). All UX findings closed.
 - ✅ **Tests (5)** — TEST-001 (hosted frontend CI job, `be1e138`); TEST-002 (useHashRoute hook tests); TEST-003 (cloud key never in logs — capsys); TEST-004 (My Designs active-route behavior assertion); TEST-005 (api-mock seam accepted — strong socket-level backend coverage; documented).
 - ✅ **QA (3)** — QA-001 (/api/render `adjusted_params` clamp hint); QA-002 (prompt-keyword demo scenarios `demo:gatefail` / `demo:experimental` so error/offer states are live-reachable); QA-003 (bad-id wording unified).
-- ☐ Re-audit (audit-team + re-check wiring) → 0/0/0/0/0 → merge `main` → tag `stage-8.5`.
+- ◐ **Re-audit (round 1 done)** — independent 5-role re-audit @ 6c98674 (reaudit/ folder): **Engineering CLEAR 0/0/0/0/0**, **QA PASS** (0/0/0/0/1 nit), UI/Docs/Test all-prior-resolved. It surfaced a SECOND tier (mostly remediation-introduced gaps): UI 2 (mobile-CTA focus ring, dup rec-arrow rule), Docs residuals (DOC-003/005/006 partial + HANDOFF self-contradiction), Test 6 (missing tests for the new features). **Second-tier remediation DONE:** UI fixes; docs reconciled (CHANGELOG/README/ROADMAP + HANDOFF "historical body" marker); +6 tests (refine chips, printer chip, mobile CTA, adjusted_params, demo:gatefail e2e, key-never-logged). RTEST-001 (re-gate e2e) covered by _regate_mesh unit tests + reopen wiring + QA runtime; allow_nan/cache nits = defensive, accepted.
+- ☐ Round-2 re-verify → confirm clean → merge `main` → tag `stage-8.5`.
 
-**All 44 audit-team findings remediated.** Next: re-audit to confirm 0/0/0/0/0, then merge + tag.
+**All 44 original findings + the re-audit's second tier remediated.** Next: a focused round-2 re-verify, then merge + tag.
 
 ## Log
 - 2026-06-05: Run started. Slices 1–10 of Stage 8.5 built + pushed (Slice 10 = `7fc5415`). Slice 11 built + gated + pushed (`95b25e0`). Stage-8.5 stage gate ran: wiring-audit PASS; audit-team 44 findings. Remediation: docs (`d2764ad`) + engineering (`c1261f2`) done; UX/test/QA next.
