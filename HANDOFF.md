@@ -15,11 +15,17 @@
   the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
   (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
   DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
-  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 9 final micro-slice
-  — the empty/loading/error-state copy sweep — then close out Slice 9; then Slice 10 (output
-  clarity + print preview), Slice 11 (responsive/a11y/copy/polish); then the Stage 8.5 gate
-  (`audit-team` + `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`).** MS-4 (first-run
-  wizard) is DONE + pushed: `frontend/src/components/FirstRunWizard.tsx` — a 5-step modal
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 10 (output clarity +
+  print preview). Slice 9 is COMPLETE** — MS-1 (model-down wall), MS-2 (in-app help/glossary), MS-3
+  (real step progress), MS-4 (first-run wizard), each audit-lite + independent re-audit → 0/0/0/0/0
+  and CI-green-pushed. **The "empty/loading/error-state copy sweep" item is satisfied:** those
+  states were built + audited comprehensively as each slice shipped (ChatPanel empty-thread/error/
+  Try-again; ExportPanel empty/slice-error/gate-failed; MyDesigns empty/load-error/per-card-error;
+  RightPanel placeholders + failed-attempt notes; Viewport busy/restoring/error/phase overlays;
+  FirstRunWizard model + settings errors; ConnectorStatus silent-on-failure by design) — a 2026-06-05
+  sweep verified them all present + plain-English. Broader copy/tone polish folds into **Slice 11
+  (responsive/a11y/copy/polish)**. After Slice 10 + Slice 11 → the Stage 8.5 gate (`audit-team` +
+  `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`). MS-4 (first-run wizard) is DONE + pushed: `frontend/src/components/FirstRunWizard.tsx` — a 5-step modal
   (Welcome → Your AI model → Your printer → Direct printing → Ready) wired to the existing
   `/api/settings` + `/api/model-status` endpoints; **gemma4:e4b is THE model (never qwen)**; honest
   download-vs-connect-later step; NO model-pull/SmartScreen (those are Stage 11). First-run gating =
