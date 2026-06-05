@@ -576,6 +576,7 @@ export default function App() {
         onNewDesign={handleNewDesign}
         onMyDesigns={() => navigate('designs')}
         onSettings={() => navigate('settings')}
+        onShowShortcuts={() => setShowShortcuts(true)}
         onHome={handleNewDesign}
         activeRoute={route.name}
         saveState={saveState}

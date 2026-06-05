@@ -502,7 +502,7 @@ function ReadinessCard({
 }) {
   const readiness = result?.report?.readiness
   return (
-    <section className="kc-card">
+    <section className="kc-card kc-card-readiness">
       <h2 className="kc-card-title kc-tip-host">Readiness<InfoTip term="readiness" /></h2>
       {readiness ? (
         <ReadinessBody
@@ -530,7 +530,7 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
   // Slice 4: dims table shows converted values in the user's chosen unit.
   const { unit, formatMm } = useUnits()
   return (
-    <section className="kc-card">
+    <section className="kc-card kc-card-report">
       <h2 className="kc-card-title kc-tip-host">Printability<InfoTip term="printability" /></h2>
       {report ? (
         <>

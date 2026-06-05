@@ -22,6 +22,7 @@ export default function Topbar({
   onNewDesign,
   onMyDesigns,
   onSettings,
+  onShowShortcuts,
   onHome,
   activeRoute,
   saveState = 'idle',
@@ -31,6 +32,9 @@ export default function Topbar({
   onNewDesign: () => void
   onMyDesigns: () => void
   onSettings: () => void
+  // UX-005: open the keyboard-shortcuts help (also reachable via "?"). A visible entry point so the
+  // shortcuts aren't an undiscoverable hidden feature.
+  onShowShortcuts: () => void
   onHome: () => void
   activeRoute?: string
   saveState?: SaveState
@@ -65,13 +69,17 @@ export default function Topbar({
           </span>
         )}
         {persisted && (
+          // UX-013: just "Saved" — the adjacent "My Designs" nav button already provides the link,
+          // so the old "Saved · My Designs" doubled the label. Still a button (a quiet shortcut to
+          // the library) with a descriptive title/aria-label.
           <button
             type="button"
             className="kc-savestate kc-savestate-saved"
             onClick={onMyDesigns}
             title="Your work is saved. Open My Designs."
+            aria-label="Saved — open My Designs"
           >
-            <span className="kc-savedot" aria-hidden="true" /> Saved · My Designs
+            <span className="kc-savedot" aria-hidden="true" /> Saved
           </button>
         )}
         <button
@@ -89,6 +97,15 @@ export default function Topbar({
           aria-current={onSettingsRoute ? 'page' : undefined}
         >
           Settings
+        </button>
+        <button
+          type="button"
+          className="kc-btn kc-btn-ghost kc-help-btn"
+          onClick={onShowShortcuts}
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >
+          ?
         </button>
         {showNewDesign && (
           <button type="button" className="kc-btn kc-btn-dark" onClick={onNewDesign}>

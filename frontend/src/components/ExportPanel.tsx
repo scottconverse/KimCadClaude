@@ -165,6 +165,13 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
               </button>
             )}
           </div>
+          {/* UX-015: say WHY the Slice button is disabled when the chosen printer has no profile. */}
+          {selectedPrinter != null && selectedPrinter.sliceable !== true && (
+            <p className="kc-muted-note">
+              This printer doesn&rsquo;t have a slicer profile yet — pick another printer above to
+              prepare a print file.
+            </p>
+          )}
 
           {error !== null && <p className="kc-muted-note kc-export-error">{error}</p>}
           {slice && !slice.sliced && (
@@ -182,8 +189,9 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
             Download 3D model (.STL)
           </a>
           <p className="kc-muted-note kc-formats-note">
-            STL opens in other slicers and CAD tools. STEP and BREP precision formats arrive with
-            the CAD engine.
+            The <strong>.3mf</strong> print file is printer-agnostic and safe to share; the
+            <strong> .STL</strong> opens in other slicers and CAD tools. STEP and BREP precision
+            formats arrive with the CAD engine.
           </p>
         </div>
       )}

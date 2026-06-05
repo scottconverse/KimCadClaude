@@ -1835,6 +1835,32 @@ input {
   border-radius: 6px;
 }
 
+/* Stage 8.5 gate remediation (UI). UX-005: a compact "?" help button in the chrome. */
+.kc-help-btn {
+  min-width: 32px;
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* UX-001 / UX-009: restore the right-column hierarchy so the eye lands on the verdict. The
+ * Readiness card gets a warm accent tint + accent left edge; the Printability ("report") card a
+ * subtle accent border. Per-card modifiers (not the shared .kc-card) so the other cards stay flat. */
+.kc-card-readiness {
+  background: color-mix(in srgb, var(--kc-accent) 7%, var(--kc-surface));
+  border-color: color-mix(in srgb, var(--kc-accent) 26%, var(--kc-hair));
+  border-left: 3px solid var(--kc-accent);
+}
+.kc-card-report {
+  border-color: color-mix(in srgb, var(--kc-accent) 22%, var(--kc-hair-strong));
+}
+
+/* UX-017: lighten the recommendations "→" marker (was 800 — visually heavy). */
+.kc-rec-arrow {
+  font-weight: 600;
+}
+
 /* Assistant message rows carry a small cube avatar. */
 .kc-ai-row {
   display: flex;

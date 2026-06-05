@@ -11,6 +11,7 @@ function renderBar(overrides: Partial<React.ComponentProps<typeof Topbar>> = {})
     onNewDesign: vi.fn(),
     onMyDesigns: vi.fn(),
     onSettings: vi.fn(),
+    onShowShortcuts: vi.fn(),
     onHome: vi.fn(),
     activeRoute: 'landing',
     ...overrides,
@@ -48,10 +49,24 @@ describe('Topbar', () => {
         onNewDesign={vi.fn()}
         onMyDesigns={vi.fn()}
         onSettings={vi.fn()}
+        onShowShortcuts={vi.fn()}
         onHome={vi.fn()}
         activeRoute="landing"
       />,
     )
     expect(screen.getByRole('button', { name: 'New design' })).toBeTruthy()
+  })
+
+  it('UX-005: a visible "?" Help button opens the keyboard-shortcuts help', () => {
+    const { props } = renderBar()
+    fireEvent.click(screen.getByRole('button', { name: /keyboard shortcuts/i }))
+    expect(props.onShowShortcuts).toHaveBeenCalledTimes(1)
+  })
+
+  it('UX-013: the saved indicator reads just "Saved" (no doubled "My Designs")', () => {
+    renderBar({ saveState: 'saved' })
+    const saved = screen.getByRole('button', { name: /saved.*my designs/i })
+    expect(saved.textContent).toMatch(/Saved/)
+    expect(saved.textContent).not.toMatch(/Saved · My Designs/)
   })
 })
