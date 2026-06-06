@@ -331,6 +331,14 @@ class DemoProvider:
             return "cube([300, 300, 300]);"
         return "use <library/containers.scad>;\nsnap_box(width=80, depth=60, height=40, wall=2);"
 
+    def generate_cadquery(self, plan, printer, material, history=None):  # noqa: ANN001
+        # Stage 8: if the OpenSCAD demo path gate-fails (the demo:gatefail scenario), the pipeline
+        # falls back to CadQuery — so this must KEEP the oversized part oversized, else the fallback
+        # would rescue it and the "gate-failed" demo would stop demoing a gate failure.
+        if getattr(plan, "object_type", "") == "oversized_block":
+            return 'result = cq.Workplane("XY").box(300, 300, 300)'
+        return 'result = cq.Workplane("XY").box(80, 60, 40)'
+
     def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
         # Slice 7: a canned vision seed so the photo on-ramp is exercisable in demo/UI checks
         # without the real (CPU-bound) vision model. The image is ignored; the fixed seed stands in.
@@ -428,6 +436,12 @@ class _SettingsAwareProvider:
 
     def generate_openscad(self, *args: Any, **kwargs: Any) -> Any:
         return self._active().generate_openscad(*args, **kwargs)
+
+    def generate_cadquery(self, *args: Any, **kwargs: Any) -> Any:
+        # Stage 8: the CadQuery fallback routes through the same active (local/cloud) provider as
+        # the OpenSCAD codegen. Without this the fallback would AttributeError in production exactly
+        # when it's meant to rescue a failing OpenSCAD part (audit FINDING-001).
+        return self._active().generate_cadquery(*args, **kwargs)
 
     def describe_photo(self, image_bytes: bytes, printer: Any, material: Any) -> str:
         """Vision is ALWAYS local — the photo never auto-sends, even when cloud TEXT is enabled

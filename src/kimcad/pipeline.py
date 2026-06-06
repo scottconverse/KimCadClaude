@@ -30,6 +30,7 @@ from kimcad.config import Config, Material, Printer
 from kimcad.hardening import HardenReport, harden_mesh
 from kimcad.ir import DesignPlan, first_clarification
 from kimcad.llm_provider import PlanParseError, Provider
+from kimcad.cadquery_runner import render_cadquery
 from kimcad.openscad_runner import (
     BlockedCodeError,
     RenderError,
@@ -75,11 +76,33 @@ def _fixable_gate_failures(gate: GateResult) -> list[Finding]:
     return [f for f in gate.findings if f.level is Level.FAIL and f.code in _RETRY_GATE_CODES]
 
 
-def _render_feedback(error: str) -> str:
+# Per-backend "how to reply" instruction appended to a retry-feedback message.
+_OPENSCAD_FIX = "Return corrected OpenSCAD only — no prose, no code fences."
+_CADQUERY_FIX = (
+    "Return corrected CadQuery Python only — assign the final shape to `result`, use the "
+    "pre-imported `cq`, write no imports, no prose, no code fences."
+)
+
+
+@dataclass(frozen=True)
+class _GeomBackend:
+    """One geometry backend the LLM codegen path can use. ``generate`` produces source from a
+    plan; ``render`` turns that source into a mesh. The pipeline tries the primary, then falls
+    back to the other when the primary can't produce a part that renders AND passes the gate."""
+
+    name: str  # "openscad" | "cadquery"
+    label: str  # human label used in retry feedback
+    generate: Callable[..., str]
+    render: Renderer
+    fix: str  # the _*_FIX reply instruction
+    primary: bool = True  # the primary backend renders to the base name; a fallback is suffixed
+
+
+def _render_feedback(error: str, label: str = "OpenSCAD", fix: str = _OPENSCAD_FIX) -> str:
     return (
-        "The previous OpenSCAD failed to render with this error:\n"
+        f"The previous {label} failed to render with this error:\n"
         f"{error}\n"
-        "Return corrected OpenSCAD only — no prose, no code fences."
+        f"{fix}"
     )
 
 
@@ -108,16 +131,21 @@ def _axis_breakdown(plan: DesignPlan, report: MeshReport | None) -> str:
     )
 
 
-def _gate_feedback(findings: list[Finding], plan: DesignPlan, report: MeshReport | None) -> str:
+def _gate_feedback(
+    findings: list[Finding],
+    plan: DesignPlan,
+    report: MeshReport | None,
+    label: str = "OpenSCAD",
+    fix: str = _OPENSCAD_FIX,
+) -> str:
     issues = "\n".join(f"- {f.message}" for f in findings)
     return (
-        "The previous OpenSCAD rendered, but the part failed the printability gate:\n"
+        f"The previous {label} rendered, but the part failed the printability gate:\n"
         f"{issues}\n"
         f"{_axis_breakdown(plan, report)}"
         "Fix the geometry so the finished part's overall size matches the design "
         "plan's bounding box on every axis (X, Y, Z) — map each named dimension to "
-        "the correct axis and cut through-holes fully through the part. Return "
-        "corrected OpenSCAD only — no prose, no code fences."
+        f"the correct axis and cut through-holes fully through the part. {fix}"
     )
 
 
@@ -180,6 +208,9 @@ class PrintReport:
     orientation: str
     orientation_stability: float
     sanitizer_removed: list[str]
+    # Which geometry backend built this part ("openscad" | "cadquery"). The CadQuery backend
+    # (Stage 8) is the parallel fallback and the source of the editable STEP export.
+    backend: str = "openscad"
     # Pre-slice mesh hardening (Manifold3D); the exported/sliced mesh is the hardened one.
     hardened: bool = False
     harden_summary: str = ""
@@ -272,6 +303,9 @@ class PipelineResult:
     # template engine built this part (None when the LLM-codegen fallback was used). This
     # is what the live-slider UI needs: the typed parameters and the family to re-render.
     template: TemplateMatch | None = None
+    # The geometry backend that built this part ("openscad" | "cadquery"); mirrors the render's
+    # backend so the web/report layers can label it and offer the STEP export for CadQuery parts.
+    backend: str = "openscad"
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -306,6 +340,7 @@ class Pipeline:
         provider: Provider,
         *,
         renderer: Renderer | None = None,
+        cadquery_renderer: Renderer | None = None,
         slicer: Slicer | None = None,
         registry: TemplateRegistry | None = None,
         max_render_retries: int = 2,
@@ -316,6 +351,10 @@ class Pipeline:
         self.material = material
         self.provider = provider
         self.renderer = renderer or self._default_renderer
+        # The CadQuery parallel backend (Stage 8). When None, the default renderer is used only
+        # if a CadQuery interpreter is discoverable (else the fallback is skipped). Tests inject
+        # a fake to exercise the fallback without a real interpreter.
+        self._cadquery_renderer = cadquery_renderer
         self.slicer = slicer or self._default_slicer
         # The Smart Mesh learning store (Stage 7). Optional: when None (the default, and in unit
         # tests), no history is read or written — the readiness card simply omits the comparison.
@@ -337,6 +376,29 @@ class Pipeline:
             timeout_s=self.config.limit("openscad_timeout_simple_s"),
             max_output_bytes=self.config.limit("max_output_bytes"),
         )
+
+    def _default_cadquery_renderer(self, code: str, out_dir: Path, basename: str) -> RenderResult:
+        interpreter = self.config.cadquery_interpreter()
+        if interpreter is None:  # pragma: no cover - guarded by _cadquery_renderer_or_none
+            raise RenderError("CadQuery backend is unavailable (no interpreter found)")
+        return render_cadquery(
+            code,
+            interpreter=interpreter,
+            out_dir=out_dir,
+            basename=basename,
+            timeout_s=self.config.cadquery_timeout_s(),
+            max_output_bytes=self.config.limit("max_output_bytes"),
+        )
+
+    def _cadquery_renderer_or_none(self) -> Renderer | None:
+        """The CadQuery renderer to use for the parallel-backend fallback, or None when CadQuery
+        isn't available (no injected renderer and no discoverable interpreter) — in which case
+        the fallback is skipped and only the OpenSCAD path runs (no behaviour change)."""
+        if self._cadquery_renderer is not None:
+            return self._cadquery_renderer
+        if self.config.cadquery_interpreter() is not None:
+            return self._default_cadquery_renderer
+        return None
 
     def _default_slicer(self, mesh_path: Path, out_dir: Path, basename: str) -> SliceResult:
         """Resolve the configured printer + material to on-disk OrcaSlicer profiles and
@@ -536,6 +598,7 @@ class Pipeline:
                 report=report,
                 render_attempts=attempts,
                 template=match,
+                backend=render.backend,
             )
 
         slice_result = None
@@ -568,6 +631,7 @@ class Pipeline:
             slice_error=slice_error,
             render_attempts=attempts,
             template=match,
+            backend=render.backend,
         )
 
     def _compute_readiness(
@@ -777,9 +841,46 @@ class Pipeline:
         if match is not None:
             return self._build_from_template(match, plan, out_dir, basename, progress=emit)
 
+        # LLM path with a parallel backend (Stage 8). Try the primary (OpenSCAD); if it can't
+        # produce a part that renders AND passes the gate, fall back to the CadQuery backend
+        # when one is available. Different generators fail differently, so the union lifts the
+        # done-gate. OpenSCAD stays primary — it's proven and the template engine emits it.
+        primary = _GeomBackend(
+            "openscad", "OpenSCAD", self.provider.generate_openscad, self.renderer, _OPENSCAD_FIX,
+            primary=True,
+        )
+        result = self._run_llm_backend(primary, plan, out_dir, basename, gate_retry, emit)
+        if self._backend_succeeded(result, gate_retry):
+            return result
+
+        cadquery_render = self._cadquery_renderer_or_none()
+        if cadquery_render is not None:
+            secondary = _GeomBackend(
+                "cadquery", "CadQuery", self.provider.generate_cadquery,
+                cadquery_render, _CADQUERY_FIX, primary=False,
+            )
+            alt = self._run_llm_backend(secondary, plan, out_dir, basename, gate_retry, emit)
+            return self._better_result(result, alt)
+        return result
+
+    def _run_llm_backend(
+        self,
+        backend: _GeomBackend,
+        plan: DesignPlan,
+        out_dir: Path,
+        basename: str,
+        gate_retry: bool,
+        emit: ProgressFn,
+    ) -> tuple[
+        RenderResult | None, str | None, Any, MeshReport | None, GateResult | None, int, str | None
+    ]:
+        """Run ONE geometry backend's codegen → render → Gate feedback loop, returning the same
+        7-tuple as :meth:`_build_geometry`. Each backend renders to its own basename so a
+        primary and a fallback can't clobber each other's intermediate files in ``out_dir``."""
+        rbase = basename if backend.primary else f"{basename}-{backend.name}"
         thread: list[dict[str, str]] = []
         emit("generating")
-        scad = self.provider.generate_openscad(plan, self.printer, self.material, history=thread)
+        code = backend.generate(plan, self.printer, self.material, history=thread)
         last_error: str | None = None
         render: RenderResult | None = None
         mesh: Any = None
@@ -789,16 +890,14 @@ class Pipeline:
         for attempt in range(1, self.max_render_retries + 2):
             try:
                 emit("rendering")
-                render = self.renderer(scad, out_dir, basename)
+                render = backend.render(code, out_dir, rbase)
             except (RenderError, BlockedCodeError) as e:
                 last_error = str(e)
                 if attempt > self.max_render_retries:
-                    return None, scad, None, None, None, attempt, last_error
-                self._feed_back(thread, scad, _render_feedback(last_error))
+                    return None, code, None, None, None, attempt, last_error
+                self._feed_back(thread, code, _render_feedback(last_error, backend.label, backend.fix))
                 emit("generating")
-                scad = self.provider.generate_openscad(
-                    plan, self.printer, self.material, history=thread
-                )
+                code = backend.generate(plan, self.printer, self.material, history=thread)
                 continue
 
             mesh = load_mesh(render.output_path)
@@ -807,16 +906,49 @@ class Pipeline:
 
             fixable = _fixable_gate_failures(gate) if gate_retry else []
             if fixable and attempt <= self.max_render_retries:
-                self._feed_back(thread, scad, _gate_feedback(fixable, plan, mesh_report))
-                emit("generating")
-                scad = self.provider.generate_openscad(
-                    plan, self.printer, self.material, history=thread
+                self._feed_back(
+                    thread, code, _gate_feedback(fixable, plan, mesh_report, backend.label, backend.fix)
                 )
+                emit("generating")
+                code = backend.generate(plan, self.printer, self.material, history=thread)
                 continue
 
-            return render, scad, mesh, mesh_report, gate, attempt, None
+            return render, code, mesh, mesh_report, gate, attempt, None
 
-        return render, scad, mesh, mesh_report, gate, self.max_render_retries + 1, None
+        return render, code, mesh, mesh_report, gate, self.max_render_retries + 1, None
+
+    @staticmethod
+    def _backend_succeeded(
+        result: tuple[RenderResult | None, Any, Any, Any, GateResult | None, int, str | None],
+        gate_retry: bool,
+    ) -> bool:
+        """True when a backend's result is good enough that no fallback is needed: it rendered,
+        and — when the gate is being enforced (not ``proceed_anyway``) — the gate did not FAIL."""
+        render, _scad, _mesh, _mr, gate, _att, _err = result
+        if render is None:
+            return False
+        if not gate_retry:
+            return True  # proceed_anyway: the caller accepts whatever rendered
+        return gate is not None and gate.status is not Level.FAIL
+
+    @staticmethod
+    def _better_result(
+        a: tuple[RenderResult | None, Any, Any, Any, GateResult | None, int, str | None],
+        b: tuple[RenderResult | None, Any, Any, Any, GateResult | None, int, str | None],
+    ) -> tuple[RenderResult | None, Any, Any, Any, GateResult | None, int, str | None]:
+        """Pick the better of the primary (``a``) and fallback (``b``) results: a gate-passing
+        rendered part beats a gate-failing one beats no render. Ties favour the primary."""
+
+        def score(t: tuple) -> int:
+            render, _s, _m, _mr, gate, _at, _e = t
+            if render is None:
+                return 0
+            # PASS and WARN both score 2 (a non-FAIL gate is acceptable). A WARN primary never
+            # actually reaches here — _backend_succeeded already accepts it — so this only ever
+            # compares a primary that FAILED/didn't-render against the fallback.
+            return 2 if (gate is not None and gate.status is not Level.FAIL) else 1
+
+        return a if score(a) >= score(b) else b
 
     def _build_from_template(
         self,
@@ -885,6 +1017,7 @@ class Pipeline:
             headline=headline,
             target_bbox_mm=plan.bounding_box_mm,
             actual_bbox_mm=mesh_report.bounding_box_mm,
+            backend=render.backend,
             findings=[(str(f.level), f.code, f.message) for f in gate.findings],
             watertight=mesh_report.watertight,
             repaired=mesh_report.repaired,

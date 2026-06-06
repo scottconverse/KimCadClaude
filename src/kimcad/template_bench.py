@@ -60,6 +60,9 @@ class _NoModelProvider:
     def generate_openscad(self, *a: Any, **k: Any) -> Any:
         raise AssertionError("deterministic template path must not call the model for OpenSCAD")
 
+    def generate_cadquery(self, *a: Any, **k: Any) -> Any:
+        raise AssertionError("deterministic template path must not call the model for CadQuery")
+
 
 @dataclass(frozen=True)
 class FamilyBench:
