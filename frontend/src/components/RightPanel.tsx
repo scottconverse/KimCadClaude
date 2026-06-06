@@ -374,7 +374,9 @@ function ScoreGauge({ score }: { score: number }) {
           strokeDasharray={`${clamped} 100`}
         />
       </svg>
-      <div className="kc-gauge-num">
+      {/* UX-004: the SVG's aria-label is the screen-reader equivalent, so hide the duplicate
+          visible number from the a11y tree (otherwise the score is announced twice). */}
+      <div className="kc-gauge-num" aria-hidden="true">
         {clamped}
         <i>/100</i>
       </div>

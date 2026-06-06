@@ -17,7 +17,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 3 | Backfill Stage 4 (SPA) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a (fixes on backfill branch) | ✅ DONE |
 | 4 | Backfill Stage 5 (templates/sliders) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 5 | Backfill Stage 6 (model layer) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
-| 6 | Backfill Stage 7 (Smart Mesh) audits | ☐ | ☐ (refresh) | n/a | ☐ |
+| 6 | Backfill Stage 7 (Smart Mesh) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ☐ | n/a | ☐ |
 | 8 | Stage 8 (CadQuery backend) — build + gate | ☐ | ☐ | ☐ tag `stage-8` | ☐ |
 | 9 | Stage 9 (image on-ramp) — build + gate | ☐ | ☐ | ☐ tag `stage-9` | ☐ |
@@ -50,7 +50,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 4 (React SPA + viewport) | ✅ PASS | ✅ 0/0/0/0/0 (round-2 re-audit verified) | ✅ DONE — `docs/audits/stage-4/backfill-2026-06-05/` |
 | 5 (templates + sliders) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; 3 real bugs fixed) | ✅ DONE — `docs/audits/stage-5/backfill-2026-06-05/` |
 | 6 (model layer) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; Critical privacy-copy bug fixed) | ✅ DONE — `docs/audits/stage-6/backfill-2026-06-05/` |
-| 7 (Smart Mesh + readiness) | ☐ | ☐ | ☐ |
+| 7 (Smart Mesh + readiness) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; warn-badge AA + score-table consistency fixed) | ✅ DONE — `docs/audits/stage-7/backfill-2026-06-05/` |
 
 ## Phase C — build Stages 8 → 9 → 10 → 11 to the beta (per-slice audit-lite → stage gate → 0/0/0/0/0 → merge → tag)
 | Stage | build | gate | tag | status |
@@ -61,6 +61,16 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-06 (Phase B / Stage 7): backfill audit of Smart Mesh readiness + PrintProof3D + learning
+  store + the readiness card. 6 independent agents → 0B/0C/2Maj/~12Min/~3Nit (engineering-invariant
+  pass itself 0 findings: gate stays slice authority, readiness advisory). Majors: UX-001 (warn
+  confidence badge 4.23:1 < AA → darker --kc-warn-text + an automated contrast-guard test that fails
+  the build on any tone-token AA regression), TEST-S7-101 (engine-returned-None honesty path test).
+  Backend: ENG-702/703 (one PP severity table — no silent score dents; unknown gate status fails
+  safe), QA-701 (no empty warn verdict), QA-703 (no flattering "On par"). a11y: UX-002/003/004.
+  Docs: DOC-001..004. Re-audit CLEAN (false-green confirmed). Gate green (ruff, geometry, 778
+  pytest, 284 vitest, build reproducible). Package: `docs/audits/stage-7/backfill-2026-06-05/`.
+  **Phase B UI stages (4-7) all DONE; remaining: backend stages 0-3 (audit-team).**
 - 2026-06-05 (Phase B / Stage 6): backfill audit of the model layer (advisor + fallback + bake-off
   + Settings model/cloud surface). 6 independent agents → 0B/1C/2Maj/6Min/3Nit (advisor-logic
   engineering pass itself 0/0/0/0/0). Real bug: a CRITICAL privacy-copy contradiction — the Settings

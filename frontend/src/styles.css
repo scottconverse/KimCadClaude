@@ -66,6 +66,9 @@
   --kc-pass: #1d7a4e;
   --kc-pass-text: #15633d;
   --kc-warn: #876312;
+  /* UX-001 (Stage 7): a darker amber for warn TEXT on the warn tint — the readiness warn confidence
+   * badge/verdict measured ~4.2:1 with --kc-warn, just under AA; this clears it with margin. */
+  --kc-warn-text: #6a4e0b;
   --kc-warn-accent: #c9962f;
   --kc-fail: #a8431f;
 
@@ -1311,7 +1314,7 @@ input {
 }
 .kc-readiness.kc-rtone-warn {
   --tone: var(--kc-warn);
-  --tone-text: var(--kc-warn);
+  --tone-text: var(--kc-warn-text);
 }
 .kc-readiness.kc-rtone-fail {
   --tone: var(--kc-fail);
@@ -1471,6 +1474,8 @@ input {
   color: var(--kc-muted);
   cursor: pointer;
   user-select: none;
+  /* UX-002: a >=24px-tall touch/click target (WCAG 2.5.8) — the label is the clickable surface. */
+  min-height: 24px;
 }
 .kc-hl-legend {
   display: flex;
@@ -1488,11 +1493,15 @@ input {
   border-radius: 2px;
   margin-right: 1px;
 }
+/* UX-003: the legend swatches sit in the CARD next to the risk-list dots, so they use the card's
+   fail/warn tones to match those dots (within-card consistency). The actual on-model highlight stays
+   a brighter red/amber (KCViewport HL_FAIL/HL_WARN) because it has to pop on the dark 3D viewport —
+   a deliberate cross-surface choice; the severity mapping (red=issue, amber=caution) is identical. */
 .kc-hl-swatch.kc-hl-fail {
-  background: #e5484d;
+  background: var(--kc-fail);
 }
 .kc-hl-swatch.kc-hl-warn {
-  background: #f5a623;
+  background: var(--kc-warn);
 }
 .kc-hl-hint {
   opacity: 0.8;

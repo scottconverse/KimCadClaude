@@ -206,9 +206,9 @@ Slices 1–6 each passed `audit-lite` at 0/0/0/0/0; the full 5-role `audit-team`
   line; strictly factual, never flattering.
 - ✅ Tests per check (Python + vitest); the deterministic gate remains the slice authority and
   PrintProof3D adds advisory depth (folding engine fails into the slice-gate is a noted follow-up).
-**Exit:** a part produces a Smart Mesh readiness report; PrintProof3D integration validated;
-passing parts are genuinely print-ready. **Remaining for the stage gate:** the full `audit-team` at
-0/0/0/0/0 → merge → tag `stage-7`. **Needs:** target box. **Size:** ~2–3 weeks.
+**Exit (met):** a part produces a Smart Mesh readiness report; PrintProof3D integration validated;
+passing parts are genuinely print-ready. The full `audit-team` closed at 0/0/0/0/0 and the stage was
+merged + tagged `stage-7`.
 
 ## Stage 8.5 — Usability: turn the demo into a tool people keep  ✅ DONE (merged to `main`, tagged `stage-8.5`)
 **Status: DONE — merged + tagged `stage-8.5`; stage gate clean 0/0/0/0/0 across all 5 audit lanes +

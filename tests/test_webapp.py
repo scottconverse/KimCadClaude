@@ -47,6 +47,13 @@ def test_completed_payload_has_plan_report_and_mesh(tmp_path):
     # every axis reported as an exact match
     assert {d["axis"] for d in payload["report"]["dims"]} == {"X", "Y", "Z"}
     assert all(d["ok"] for d in payload["report"]["dims"])
+    # TEST-S7-104: the Stage 7 readiness survives serialization into the design response with its
+    # full shape (the card renders straight from this).
+    rd = payload["report"]["readiness"]
+    assert isinstance(rd["score"], (int, float)) and 0 <= rd["score"] <= 100
+    assert rd["verdict"] and rd["tone"] in ("pass", "warn", "fail") and rd["confidence"]
+    assert isinstance(rd["risks"], list) and isinstance(rd["recommendations"], list)
+    assert rd["attribution"]  # honest "gate alone" vs "engine ran" line
 
 
 def test_dim_mismatch_is_reported_per_axis(tmp_path):

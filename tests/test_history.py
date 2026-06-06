@@ -59,6 +59,15 @@ def test_compare_phrase_says_on_par_when_it_ties_priors_without_beating_any():
     assert "personal best" not in phrase
 
 
+def test_compare_phrase_does_not_flatter_when_the_majority_strictly_beat_it():
+    # QA-703: a part that ties one prior but is strictly below the majority is NOT "on par" — that
+    # would read flatteringly. Tie 1, below 3 of 4 -> honest "Below 3 of your 4".
+    prior = [_rec("box", 80), _rec("box", 90), _rec("box", 90), _rec("box", 90)]
+    phrase = compare_phrase("box", 80, prior)  # ties the 80, below the three 90s
+    assert "On par" not in phrase
+    assert "Below 3 of your 4" in phrase
+
+
 def test_compare_phrase_narrows_to_same_type_once_there_are_enough():
     prior = [
         _rec("box", 50), _rec("box", 55), _rec("box", 60),  # 3 boxes

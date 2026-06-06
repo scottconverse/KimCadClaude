@@ -43,7 +43,9 @@ Every built part gets a **Smart Mesh readiness** report card — a 0–100 score
 verdict, the risks, and concrete recommendations — synthesized from the Printability Gate
 plus, when it's configured, the optional arm's-length **PrintProof3D** validation engine, and
 — once you've designed a few parts — an honest "compared to your past parts" line from a
-local-first history. It's advisory: the
+local-first history. The card also shows a **confidence** — **High** when the PrintProof3D engine
+ran and returned a usable report, **Medium** on the gate alone, and **Low** when the engine ran but
+couldn't fully analyse the mesh. It's advisory: the
 deterministic gate stays the slice authority, and the card never claims the engine ran when it
 didn't. *(Stage 7 — done; tagged `stage-7`.)*
 

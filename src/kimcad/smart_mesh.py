@@ -29,10 +29,19 @@ from kimcad.validation import MeshReport
 # into these; here they're an optional input so readiness works with OR without the engine.
 
 _PP_SEVERITIES = ("blocker", "critical", "major", "minor", "nit")
-# Score penalty per PrintProof3D issue severity (subtracted from the gate-anchored base).
-_PP_PENALTY = {"blocker": 60, "critical": 45, "major": 18, "minor": 6, "nit": 1}
-# Which PrintProof3D severities surface as a card "risk", and at what tone.
-_PP_RISK_TONE = {"blocker": "fail", "critical": "fail", "major": "warn", "minor": "warn"}
+# ENG-702/QA-702: ONE table mapping a PrintProof3D severity to (score penalty, card-risk tone), so
+# the penalty and the surfaced risk can never drift. The invariant: anything that dents the score
+# MUST also surface as a risk — no silent penalties. "nit" is cosmetic (no penalty, no risk). An
+# UNKNOWN severity (engine drift) is treated conservatively as a surfaced warn (visible, modest
+# penalty) rather than silently denting the score with nothing on the card. See _pp_severity().
+_PP_SEVERITY: dict[str, tuple[int, str | None]] = {
+    "blocker": (60, "fail"),
+    "critical": (45, "fail"),
+    "major": (18, "warn"),
+    "minor": (6, "warn"),
+    "nit": (0, None),
+}
+_PP_UNKNOWN = (6, "warn")  # an unrecognized severity: surface it, don't dent silently
 
 
 @dataclass(frozen=True)
@@ -130,7 +139,10 @@ def assess_readiness(
     """Synthesize a single readiness verdict from the gate + mesh integrity (+ an optional
     PrintProof3D report). Pure: no I/O, deterministic, idempotent."""
     gate_status = str(gate.status)  # "pass" | "warn" | "fail"
-    score = _GATE_BASE.get(gate_status, 70)
+    # ENG-703: an unexpected gate status is an upstream bug. Fail SAFE to the lowest base (not a
+    # benign mid 70) so a drift can never silently inflate readiness — a sub-50 base renders as a
+    # visible "not print-ready", which is the conservative, noticeable direction for a safety score.
+    score = _GATE_BASE.get(gate_status, _GATE_BASE["fail"])
     sources = ["printability-gate"]
     risks: list[Risk] = []
     recommendations: list[str] = []
@@ -149,9 +161,9 @@ def assess_readiness(
     if printproof is not None:
         sources.append("printproof3d")
         for issue in printproof.issues:
-            score -= _PP_PENALTY.get(issue.severity, 5)
-            tone = _PP_RISK_TONE.get(issue.severity)
-            if tone is not None:  # blocker/critical/major/minor surface; "nit" doesn't
+            penalty, tone = _PP_SEVERITY.get(issue.severity, _PP_UNKNOWN)
+            score -= penalty
+            if tone is not None:  # blocker/critical/major/minor + unknown surface; "nit" doesn't
                 risks.append(Risk(
                     _humanize_pp_id(issue.id), issue.message, tone,
                     issue_id=issue.id, region=issue.region, geometry=issue.geometry,
@@ -180,6 +192,16 @@ def assess_readiness(
 
     tone = max((kc_tone, pp_tone), key=_TONE_RANK.__getitem__)
     verdict = _VERDICT[tone]
+
+    # QA-701: a warn/fail verdict must never render with an empty risk list (a "why" with no
+    # reason). This happens when the score or a gate WARN status drove the tone but no finding
+    # surfaced a discrete risk — synthesize a neutral note so the card always says what to review.
+    if tone != "pass" and not risks:
+        risks.append(Risk(
+            "Review before printing",
+            "The readiness checks flagged this part for a closer look before you print it.",
+            tone,
+        ))
 
     # A modest, factual recommendation set for Slice 1 (no invented history): the engine's
     # suggested fixes (above) plus an orientation note when an overhang risk is present and a
