@@ -168,6 +168,11 @@ class FakeProvider:
         self.photo_calls = getattr(self, "photo_calls", 0) + 1
         return "a small box, roughly 80mm wide (a rough guess from the photo — no scale)"
 
+    def describe_sketch(self, image_bytes, printer, material):  # noqa: ANN001
+        # Stage 9: a canned sketch seed; counted via sketch_calls so a test can assert it ran.
+        self.sketch_calls = getattr(self, "sketch_calls", 0) + 1
+        return "a 60mm x 40mm bracket with two 6mm holes (dimensions read from the sketch labels)"
+
 
 def box_renderer(extents, *, fail_times=0):
     """A stub renderer that writes a real trimesh box STL, optionally failing first.

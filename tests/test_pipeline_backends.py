@@ -187,13 +187,14 @@ def test_all_real_providers_implement_the_full_contract():
     from kimcad.webapp import DemoProvider, _SettingsAwareProvider
 
     codegen = ("generate_design_plan", "generate_openscad", "generate_cadquery")
+    image = ("describe_photo", "describe_sketch")
     for cls in (LLMProvider, FallbackProvider, DemoProvider, _SettingsAwareProvider, FakeProvider):
-        for method in (*codegen, "describe_photo"):
+        for method in (*codegen, *image):
             fn = getattr(cls, method, None)
             assert callable(fn), f"{cls.__name__} is missing {method}"
             sig = inspect.signature(fn)  # includes `self`; None stands in for the instance
             try:
-                if method == "describe_photo":
+                if method in image:
                     sig.bind(None, b"img", object(), object())
                 else:
                     sig.bind(None, object(), object(), object(), history=None)

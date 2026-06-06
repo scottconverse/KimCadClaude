@@ -2647,6 +2647,79 @@ def test_photo_seed_empty_seed_is_422(tmp_path):
         assert st == 422
 
 
+# --- Stage 9: the sketch on-ramp (local vision reads shape + labeled dimensions) -----------
+
+
+def _post_sketch(host, port, body, content_length=None, content_type="image/png"):
+    import json as _j
+
+    conn = http.client.HTTPConnection(host, port, timeout=15)
+    try:
+        conn.putrequest("POST", "/api/sketch-seed", skip_host=False, skip_accept_encoding=True)
+        conn.putheader("Content-Type", content_type)
+        conn.putheader("Content-Length", str(content_length if content_length is not None else len(body)))
+        conn.endheaders()
+        if body:
+            conn.send(body)
+        resp = conn.getresponse()
+        raw = resp.read()
+        return resp.status, (_j.loads(raw) if raw else {})
+    finally:
+        conn.close()
+
+
+def test_sketch_seed_returns_a_seed_with_dimensions(tmp_path):
+    """POST a sketch -> an editable seed from the LOCAL vision provider (the fake returns a canned
+    seed carrying dimensions, since a sketch labels sizes), exercisable without the real model."""
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_sketch(host, port, b"\x89PNG-fake-sketch")
+        assert st == 200
+        assert "seed" in d and "mm" in d["seed"].lower()  # the sketch seed carries dimensions
+        assert getattr(provider, "sketch_calls", 0) == 1  # local vision ran once
+
+
+def test_sketch_seed_oversized_is_413(tmp_path):
+    from kimcad.webapp import MAX_PHOTO_BYTES
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _post_sketch(host, port, b"", content_length=MAX_PHOTO_BYTES + 1)
+        assert st == 413
+
+
+def test_sketch_seed_empty_upload_is_400(tmp_path):
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_sketch(host, port, b"", content_length=0)
+        assert st == 400 and "empty" in d["error"].lower()
+        assert getattr(provider, "sketch_calls", 0) == 0  # vision never invoked on an empty body
+
+
+def test_sketch_seed_unreadable_is_422_not_500(tmp_path):
+    class _BadVision(FakeProvider):
+        def describe_sketch(self, image_bytes, printer, material):  # noqa: ANN001
+            raise RuntimeError("vision boom")
+
+    pipe = _pipeline(_BadVision(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_sketch(host, port, b"img")
+        assert st == 422 and "sketch" in d["error"].lower()
+
+
+def test_sketch_seed_empty_seed_is_422(tmp_path):
+    class _EmptyVision(FakeProvider):
+        def describe_sketch(self, image_bytes, printer, material):  # noqa: ANN001
+            return "   "
+
+    pipe = _pipeline(_EmptyVision(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _post_sketch(host, port, b"img")
+        assert st == 422
+
+
 def test_llm_describe_photo_uses_native_chat_with_think_false(monkeypatch):
     """The local vision call hits Ollama's NATIVE /api/chat (not /v1) with the image attached and
     think disabled — the wiring the live probe proved is required for a non-empty vision response."""
@@ -2728,6 +2801,48 @@ def test_photo_never_routes_to_cloud_even_when_cloud_enabled(tmp_path, monkeypat
     assert seed == "a rough box (local vision)"
     # The photo used the LOCAL backend, never the cloud (custom_openrouter) one — even though cloud
     # TEXT is fully enabled above.
+    assert built == [cfg.llm_backend("local").key]
+    assert "custom_openrouter" not in built
+
+
+def test_sketch_never_routes_to_cloud_even_when_cloud_enabled(tmp_path, monkeypatch):
+    """Stage 9 (LOAD-BEARING, mirrors the photo trust rule): a sketch is read by a dedicated LOCAL
+    vision provider and must NEVER be routed through the cloud-capable ``_active()``, even with
+    cloud TEXT fully enabled. A future refactor routing describe_sketch through _active() would
+    silently break the "image never auto-sends off the machine" guarantee — this catches it."""
+    from kimcad import config as config_mod
+    from kimcad import llm_provider as lp
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": "or-fake-key-value",
+         "cloud_model": "anthropic/claude-sonnet"}
+    )
+
+    built: list[str] = []
+
+    class _SpyProvider:
+        def __init__(self, backend, *a, **kw):  # noqa: ANN001
+            built.append(backend.key)
+            self.backend = backend
+
+        def describe_sketch(self, image_bytes, printer, material):  # noqa: ANN001
+            return "a 60mm bracket (local vision)"
+
+    monkeypatch.setattr(lp, "LLMProvider", _SpyProvider)
+    prov = _SettingsAwareProvider(object(), cfg)
+
+    def _no_active() -> object:
+        raise AssertionError("describe_sketch must not route a sketch through the cloud-capable _active()")
+
+    monkeypatch.setattr(prov, "_active", _no_active)
+
+    seed = prov.describe_sketch(b"imgbytes", BAMBU, PLA)
+    assert seed == "a 60mm bracket (local vision)"
     assert built == [cfg.llm_backend("local").key]
     assert "custom_openrouter" not in built
 

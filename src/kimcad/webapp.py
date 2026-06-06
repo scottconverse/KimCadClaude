@@ -54,7 +54,7 @@ MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
 MAX_IMPORT_BYTES = 32 * 1_048_576  # 32 MiB
 # A photo for the vision on-ramp (Slice 7). Generous for a phone photo, bounded so a hostile
 # upload can't exhaust memory; the local vision model also downsizes it.
-MAX_PHOTO_BYTES = 12 * 1_048_576  # 12 MiB
+MAX_PHOTO_BYTES = 12 * 1_048_576  # 12 MiB — the upload cap for BOTH image on-ramps (photo + sketch)
 # Stage 8.5 Slice 2: bound the client-supplied conversation history threaded into the model on a
 # follow-up turn, so a crafted request can't blow up the prompt context.
 MAX_HISTORY_TURNS = 20
@@ -348,6 +348,14 @@ class DemoProvider:
             "are rough guesses from the photo (a photo has no scale), so adjust them."
         )
 
+    def describe_sketch(self, image_bytes, printer, material):  # noqa: ANN001
+        # Stage 9: a canned sketch seed (with labeled dimensions, since a sketch carries them) so
+        # the sketch on-ramp is exercisable in demo/UI checks without the real vision model.
+        return (
+            "A rectangular bracket, 60 mm long and 40 mm wide, with a 6 mm mounting hole near each "
+            "end — dimensions read from the sketch's labels; confirm or adjust them."
+        )
+
 
 def build_web_pipeline(*, demo: bool = False, backend: str | None = None) -> Any:
     """Construct the pipeline for the web app, mirroring the CLI's wiring."""
@@ -452,6 +460,14 @@ class _SettingsAwareProvider:
 
         local = LLMProvider(self._config.llm_backend("local"))
         return local.describe_photo(image_bytes, printer, material)
+
+    def describe_sketch(self, image_bytes: bytes, printer: Any, material: Any) -> str:
+        """Stage 9: same trust rule as describe_photo — the sketch is read by a dedicated LOCAL
+        vision provider and never auto-sends, even when cloud TEXT is enabled."""
+        from kimcad.llm_provider import LLMProvider
+
+        local = LLMProvider(self._config.llm_backend("local"))
+        return local.describe_sketch(image_bytes, printer, material)
 
 
 def _mask_key(key: Any) -> str | None:
@@ -1077,6 +1093,9 @@ def make_handler(
             if self.path == "/api/photo-seed":
                 self._handle_photo_seed()
                 return
+            if self.path == "/api/sketch-seed":
+                self._handle_sketch_seed()
+                return
             if self.path.startswith("/api/slice/"):
                 self._handle_slice(self.path.rsplit("/", 1)[-1])
                 return
@@ -1374,6 +1393,30 @@ def make_handler(
             try:
                 cfg = get_config()
                 seed = pipeline.provider.describe_photo(image, cfg.printer(None), cfg.material(None))
+            except Exception:  # noqa: BLE001 - never leak a traceback; vision is best-effort
+                self._json(422, cant_read)
+                return
+            seed = (seed or "").strip()
+            if not seed:
+                self._json(422, cant_read)
+                return
+            self._json(200, {"seed": seed})
+
+        def _handle_sketch_seed(self) -> None:
+            """Stage 9: read an uploaded dimensioned SKETCH and return an editable text seed (shape +
+            the labeled dimensions) for the text->DesignPlan path. Read by the LOCAL vision model;
+            NEVER auto-sent off the machine. Best-effort: an unreadable sketch or a vision failure is
+            a clean 422, never a 500; nothing is persisted."""
+            image = self._read_raw_body(MAX_PHOTO_BYTES)
+            if image is None:
+                return  # _read_raw_body already sent a 413/400
+            cant_read = {
+                "error": "Couldn’t read that sketch — try a clearer image, or cancel and describe "
+                "the part in words."
+            }
+            try:
+                cfg = get_config()
+                seed = pipeline.provider.describe_sketch(image, cfg.printer(None), cfg.material(None))
             except Exception:  # noqa: BLE001 - never leak a traceback; vision is best-effort
                 self._json(422, cant_read)
                 return
