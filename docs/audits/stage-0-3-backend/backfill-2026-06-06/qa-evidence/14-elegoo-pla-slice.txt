@@ -1,0 +1,24 @@
+Will slice for Elegoo Neptune 4 Max + PLA using:
+  machine   = Elegoo Neptune 4 Max (0.4 nozzle)
+  process   = 0.20mm Standard @Elegoo Neptune4Max (0.4 nozzle)
+  filament  = Generic PLA @Elegoo
+Enclosure — A closed rectangular box defined by external dimensions of 40mm x 30mm x 20mm.
+Printer: Elegoo Neptune 4 Max   Material: PLA
+Gate: PASS
+Headline: Dimensions match: 35.0 × 35.0 × 25.0 mm.
+Size: 35.0 × 35.0 × 25.0 mm (target 35.0 × 35.0 × 25.0)
+Mesh: watertight, 2 body(ies), volume 12625 mm³
+Orientation: rests on most stable facet (stability 0.23)
+Hardening: hardened via manifold3d (genus -1)
+Readiness: 92/100 - Ready to print (confidence Medium; via KimCad printability gate and your local build history)
+  Suggest: Slice for PLA on the selected printer's profile.
+  History: On par with your 6 past Enclosure parts.
+Slice: G-code produced (25393 G-code lines) -> output\qa-audit\elegoo-pla\part.gcode.3mf
+  Estimate: ~48m 2s, 125 layers, 0.0 g filament
+  Profiles: machine=Elegoo Neptune 4 Max (0.4 nozzle) | process=0.20mm Standard @Elegoo Neptune4Max (0.4 nozzle) | filament=Generic PLA @Elegoo
+  [pass] mesh.solid: Closed, watertight solid.
+  [pass] dim.match: Dimensions match: 35.0 × 35.0 × 25.0 mm.
+  [pass] volume.fits: Fits the Elegoo Neptune 4 Max build plate.
+  [pass] wall.ok: Wall 2.5 mm is adequate.
+
+Mesh: output\qa-audit\elegoo-pla\part.oriented.stl

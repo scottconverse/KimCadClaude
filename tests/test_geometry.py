@@ -79,6 +79,36 @@ def test_gate_fails_when_over_build_volume():
     assert any(f.code == "volume.exceeds" for f in res.findings)
 
 
+def test_gate_fails_on_a_non_finite_bbox():
+    # ENG-001: a NaN/inf extent must FAIL the gate, not silently pass. IEEE NaN compares False
+    # against every tolerance, so without an explicit finiteness check a degenerate part would
+    # read as printable and could be sliced. Fail closed.
+    plan = DesignPlan(object_type="plate", summary="s", bounding_box_mm=[50, 50, 10])
+    res = run_gate(_report((float("nan"), 50, 10)), plan, BAMBU, PLA)
+    assert res.failed
+    assert any(f.code == "dim.non_finite" for f in res.findings)
+    res_inf = run_gate(_report((float("inf"), 50, 10)), plan, BAMBU, PLA)
+    assert res_inf.failed and any(f.code == "dim.non_finite" for f in res_inf.findings)
+
+
+def test_gate_passes_wall_when_adequate():
+    # TEST-004: assert the wall.ok PASS branch directly (a declared wall above the min) — it was
+    # previously only hit incidentally by other passing tests.
+    plan = DesignPlan(object_type="box", summary="s", bounding_box_mm=[50, 50, 10],
+                      dimensions={"wall": 2.0})
+    res = run_gate(_report((50, 50, 10)), plan, BAMBU, PLA)
+    assert any(f.code == "wall.ok" and f.level is Level.PASS for f in res.findings)
+
+
+def test_gate_dimension_tolerance_boundary():
+    # TEST-001: pin the +/-0.5mm dimensional tolerance at its edge — 0.4mm over PASSES, 0.6mm over
+    # FAILS — so a future tolerance change is caught (the boundary was untested).
+    plan = DesignPlan(object_type="plate", summary="s", bounding_box_mm=[50, 50, 10])
+    assert run_gate(_report((50.4, 50, 10)), plan, BAMBU, PLA).status is Level.PASS
+    fail = run_gate(_report((50.6, 50, 10)), plan, BAMBU, PLA)
+    assert fail.failed and any(f.code == "dim.mismatch" for f in fail.findings)
+
+
 def test_gate_warns_on_thin_wall():
     plan = DesignPlan(
         object_type="box",
@@ -274,5 +304,7 @@ def test_auto_orient_handles_single_triangle():
     )
     oriented, info = auto_orient(tri)
     assert isinstance(oriented, trimesh.Trimesh)
-    assert info.stability == 1.0  # heuristic fallback when no stable pose exists
+    # ENG-004: the no-stable-pose fallback reports 0.0 stability (least certain), not a misleading
+    # max-confidence 1.0 — the part is left as-is, but that isn't a confident orientation.
+    assert info.stability == 0.0
     assert "left as-is" in info.description

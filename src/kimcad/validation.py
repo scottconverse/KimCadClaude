@@ -85,6 +85,11 @@ def validate_mesh(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, MeshReport]:
     # Measured on the (possibly repaired) mesh that will be sliced — see contract above.
     extents = mesh.extents if mesh.extents is not None else np.zeros(3)
     bbox = (float(extents[0]), float(extents[1]), float(extents[2]))
+    # ENG-001: a degenerate mesh can yield NaN/inf extents. IEEE NaN compares False against every
+    # tolerance, so a non-finite bbox would SILENTLY PASS the dimension + build-volume gates. Record
+    # it as an error here; the printability gate fails closed on it (see _check_finite_extents).
+    if not bool(np.all(np.isfinite(extents))):
+        errors.append("non-finite bounding box (degenerate geometry)")
 
     try:
         volume = float(abs(mesh.volume))

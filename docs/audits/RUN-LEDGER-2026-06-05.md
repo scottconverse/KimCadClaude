@@ -18,7 +18,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 4 | Backfill Stage 5 (templates/sliders) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 5 | Backfill Stage 6 (model layer) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 6 | Backfill Stage 7 (Smart Mesh) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
-| 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ☐ | n/a | ☐ |
+| 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ✅ 0/0/0/0/0 (re-audited; ENG-001 safety + QA-301) | ✅ committed | ✅ DONE |
 | 8 | Stage 8 (CadQuery backend) — build + gate | ☐ | ☐ | ☐ tag `stage-8` | ☐ |
 | 9 | Stage 9 (image on-ramp) — build + gate | ☐ | ☐ | ☐ tag `stage-9` | ☐ |
 | 10 | Stage 10 (direct-print + layer preview) — build + gate | ☐ | ☐ | ☐ tag `stage-10` | ☐ |
@@ -43,10 +43,10 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 ## Phase B — backfill owed audits on shipped stages 0–7 (wiring-audit first, then audit-team)
 | Stage | wiring-audit | audit-team | status |
 |---|---|---|---|
-| 0 (pipeline + web stub) | n/a (backend) | ☐ (commit into VC) | ☐ |
-| 1 (deterministic pipeline) | n/a | ☐ (commit into VC) | ☐ |
-| 2 (connectors) | n/a | ☐ (move pkg into VC) | ☐ |
-| 3 (printer coverage) | n/a | ☐ (move pkg into VC) | ☐ |
+| 0 (pipeline + web stub) | n/a (backend) | ✅ DONE (`docs/audits/stage-0-3-backend/backfill-2026-06-06/`; old root pkg migrated to `docs/audits/stage-0/`) | ✅ DONE |
+| 1 (deterministic pipeline / gated export) | n/a | ✅ DONE (combined backend audit; ENG-001 NaN-gate safety fix) | ✅ DONE |
+| 2 (connectors) | n/a | ✅ DONE (combined backend audit) | ✅ DONE |
+| 3 (printer coverage) | n/a | ✅ DONE (combined backend audit; QA-301 friendly errors) | ✅ DONE |
 | 4 (React SPA + viewport) | ✅ PASS | ✅ 0/0/0/0/0 (round-2 re-audit verified) | ✅ DONE — `docs/audits/stage-4/backfill-2026-06-05/` |
 | 5 (templates + sliders) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; 3 real bugs fixed) | ✅ DONE — `docs/audits/stage-5/backfill-2026-06-05/` |
 | 6 (model layer) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; Critical privacy-copy bug fixed) | ✅ DONE — `docs/audits/stage-6/backfill-2026-06-05/` |
@@ -61,6 +61,19 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-06 (Phase B / backend stages 0-3): combined backend audit-team (eng/test/QA/docs; UI/UX
+  n/a) across the coupled backend (pipeline, gate, slicer, connectors, printer coverage), findings
+  tagged per stage → 0B/0C/~5Maj/~9Min/~6Nit. STANDOUT safety bug: ENG-001 — a NaN/inf bbox extent
+  SILENTLY PASSED the dim + build-volume gates (IEEE NaN compares False); now fails closed via a
+  finiteness check that runs first. Plus QA-301 (friendly UnknownConfigKey instead of a raw KeyError
+  traceback; web 400 not 500), ENG-002/004/005 (zip-entry cap, honest orient stability, timeout
+  align), QA-303 (no rec for an unavailable material), DOC-001/002/004/006 (baseline/help/Bambu/
+  envelope honesty), TEST-001/003/004 + ENG-001/QA-301 regression tests. Accepted-with-rationale:
+  QA-302/304/305, ENG-003, DOC nits. **ENG-006 surfaced to Scott** (physical build-volume VERIFY
+  needs the real P2S/A1; mitigated by the Stage-5 sliceable-footprint cap). Re-audit CLEAN
+  (false-green confirmed). Old root `audit-stage0-2026-05-29/` migrated into `docs/audits/stage-0/`.
+  Gate green (ruff, geometry, 783 pytest, 284 vitest, build reproducible).
+  **PHASE B COMPLETE — all owed audits (stages 0-7) backfilled. Next: Phase C (build Stages 8-11).**
 - 2026-06-06 (Phase B / Stage 7): backfill audit of Smart Mesh readiness + PrintProof3D + learning
   store + the readiness card. 6 independent agents → 0B/0C/2Maj/~12Min/~3Nit (engineering-invariant
   pass itself 0 findings: gate stays slice authority, readiness advisory). Majors: UX-001 (warn

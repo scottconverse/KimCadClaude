@@ -154,8 +154,11 @@ kimcad "a 40 mm cable clip" --printer bambu_a1 --material pla --slice
 The report then names the exact OrcaSlicer machine/process/filament profiles used and
 the proven G-code line count. All three of Kim's printers — the Bambu P2S, the Bambu A1,
 and the Elegoo Neptune 4 Max — are fully sliceable and proven end to end against the
-bundled OrcaSlicer. (If a printer were ever configured without a process profile, a
-slice for it reports that cleanly and the validated model is still produced.)
+bundled OrcaSlicer. (The configured build-volume *envelopes* are the nominal published
+sizes pending a physical confirmation — see the `VERIFY` notes in `config/default.yaml`;
+the gate also caps the on-screen design to the slicer's verified usable footprint.) (If a
+printer were ever configured without a process profile, a slice for it reports that cleanly
+and the validated model is still produced.)
 
 ### Web UI
 
@@ -209,6 +212,10 @@ hardware-verified.
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper via Moonraker — Creality-Klipper, Voron, RatRig, Mainsail/Fluidd | `base_url`, optional `api_key_env` (Moonraker often runs unauthenticated on a trusted LAN) |
 | `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
+
+> **Bambu note:** the reference Bambu P2S / A1 *slice* fully, but have **no native send connector
+> yet** (Bambu's own LAN/cloud protocol) — for now, download the G-code 3MF and load it via Bambu
+> Studio or SD. A Bambu-native direct-print path is Stage 10.
 
 A connection's credential is always read from an **environment variable** (named by
 `api_key_env`), never stored in config and never logged. Find it in your printer's settings —

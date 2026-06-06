@@ -32,13 +32,13 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
 P2S not P1S; code-signing dropped (unsigned beta); recruited usability study replaced by
 in-app telemetry + public beta feedback.
 
-## Current baseline (honest, as of Stage 4 — DONE, merged, tagged)
-The Phase-1 pipeline, the local web UI, and the designed React SPA + Three.js viewport are built
-and tested. **Stage 3 is tagged `stage-3` @ `96aba02` and Stage 4 is tagged `stage-4`** (off the `dcbcd1a`
-merge, with the lightweight tag advanced to the later docs-consistency commit so it carries these
-corrected docs), both merged to `main` (in sync with `origin/main`). Verification: **404 tests passing** (including 4
-live OrcaSlicer slices), **`ruff` clean**, and the frontend `npm test` (vitest, 19 passed) + `build`
-pass on Windows with `npm audit` = 0. The supported gate is **native Windows**: the pre-push hook
+## Current baseline (honest, as of Stage 8.5 — DONE, merged, tagged)
+The Phase-1 pipeline, the local web UI, the React SPA + Three.js viewport, the template engine +
+live sliders, the model layer, Smart Mesh readiness, and the Stage 8.5 usability work are built and
+tested. **Stages 0–8.5 are all tagged on `origin`** (`stage-0`…`stage-7`, `stage-8.5`), merged to
+`main`. Verification each push: **`ruff` clean + the FULL pytest suite (incl. live OrcaSlicer slices)
++ frontend vitest + SPA build-reproducibility** — the live test counts grow per stage and are
+recorded in `CHANGELOG.md` (do not pin a number here). The supported gate is **native Windows**: the pre-push hook
 (`.githooks/pre-push` → `scripts/ci.sh` = ruff + the FULL pytest incl. live) gates every push, and
 the frontend steps pass natively. (Running `scripts/ci.sh` under WSL/Linux fails only on the
 Windows-installed `node_modules` — Vite 8 / Rolldown's Linux native binding isn't present — which is

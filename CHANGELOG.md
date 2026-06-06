@@ -150,7 +150,9 @@ All notable changes to KimCad are documented here. Format follows
 - OrcaSlicer profile resolution: a configured printer + material maps to the three
   on-disk profile JSONs (machine / process / filament) under the shipped
   `resources/profiles` tree, with a `Generic <MATERIAL>` filament fallback. Replaces the
-  former "known unknown" name→path placeholder.
+  former "known unknown" name→path placeholder. *(The generic cross-vendor fallback was
+  later removed in Stage 3 — a name now resolves only against its own printer's profiles,
+  to prevent a wrong-vendor mis-slice; see the Stage 3 entry.)*
 - Slicing wired into the pipeline behind explicit print confirmation. `slice_model`
   now **proves** the exported 3MF carries real motion-bearing G-code (not just that a
   file was written), streaming the embedded toolpath to stay within the memory budget.

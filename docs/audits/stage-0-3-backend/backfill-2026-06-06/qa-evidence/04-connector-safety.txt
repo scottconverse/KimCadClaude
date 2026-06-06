@@ -1,0 +1,23 @@
+=== TEST A: send without confirm (omit) ===
+TypeError (confirm is required kwarg): LoopbackConnector.send() missing 1 required keyword-only argument: 'confirm'
+
+=== TEST B: send confirm=False ===
+REFUSED NotConfirmed: refusing to send a print job without explicit confirmation (confirm=True)
+
+=== TEST C: send confirm=1 (truthy, not True) ===
+REFUSED NotConfirmed (good, requires exactly True): refusing to send a print job without explicit confirmation (confirm=True)
+
+=== TEST D: send a non-gcode plain text file, confirm=True ===
+REFUSED ConnectorError: refusing to send a file that isn't a printable slice: notgcode.3mf is not a valid 3MF (zip) container
+
+=== TEST E: send a valid zip 3MF with NO gcode member, confirm=True ===
+REFUSED ConnectorError: refusing to send a file that isn't a printable slice: empty.gcode.3mf contains no .gcode toolpath member
+
+=== TEST F: send a 3MF whose gcode member has NO motion, confirm=True ===
+REFUSED ConnectorError: refusing to send a file that isn't a printable slice: nomotion.gcode.3mf G-code has no motion (G0/G1/G2/G3) commands
+
+=== TEST G: send a nonexistent file, confirm=True ===
+REFUSED ConnectorError: G-code file not found: C:\Users\scott\AppData\Local\Temp\tmpjap4tkf6\missing.gcode.3mf
+
+=== TEST H: send the REAL proven 3MF, confirm=True (must accept) ===
+ACCEPTED: mock-1 queued progress 0.0

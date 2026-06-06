@@ -19,6 +19,11 @@ DEFAULT_CONFIG = PROJECT_ROOT / "config" / "default.yaml"
 LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
 
 
+class UnknownConfigKey(RuntimeError):
+    """An unknown printer/material/backend/connector name (QA-301). A RuntimeError subclass so the
+    CLI's RuntimeError handler prints it cleanly; the web layer catches it for a 400 (not a 500)."""
+
+
 @dataclass(frozen=True)
 class Printer:
     key: str
@@ -165,10 +170,23 @@ class Config:
             return p if p.is_absolute() else (PROJECT_ROOT / p)
         return Path.home() / ".kimcad" / "settings.json"
 
+    @staticmethod
+    def _require(mapping: dict, key: str, kind: str) -> Any:
+        """Look up ``key`` in ``mapping`` or raise a friendly :class:`UnknownConfigKey` naming the
+        valid options (QA-301). It's a RuntimeError subclass, so the CLI's RuntimeError handler
+        prints it cleanly — a bare KeyError would instead dump a traceback for a simple typo like an
+        unknown ``--printer``/``--material``/backend — while the web layer can catch it specifically
+        to return a 400 (vs a 500 for a real slice failure)."""
+        try:
+            return mapping[key]
+        except (KeyError, TypeError):
+            opts = ", ".join(sorted(mapping)) if isinstance(mapping, dict) and mapping else "(none configured)"
+            raise UnknownConfigKey(f"unknown {kind} '{key}'. Available: {opts}.") from None
+
     # --- printers / materials ----------------------------------------------
     def printer(self, key: str | None = None) -> Printer:
         key = key or self._d["defaults"]["printer"]
-        p = self._d["printers"][key]
+        p = self._require(self._d.get("printers", {}), key, "printer")
         bv = p.get("build_volume")
         # A 3-element value is the envelope; anything else (missing, empty, malformed) is
         # blank (None) — to be filled from a connector's reported capabilities.
@@ -191,7 +209,7 @@ class Config:
 
     def material(self, key: str | None = None) -> Material:
         key = key or self._d["defaults"]["material"]
-        m = self._d["materials"][key]
+        m = self._require(self._d.get("materials", {}), key, "material")
         density = m.get("density")
         return Material(
             key=key,
@@ -208,7 +226,7 @@ class Config:
         return list(self._d.get("connectors", {}))
 
     def connector_config(self, name: str) -> ConnectorConfig:
-        c = self._d.get("connectors", {})[name]
+        c = self._require(self._d.get("connectors", {}), name, "connector")
         return ConnectorConfig(
             name=name,
             type=c["type"],
@@ -220,7 +238,7 @@ class Config:
     # --- llm ----------------------------------------------------------------
     def llm_backend(self, key: str | None = None) -> LLMBackend:
         key = key or self._d["llm"]["active"]
-        b = self._d["llm"]["backends"][key]
+        b = self._require(self._d.get("llm", {}).get("backends", {}), key, "LLM backend")
         return LLMBackend(
             key=key,
             provider=b["provider"],

@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\scott\dev\kimcad\src\kimcad\cli.py", line 471, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "C:\Users\scott\dev\kimcad\src\kimcad\cli.py", line 456, in main
+    return _cmd_design(config, args)
+  File "C:\Users\scott\dev\kimcad\src\kimcad\cli.py", line 250, in _cmd_design
+    pipeline = _build_pipeline(config, args)
+  File "C:\Users\scott\dev\kimcad\src\kimcad\cli.py", line 170, in _build_pipeline
+    printer = config.printer(args.printer)
+  File "C:\Users\scott\dev\kimcad\src\kimcad\config.py", line 171, in printer
+    p = self._d["printers"][key]
+        ~~~~~~~~~~~~~~~~~~~^^^^^
+KeyError: 'bambu_x9999'

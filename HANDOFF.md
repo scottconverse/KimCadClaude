@@ -2,8 +2,8 @@
 
 ## ▶ RESUME HERE (5-line orientation) — THIS BOX + the RUN-LEDGER are the SINGLE SOURCE OF TRUTH
 - **Where:** `main` is tagged `stage-0`…`stage-7` **and `stage-8.5`** (Stage 8.5 merged). Forward build resumes on a fresh branch off `main`.
-- **What's done:** Stage 8.5 (all 11 slices) — gate clean 0/0/0/0/0 across all 5 audit lanes + wiring-audit PASS, merged + tagged.
-- **Active task:** (Phase B) backfill the owed wiring-audits + audit-teams on shipped stages 0–7; then (Phase C) build Stages 8 → 9 → 10 → 11 to the beta. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
+- **What's done:** Stage 8.5 merged + tagged. **PHASE B COMPLETE** — owed audits backfilled on ALL shipped stages 0–7 (UI stages 4–7: wiring-audit + audit-team; backend 0–3: audit-team), every finding fixed → 0/0/0/0/0, re-audited, pushed gate-green on branch `stage-0-7-audit-backfill`. Real bugs found+fixed incl. a NaN-bypasses-the-gate safety hole (ENG-001), a cloud-shown-as-on-device privacy contradiction (Stage 6), a solid-block-passes-gate + gate/slicer footprint mismatch (Stage 5).
+- **Active task:** **PHASE C** — build Stages 8 → 9 → 10 → 11 to the beta, each: per-slice audit-lite → stage gate (audit-team [+ wiring-audit for UI]) → 0/0/0/0/0 → merge → tag. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md` (Phase C table). **One open item for Scott:** ENG-006 — physically VERIFY the Bambu P2S/A1 build-volume envelopes (`config/default.yaml` VERIFY markers); mitigated for now by the Stage-5 sliceable-footprint cap.
 - **Audit lanes are where real bugs surface** (Scott's directive): run `/wiring-audit` (UI stages) + `/audit-team` for real via independent agents on every stage; fix EVERY finding → 0/0/0/0/0.
 - **Rules:** per-slice audit-lite + stage gate (audit-team + wiring-audit) → 0/0/0/0/0 → merge → tag; real skills via independent agents; evidence committed; don't stop except a catastrophic break or a Scott-only decision.
 

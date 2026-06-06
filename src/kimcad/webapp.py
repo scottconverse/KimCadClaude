@@ -1753,11 +1753,14 @@ def make_handler(
                 if cached is not None and cached[1] is not None and cached[1].exists():
                     info, gcode_path = cached
                 else:
+                    from kimcad.config import UnknownConfigKey
                     try:
                         info, gcode_path = slice_registered_mesh(
                             get_config(), mesh_path, key[1], key[2]
                         )
-                    except KeyError as e:
+                    except (KeyError, UnknownConfigKey) as e:
+                        # An unknown printer/material name is a client error (400), not a 500 —
+                        # config now raises UnknownConfigKey (QA-301) instead of a bare KeyError.
                         self._json(400, {"error": f"Unknown printer or material: {e}"})
                         return
                     except Exception as e:  # never leak a traceback to the browser

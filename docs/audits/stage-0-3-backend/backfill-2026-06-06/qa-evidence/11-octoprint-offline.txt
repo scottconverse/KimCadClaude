@@ -1,0 +1,10 @@
+drives_hardware: True
+
+=== status() against unreachable endpoint ===
+  online=False state=offline detail='could not connect'
+
+=== send() a real proven 3MF to an unreachable printer (confirm=True) ===
+  ConnectorError reason=offline: octoprint unreachable: <urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>
+
+=== send() WITHOUT confirm to unreachable printer (must refuse BEFORE network) ===
+  refused reason=not_confirmed: refusing to send a print job without explicit confirmation (confirm=True)
