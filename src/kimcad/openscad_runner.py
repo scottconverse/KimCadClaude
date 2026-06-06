@@ -62,12 +62,21 @@ class RenderTimeout(RenderError):
 
 
 class RenderFailed(RenderError):
-    """The binary exited non-zero."""
+    """The geometry backend failed to produce a mesh (non-zero exit, or — for the CadQuery
+    worker — a clean error report). ``engine`` names the backend so the message is accurate
+    regardless of which one produced the part."""
 
-    def __init__(self, returncode: int, stderr: str):
+    def __init__(self, returncode: int, stderr: str, *, engine: str = "openscad"):
         self.returncode = returncode
         self.stderr = stderr
-        super().__init__(f"openscad exited {returncode}: {stderr.strip()[:500]}")
+        self.engine = engine
+        detail = stderr.strip()[:500]
+        msg = (
+            f"openscad exited {returncode}: {detail}"
+            if engine == "openscad"
+            else f"{engine} render failed: {detail}"
+        )
+        super().__init__(msg)
 
 
 class OversizeOutput(RenderError):
@@ -95,6 +104,12 @@ class RenderResult:
     duration_s: float
     sanitize: SanitizeResult
     fell_back_to_stl: bool = False
+    # Which geometry backend produced this mesh ("openscad" | "cadquery"). Lets the report
+    # and the live-slider/export surfaces know whether an editable STEP is available.
+    backend: str = "openscad"
+    # The editable-CAD export (STEP), produced only by the CadQuery backend (Stage 8);
+    # None for OpenSCAD, which cannot emit a BREP/STEP.
+    step_path: Path | None = None
 
 
 def _approved_library_path(path: str) -> bool:
