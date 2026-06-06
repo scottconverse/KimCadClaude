@@ -1,11 +1,11 @@
-# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability): all 11 slices built & pushed; stage gate ran (wiring-audit + 5-role audit-team), remediation → merge/tag pending on `stage-8.5-usability`; Stage 7 DONE + tagged `stage-7`)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) DONE: merged to `main` + tagged `stage-8.5` (stage gate clean 0/0/0/0/0 across all 5 lanes + wiring-audit PASS). Stages 0–8.5 tagged.)
 
 ## ▶ RESUME HERE (5-line orientation) — THIS BOX + the RUN-LEDGER are the SINGLE SOURCE OF TRUTH
-- **Where:** branch `stage-8.5-usability` (off `main`/`stage-7`). `main` is tagged `stage-0`…`stage-7`.
-- **What's done:** Stage 8.5 Slices 1–11 built + pushed; the stage gate ran (wiring-audit PASS; 5-role audit-team); findings remediated.
-- **Active task:** finish the stage-gate re-audit → 0/0/0/0/0 → merge → tag `stage-8.5`. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
-- **Then:** backfill the owed audits on shipped stages 0–7, then build Stages 8 → 9 → 10 → 11 to the beta.
-- **Rules:** per-slice audit-lite + stage-gate audit-team + wiring-audit, fix EVERY finding, real skills via independent agents, evidence committed.
+- **Where:** `main` is tagged `stage-0`…`stage-7` **and `stage-8.5`** (Stage 8.5 merged). Forward build resumes on a fresh branch off `main`.
+- **What's done:** Stage 8.5 (all 11 slices) — gate clean 0/0/0/0/0 across all 5 audit lanes + wiring-audit PASS, merged + tagged.
+- **Active task:** (Phase B) backfill the owed wiring-audits + audit-teams on shipped stages 0–7; then (Phase C) build Stages 8 → 9 → 10 → 11 to the beta. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
+- **Audit lanes are where real bugs surface** (Scott's directive): run `/wiring-audit` (UI stages) + `/audit-team` for real via independent agents on every stage; fix EVERY finding → 0/0/0/0/0.
+- **Rules:** per-slice audit-lite + stage gate (audit-team + wiring-audit) → 0/0/0/0/0 → merge → tag; real skills via independent agents; evidence committed; don't stop except a catastrophic break or a Scott-only decision.
 
 > ⚠ **The slice-by-slice narrative below is HISTORICAL build-log detail** (written through Slice 9/10
 > and not line-by-line current — stale SHAs, "RESUME = Slice 10", "Slice 9 MS-x REMAINING", etc.). For

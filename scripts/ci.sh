@@ -21,6 +21,11 @@ fi
 
 echo "[ci] ruff check..."
 "$RUFF" check src tests
+# ENG-007: a missing/broken geometry backend degrades trimesh silently and makes ~30 tests fail with
+# misleading "logic" errors. Fail the gate FAST and CLEARLY here so the authoritative push gate can
+# never go green on a degraded environment (the pytest collection hook only SKIPS locally).
+echo "[ci] geometry backends..."
+"$PY" scripts/check_geometry_backends.py
 echo "[ci] pytest..."
 # -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
 # mistaken for one that proved the real slicer contract (TEST-002).

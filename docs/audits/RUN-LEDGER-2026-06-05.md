@@ -38,8 +38,27 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 - ✅ **Re-audit round 1** (reaudit/): Engineering CLEAR 0/0/0/0/0; QA PASS; UI/Docs/Test all-prior-resolved + a second tier surfaced (remediation-introduced gaps). **Second-tier remediated** (UI focus-ring/dup-rule; docs reconciled; +6 tests).
 - ✅ **Re-audit round 2** (reaudit/round2-*): **UI 0/0/0/0/0, Docs 0/0/0/0/0, Test 0/0/0/0/0** (Test lane confirmed coverage with a false-green mutation sweep). 763 pytest non-live + 262 vitest.
 - 🟢 **STAGE 8.5 GATE = CLEAN: 0/0/0/0/0 across all 5 lanes (engineering/UI/docs/test/QA) + wiring-audit PASS.** All 44 original + second-tier findings closed, independently re-verified.
-- ⏸ **MERGE + TAG `stage-8.5` — PENDING SCOTT'S WALKTHROUGH + APPROVAL** (the Stage-8.5 process gates merge-to-main on his approval; not auto-merged). On his go: merge `stage-8.5-usability` → `main`, add the Stage-8.5 CHANGELOG block, tag `stage-8.5`.
-- ☐ Then: backfill audits on shipped stages 0–7, then build Stages 8–11 to the beta.
+- ▶ **MERGE + TAG `stage-8.5` — Scott authorized "do it all / finish the whole run" (2026-06-05).** Phase A: exec-doc 44→42 corrected; Stage-8.5 CHANGELOG block added; docs marked DONE; merge `stage-8.5-usability` → `main` (--no-ff) + tag `stage-8.5` IN PROGRESS.
+
+## Phase B — backfill owed audits on shipped stages 0–7 (wiring-audit first, then audit-team)
+| Stage | wiring-audit | audit-team | status |
+|---|---|---|---|
+| 0 (pipeline + web stub) | n/a (backend) | ☐ (commit into VC) | ☐ |
+| 1 (deterministic pipeline) | n/a | ☐ (commit into VC) | ☐ |
+| 2 (connectors) | n/a | ☐ (move pkg into VC) | ☐ |
+| 3 (printer coverage) | n/a | ☐ (move pkg into VC) | ☐ |
+| 4 (React SPA + viewport) | ☐ | ☐ | ☐ |
+| 5 (templates + sliders) | ☐ | ☐ | ☐ |
+| 6 (model layer) | ☐ | ☐ | ☐ |
+| 7 (Smart Mesh + readiness) | ☐ | ☐ | ☐ |
+
+## Phase C — build Stages 8 → 9 → 10 → 11 to the beta (per-slice audit-lite → stage gate → 0/0/0/0/0 → merge → tag)
+| Stage | build | gate | tag | status |
+|---|---|---|---|---|
+| 8 (CadQuery backend) | ☐ | ☐ | ☐ `stage-8` | ☐ |
+| 9 (image/sketch on-ramp) | ☐ | ☐ | ☐ `stage-9` | ☐ |
+| 10 (direct-print + layer preview) | ☐ | ☐ | ☐ `stage-10` | ☐ |
+| 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
 - 2026-06-05: Run started. Slices 1–10 of Stage 8.5 built + pushed (Slice 10 = `7fc5415`). Slice 11 built + gated + pushed (`95b25e0`). Stage-8.5 stage gate ran: wiring-audit PASS; audit-team 44 findings. Remediation: docs (`d2764ad`) + engineering (`c1261f2`) done; UX/test/QA next.

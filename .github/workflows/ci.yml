@@ -26,6 +26,8 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -e ".[dev]"
+      - name: Verify geometry backends (honest gate — full runtime dep set must be usable, not just installed)
+        run: python scripts/check_geometry_backends.py
       - name: Lint
         run: ruff check src tests
       - name: Test (non-live; the live OrcaSlicer proof runs in the local Windows gate)

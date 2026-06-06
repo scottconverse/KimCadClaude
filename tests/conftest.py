@@ -12,6 +12,9 @@ BAMBU / PLA are the same fixed Printer/Material the existing suites pin.
 
 from __future__ import annotations
 
+import os
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -22,26 +25,61 @@ from kimcad.ir import DesignPlan
 from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
 
 
-# ENG-007 (stage-8.5 gate remediation): fail FAST and CLEARLY if a declared geometry backend is
-# missing, instead of letting tests degrade into a wall of misleading "logic" errors (auto_orient
-# not flattening, trimesh scene-graph load failing). These are hard deps in pyproject.toml; a bare
-# environment that skips the geometry extras should see ONE actionable message, not 30 red herrings.
-def pytest_collection_modifyitems(config, items):  # noqa: ARG001
-    missing = []
+# ENG-007 (stage-8.5 gate): turn a bare/partial env into ONE clear line, not ~30 misleading
+# "logic" errors. scipy / networkx / manifold3d / lxml are HARD runtime deps (pyproject.toml).
+# When absent, trimesh does NOT raise on import — it DEGRADES: auto_orient stops flattening,
+# watertight / body_count drift, and trimesh.load of the rendered .3mf returns a deferred-import
+# placeholder that only blows up deep in a pipeline test. The probe collapses that into a single
+# "install the geometry deps: pip install -e ." signal. The authoritative gate copy lives in
+# scripts/check_geometry_backends.py — keep the two in sync.
+def _geometry_backends_status() -> tuple[bool, str]:
+    """Probe the geometry backends the suite relies on. Returns ``(ok, reason)``."""
+    problems: list[str] = []
     for mod in ("scipy", "networkx", "manifold3d"):
         try:
             __import__(mod)
-        except Exception:  # noqa: BLE001 - any import failure means the backend is unusable
-            missing.append(mod)
-    if missing:
-        raise pytest.UsageError(
-            "Missing required geometry dependencies: "
-            + ", ".join(missing)
-            + ". They are pinned in pyproject.toml — install the project ("
-            "`pip install -e .`) before running the suite. Without them, mesh validation, "
-            "auto-orient, and manifold hardening silently degrade and ~30 tests fail with "
-            "misleading geometry errors rather than a clear 'missing dependency'."
-        )
+        except Exception as exc:  # noqa: BLE001 - any import failure means the backend is unusable
+            problems.append(f"{mod} ({type(exc).__name__})")
+
+    # Exercise the real 3MF export->load round-trip, not just ``import lxml``: trimesh DEFERS its
+    # 3MF reader import, so a bare import check would miss the placeholder that fails only on use —
+    # the exact misleading failure this guard exists to pre-empt.
+    try:
+        box = trimesh.creation.box(extents=(10.0, 10.0, 10.0))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "_geometry_probe.3mf")
+            box.export(path)
+            loaded = trimesh.load(path)
+        geoms = list(loaded.geometry.values()) if hasattr(loaded, "geometry") else [loaded]
+        if not any(len(getattr(g, "faces", ())) for g in geoms):
+            problems.append("trimesh 3MF loader (round-trip produced no faces — lxml missing?)")
+    except Exception as exc:  # noqa: BLE001 - a broken loader path is exactly what we must catch
+        problems.append(f"trimesh 3MF loader ({type(exc).__name__}: {exc})")
+
+    return (not problems), "; ".join(problems)
+
+
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+    ok, reason = _geometry_backends_status()
+    if ok:
+        return
+    message = (
+        "Missing/broken geometry backends: " + reason + ". "
+        "Install the geometry deps: pip install -e . "
+        "(scipy, networkx, manifold3d, and lxml are pinned runtime deps in pyproject.toml). "
+        "Without them auto-orient, watertight/body_count, manifold hardening, and the 3MF loader "
+        "silently degrade and ~30 tests fail with misleading geometry errors rather than this line."
+    )
+    # Honest gate: on hosted CI a missing HARD dep must turn the build RED, never silently skip to a
+    # false green (skips don't fail a build). Locally, skip cleanly so a contributor sees ONE
+    # actionable line, not the cascade — and recovers with a single `pip install -e .`. (skip, not
+    # xfail: xfail would still RUN the degraded paths and surface the cascade in -rx output.)
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+        raise pytest.UsageError(message)
+    print(f"\n[conftest] {message}\n", file=sys.stderr)
+    skip = pytest.mark.skip(reason=message)
+    for item in items:
+        item.add_marker(skip)
 
 @pytest.fixture(autouse=True)
 def _isolate_kimcad_home(tmp_path, monkeypatch):

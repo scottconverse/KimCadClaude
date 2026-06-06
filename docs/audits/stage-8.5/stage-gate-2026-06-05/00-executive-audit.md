@@ -21,11 +21,17 @@ stored gate verdict without re-gating). Plus doc-lag in two files and a CI-cover
 | Blocker | 0 |
 | Critical | 0 |
 | Major | 11 |
-| Minor | 22 |
+| Minor | 20 |
 | Nit | 11 |
-| **Total** | **44** |
+| **Total** | **42** |
 
-Per role: Engineering 0/0/2/4/1 · UI-UX 0/0/6/9/5 · Docs 0/0/2/4/3 · Test 0/0/1/3/1 · QA 0/0/0/2/1.
+Per role: Engineering 0/0/2/4/1 · UI-UX 0/0/6/7/5 · Docs 0/0/2/4/3 · Test 0/0/1/3/1 · QA 0/0/0/2/1.
+
+> Count correction (2026-06-05): an earlier draft of this rollup said 44 (UI-UX listed as 0/0/6/9/5).
+> The UI/UX deep-dive enumerates **18** findings (UX-001…UX-018 = 6 Major / 7 Minor / 5 Nit), not 20 —
+> its own severity table miscounted Minors by 2. The correct total is **42**. (`UX-801`/`QA-004` that
+> appear in the deep-dives are citations to OLDER findings, not Stage-8.5 ones.) All 42 were remediated
+> and independently re-verified to 0/0/0/0/0; see `reaudit/`.
 
 ## Top findings (by severity, across roles)
 1. **UX-001 (Major):** Workspace right column is four identical flat sand cards — the reference's accent-tinted readiness/report hierarchy is gone, so the verdict carries no visual weight. (`RightPanel.tsx`, `styles.css:803`)

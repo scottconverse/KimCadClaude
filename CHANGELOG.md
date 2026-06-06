@@ -11,10 +11,10 @@ All notable changes to KimCad are documented here. Format follows
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
 > report + learning store) merged + tagged `stage-7` 2026-06-02** — through the full 5-role
-> `audit-team` stage gate + remediation at 0/0/0/0/0. **Stage 8.5 (Usability) is IN PROGRESS on
-> branch `stage-8.5-usability` — not yet merged or tagged.** All 11 slices are built on the branch
-> and the stage gate ran (wiring-audit + 5-role audit-team; remediation to 0/0/0/0/0 in progress —
-> see `docs/audits/stage-8.5/stage-gate-2026-06-05/`). Slices 1–7 below for reference:
+> `audit-team` stage gate + remediation at 0/0/0/0/0. **Stage 8.5 (Usability) is DONE — merged to
+> `main` and tagged `stage-8.5`.** All 11 slices shipped; the stage gate passed both the runtime
+> wiring-audit and the 5-role audit-team, with every finding remediated and independently re-audited
+> twice to 0/0/0/0/0 (see `docs/audits/stage-8.5/stage-gate-2026-06-05/`). Slices 1–7 below for reference:
 > Slice 1 (persistence + "My Designs"), Slices 2–4 (refine-as-a-conversation + version history,
 > numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
 > in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the
@@ -26,6 +26,27 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 8.5 — Usability — DONE (merged to `main`, tagged `stage-8.5`).** All 11 slices shipped and
+  the stage gate passed both lanes: the runtime **wiring-audit** (drove the live app — every control
+  proven genuinely wired + persisted) and the 5-role **audit-team**, which rolled up 42 findings
+  (0 Blocker / 0 Critical / 11 Major / 20 Minor / 11 Nit). Every finding was fixed — including two
+  real safety bugs (a slice/re-render geometry-version race that could serve a stale-shape print, and
+  reopen/import trusting a stored gate verdict instead of re-validating the mesh), each with a
+  regression test — then independently re-audited twice to **0/0/0/0/0** across all five lanes
+  (`docs/audits/stage-8.5/stage-gate-2026-06-05/`). Final: 763 pytest (non-live) + 4 live OrcaSlicer
+  + 262 vitest; ruff clean; SPA build byte-reproducible. The slices, beyond 1–7 below:
+  - **Slice 8 — problems on the model:** PrintProof3D's flagged regions are highlighted in the 3D
+    viewport (overhangs / poor bed contact), with click-a-risk-to-focus and a legend/toggle.
+  - **Slice 9 — onboarding / model-down / progress / help:** a recoverable "your local AI isn't
+    running" wall, live step-progress (planning → generating → rendering → validating), a first-run
+    setup wizard, and in-app glossary "(i)" tips. gemma4:e4b is THE model throughout (never qwen).
+  - **Slice 10 — output clarity + print preview:** the slice estimate broken out (time / layers /
+    filament length + weight; weight estimated from volume × material density when the profile reports
+    none, labeled as such), a "design → print file" framing, named print file + copy-link, and clear
+    export formats. (A true G-code toolpath/layer viewer is scheduled for Stage 10's direct-print UI.)
+  - **Slice 11 — responsive / a11y / copy / polish:** keyboard shortcuts + a discoverable "?" help
+    modal, plain-English copy, the right-column visual hierarchy + icon-tile printability checks
+    restored, refine-by-talking chips, an always-on printer-status chip, and a mobile sticky CTA.
 - **Stage 8.5 — escape paths on every action (on branch, not yet merged/tagged):** every long or
   blocking action is now cancelable, so the app never traps you. The "Designing your part…" screen
   shows an honest "this runs on your computer's AI — it can take a few minutes" note, a live elapsed

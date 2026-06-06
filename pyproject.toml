@@ -22,7 +22,9 @@ dependencies = [
     "networkx>=3.3",
     "lxml>=5.0",  # trimesh's 3MF reader (default output format) requires it
     # Manifold3D guarantees a clean 2-manifold mesh before slicing (pre-slice hardening).
-    # Optional at runtime: if absent, hardening is skipped and the validated mesh is used.
+    # HARD dependency — always installed. The import guard in hardening.py is a DEFENSIVE
+    # fallback for a broken/partial install (degrades to the gate-validated mesh), NOT an
+    # "optional feature" switch; see hardening.py's module docstring (ENG-007).
     "manifold3d>=3.0",
 ]
 

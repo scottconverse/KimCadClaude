@@ -211,8 +211,9 @@ Slices 1–6 each passed `audit-lite` at 0/0/0/0/0; the full 5-role `audit-team`
 passing parts are genuinely print-ready. **Remaining for the stage gate:** the full `audit-team` at
 0/0/0/0/0 → merge → tag `stage-7`. **Needs:** target box. **Size:** ~2–3 weeks.
 
-## Stage 8.5 — Usability: turn the demo into a tool people keep  🔧 IN PROGRESS (branch `stage-8.5-usability`)
-**Status: IN PROGRESS — executed BEFORE the Stage 8 CadQuery backend (8.5-first, ratified 2026-06-03;
+## Stage 8.5 — Usability: turn the demo into a tool people keep  ✅ DONE (merged to `main`, tagged `stage-8.5`)
+**Status: DONE — merged + tagged `stage-8.5`; stage gate clean 0/0/0/0/0 across all 5 audit lanes +
+wiring-audit PASS (`docs/audits/stage-8.5/stage-gate-2026-06-05/`). Executed BEFORE the Stage 8 CadQuery backend (8.5-first, ratified 2026-06-03;
 spec Addendum B).** Full punch list (AUTHORITATIVE): `docs/stage-8.5-usability-plan.md` — **renumbered
 to 11 slices 2026-06-03** (the on-ramps design became Slice 5, so settings/photo shifted up); spec
 Addendum B's "9 slices" predates the renumber. The plan doc is the source of truth for the slice list.
