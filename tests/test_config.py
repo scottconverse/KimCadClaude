@@ -1,5 +1,9 @@
+from pathlib import Path
+
 import pytest
 
+import kimcad.cadquery_runner as cadquery_runner
+from kimcad.cadquery_runner import find_cadquery_interpreter
 from kimcad.config import Config
 
 
@@ -89,3 +93,85 @@ def test_binary_path_resolves_to_project_root():
     p = cfg.binary_path("openscad")
     assert p.is_absolute()
     assert "tools" in p.parts
+
+
+# --- Stage 8: CadQuery interpreter discovery + config -------------------------------------
+
+def test_cadquery_python_false_disables_without_probing(monkeypatch):
+    # `false` forces the backend off — and must NOT spawn a discovery probe.
+    called = []
+    monkeypatch.setattr(
+        cadquery_runner, "find_cadquery_interpreter", lambda *a, **k: called.append(1)
+    )
+    cfg = Config({"binaries": {"cadquery_python": False}})
+    assert cfg.cadquery_interpreter() is None
+    assert called == []
+
+
+def test_cadquery_python_empty_string_disables_without_probing(monkeypatch):
+    # SLICE2-002: an explicitly-cleared value ("") is treated like `false` (off), not as a
+    # falsy value that silently auto-discovers.
+    called = []
+    monkeypatch.setattr(
+        cadquery_runner, "find_cadquery_interpreter", lambda *a, **k: called.append(1)
+    )
+    cfg = Config({"binaries": {"cadquery_python": ""}})
+    assert cfg.cadquery_interpreter() is None
+    assert called == []
+
+
+def test_cadquery_python_explicit_path_is_authoritative(monkeypatch):
+    seen = {}
+
+    def fake(cands=(), *, include_defaults=True):
+        seen["cands"] = list(cands)
+        seen["include_defaults"] = include_defaults
+        return Path("/explicit/python")
+
+    monkeypatch.setattr(cadquery_runner, "find_cadquery_interpreter", fake)
+    cfg = Config({"binaries": {"cadquery_python": "/explicit/python"}})
+    assert cfg.cadquery_interpreter() == Path("/explicit/python")
+    assert seen["cands"] == ["/explicit/python"]
+    assert seen["include_defaults"] is False  # no auto-discovery fall-through
+
+
+def test_cadquery_python_null_auto_probes(monkeypatch):
+    seen = {}
+
+    def fake(cands=(), *, include_defaults=True):
+        seen["cands"] = list(cands)
+        seen["include_defaults"] = include_defaults
+        return None
+
+    monkeypatch.setattr(cadquery_runner, "find_cadquery_interpreter", fake)
+    cfg = Config({"binaries": {"cadquery_python": None}})
+    assert cfg.cadquery_interpreter() is None
+    assert seen["cands"] == []
+    assert seen["include_defaults"] is True
+
+
+def test_cadquery_interpreter_is_cached(monkeypatch):
+    n = {"calls": 0}
+
+    def fake(*a, **k):
+        n["calls"] += 1
+        return Path("/p")
+
+    monkeypatch.setattr(cadquery_runner, "find_cadquery_interpreter", fake)
+    cfg = Config({"binaries": {"cadquery_python": None}})
+    assert cfg.cadquery_interpreter() == Path("/p")
+    assert cfg.cadquery_interpreter() == Path("/p")
+    assert n["calls"] == 1  # probed at most once per Config
+
+
+def test_cadquery_timeout_default_and_override():
+    assert Config.load().cadquery_timeout_s() == 120
+    assert Config({"limits": {"cadquery_timeout_s": 45}}).cadquery_timeout_s() == 45
+
+
+@pytest.mark.live
+@pytest.mark.skipif(find_cadquery_interpreter() is None, reason="no cadquery interpreter")
+def test_real_cadquery_interpreter_is_discovered():
+    p = Config.load().cadquery_interpreter()
+    assert p is not None
+    assert p.exists()

@@ -246,25 +246,31 @@ _PROBE = "import cadquery, sys; sys.stdout.write(sys.executable)"
 
 def find_cadquery_interpreter(
     candidates: Sequence[str | Path | Sequence[str]] = (),
+    *,
+    include_defaults: bool = True,
 ) -> Path | None:
     """Discover a Python interpreter that has CadQuery installed, or return None.
 
     Tries, in order: each ``candidates`` entry (a path, or an argv prefix like
-    ``("py", "-3.13")`` — used for an explicit ``binaries.cadquery_python`` override), then
-    the Windows ``py -3.13/-3.12/-3.11`` launcher, then ``python3.13``/``…3.12``/``…3.11`` on
-    PATH. The first candidate whose ``import cadquery`` succeeds wins; its real ``sys.executable``
-    is returned (so a launcher resolves to a concrete ``python.exe``). Never raises — a probe
-    that errors is simply skipped, so a missing CadQuery just means the backend is unavailable
-    (the same graceful-absence posture as the optional PrintProof3D engine)."""
+    ``("py", "-3.13")`` — used for an explicit ``binaries.cadquery_python`` override), then —
+    when ``include_defaults`` — the Windows ``py -3.13/-3.12/-3.11`` launcher and
+    ``python3.13``/``…3.12``/``…3.11`` on PATH. The first candidate whose ``import cadquery``
+    succeeds wins; its real ``sys.executable`` is returned (so a launcher resolves to a concrete
+    ``python.exe``). Pass ``include_defaults=False`` to probe ONLY the given candidates (so an
+    explicit config override is authoritative — a path without cadquery yields None, not a
+    silent fall-through to some other interpreter). Never raises — a probe that errors is simply
+    skipped, so a missing CadQuery just means the backend is unavailable (the same
+    graceful-absence posture as the optional PrintProof3D engine)."""
     cmds: list[list[str]] = []
     for c in candidates:
         if isinstance(c, (str, Path)):
             cmds.append([str(c)])
         else:
             cmds.append([str(x) for x in c])
-    if sys.platform == "win32":
-        cmds.extend([["py", f"-{v}"] for v in ("3.13", "3.12", "3.11")])
-    cmds.extend([[n] for n in ("python3.13", "python3.12", "python3.11", "python3")])
+    if include_defaults:
+        if sys.platform == "win32":
+            cmds.extend([["py", f"-{v}"] for v in ("3.13", "3.12", "3.11")])
+        cmds.extend([[n] for n in ("python3.13", "python3.12", "python3.11", "python3")])
 
     for cmd in cmds:
         try:

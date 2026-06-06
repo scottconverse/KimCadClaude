@@ -15,6 +15,14 @@ binaries:
   # --release) and drop it here, or set an absolute path in config/local.yaml, to wire it in.
   # See docs/printproof3d-integration.md.
   printproof3d: tools/printproof3d/printproof3d.exe
+  # Stage 8 CadQuery backend interpreter. CadQuery's OCCT backend ships no Python-3.14 wheels
+  # and KimCad runs on 3.14, so CadQuery executes out-of-process on a separate <=3.13 Python
+  # that has `cadquery` installed (pip install cadquery). Values:
+  #   null (default) -> auto-discover (`py -3.13/-3.12/-3.11`, then python3.13/.. on PATH)
+  #   false or ""    -> force the CadQuery backend OFF even if an interpreter exists
+  #   "<path>"       -> use this exact python.exe (must have cadquery), no auto-discovery
+  # When no interpreter is found the CadQuery backend simply stays off (OpenSCAD still works).
+  cadquery_python: null
 
 # Optional per-user paths (Stage 7). Sensible defaults; uncomment to relocate.
 # paths:
@@ -186,3 +194,4 @@ limits:
   openscad_timeout_complex_s: 120
   max_output_bytes: 209715200   # 200 MB render guard
   slice_timeout_s: 600          # OrcaSlicer is CPU-bound on the 780M target; be generous
+  cadquery_timeout_s: 120       # out-of-process CadQuery worker (OCCT) wall-clock limit
