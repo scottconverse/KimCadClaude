@@ -1,0 +1,35 @@
+=== T1: happy path re-render changes mesh + dims track ===
+  design id: 9 | params present | True
+  orig mesh: 200 | 5fb2c3685e43ec79 | 1284
+  render 200?: 200 | bbox | {'X': 120.0, 'Y': 90.0, 'Z': 70.0} | mesh_url | /api/mesh/9?v=9
+  new mesh: 200 | b640b02129c51620 | 1284 | CHANGED
+=== T2: out-of-range clamp + adjusted_params type contract ===
+  status: 200 | adjusted_params | [{"name": "width", "requested": 9999.0, "applied": 250.0}, {"name": "depth", "requested": -50.0, "applied": 10.0}, {"name": "wall", "requested": 0.1, "applied": 0.8}]
+  applied params: [{"width": 250.0}, {"depth": 10.0}, {"height": 70.0}, {"wall": 0.8}]
+=== T2b: non-numeric value -> requested should be null ===
+  status: 200 | adjusted_params | [{"name": "width", "requested": null, "applied": 80.0}]
+=== T2c: NaN / Infinity (JSON literal) ===
+  status: 500 | resp | {"error": "The server produced an out-of-range number."}
+=== T3: non-template (LLM-backed) design -> /api/render 404 clean ===
+  exp design id: 10 | template | None | status | completed | has parameters? | False
+  render on non-template: 404 | {"error": "This design has no adjustable parameters."}
+=== T4: bad id (non-int) and unknown id ===
+  non-int id: 404 | {"error": "Not found."}
+  unknown int id: 404 | {"error": "That design couldn't be found."}
+=== T5: malformed bodies ===
+  garbage body: 400 | {"error": "Request body isn't valid JSON."}
+  missing values key: 400 | {"error": "Provide the parameter values to re-render."}
+  values not a dict (list): 400 | {"error": "Provide the parameter values to re-render."}
+  values is string: 400 | {"error": "Provide the parameter values to re-render."}
+  unknown param only: 200 | adjusted | null
+=== T6: rapid successive re-renders (latest wins, no corruption) ===
+  final width=111 bbox: {'X': 111.0, 'Y': 60.0, 'Z': 40.0} | mesh fetch | 200 | 1284
+=== T7: re-render AFTER slicing -> old g-code must 404 ===
+  slice result: 200 | {"sliced": true, "printer": "Bambu Lab P2S", "material": "PLA", "gcode_lines": 78127, "estimate": "~50m 20s, 200 layers, 33.63 cm3 filament", "estimate_detail": {"time": "50m 20s", "layers": 200, "filament_mm": 13980.78, "filament_cm3": 33.63, "filament_g": 41.7, "filament_g_estimated": true}, "prof
+  gcode before re-render: 200 | bytes | 142851
+  re-render after slice: 200 | bbox | {'X': 130.0, 'Y': 90.0, 'Z': 55.0}
+  gcode AFTER re-render: 404 | (expect 404) | {"error": "g-code not found"}
+=== T8: gap constraint family (tube od/id) if matchable ===
+  tube template: snap_box | params | ['width', 'depth', 'height', 'wall']
+  od/id after gap: {"width": 80.0, "depth": 60.0, "height": 30.0, "wall": 2.0} | adjusted | null
+=== DONE ===

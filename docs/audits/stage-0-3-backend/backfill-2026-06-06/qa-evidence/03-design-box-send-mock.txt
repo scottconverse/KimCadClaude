@@ -1,0 +1,27 @@
+Will slice for Bambu Lab P2S + PLA using:
+  machine   = Bambu Lab P2S 0.4 nozzle
+  process   = 0.20mm Standard @BBL P2S
+  filament  = Bambu PLA Basic @BBL P2S
+Enclosure — A solid closed box with outer dimensions of 40mm x 30mm x 20mm.
+Printer: Bambu Lab P2S   Material: PLA
+Gate: PASS
+Headline: Dimensions match: 45.0 × 35.0 × 25.0 mm.
+Size: 45.0 × 35.0 × 25.0 mm (target 45.0 × 35.0 × 25.0)
+Mesh: watertight, 2 body(ies), volume 15375 mm³
+Orientation: rests on most stable facet (stability 0.25)
+Hardening: hardened via manifold3d (genus -1)
+Readiness: 92/100 - Ready to print (confidence Medium; via KimCad printability gate and your local build history)
+  Suggest: Slice for PLA on the selected printer's profile.
+  History: On par with your 3 past Enclosure parts.
+Slice: G-code produced (38398 G-code lines) -> output\qa-audit\box-send\part.gcode.3mf
+  Estimate: ~23m 23s, 125 layers, 11.63 cm3 filament
+  Profiles: machine=Bambu Lab P2S 0.4 nozzle | process=0.20mm Standard @BBL P2S | filament=Bambu PLA Basic @BBL P2S
+  [pass] mesh.solid: Closed, watertight solid.
+  [pass] dim.match: Dimensions match: 45.0 × 35.0 × 25.0 mm.
+  [pass] volume.fits: Fits the Bambu Lab P2S build plate.
+  [pass] wall.ok: Wall 2.5 mm is adequate.
+
+Simulated send to mock (no real printer was used): job mock-1 (queued). The real file is on disk: output\qa-audit\box-send\part.gcode.3mf
+  Printer: printing
+
+Mesh: output\qa-audit\box-send\part.oriented.stl

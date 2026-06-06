@@ -128,10 +128,11 @@ class TemplateFamily(BaseModel):
     bbox_x: tuple[BBoxTerm, ...] = ()
     bbox_y: tuple[BBoxTerm, ...] = ()
     bbox_z: tuple[BBoxTerm, ...] = ()
-    # Ordering constraints (small, large, gap): enforce values[small] <= values[large] -
-    # gap after clamping, so independent slider ranges can't produce degenerate geometry
-    # (e.g. a tube whose bore is wider than its outer wall). See _apply_gaps / TPL-001.
-    gaps: tuple[tuple[str, str, float], ...] = ()
+    # Ordering constraints (small, large, gap, coef): enforce values[small] <= coef*values[large]
+    # - gap after clamping, so independent slider ranges can't produce degenerate geometry — a tube
+    # whose bore is wider than its wall (coef 1.0), OR a box whose wall is so thick the cavity
+    # vanishes into a solid block (coef 0.5: wall <= half the dimension - gap). See _apply_gaps.
+    gaps: tuple[tuple[str, str, float, float], ...] = ()
 
     def _resolve(self, ref: str, values: dict[str, float]) -> float:
         if ref in values:
@@ -200,17 +201,25 @@ def emit_scad(family: TemplateFamily, values: dict[str, float]) -> str:
 
 
 def _apply_gaps(family: TemplateFamily, values: dict[str, float]) -> dict[str, float]:
-    """Enforce each ``(small, large, gap)`` ordering so ``small <= large - gap``, by
+    """Enforce each ``(small, large, gap, coef)`` ordering so ``small <= coef*large - gap``, by
     lowering ``small`` (clamped back into its own range). Mutates and returns ``values``.
     Best-effort: if a too-small ``large`` would push ``small`` below its minimum, ``small``
-    stays at its minimum (still the closest legal value)."""
+    stays at its minimum (still the closest legal value). ``coef`` 1.0 is a plain ordering
+    (bore < bore); ``coef`` 0.5 keeps a wall under half a dimension so the cavity never collapses
+    (ENG-501). Constraints are applied in order, each against the running value, so several
+    constraints on one param (a box wall vs width AND depth AND height) converge on the tightest."""
     spec = {p.name: p for p in family.params}
-    for small, large, gap in family.gaps:
+    for small, large, gap, coef in family.gaps:
         if small in values and large in values:
-            ceiling = values[large] - gap
+            ceiling = coef * values[large] - gap
             if values[small] > ceiling:
                 p = spec[small]
-                values[small] = _clamp(ceiling, p.min, p.max)
+                new_val = _clamp(ceiling, p.min, p.max)
+                # An integer-count param (e.g. compartments) must stay whole, so floor the ceiling
+                # — half a compartment would round back up and re-introduce the overlap (ENG-505).
+                if p.integer:
+                    new_val = float(int(new_val))
+                values[small] = new_val
     return values
 
 
@@ -258,6 +267,16 @@ class TemplateRegistry:
 
     def __init__(self, families: tuple[TemplateFamily, ...]):
         self._families = families
+        # ENG-504: a family with an empty bbox axis would silently report that axis as 0 mm
+        # (an empty sum), so the gate's target under-declares a forgotten dimension. Fail at
+        # construction instead of mis-gating at runtime.
+        for fam in families:
+            for axis, terms in (("x", fam.bbox_x), ("y", fam.bbox_y), ("z", fam.bbox_z)):
+                if not terms:
+                    raise ValueError(
+                        f"family '{fam.name}' has an empty bbox_{axis}; every axis needs at "
+                        "least one term or its size silently reads as 0 mm"
+                    )
         index: dict[str, TemplateFamily] = {}
         for fam in families:
             for alias in fam.object_types:
@@ -301,14 +320,40 @@ class TemplateRegistry:
 # tests/test_library_modules.py, so a family's expected_bbox is the module's measured
 # envelope, not a guess.
 
-_LINEAR = dict(min=10.0, max=250.0, step=1.0)  # a printable linear dimension (vol 256)
+# A printable linear dimension. QA-502: the X/Y FOOTPRINT is capped at the reference P2S/A1's
+# *sliceable* envelope, not the 256 mm physical bed — OrcaSlicer's auto-arrange reserves edge
+# clearance (the P2S profile's extruder_clearance_radius is 72 mm), so a ~200 mm footprint fails to
+# arrange while ~170 mm reliably slices. Capping the param max here clamps BOTH the slider and an
+# LLM-derived value (via _finalize), so a part can't pass the gate then fail in OrcaSlicer. Height
+# (Z) is free to the bed height. (The big Elegoo Neptune 4 Max's larger plate is a Stage-10
+# per-printer-envelope refinement; 170 is the safe default for the reference machines.)
+# QA-502: EVERY outer dimension is capped at the reference P2S/A1's sliceable footprint side
+# (~170 mm), not the 256 mm bed. Two reasons compound: (1) OrcaSlicer's auto-arrange reserves edge
+# clearance, so the usable plate is well under the physical bed (a 200 mm side fails to arrange);
+# and (2) the printability auto-orient ROTATES the part for the best print orientation, so ANY axis
+# can become a footprint dimension — height included. Capping all three at 170 guarantees the
+# oriented footprint is <= 170x170, which slices (a 170x170x170 cube is verified to slice end to
+# end through orient). A per-printer 3-D envelope (the big Elegoo Max plate) is a Stage-10
+# refinement; 170 is the safe, conservative default for the reference machines. _FOOTPRINT and
+# _HEIGHT are the same cap today — kept as two names for where the axis role is meaningful.
+_FOOTPRINT = dict(min=10.0, max=170.0, step=1.0)
+_HEIGHT = dict(min=10.0, max=170.0, step=1.0)
+
+# ENG-501: keep a box wall under half of EACH outer dimension (minus a 1 mm minimum cavity) so a
+# thick wall on a small box can't collapse the part into a silently-solid block that still gates
+# PASS. Applied to both closed (snap_box) and open (box) families.
+_BOX_WALL_GAPS = (
+    ("wall", "width", 1.0, 0.5),
+    ("wall", "depth", 1.0, 0.5),
+    ("wall", "height", 1.0, 0.5),
+)
 
 
 def _build_default_families() -> tuple[TemplateFamily, ...]:
     box_like_params = (
-        ParamSpec(name="width", label="Width", default=80.0, dim_keys=("width",), bbox_axis=0, **_LINEAR),
-        ParamSpec(name="depth", label="Depth", default=60.0, dim_keys=("depth",), bbox_axis=1, **_LINEAR),
-        ParamSpec(name="height", label="Height", default=40.0, dim_keys=("height",), bbox_axis=2, **_LINEAR),
+        ParamSpec(name="width", label="Width", default=80.0, dim_keys=("width",), bbox_axis=0, **_FOOTPRINT),
+        ParamSpec(name="depth", label="Depth", default=60.0, dim_keys=("depth",), bbox_axis=1, **_FOOTPRINT),
+        ParamSpec(name="height", label="Height", default=40.0, dim_keys=("height",), bbox_axis=2, **_HEIGHT),
         ParamSpec(
             name="wall", label="Wall thickness", default=2.0, min=0.8, max=8.0, step=0.2,
             dim_keys=("wall", "thickness"),
@@ -328,6 +373,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         module="snap_box",
         params=box_like_params,
         bbox_x=xyz_bbox[0], bbox_y=xyz_bbox[1], bbox_z=xyz_bbox[2],
+        gaps=_BOX_WALL_GAPS,
     )
     open_box = TemplateFamily(
         name="box",
@@ -336,15 +382,16 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         library_file="box.scad",
         module="box",
         params=(
-            ParamSpec(name="width", label="Width", default=60.0, dim_keys=("width",), bbox_axis=0, **_LINEAR),
-            ParamSpec(name="depth", label="Depth", default=40.0, dim_keys=("depth",), bbox_axis=1, **_LINEAR),
-            ParamSpec(name="height", label="Height", default=30.0, dim_keys=("height",), bbox_axis=2, **_LINEAR),
+            ParamSpec(name="width", label="Width", default=60.0, dim_keys=("width",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="depth", label="Depth", default=40.0, dim_keys=("depth",), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="height", label="Height", default=30.0, dim_keys=("height",), bbox_axis=2, **_HEIGHT),
             ParamSpec(
                 name="wall", label="Wall thickness", default=2.0, min=0.8, max=8.0, step=0.2,
                 dim_keys=("wall", "thickness"),
             ),
         ),
         bbox_x=xyz_bbox[0], bbox_y=xyz_bbox[1], bbox_z=xyz_bbox[2],
+        gaps=_BOX_WALL_GAPS,
     )
     enclosure = TemplateFamily(
         name="enclosure",
@@ -353,9 +400,11 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         library_file="containers.scad",
         module="enclosure",
         params=(
-            ParamSpec(name="inner_w", label="Inner width", default=80.0, dim_keys=("inner_w", "width"), bbox_axis=0, **_LINEAR),
-            ParamSpec(name="inner_d", label="Inner depth", default=50.0, dim_keys=("inner_d", "depth"), bbox_axis=1, **_LINEAR),
-            ParamSpec(name="inner_h", label="Inner height", default=30.0, dim_keys=("inner_h", "height"), bbox_axis=2, **_LINEAR),
+            # Inner dims capped at 150 so the OUTER (inner + 2*wall, wall<=8) stays inside the ~170 mm
+            # sliceable side on EVERY axis (QA-502) — the auto-orient can rotate any axis onto the bed.
+            ParamSpec(name="inner_w", label="Inner width", default=80.0, min=10.0, max=150.0, step=1.0, dim_keys=("inner_w", "width"), bbox_axis=0),
+            ParamSpec(name="inner_d", label="Inner depth", default=50.0, min=10.0, max=150.0, step=1.0, dim_keys=("inner_d", "depth"), bbox_axis=1),
+            ParamSpec(name="inner_h", label="Inner height", default=30.0, min=10.0, max=150.0, step=1.0, dim_keys=("inner_h", "height"), bbox_axis=2),
             ParamSpec(
                 name="wall", label="Wall thickness", default=2.5, min=0.8, max=8.0, step=0.2,
                 dim_keys=("wall", "thickness"),
@@ -372,16 +421,17 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         library_file="containers.scad",
         module="tube",
         params=(
-            ParamSpec(name="od", label="Outer diameter", default=16.0, min=4.0, max=200.0, step=1.0,
+            # od is the footprint (diameter), capped at the sliceable envelope (QA-502).
+            ParamSpec(name="od", label="Outer diameter", default=16.0, min=4.0, max=170.0, step=1.0,
                       dim_keys=("od", "outer_diameter", "diameter"), bbox_axis=0),
-            ParamSpec(name="id", label="Inner diameter", default=8.0, min=1.0, max=190.0, step=1.0,
+            ParamSpec(name="id", label="Inner diameter", default=8.0, min=1.0, max=160.0, step=1.0,
                       dim_keys=("id", "inner_diameter", "bore")),
-            ParamSpec(name="height", label="Height", default=12.0, min=2.0, max=250.0, step=1.0,
+            ParamSpec(name="height", label="Height", default=12.0, min=2.0, max=170.0, step=1.0,
                       dim_keys=("height", "length"), bbox_axis=2),
         ),
         bbox_x=(BBoxTerm(ref="od"),), bbox_y=(BBoxTerm(ref="od"),), bbox_z=(BBoxTerm(ref="height"),),
         # The bore must stay at least 1 mm inside the outer wall or difference() degenerates.
-        gaps=(("id", "od", 1.0),),
+        gaps=(("id", "od", 1.0, 1.0),),
     )
     wall_hook = TemplateFamily(
         name="wall_hook",
@@ -397,7 +447,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
             # and the gate would fail-closed on an otherwise-fine part (ENG-501). 24 keeps the
             # linear bbox exact across the whole slider range (a 20 mm plate with a 20 mm arm rise
             # is a degenerate hook anyway).
-            ParamSpec(name="plate_h", label="Plate height", default=60.0, min=24.0, max=200.0, step=1.0,
+            ParamSpec(name="plate_h", label="Plate height", default=60.0, min=24.0, max=170.0, step=1.0,
                       dim_keys=("height", "plate_h"), bbox_axis=2),
             ParamSpec(name="arm_proj", label="Arm reach", default=35.0, min=10.0, max=120.0, step=1.0,
                       dim_keys=("arm_proj", "projection", "reach", "depth")),
@@ -431,14 +481,18 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         library_file="organizers.scad",
         module="drawer_divider",
         params=(
-            ParamSpec(name="length", label="Length", default=150.0, dim_keys=("length", "width"), bbox_axis=0, **_LINEAR),
-            ParamSpec(name="depth", label="Depth", default=80.0, dim_keys=("depth",), bbox_axis=1, **_LINEAR),
-            ParamSpec(name="height", label="Height", default=50.0, dim_keys=("height",), bbox_axis=2, **_LINEAR),
+            ParamSpec(name="length", label="Length", default=150.0, dim_keys=("length", "width"), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="depth", label="Depth", default=80.0, dim_keys=("depth",), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="height", label="Height", default=50.0, dim_keys=("height",), bbox_axis=2, **_HEIGHT),
             ParamSpec(name="compartments", label="Compartments", default=3.0, min=1.0, max=12.0, step=1.0,
                       unit="", integer=True, dim_keys=("compartments", "sections", "bays")),
         ),
         fixed_args={"panel_t": 2.0},
         bbox_x=(BBoxTerm(ref="length"),), bbox_y=(BBoxTerm(ref="depth"),), bbox_z=(BBoxTerm(ref="height"),),
+        # ENG-505: cap the compartment count to the length so the (compartments-1) cross-walls can't
+        # consume the frame and overlap into a solid block — keep compartments <= length/4 (with
+        # panel_t=2 mm that leaves each bay comfortably wider than a wall).
+        gaps=(("compartments", "length", 0.0, 0.25),),
     )
 
     return (snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider)

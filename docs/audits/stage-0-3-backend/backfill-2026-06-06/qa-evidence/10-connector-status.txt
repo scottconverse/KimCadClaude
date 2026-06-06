@@ -1,0 +1,16 @@
+configured connectors: ['mock', 'octoprint']
+
+--- mock (type=loopback) ---
+  simulated(no hardware)?: True
+  configured(ready to build)?: True
+  build_connector: OK, drives_hardware=False
+  status(): online=True state=operational detail=''
+
+--- octoprint (type=octoprint) ---
+  simulated(no hardware)?: False
+  configured(ready to build)?: False
+  build_connector ConnectorError reason=config: set the OCTOPRINT_API_KEY environment variable to send to 'octoprint'  | user_message="The 'octoprint' printer needs an API key that isn't set up yet. See the README's send-to-printer setup."
+
+=== unknown connector status ===
+  reason=unknown: unknown connector 'ghost'; configured connectors: mock, octoprint  | user_message="There's no printer connection named 'ghost'."
+  connector_is_configured('ghost'): False

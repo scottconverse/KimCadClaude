@@ -25,6 +25,7 @@ import base64
 import hashlib
 import itertools
 import json
+import math
 import re
 import shutil
 import threading
@@ -43,6 +44,10 @@ WEB_DIR = Path(__file__).parent / "web"
 
 # Hardening caps (ENG-004): bound in-memory state and request size.
 MAX_REGISTRY = 50  # keep at most the last N rendered meshes; evict oldest
+# ENG-406: the slice cache is a DIFFERENT quantity from the mesh registry (cached G-code results,
+# not rendered meshes), so it gets its own cap instead of overloading MAX_REGISTRY. Slices are
+# heavier and re-confirms are rarer, so a smaller bound is plenty.
+MAX_SLICE_CACHE = 16  # keep at most the last N cached (rid, printer, material) slice results
 MAX_BODY_BYTES = 1_048_576  # 1 MiB — prompts are tiny; reject anything larger
 # A design import carries a mesh (+ thumb), so it needs more headroom than a JSON body. Still
 # bounded so a hostile upload can't exhaust memory.
@@ -237,10 +242,16 @@ def design_response(
     return payload, mesh_path, result
 
 
-def _design_snapshot(payload: dict[str, Any], result: Any, prompt: str) -> dict[str, Any]:
+def _design_snapshot(
+    payload: dict[str, Any], result: Any, prompt: str, original_prompt: str | None = None
+) -> dict[str, Any]:
     """The saveable snapshot for a completed design (Stage 8.5 "My Designs"): the API payload (sans
     the volatile, id-specific ``mesh_url``), the facts the library indexes by, and the serialized
-    plan needed to restore the live-slider re-render state when the design is reopened."""
+    plan needed to restore the live-slider re-render state when the design is reopened.
+
+    ``original_prompt`` (QA-004) is the FIRST prompt in a refine lineage — used to auto-name the
+    saved design by its original intent ("a desk organizer") rather than the latest tweak ("make it
+    taller"). Defaults to ``prompt`` for a fresh, un-refined design."""
     report = payload.get("report") or {}
     readiness = report.get("readiness") or {}
     plan_dump = None
@@ -253,6 +264,7 @@ def _design_snapshot(payload: dict[str, Any], result: Any, prompt: str) -> dict[
         "payload": {k: v for k, v in payload.items() if k != "mesh_url"},
         "plan": plan_dump,
         "prompt": prompt,
+        "original_prompt": original_prompt or prompt,
         "object_type": (payload.get("plan") or {}).get("object_type", ""),
         "gate_status": report.get("gate_status", ""),
         "readiness_score": readiness.get("score") if isinstance(readiness, dict) else None,
@@ -430,11 +442,12 @@ class _SettingsAwareProvider:
 def _mask_key(key: Any) -> str | None:
     """A masked form of an API key for redisplay — a fixed dot run + the last 5 characters. None
     when there's no key. The full key is NEVER returned by the API (only this masked form). A real
-    OpenRouter key is 40+ chars; for an implausibly short value we reveal nothing (the last-5 would
-    otherwise expose most/all of it)."""
+    OpenRouter key is 40+ chars; for a short value we reveal nothing (QA-001: last-5 of a 9-12 char
+    value would expose up to half of it — only reveal the tail once the key is long enough that 5
+    chars is a small fraction)."""
     if not isinstance(key, str) or not key:
         return None
-    tail = key[-5:] if len(key) > 8 else ""
+    tail = key[-5:] if len(key) >= 16 else ""
     return "•" * 16 + tail
 
 
@@ -680,7 +693,11 @@ def make_handler(
     # Its own lock so a poll never contends with the rid counter / registry lock.
     design_progress: "OrderedDict[str, str]" = OrderedDict()
     progress_lock = threading.Lock()
-    index_html = (WEB_DIR / "index.html").read_bytes()
+    # ENG-404: a per-path static cache so the content-hash ETag (which guarantees the SPA is never
+    # stale after a rebuild) doesn't force a fresh read + SHA-256 of every asset on every request.
+    # Keyed by path -> (mtime, size, etag, body); a rebuild changes mtime/size and re-reads. The
+    # asset set is small and fixed, so the cache is naturally bounded.
+    static_cache: dict[str, tuple[float, int, str, bytes]] = {}
     config_box: dict[str, Any] = {"config": config}
 
     def get_config() -> Any:
@@ -806,7 +823,9 @@ def make_handler(
 
         def do_GET(self) -> None:
             if self.path in ("/", "/index.html"):
-                self._send(200, index_html, "text/html; charset=utf-8")
+                # ENG-405: serve the SPA shell fresh (via the freshness-cached static path) so a
+                # rebuilt index.html is picked up without a server restart, and carries an ETag.
+                self._serve_static(WEB_DIR / "index.html", "text/html; charset=utf-8")
                 return
             if self.path == "/api/options":
                 self._json(200, web_options(get_config(), saved_settings()))
@@ -821,14 +840,20 @@ def make_handler(
                 self._handle_health()
                 return
             if self.path == "/api/connectors":
-                from kimcad.connectors import connector_is_simulated
+                from kimcad.connectors import connector_is_configured, connector_is_simulated
 
                 cfg = get_config()
                 names = list(cfg.connectors())
                 # Each entry carries `simulated` (a loopback/no-hardware connection) so the UI
-                # can label honestly instead of narrating a mock send as a real print (UX-001).
+                # can label honestly instead of narrating a mock send as a real print (UX-001), and
+                # `configured` (QA-002) so a real-but-unset connector — e.g. the default OctoPrint
+                # template with no API key — reads honestly as not-yet-ready, not just "not a mock".
                 conns = [
-                    {"name": n, "simulated": connector_is_simulated(cfg.connector_config(n))}
+                    {
+                        "name": n,
+                        "simulated": connector_is_simulated(cfg.connector_config(n)),
+                        "configured": connector_is_configured(cfg, n),
+                    }
                     for n in names
                 ]
                 # default = the first configured connector (config order); on a
@@ -840,9 +865,6 @@ def make_handler(
                 # char (the client uses encodeURIComponent) matches the configured name.
                 name = unquote(urlsplit(self.path).path.rsplit("/", 1)[-1])
                 self._handle_connector_status(name)
-                return
-            if self.path.startswith("/vendor/"):
-                self._serve_vendor(self.path[len("/vendor/") :])
                 return
             if self.path.startswith("/assets/"):
                 # Strip any query string (Vite may version an asset URL) before the lookup.
@@ -884,9 +906,13 @@ def make_handler(
 
         def _serve_gcode(self, raw_id: str) -> None:
             try:
-                gcode_path = gcode_registry.get(int(raw_id))
+                gid = int(raw_id)
             except ValueError:
-                gcode_path = None
+                self._json(404, {"error": "g-code not found"})
+                return
+            # ENG-403: read the shared registry under the lock writers hold (consistent snapshot).
+            with lock:
+                gcode_path = gcode_registry.get(gid)
             if gcode_path is None or not gcode_path.exists():
                 self._json(404, {"error": "g-code not found"})
                 return
@@ -898,8 +924,21 @@ def make_handler(
             # build's filenames are STABLE (un-hashed), so a content-hash ETag + `no-cache`
             # (revalidate) is the correct caching: never stale after a rebuild (the ETag changes
             # with the content), and a matching `If-None-Match` returns a body-less 304.
-            body = path.read_bytes()
-            etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+            # ENG-404: reuse a cached (etag, body) while the file's mtime+size are unchanged so the
+            # SHA-256 isn't recomputed on every request; a rebuild changes mtime/size -> fresh hash.
+            try:
+                stat = path.stat()
+            except OSError:
+                self._json(404, {"error": "Not found."})
+                return
+            key = str(path)
+            cached = static_cache.get(key)
+            if cached is not None and cached[0] == stat.st_mtime and cached[1] == stat.st_size:
+                etag, body = cached[2], cached[3]
+            else:
+                body = path.read_bytes()
+                etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+                static_cache[key] = (stat.st_mtime, stat.st_size, etag, body)
             if self.headers.get("If-None-Match") == etag:
                 self.send_response(304)
                 self.send_header("ETag", etag)
@@ -916,29 +955,10 @@ def make_handler(
             if not getattr(self, "_head_only", False):
                 self.wfile.write(body)
 
-        def _serve_vendor(self, name: str) -> None:
-            # Vendored, read-only static assets (three.js) served locally so the 3D preview
-            # works offline. Only a plain filename in web/vendor/ is allowed — any path
-            # separator or traversal is rejected before touching the filesystem (mirrors
-            # _serve_asset's guard exactly).
-            if not name or "/" in name or "\\" in name or ".." in name:
-                self._json(404, {"error": "Not found."})
-                return
-            path = WEB_DIR / "vendor" / name
-            if not path.is_file():
-                self._json(404, {"error": "Not found."})
-                return
-            ctype = (
-                "text/javascript; charset=utf-8"
-                if path.suffix == ".js"
-                else "application/octet-stream"
-            )
-            self._serve_static(path, ctype)
-
         def _serve_asset(self, name: str) -> None:
-            # Built SPA static assets (JS/CSS/fonts/images) served from web/assets/. Mirrors the
-            # vendor guard exactly: only a plain filename is allowed — any path separator or
-            # traversal is rejected before touching the filesystem. ENG-405/406: an unknown
+            # Built SPA static assets (JS/CSS/fonts/images) served from web/assets/. Only a plain
+            # filename is allowed — any path separator or traversal is rejected before touching the
+            # filesystem. ENG-405/406: an unknown
             # suffix falls back to application/octet-stream — a safe default (the SPA build only
             # emits the mapped types), and the type map (`_ASSET_CONTENT_TYPES`) is the single
             # source for the asset content types.
@@ -954,9 +974,13 @@ def make_handler(
 
         def _serve_mesh(self, raw_id: str) -> None:
             try:
-                mesh_path = registry.get(int(raw_id))
+                mid = int(raw_id)
             except ValueError:
-                mesh_path = None
+                self._json(404, {"error": "mesh not found"})
+                return
+            # ENG-403: read the shared registry under the lock writers hold (consistent snapshot).
+            with lock:
+                mesh_path = registry.get(mid)
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "mesh not found"})
                 return
@@ -1034,6 +1058,15 @@ def make_handler(
                     if tail.endswith("/" + verb):
                         self._handle_design_mutate(tail[: -(len(verb) + 1)], verb)
                         return
+            # QA-002: a POST to an existing GET-only resource is 405 (method not allowed) with an
+            # Allow header — a 404 would wrongly imply the resource doesn't exist.
+            getonly = self.path in ("/api/options", "/api/model-status", "/api/health", "/api/connectors")
+            if getonly or self.path.startswith(("/api/connector-status/", "/api/design/progress/")):
+                self.send_response(405)
+                self.send_header("Allow", "GET, HEAD")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self._json(404, {"error": "Not found."})
 
         # Stage 8.5 Slice 6 — the in-app Settings screen.
@@ -1400,8 +1433,17 @@ def make_handler(
                     if result.template is not None:
                         template_state[rid] = (result.plan, result.template.family.name)
                     # Stage 8.5: retain the saveable snapshot so "save to My Designs" needs only
-                    # the design id + a name + a thumbnail from the client.
-                    design_snapshot[rid] = _design_snapshot(payload, result, prompt)
+                    # the design id + a name + a thumbnail from the client. QA-004: the original
+                    # prompt (the first user turn of a refine lineage, else this prompt) names the
+                    # saved design by its original intent, not the latest tweak.
+                    orig_prompt = next(
+                        (t.get("content") for t in (history or [])
+                         if t.get("role") == "user" and t.get("content")),
+                        prompt,
+                    )
+                    design_snapshot[rid] = _design_snapshot(
+                        payload, result, prompt, original_prompt=orig_prompt
+                    )
                     # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
                     while len(registry) > MAX_REGISTRY:
                         old_rid, _ = registry.popitem(last=False)
@@ -1481,7 +1523,9 @@ def make_handler(
             elif existing is not None:
                 name = existing.name
             else:
-                name = clip_name(snap.get("prompt"))
+                # QA-004: name a brand-new entry by the design's ORIGINAL intent (first prompt of a
+                # refine lineage), not the latest tweak — falling back to the current prompt.
+                name = clip_name(snap.get("original_prompt") or snap.get("prompt"))
             ok = store.save(
                 design_id=store_id,
                 name=name,
@@ -1528,9 +1572,10 @@ def make_handler(
             # trusted on its stored verdict. If re-validation can't run, fall back to the stored
             # value (don't false-fail a legitimate reopen when the geometry backends are absent).
             regated = _regate_mesh(get_config(), mesh_dest, d.plan)
+            effective_gate = regated or d.gate_status or "fail"
             with lock:
                 registry[rid] = mesh_dest
-                gate_status_by_rid[rid] = regated or d.gate_status or "fail"
+                gate_status_by_rid[rid] = effective_gate
                 if d.template_family and d.plan is not None:
                     try:
                         from kimcad.ir import DesignPlan
@@ -1545,6 +1590,9 @@ def make_handler(
                     "payload": d.payload,
                     "plan": d.plan,
                     "prompt": d.prompt,
+                    # A reopened design is already named; its stored prompt is the naming basis if it
+                    # is ever re-saved as a fresh entry (QA-004).
+                    "original_prompt": d.prompt,
                     "object_type": d.object_type,
                     "gate_status": d.gate_status,
                     "readiness_score": d.readiness_score,
@@ -1557,6 +1605,15 @@ def make_handler(
             payload["mesh_url"] = f"/api/mesh/{rid}"
             payload["prompt"] = d.prompt
             payload["saved_id"] = design_id  # the SPA knows this is an already-saved design
+            # TEST-402: the returned report must reflect the RE-GATED verdict, not the stored one.
+            # Otherwise a design that re-gates to "fail" on reopen (e.g. a tampered/oversized
+            # .kimcad) would show "Ready to print" while slicing is silently refused — the report
+            # and the slice path would disagree. Sync the report's gate verdict to what we enforce.
+            rep = payload.get("report")
+            if isinstance(rep, dict) and rep.get("gate_status") != effective_gate:
+                rep = dict(rep)
+                rep["gate_status"] = effective_gate
+                payload["report"] = rep
             self._json(200, payload)
 
         def _handle_design_mutate(self, design_id: str, verb: str) -> None:
@@ -1696,11 +1753,14 @@ def make_handler(
                 if cached is not None and cached[1] is not None and cached[1].exists():
                     info, gcode_path = cached
                 else:
+                    from kimcad.config import UnknownConfigKey
                     try:
                         info, gcode_path = slice_registered_mesh(
                             get_config(), mesh_path, key[1], key[2]
                         )
-                    except KeyError as e:
+                    except (KeyError, UnknownConfigKey) as e:
+                        # An unknown printer/material name is a client error (400), not a 500 —
+                        # config now raises UnknownConfigKey (QA-301) instead of a bare KeyError.
                         self._json(400, {"error": f"Unknown printer or material: {e}"})
                         return
                     except Exception as e:  # never leak a traceback to the browser
@@ -1711,7 +1771,7 @@ def make_handler(
                         # and cleared the cache. Don't cache (or serve) a slice of the stale shape.
                         if geometry_version.get(rid, 0) == sliced_ver:
                             slice_cache[key] = (info, gcode_path)
-                            while len(slice_cache) > MAX_REGISTRY:
+                            while len(slice_cache) > MAX_SLICE_CACHE:
                                 slice_cache.popitem(last=False)
             self._respond_slice(rid, info, gcode_path, sliced_ver)
 
@@ -1763,12 +1823,24 @@ def make_handler(
             for name, req in values.items():
                 if name not in applied:
                     continue
-                try:
-                    same = abs(float(req) - float(applied[name])) <= 1e-6
-                except (TypeError, ValueError):
-                    same = False
+                # QA-001: keep `requested` a consistent JSON type — a number when the input parsed,
+                # else null (a non-numeric value was rejected) — instead of echoing a raw string so
+                # an API client can rely on the shape of the contract.
+                # QA-501: a strictly-valid JSON number can still be non-finite — json.loads accepts
+                # the `Infinity`/`NaN` literals, and `1e400` overflows to inf. The geometry path
+                # clamps those harmlessly, but echoing inf/nan here would trip the response's
+                # allow_nan=False and 500 the endpoint, so coerce a non-finite (or bool) to null.
+                if isinstance(req, bool):
+                    req_num: float | None = None
+                else:
+                    try:
+                        parsed = float(req)
+                        req_num = parsed if math.isfinite(parsed) else None
+                    except (TypeError, ValueError):
+                        req_num = None
+                same = req_num is not None and abs(req_num - float(applied[name])) <= 1e-6
                 if not same:
-                    adjusted.append({"name": name, "requested": req, "applied": applied[name]})
+                    adjusted.append({"name": name, "requested": req_num, "applied": applied[name]})
             if adjusted:
                 payload["adjusted_params"] = adjusted
             if result.mesh_path is not None and result.mesh_path.exists():
@@ -1790,9 +1862,13 @@ def make_handler(
                         template_state[rid] = (result.plan, result.template.family.name)
                     # Stage 8.5: keep the saveable snapshot current so a save AFTER adjusting
                     # sliders persists the re-rendered parameters (not the original), matching the
-                    # fresh mesh. Carry the original prompt from the prior snapshot.
-                    prior_prompt = (design_snapshot.get(rid) or {}).get("prompt", "")
-                    design_snapshot[rid] = _design_snapshot(payload, result, prior_prompt)
+                    # fresh mesh. Carry the prompt + original prompt (QA-004) from the prior snapshot.
+                    prior_snap = design_snapshot.get(rid) or {}
+                    prior_prompt = prior_snap.get("prompt", "")
+                    design_snapshot[rid] = _design_snapshot(
+                        payload, result, prior_prompt,
+                        original_prompt=prior_snap.get("original_prompt") or prior_prompt,
+                    )
                     # A unique suffix busts the browser's cache so the viewport fetches the new
                     # mesh. Taken under `lock` for consistency with the other counter reads
                     # (ENG-502) — uniqueness is all the cache-buster needs.

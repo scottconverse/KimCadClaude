@@ -11,16 +11,19 @@ app runs with no Node toolchain.
 frontend/                 ← this app (React + TS source)  ── npm run build ──▶  src/kimcad/web/
   src/                                                                           index.html   (SPA shell, served at /)
   index.html  (Vite entry)                                                       assets/      (bundled JS/CSS/fonts, served at /assets/)
-  vite.config.ts                                                                 vendor/      (legacy three.js, served at /vendor/)
+  vite.config.ts
 ```
 
+three.js is bundled into the `/assets/` build (imported by `src/viewport/KCViewport.ts`), so
+there is no separately-served vendor copy.
+
 `src/kimcad/webapp.py` (a dependency-free stdlib `http.server`) serves the build output:
-the shell at `/`, the bundles at `/assets/<file>` (same path-traversal guard as `/vendor/`).
-The JSON API the SPA talks to (`/api/design`, `/api/slice/<id>`, `/api/options`,
-`/api/connectors`, `/api/connector-status/<name>`, `/api/mesh/<id>`, `/api/gcode/<id>`) is
-unchanged from the pre-SPA UI — the build only changes the front end, not the contract.
-(`/api/send/<id>` exists server-side but the SPA does not call it yet — browser send is a
-later stage; the CLI and MCP send today.)
+the shell at `/` and the bundles at `/assets/<file>` (a path-traversal guard rejects anything but a
+plain filename). The SPA talks to a JSON API; `docs/ARCHITECTURE.md` is the authoritative endpoint
+list (it now spans Stage 5–8.5 additions — live re-render, settings, photo seed, saved designs —
+beyond the original `/api/design`, `/api/slice/<id>`, `/api/options`, `/api/mesh/<id>`,
+`/api/gcode/<id>` set). (`/api/send/<id>` exists server-side but the SPA does not call it yet —
+browser send is a later stage; the CLI and MCP send today.)
 
 ## Develop
 
@@ -42,7 +45,8 @@ npm run build    # tsc --noEmit (typecheck) + vite build → writes ../src/kimca
 - Output filenames are **stable** (un-hashed: `assets/kimcad.js`, the lazy-loaded three.js chunk
   `assets/Workspace.js`, `assets/index.css`, and the latin-font `.woff2`s) so each rebuild
   overwrites cleanly and the committed output stays tidy.
-- `emptyOutDir` is **false** so the hand-vendored `web/vendor/` (legacy three.js) survives.
+- `emptyOutDir` is **false** so the build overwrites its own stable-named files in place without
+  wiping the output directory (three.js is bundled into `assets/Workspace.js`, not a separate copy).
 - **Commit the rebuilt `src/kimcad/web/` along with the source change** — the server serves the
   committed files, so a source edit without a rebuilt, committed bundle is a no-op at runtime.
 

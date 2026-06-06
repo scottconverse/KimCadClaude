@@ -6,6 +6,7 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 - **`design/`** — the controlling UI/UX design + the v3.0 product spec (`design/KimCad-Unified-Product-Spec-v3.0.md`). Build to this.
 - **`stage-8.5-usability-plan.md`** — the authoritative Stage 8.5 slice plan (11 slices).
 - **`guide-my-designs.md`** — user-facing guide for the "My Designs" library.
+- **`guide-sliders-and-units.md`** — user-facing guide for the live parameter sliders + mm/inch units.
 - **`printproof3d-integration.md`** — how the PrintProof3D validation engine plugs in (arm's-length; bundled at Stage 11).
 - **`benchmarks/`** — model + template benchmark notes (how to re-run them).
 - **`audits/`** — the audit trail: per-slice `audit-lite`, per-stage `audit-team` + `wiring-audit` packages, and `RUN-LEDGER-2026-06-05.md` (the live finish-the-product tracker).

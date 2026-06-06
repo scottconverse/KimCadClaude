@@ -1,0 +1,15 @@
+=== CASE 1: confirm_print=True, proceed_anyway=False (default safety) ===
+status: gate_failed
+gate_status: fail
+report.sliced: False
+gcode_path: None
+gcode file on disk?: False
+findings: [('pass', 'mesh.solid'), ('pass', 'dim.match'), ('fail', 'volume.exceeds')]
+
+=== CASE 2: confirm_print=True, proceed_anyway=True (inspection override) ===
+status: completed
+gate_status: fail
+report.sliced: False
+gcode_path: None
+slice_note: slicing failed: orca-slicer exited -50: the part's footprint is too large to fit the printer's usable plate area (the slicer reserves clearance around the bed edges) — reduce the width/depth.
+gcode file on disk?: False

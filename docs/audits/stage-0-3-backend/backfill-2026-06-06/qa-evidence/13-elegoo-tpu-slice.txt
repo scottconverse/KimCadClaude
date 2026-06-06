@@ -1,0 +1,19 @@
+Note: cannot slice for Elegoo Neptune 4 Max + TPU — material 'tpu' is not available on printer 'Elegoo Neptune 4 Max' ('elegoo_neptune_4_max'): no filament profile is configured for it on this printer
+Enclosure — A closed rectangular box defined by its outer dimensions.
+Printer: Elegoo Neptune 4 Max   Material: TPU
+Gate: PASS
+Headline: Dimensions match: 45.0 × 35.0 × 25.0 mm.
+Size: 45.0 × 35.0 × 25.0 mm (target 45.0 × 35.0 × 25.0)
+Mesh: watertight, 2 body(ies), volume 15375 mm³
+Orientation: rests on most stable facet (stability 0.25)
+Hardening: hardened via manifold3d (genus -1)
+Readiness: 92/100 - Ready to print (confidence Medium; via KimCad printability gate and your local build history)
+  Suggest: Slice for TPU on the selected printer's profile.
+  History: On par with your 5 past Enclosure parts.
+Slice: not sliceable as configured: material 'tpu' is not available on printer 'Elegoo Neptune 4 Max' ('elegoo_neptune_4_max'): no filament profile is configured for it on this printer
+  [pass] mesh.solid: Closed, watertight solid.
+  [pass] dim.match: Dimensions match: 45.0 × 35.0 × 25.0 mm.
+  [pass] volume.fits: Fits the Elegoo Neptune 4 Max build plate.
+  [pass] wall.ok: Wall 2.5 mm is adequate.
+
+Mesh: output\qa-audit\elegoo-tpu\part.oriented.stl

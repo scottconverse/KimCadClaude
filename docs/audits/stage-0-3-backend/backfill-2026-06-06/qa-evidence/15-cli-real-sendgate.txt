@@ -1,0 +1,30 @@
+RUN: kimcad design a block --out output/qa-audit/cli-realsendgate --send mock --proceed-anyway
+============================================================
+Will slice for Bambu Lab P2S + PLA using:
+  machine   = Bambu Lab P2S 0.4 nozzle
+  process   = 0.20mm Standard @BBL P2S
+  filament  = Bambu PLA Basic @BBL P2S
+block — QA dim-mismatch block
+Printer: Bambu Lab P2S   Material: PLA
+Gate: FAIL
+Headline: X is 20.0 mm but the spec asked for 40.0 mm (got 20.0 × 20.0 × 20.0 mm).
+Size: 20.0 × 20.0 × 20.0 mm (target 40.0 × 30.0 × 20.0)
+Mesh: watertight, 1 body(ies), volume 8000 mm³
+Orientation: rests on most stable facet (stability 0.17)
+Hardening: hardened via manifold3d (genus 0)
+Readiness: 38/100 - Not print-ready (confidence Medium; via KimCad printability gate)
+  Risk: Dimensions off target - X is 20.0 mm but the spec asked for 40.0 mm (got 20.0 × 20.0 × 20.0 mm).
+Slice: G-code produced (18323 G-code lines) -> output\qa-audit\cli-realsendgate\part.gcode.3mf
+  Estimate: ~11m 1s, 100 layers, 3.12 cm3 filament
+  Profiles: machine=Bambu Lab P2S 0.4 nozzle | process=0.20mm Standard @BBL P2S | filament=Bambu PLA Basic @BBL P2S
+  [pass] mesh.solid: Closed, watertight solid.
+  [fail] dim.mismatch: X is 20.0 mm but the spec asked for 40.0 mm (got 20.0 × 20.0 × 20.0 mm).
+  [pass] volume.fits: Fits the Bambu Lab P2S build plate.
+
+Not sending to mock: this part FAILED the printability gate. --proceed-anyway lets you export it to inspect, but a gate-failed part is never sent to a printer.
+Your G-code is on disk: output\qa-audit\cli-realsendgate\part.gcode.3mf
+
+Mesh: output\qa-audit\cli-realsendgate\part.oriented.stl
+============================================================
+CLI EXIT CODE: 0
+G-code produced on disk (proceed-anyway sliced for inspection)?: True

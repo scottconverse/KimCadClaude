@@ -1,0 +1,11 @@
+=== Build with proceed_anyway=True + confirm_print=True (slice for inspection) ===
+status: completed
+gate_status: fail
+sliced: True
+gcode_path: output\qa-audit\dimfail\send\part.gcode.3mf
+gcode on disk?: True
+findings: [('pass', 'mesh.solid'), ('fail', 'dim.mismatch'), ('pass', 'volume.fits')]
+
+=== CLI send-gate decision (replicating cli._cmd_design) ===
+-> Not sending to mock: part FAILED the printability gate (REFUSED).
+   G-code is on disk: output\qa-audit\dimfail\send\part.gcode.3mf

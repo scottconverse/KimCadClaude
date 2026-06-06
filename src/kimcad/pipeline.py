@@ -599,8 +599,16 @@ class Pipeline:
             except Exception:  # noqa: BLE001 - readiness must never break the build
                 printproof = None
         try:
+            # QA-303: only recommend "Slice for <material>" when that material is actually sliceable
+            # on this printer (has a profile) — otherwise the card suggests a material the slice path
+            # will reject, contradicting itself. No profile -> pass None (no material recommendation).
+            material_for_rec = (
+                self.material.name
+                if self.material.key in self.printer.orca_filament_profiles
+                else None
+            )
             return assess_readiness(
-                gate, mesh_report, material_name=self.material.name, printproof=printproof
+                gate, mesh_report, material_name=material_for_rec, printproof=printproof
             )
         except Exception:  # noqa: BLE001 - assess_readiness is pure over validated inputs, but the
             # never-breaks-the-build contract is airtight: a last-resort gate-only card, not a raise.

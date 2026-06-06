@@ -1,0 +1,28 @@
+﻿Stage 7 Smart Mesh readiness — live backend payloads captured 2026-06-06 (branch stage-0-7-audit-backfill @ 800016a)
+
+POST /api/design  {"prompt":"a 40 mm desk cable clip"}  (default demo box)
+  report.gate_status = "pass"
+  report.readiness = { score:92, verdict:"Ready to print", tone:"pass", confidence:"Medium",
+                       risks:[], recommendations:["Slice for PLA on the selected printer's profile."],
+                       comparison:null, attribution:"KimCad printability gate" }
+
+POST /api/design  {"prompt":"demo:gatefail"} -> experimental -> oversized cube
+  status = "gate_failed", report.gate_status = "fail"
+  report.readiness = { score:38, verdict:"Not print-ready", tone:"fail", confidence:"Medium",
+    risks:[ {title:"Dimensions off target", tone:"fail", detail:"Z is 300.0 mm but the spec asked for 40.0 mm..."},
+            {title:"Too big for the printer", tone:"fail", detail:"Part exceeds the Bambu Lab P2S build volume..."} ],
+    recommendations:[], comparison:null, attribution:"KimCad printability gate" }
+  -> both risks GATE-derived: no issueId, no geometry -> rendered as plain text, NO "Show on model" toggle (correct).
+
+PrintProof3D: config.printproof3d_binary() is None in the demo -> validate_model returns None ->
+  confidence stays "Medium", attribution "KimCad printability gate" (honest: engine did NOT run).
+  Therefore the geometry-located risk path (on-model highlight + click-to-focus) is NOT reachable
+  via the live demo. Verified by INJECTION (stubbed one /api/design response with a PrintProof3D-shaped
+  located risk): card then rendered score 74 / "Printable with notes" / warn, High confidence +
+  "Validated by the PrintProof3D engine.", history line, "Show on model" toggle (checked) + legend,
+  risk rendered as a BUTTON with "on model" badge; clicking it kept highlightsOn=true (focusRisk fired,
+  no console error); toggling "Show on model" flipped showHighlights. Live 3D raycast against a real
+  engine geometry payload remains UNVERIFIED (engine not installed).
+
+Card mirrors report.readiness exactly in all three cases (gauge dash = "<score> 100", verdict, tone class,
+confidence blurb, risks, recs, history, attribution). No hardcoded values observed.

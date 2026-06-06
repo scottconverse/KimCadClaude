@@ -45,9 +45,11 @@ resolves it to "not present" and degrades.
 3. That's it. `Config.printproof3d_binary()` returns the path only when the file actually exists, so
    a configured-but-not-yet-built path still degrades cleanly rather than erroring.
 
-When the engine is configured and present, the readiness card's confidence rises to **High** and its
-attribution reads **"PrintProof3D validation engine"**; without it, the card reads **Medium** /
-**"KimCad printability gate."** The card never claims the engine ran when it didn't.
+When the engine actually **runs and returns a usable report**, the readiness card's confidence rises
+to **High** and its attribution reads **"PrintProof3D validation engine"**; without the engine (or
+when it's configured but returned nothing) the card reads **Medium** / **"KimCad printability
+gate."** A third state — the engine ran but the **mesh couldn't be analysed** — drops to **Low**
+confidence (the assessment is least certain). The card never claims the engine ran when it didn't.
 
 ## The report contract KimCad expects
 
@@ -86,5 +88,7 @@ follow-up, gated behind the engine being enabled by default. Until then, enablin
 ## Privacy
 
 The engine runs locally as a subprocess; nothing about your mesh, prompt, or profiles leaves the
-machine. The Smart Mesh learning store it feeds (`~/.kimcad/history.json`) is likewise local-first
+machine. The Smart Mesh learning store (`~/.kimcad/history.json`) — which records each part's
+readiness score (PrintProof3D influences that score; it does not write the store itself) — is
+likewise local-first
 and coarse (no geometry, no prompt).

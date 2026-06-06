@@ -1,0 +1,18 @@
+
+=== Bambu Lab P2S (bambu_p2s) ===
+  pla   -> machine=Bambu Lab P2S 0.4 nozzle | filament=Bambu PLA Basic @BBL P2S
+  petg  -> machine=Bambu Lab P2S 0.4 nozzle | filament=Generic PETG @BBL P2S
+  tpu   -> machine=Bambu Lab P2S 0.4 nozzle | filament=Bambu TPU 95A @BBL P2S
+  abs   -> machine=Bambu Lab P2S 0.4 nozzle | filament=Bambu ABS @BBL P2S
+
+=== Bambu Lab A1 (bambu_a1) ===
+  pla   -> machine=Bambu Lab A1 0.4 nozzle | filament=Bambu PLA Basic @BBL A1
+  petg  -> machine=Bambu Lab A1 0.4 nozzle | filament=Bambu PETG Basic @BBL A1
+  tpu   -> machine=Bambu Lab A1 0.4 nozzle | filament=Bambu TPU 95A @BBL A1
+  abs   -> machine=Bambu Lab A1 0.4 nozzle | filament=Bambu ABS @BBL A1
+
+=== Elegoo Neptune 4 Max (elegoo_neptune_4_max) ===
+  pla   -> machine=Elegoo Neptune 4 Max (0.4 nozzle) | filament=Generic PLA @Elegoo
+  petg  -> machine=Elegoo Neptune 4 Max (0.4 nozzle) | filament=Generic PETG @Elegoo
+  tpu   -> NOT AVAILABLE (clean): material 'tpu' is not available on printer 'Elegoo Neptune 4 Max' ('elegoo_neptune_4_max'): no filament profile is configured for it on this printer
+  abs   -> machine=Elegoo Neptune 4 Max (0.4 nozzle) | filament=Generic ABS @Elegoo

@@ -1,0 +1,1 @@
+{"status": "needs_experimental", "plan": {"object_type": "demo_widget", "summary": "Demo: an out-of-template part (experimental offer)", "target_bbox_mm": [80.0, 60.0, 40.0]}, "has_mesh": false, "prompt": "demo:experimental"}

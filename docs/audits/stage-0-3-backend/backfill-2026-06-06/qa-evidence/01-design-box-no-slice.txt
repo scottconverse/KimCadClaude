@@ -1,0 +1,17 @@
+Enclosure — A closed rectangular box defined by its outer dimensions.
+Printer: Bambu Lab P2S   Material: PLA
+Gate: PASS
+Headline: Dimensions match: 45.0 × 35.0 × 25.0 mm.
+Size: 45.0 × 35.0 × 25.0 mm (target 45.0 × 35.0 × 25.0)
+Mesh: watertight, 2 body(ies), volume 15375 mm³
+Orientation: rests on most stable facet (stability 0.25)
+Hardening: hardened via manifold3d (genus -1)
+Readiness: 92/100 - Ready to print (confidence Medium; via KimCad printability gate and your local build history)
+  Suggest: Slice for PLA on the selected printer's profile.
+  History: Stronger than 1 of your 2 past parts.
+  [pass] mesh.solid: Closed, watertight solid.
+  [pass] dim.match: Dimensions match: 45.0 × 35.0 × 25.0 mm.
+  [pass] volume.fits: Fits the Bambu Lab P2S build plate.
+  [pass] wall.ok: Wall 2.5 mm is adequate.
+
+Mesh: output\qa-audit\box1\part.oriented.stl

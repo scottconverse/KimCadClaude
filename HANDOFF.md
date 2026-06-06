@@ -2,8 +2,8 @@
 
 ## ▶ RESUME HERE (5-line orientation) — THIS BOX + the RUN-LEDGER are the SINGLE SOURCE OF TRUTH
 - **Where:** `main` is tagged `stage-0`…`stage-7` **and `stage-8.5`** (Stage 8.5 merged). Forward build resumes on a fresh branch off `main`.
-- **What's done:** Stage 8.5 (all 11 slices) — gate clean 0/0/0/0/0 across all 5 audit lanes + wiring-audit PASS, merged + tagged.
-- **Active task:** (Phase B) backfill the owed wiring-audits + audit-teams on shipped stages 0–7; then (Phase C) build Stages 8 → 9 → 10 → 11 to the beta. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
+- **What's done:** Stage 8.5 merged + tagged. **PHASE B COMPLETE** — owed audits backfilled on ALL shipped stages 0–7 (UI stages 4–7: wiring-audit + audit-team; backend 0–3: audit-team), every finding fixed → 0/0/0/0/0, re-audited, pushed gate-green on branch `stage-0-7-audit-backfill`. Real bugs found+fixed incl. a NaN-bypasses-the-gate safety hole (ENG-001), a cloud-shown-as-on-device privacy contradiction (Stage 6), a solid-block-passes-gate + gate/slicer footprint mismatch (Stage 5).
+- **Active task:** **PHASE C** — build Stages 8 → 9 → 10 → 11 to the beta, each: per-slice audit-lite → stage gate (audit-team [+ wiring-audit for UI]) → 0/0/0/0/0 → merge → tag. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md` (Phase C table). **One open item for Scott:** ENG-006 — physically VERIFY the Bambu P2S/A1 build-volume envelopes (`config/default.yaml` VERIFY markers); mitigated for now by the Stage-5 sliceable-footprint cap.
 - **Audit lanes are where real bugs surface** (Scott's directive): run `/wiring-audit` (UI stages) + `/audit-team` for real via independent agents on every stage; fix EVERY finding → 0/0/0/0/0.
 - **Rules:** per-slice audit-lite + stage gate (audit-team + wiring-audit) → 0/0/0/0/0 → merge → tag; real skills via independent agents; evidence committed; don't stop except a catastrophic break or a Scott-only decision.
 
@@ -14,7 +14,7 @@
 
 ## ⛔ READ FIRST
 
-- **🔧 STAGE 8.5 (Usability) IN PROGRESS — branch `stage-8.5-usability`** (off `main`/`stage-7`).
+- **🔧 STAGE 8.5 (Usability) — `(HISTORICAL: this section was written mid-build; Stage 8.5 is now DONE, merged + tagged `stage-8.5` — see the RESUME box up top.)`** Original branch `stage-8.5-usability` (off `main`/`stage-7`).
   **= make the working core loop actually usable; 8.5-first, BEFORE the Stage 8 CadQuery backend**
   (ratified by Scott 2026-06-03; spec Addendum B + design README addendum + `docs/stage-8.5-usability-plan.md`).
   A code review of the shipped SPA found deal-killers: all in-memory (refresh wipes the part), no
@@ -330,8 +330,8 @@ re-render, no model call); the `/api/designs*` family (list / reopen `<id>` / th
 export / rename / delete / duplicate — local persistence + "My Designs"); `GET /api/settings` +
 `POST /api/settings` (defaults/units/cloud-opt-in/experimental; key masked, never echoed);
 `GET /api/model-status`; `GET /api/health`; `GET /api/design/progress/<job_id>` (the step-progress
-poll); `POST /api/photo-seed` (local-vision photo on-ramp). The server reads `web/index.html` at
-startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API. Browser **send** is intentionally
+poll); `POST /api/photo-seed` (local-vision photo on-ramp). The server serves `/` (the SPA shell)
+and `/assets/<f>` (three.js bundled in), plus the API. Browser **send** is intentionally
 NOT wired in the SPA (it's Stage 10) — the web UI is status + slice + download; the CLI (`--send`)
 and MCP are the send paths today.
 

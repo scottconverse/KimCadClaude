@@ -114,6 +114,10 @@ class GcodeProofFailed(SliceFailed):
 # slices today, so a >1-plate archive would prove OK yet be refused at send. Keep the two
 # layers aligned: if multi-plate slicing ever ships, teach the connectors to upload N files.
 _MAX_GCODE_MEMBERS = 64
+# ENG-002: a real 3MF has a handful of members; cap the TOTAL entry count before we even iterate the
+# namelist, so a crafted archive with millions of (non-gcode) entries can't pin a core just being
+# enumerated/filtered (the .gcode-subset cap below only kicks in after the full namelist walk).
+_MAX_ZIP_ENTRIES = 4096
 MAX_GCODE_MEMBER_BYTES = 512 * 1024 * 1024  # 512 MB uncompressed per .gcode member
 
 
@@ -186,7 +190,7 @@ def slice_model(
     out_dir: Path,
     settings: SliceSettings,
     basename: str = "part",
-    timeout_s: int = 300,
+    timeout_s: int = 600,  # ENG-005: match the production/configured budget (was a dead 300 default)
     allow_newer: bool = True,
 ) -> SliceResult:
     """Slice ``input_mesh`` into a G-code-bearing 3MF in ``out_dir``.
@@ -218,6 +222,25 @@ def slice_model(
     duration = time.monotonic() - started
 
     if proc.returncode != 0:
+        # QA-504: OrcaSlicer logs an off-bed / can't-arrange failure to STDOUT (not stderr), so a
+        # bare exit code otherwise falls through to the generic "too large or too solid" message
+        # that contradicts a green "fits the build plate" gate. Detect the arrange signature and
+        # give an honest, specific reason: the footprint exceeds the slicer's USABLE plate area
+        # (auto-arrange reserves edge clearance, so it's smaller than the nominal bed).
+        blob = f"{proc.stdout}\n{proc.stderr}"
+        if any(
+            s in blob
+            for s in (
+                "can not be arranged inside plate",
+                "no object is fully inside the print volume",
+                "Nothing to be sliced",
+            )
+        ):
+            raise SliceFailed(
+                proc.returncode,
+                "the part's footprint is too large to fit the printer's usable plate area "
+                "(the slicer reserves clearance around the bed edges) — reduce the width/depth.",
+            )
         raise SliceFailed(proc.returncode, proc.stderr)
     if not gcode_path.exists():
         raise SliceFailed(proc.returncode, f"expected {gcode_path.name} was not written")
@@ -253,7 +276,12 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
     if not zipfile.is_zipfile(path):
         raise GcodeProofFailed(f"{path.name} is not a valid 3MF (zip) container")
     with zipfile.ZipFile(path) as zf:
-        entries = tuple(n for n in zf.namelist() if n.lower().endswith(".gcode"))
+        all_names = zf.namelist()
+        if len(all_names) > _MAX_ZIP_ENTRIES:  # ENG-002: bound the whole archive before filtering
+            raise GcodeProofFailed(
+                f"{path.name} has an implausible number of archive entries ({len(all_names)})"
+            )
+        entries = tuple(n for n in all_names if n.lower().endswith(".gcode"))
         if not entries:
             raise GcodeProofFailed(f"{path.name} contains no .gcode toolpath member")
         if len(entries) > _MAX_GCODE_MEMBERS:

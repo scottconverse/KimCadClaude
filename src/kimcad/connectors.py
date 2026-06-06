@@ -40,6 +40,22 @@ def connector_is_simulated(cc: ConnectorConfig) -> bool:
     return cls is not None and not getattr(cls, "drives_hardware", True)
 
 
+def connector_is_configured(config: Any, name: str) -> bool:
+    """Whether the named connector is set up enough to actually send — right config plus any
+    required secret present — *without* driving the printer. A loopback is always usable; a real
+    connector missing its ``base_url`` or API-key env var reports False. Cheap (no network I/O):
+    derived from whether :func:`build_connector` succeeds, so it can never drift from the real
+    send path's requirements. QA-002: lets the connectors list say honestly, at a glance, that an
+    OctoPrint template with no API key isn't actually ready — not just that it's "not simulated"."""
+    try:
+        build_connector(config, name)
+        return True
+    except ConnectorError:
+        return False
+    except Exception:  # noqa: BLE001 — unknown/malformed config is "not configured", never a crash
+        return False
+
+
 def build_connector(config: Any, name: str) -> PrinterConnector:
     """Construct the connector named ``name`` from ``config``'s ``connectors:`` section.
 

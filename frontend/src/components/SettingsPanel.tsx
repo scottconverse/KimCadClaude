@@ -236,10 +236,22 @@ export default function SettingsPanel() {
                 </span>
               ) : null}
             </div>
-            <p className="kc-set-sub">
-              <code className="kc-mono">{model?.model ?? 'gemma4:e4b'}</code> — KimCad’s local AI. Runs
-              on your machine, on your CPU. No internet required; nothing leaves your computer.
-            </p>
+            {/* UX-001: the description MUST track the live backend — when cloud is on, the model runs
+                off-machine, so the on-device privacy copy would be a flat contradiction of the
+                product's core promise. Branch on the same `model` status object the badge uses. */}
+            {model?.backend === 'cloud' ? (
+              <p className="kc-set-sub">
+                <code className="kc-mono">{model?.model ?? 'your cloud model'}</code> — your chosen
+                cloud model via OpenRouter. It runs on OpenRouter’s servers, not your machine: your
+                prompt is sent to the cloud while this is on. Turn Cloud acceleration off to keep
+                everything on-device.
+              </p>
+            ) : (
+              <p className="kc-set-sub">
+                <code className="kc-mono">{model?.model ?? 'gemma4:e4b'}</code> — KimCad’s local AI.
+                Runs on your machine, on your CPU. No internet required; nothing leaves your computer.
+              </p>
+            )}
             {/* A concrete next action whenever it isn't simply running (no dead-end). */}
             {modelState === 'ready' && model?.backend === 'local' && !model.running && (
               <p className="kc-model-action">

@@ -1,0 +1,16 @@
+Hardware
+  Windows 11 | 16-core CPU | 31 GB RAM | no discrete GPU (CPU/iGPU inference)
+
+Installed models (Ollama @ http://localhost:11434/v1)
+  - gemma4:e4b  (9.6 GB)  -- Gemma E4B
+  - nomic-embed-text:latest  (0.3 GB)
+  - gemma4:e4b-it-q4_K_M  (9.6 GB)  -- Gemma E4B
+  - qwen2.5-coder:1.5b  (1.0 GB)  -- Qwen2.5-Coder 1.5B
+  - novaforgeai/deepseek-coder:6.7b-optimized  (3.8 GB)
+
+Recommendation
+  -> Gemma E4B  [gemma4:e4b]  (installed)
+  Gemma E4B is the strongest model you have installed that fits this machine (Windows 11 | 16-core CPU | 31 GB RAM | no discrete GPU (CPU/iGPU inference)).
+
+The model is never hardwired. To choose one: set `llm.active` (or a backend's
+`model_name`) in config/local.yaml, or pass `--backend <key>` to design/web/bench.

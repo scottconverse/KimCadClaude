@@ -1,15 +1,26 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  deleteDesign,
   designIdFromMeshUrl,
+  duplicateDesign,
   exportDesignUrl,
+  getConnectors,
+  getConnectorStatus,
   getDesignProgress,
+  getDesigns,
+  getHealth,
+  getModelStatus,
   getOptions,
+  getSettings,
   importDesign,
   isAbortError,
   postDesign,
   postRender,
   postSettings,
   postSlice,
+  renameDesign,
+  reopenDesign,
+  saveDesign,
   uploadPhoto,
 } from './api'
 
@@ -345,5 +356,97 @@ describe('getOptions / postSlice', () => {
     const ctrl = new AbortController()
     await postSlice(7, 'p2s', 'pla', ctrl.signal)
     expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ signal: ctrl.signal })
+  })
+})
+
+// TEST-403: the settings/status GETs and the "My Designs" CRUD wrappers were the seam most exposed
+// to a silent contract drift (URL typo, missing id-encoding, swallowed backend error). Thin tests
+// pin each one's URL/method/body, the encodeURIComponent on every id, and error propagation.
+describe('settings + status GET wrappers (TEST-403)', () => {
+  it.each([
+    ['getSettings', getSettings, '/api/settings'],
+    ['getModelStatus', getModelStatus, '/api/model-status'],
+    ['getHealth', getHealth, '/api/health'],
+    ['getConnectors', getConnectors, '/api/connectors'],
+    ['getDesigns', getDesigns, '/api/designs'],
+  ] as const)('%s GETs %s and returns the parsed body', async (_name, fn, url) => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }))
+    await fn()
+    // A bare fetch(url) (GET) — no method/second arg, or an explicit GET.
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe(url)
+    const init = call[1] as RequestInit | undefined
+    expect(init?.method ?? 'GET').toBe('GET')
+  })
+
+  it('getConnectors returns the configured/simulated flags (QA-002 contract)', async () => {
+    mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        connectors: [{ name: 'octoprint', simulated: false, configured: false }],
+        default: 'mock',
+      }),
+    }))
+    const r = await getConnectors()
+    expect(r.connectors[0]).toMatchObject({ simulated: false, configured: false })
+  })
+
+  it('getConnectorStatus url-encodes the connector name', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ name: 'a b', ready: false }) }))
+    await getConnectorStatus('a b')
+    expect((f.mock.calls[0] as unknown[])[0]).toBe('/api/connector-status/a%20b')
+  })
+
+  it('propagates the backend error message on a non-2xx GET', async () => {
+    mockFetch(async () => ({ ok: false, status: 503, json: async () => ({ error: 'Saved designs aren’t available right now.' }) }))
+    await expect(getDesigns()).rejects.toThrow(/aren.t available/i)
+  })
+})
+
+describe('My Designs CRUD wrappers (TEST-403)', () => {
+  it('saveDesign POSTs the id/name/thumbnail/saved_id to /api/designs/save', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ id: 's1', name: 'Box' }) }))
+    const r = await saveDesign(7, 'Box', 'data:image/png;base64,AA==', 's1')
+    expect(r.id).toBe('s1')
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/designs/save')
+    expect((call[1] as RequestInit).method).toBe('POST')
+    const body = JSON.parse((call[1] as RequestInit).body as string)
+    expect(body).toEqual({ design_id: 7, name: 'Box', thumbnail: 'data:image/png;base64,AA==', saved_id: 's1' })
+  })
+
+  it('reopenDesign GETs /api/designs/<id> with the id url-encoded', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed', has_mesh: true }) }))
+    await reopenDesign('a/b')
+    expect((f.mock.calls[0] as unknown[])[0]).toBe('/api/designs/a%2Fb')
+  })
+
+  it('renameDesign POSTs the new name to /api/designs/<id>/rename (id encoded)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }))
+    await renameDesign('a b', 'New name')
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/designs/a%20b/rename')
+    expect(JSON.parse((call[1] as RequestInit).body as string)).toEqual({ name: 'New name' })
+  })
+
+  it('deleteDesign POSTs to /api/designs/<id>/delete (id encoded)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }))
+    await deleteDesign('a/b')
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/designs/a%2Fb/delete')
+    expect((call[1] as RequestInit).method).toBe('POST')
+  })
+
+  it('duplicateDesign POSTs to /api/designs/<id>/duplicate and returns the new id', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ ok: true, id: 'dup1' }) }))
+    const r = await duplicateDesign('abc')
+    expect(r.id).toBe('dup1')
+    expect((f.mock.calls[0] as unknown[])[0]).toBe('/api/designs/abc/duplicate')
+  })
+
+  it('propagates the backend error message on a failed save', async () => {
+    mockFetch(async () => ({ ok: false, status: 404, json: async () => ({ error: 'That design is no longer available to save.' }) }))
+    await expect(saveDesign(9, '', null)).rejects.toThrow(/no longer available/i)
   })
 })

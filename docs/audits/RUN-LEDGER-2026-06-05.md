@@ -13,12 +13,12 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | # | Phase | wiring-audit | audit-team 0/0/0/0/0 | merge+tag | status |
 |---|---|---|---|---|---|
 | 1 | Stage 8.5 Slice 11 (responsive/a11y/copy/polish) — build + audit-lite | n/a (slice) | ✅ audit-lite 0/0/0/0/0 (`95b25e0`) | n/a | ✅ DONE |
-| 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS 0/0/0/0 | ⏳ audit-team ran (0B/0C/11Maj/22Min/11Nit=44); REMEDIATING to 0/0/0/0/0 | ☐ tag `stage-8.5` | ⏳ IN PROGRESS |
-| 3 | Backfill Stage 4 (SPA) audits | ☐ | ☐ (refresh) | n/a (already on main) | ☐ |
-| 4 | Backfill Stage 5 (templates/sliders) audits | ☐ | ☐ (refresh) | n/a | ☐ |
-| 5 | Backfill Stage 6 (model layer) audits | ☐ | ☐ (refresh) | n/a | ☐ |
-| 6 | Backfill Stage 7 (Smart Mesh) audits | ☐ | ☐ (refresh) | n/a | ☐ |
-| 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ☐ | n/a | ☐ |
+| 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS | ✅ audit-team 44 findings ALL fixed → re-audit 0/0/0/0/0 across 5 lanes | ✅ merged `fb65e6f` + tagged `stage-8.5` | ✅ DONE |
+| 3 | Backfill Stage 4 (SPA) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a (fixes on backfill branch) | ✅ DONE |
+| 4 | Backfill Stage 5 (templates/sliders) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
+| 5 | Backfill Stage 6 (model layer) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
+| 6 | Backfill Stage 7 (Smart Mesh) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
+| 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ✅ 0/0/0/0/0 (re-audited; ENG-001 safety + QA-301) | ✅ committed | ✅ DONE |
 | 8 | Stage 8 (CadQuery backend) — build + gate | ☐ | ☐ | ☐ tag `stage-8` | ☐ |
 | 9 | Stage 9 (image on-ramp) — build + gate | ☐ | ☐ | ☐ tag `stage-9` | ☐ |
 | 10 | Stage 10 (direct-print + layer preview) — build + gate | ☐ | ☐ | ☐ tag `stage-10` | ☐ |
@@ -38,19 +38,19 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 - ✅ **Re-audit round 1** (reaudit/): Engineering CLEAR 0/0/0/0/0; QA PASS; UI/Docs/Test all-prior-resolved + a second tier surfaced (remediation-introduced gaps). **Second-tier remediated** (UI focus-ring/dup-rule; docs reconciled; +6 tests).
 - ✅ **Re-audit round 2** (reaudit/round2-*): **UI 0/0/0/0/0, Docs 0/0/0/0/0, Test 0/0/0/0/0** (Test lane confirmed coverage with a false-green mutation sweep). 763 pytest non-live + 262 vitest.
 - 🟢 **STAGE 8.5 GATE = CLEAN: 0/0/0/0/0 across all 5 lanes (engineering/UI/docs/test/QA) + wiring-audit PASS.** All 44 original + second-tier findings closed, independently re-verified.
-- ▶ **MERGE + TAG `stage-8.5` — Scott authorized "do it all / finish the whole run" (2026-06-05).** Phase A: exec-doc 44→42 corrected; Stage-8.5 CHANGELOG block added; docs marked DONE; merge `stage-8.5-usability` → `main` (--no-ff) + tag `stage-8.5` IN PROGRESS.
+- ✅ **MERGE + TAG `stage-8.5` — DONE (2026-06-05, Scott authorized "do it all / finish the whole run").** Merged `stage-8.5-usability` → `main` (--no-ff, merge `fb65e6f`), tag `stage-8.5` on the merge commit; pushed gate-green (`c20c0d8..fb65e6f main`; `* [new tag] stage-8.5`). Stages 0–8.5 all tagged on origin. **RESUME = Phase B below.**
 
 ## Phase B — backfill owed audits on shipped stages 0–7 (wiring-audit first, then audit-team)
 | Stage | wiring-audit | audit-team | status |
 |---|---|---|---|
-| 0 (pipeline + web stub) | n/a (backend) | ☐ (commit into VC) | ☐ |
-| 1 (deterministic pipeline) | n/a | ☐ (commit into VC) | ☐ |
-| 2 (connectors) | n/a | ☐ (move pkg into VC) | ☐ |
-| 3 (printer coverage) | n/a | ☐ (move pkg into VC) | ☐ |
-| 4 (React SPA + viewport) | ☐ | ☐ | ☐ |
-| 5 (templates + sliders) | ☐ | ☐ | ☐ |
-| 6 (model layer) | ☐ | ☐ | ☐ |
-| 7 (Smart Mesh + readiness) | ☐ | ☐ | ☐ |
+| 0 (pipeline + web stub) | n/a (backend) | ✅ DONE (`docs/audits/stage-0-3-backend/backfill-2026-06-06/`; old root pkg migrated to `docs/audits/stage-0/`) | ✅ DONE |
+| 1 (deterministic pipeline / gated export) | n/a | ✅ DONE (combined backend audit; ENG-001 NaN-gate safety fix) | ✅ DONE |
+| 2 (connectors) | n/a | ✅ DONE (combined backend audit) | ✅ DONE |
+| 3 (printer coverage) | n/a | ✅ DONE (combined backend audit; QA-301 friendly errors) | ✅ DONE |
+| 4 (React SPA + viewport) | ✅ PASS | ✅ 0/0/0/0/0 (round-2 re-audit verified) | ✅ DONE — `docs/audits/stage-4/backfill-2026-06-05/` |
+| 5 (templates + sliders) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; 3 real bugs fixed) | ✅ DONE — `docs/audits/stage-5/backfill-2026-06-05/` |
+| 6 (model layer) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; Critical privacy-copy bug fixed) | ✅ DONE — `docs/audits/stage-6/backfill-2026-06-05/` |
+| 7 (Smart Mesh + readiness) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; warn-badge AA + score-table consistency fixed) | ✅ DONE — `docs/audits/stage-7/backfill-2026-06-05/` |
 
 ## Phase C — build Stages 8 → 9 → 10 → 11 to the beta (per-slice audit-lite → stage gate → 0/0/0/0/0 → merge → tag)
 | Stage | build | gate | tag | status |
@@ -61,4 +61,54 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-06 (Phase B / backend stages 0-3): combined backend audit-team (eng/test/QA/docs; UI/UX
+  n/a) across the coupled backend (pipeline, gate, slicer, connectors, printer coverage), findings
+  tagged per stage → 0B/0C/~5Maj/~9Min/~6Nit. STANDOUT safety bug: ENG-001 — a NaN/inf bbox extent
+  SILENTLY PASSED the dim + build-volume gates (IEEE NaN compares False); now fails closed via a
+  finiteness check that runs first. Plus QA-301 (friendly UnknownConfigKey instead of a raw KeyError
+  traceback; web 400 not 500), ENG-002/004/005 (zip-entry cap, honest orient stability, timeout
+  align), QA-303 (no rec for an unavailable material), DOC-001/002/004/006 (baseline/help/Bambu/
+  envelope honesty), TEST-001/003/004 + ENG-001/QA-301 regression tests. Accepted-with-rationale:
+  QA-302/304/305, ENG-003, DOC nits. **ENG-006 surfaced to Scott** (physical build-volume VERIFY
+  needs the real P2S/A1; mitigated by the Stage-5 sliceable-footprint cap). Re-audit CLEAN
+  (false-green confirmed). Old root `audit-stage0-2026-05-29/` migrated into `docs/audits/stage-0/`.
+  Gate green (ruff, geometry, 783 pytest, 284 vitest, build reproducible).
+  **PHASE B COMPLETE — all owed audits (stages 0-7) backfilled. Next: Phase C (build Stages 8-11).**
+- 2026-06-06 (Phase B / Stage 7): backfill audit of Smart Mesh readiness + PrintProof3D + learning
+  store + the readiness card. 6 independent agents → 0B/0C/2Maj/~12Min/~3Nit (engineering-invariant
+  pass itself 0 findings: gate stays slice authority, readiness advisory). Majors: UX-001 (warn
+  confidence badge 4.23:1 < AA → darker --kc-warn-text + an automated contrast-guard test that fails
+  the build on any tone-token AA regression), TEST-S7-101 (engine-returned-None honesty path test).
+  Backend: ENG-702/703 (one PP severity table — no silent score dents; unknown gate status fails
+  safe), QA-701 (no empty warn verdict), QA-703 (no flattering "On par"). a11y: UX-002/003/004.
+  Docs: DOC-001..004. Re-audit CLEAN (false-green confirmed). Gate green (ruff, geometry, 778
+  pytest, 284 vitest, build reproducible). Package: `docs/audits/stage-7/backfill-2026-06-05/`.
+  **Phase B UI stages (4-7) all DONE; remaining: backend stages 0-3 (audit-team).**
+- 2026-06-05 (Phase B / Stage 6): backfill audit of the model layer (advisor + fallback + bake-off
+  + Settings model/cloud surface). 6 independent agents → 0B/1C/2Maj/6Min/3Nit (advisor-logic
+  engineering pass itself 0/0/0/0/0). Real bug: a CRITICAL privacy-copy contradiction — the Settings
+  AI-model card claimed "nothing leaves your computer" even when CLOUD was active; fixed by branching
+  the copy on the live backend. Plus DOC-001 (README omitted OpenRouter), TEST-101 (cloud-key-leak
+  guard test), QA-001 (short-key masking), QA-002 (405 for GET-only), DOC-003 (Qwen 3B/7B
+  "deprioritized not bench-tested"), UX-003/004/005 minors. gemma4-top/Qwen-deprioritized design +
+  one-model UI treated as correct-by-design (Scott's hard rule), not flagged. Re-audit CLEAN
+  (Critical verified both ways live). Gate green (ruff, geometry, 773 pytest, 278 vitest, build
+  reproducible). Package: `docs/audits/stage-6/backfill-2026-06-05/`.
+- 2026-06-05 (Phase B / Stage 5): backfill audit of the template engine + live-slider surface.
+  6 independent agents → 0B/1C/4Maj/7Min/4Nit. THREE real bugs (this is where they showed up):
+  QA-501 (non-finite JSON 500'd /api/render), ENG-501 (thick wall collapsed a box to a solid block
+  that still gated PASS), QA-502 (gate said "fits" but parts failed to slice — root-caused live to
+  OrcaSlicer arrange-clearance + auto-orient rotating the footprint; fixed by capping every template
+  dim at the verified-sliceable ~170mm + an honest slicer message). ALL findings fixed + regression
+  tests; round-2 re-audit CLEAN (false-green verified; worst corner 170³ slices to real G-code).
+  Gate green (ruff, geometry, 771 pytest, 276 vitest, build reproducible). Package:
+  `docs/audits/stage-5/backfill-2026-06-05/`.
+- 2026-06-05 (Phase B / Stage 4): backfill audit of the current SPA + viewport + web-serving code.
+  6 independent agents (wiring-audit + 5-role audit-team) → 0B/0C/8Maj/17Min/9Nit. ALL fixed
+  (backend ENG-401/403/404/405/406 + QA-001/002/004 + TEST-402; frontend UX-001..008 + M-1 + L-1/2 +
+  QA-003; docs DOC-401..408; tests TEST-401/402/403 + QA regressions). Round-2 re-audit caught
+  UX-002 (clip-path was paint-only → re-fixed by pinning sr-only top:0; re-verified 248px→0px) and
+  4 residual `/vendor/` doc contradictions (all fixed). Final: 0/0/0/0/0 all lanes + wiring PASS;
+  gate green (ruff, geometry, 764 pytest, 276 vitest, build reproducible). Package committed at
+  `docs/audits/stage-4/backfill-2026-06-05/`. Removed dead `src/kimcad/web/vendor/`.
 - 2026-06-05: Run started. Slices 1–10 of Stage 8.5 built + pushed (Slice 10 = `7fc5415`). Slice 11 built + gated + pushed (`95b25e0`). Stage-8.5 stage gate ran: wiring-audit PASS; audit-team 44 findings. Remediation: docs (`d2764ad`) + engineering (`c1261f2`) done; UX/test/QA next.

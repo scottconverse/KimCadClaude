@@ -32,13 +32,13 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
 P2S not P1S; code-signing dropped (unsigned beta); recruited usability study replaced by
 in-app telemetry + public beta feedback.
 
-## Current baseline (honest, as of Stage 4 — DONE, merged, tagged)
-The Phase-1 pipeline, the local web UI, and the designed React SPA + Three.js viewport are built
-and tested. **Stage 3 is tagged `stage-3` @ `96aba02` and Stage 4 is tagged `stage-4`** (off the `dcbcd1a`
-merge, with the lightweight tag advanced to the later docs-consistency commit so it carries these
-corrected docs), both merged to `main` (in sync with `origin/main`). Verification: **404 tests passing** (including 4
-live OrcaSlicer slices), **`ruff` clean**, and the frontend `npm test` (vitest, 19 passed) + `build`
-pass on Windows with `npm audit` = 0. The supported gate is **native Windows**: the pre-push hook
+## Current baseline (honest, as of Stage 8.5 — DONE, merged, tagged)
+The Phase-1 pipeline, the local web UI, the React SPA + Three.js viewport, the template engine +
+live sliders, the model layer, Smart Mesh readiness, and the Stage 8.5 usability work are built and
+tested. **Stages 0–8.5 are all tagged on `origin`** (`stage-0`…`stage-7`, `stage-8.5`), merged to
+`main`. Verification each push: **`ruff` clean + the FULL pytest suite (incl. live OrcaSlicer slices)
++ frontend vitest + SPA build-reproducibility** — the live test counts grow per stage and are
+recorded in `CHANGELOG.md` (do not pin a number here). The supported gate is **native Windows**: the pre-push hook
 (`.githooks/pre-push` → `scripts/ci.sh` = ruff + the FULL pytest incl. live) gates every push, and
 the frontend steps pass natively. (Running `scripts/ci.sh` under WSL/Linux fails only on the
 Windows-installed `node_modules` — Vite 8 / Rolldown's Linux native binding isn't present — which is
@@ -55,16 +55,15 @@ robustness) is DONE — merged to `main` and tagged `stage-6`** (through the ful
 remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
 bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report + learning store) is DONE —
 merged to `main` and tagged `stage-7`** (slices 1–6 each `audit-lite` 0/0/0/0/0; the full 5-role
-`audit-team` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8.5 (Usability), then
-Stage 8 (CadQuery)** — the usability stage was inserted ahead of the CadQuery backend (8.5-first,
-ratified 2026-06-03) because the deal-killer UX gaps must be closed before adding a second geometry
-engine. Stage 8.5 is currently IN PROGRESS on branch `stage-8.5-usability` (see the Stage 8.5
-section below); nothing in it is merged or tagged yet.
+`audit-team` stage gate + remediation closed at 0/0/0/0/0). The usability stage was inserted ahead
+of the CadQuery backend (8.5-first, ratified 2026-06-03) because the deal-killer UX gaps had to be
+closed before adding a second geometry engine. **Stage 8.5 (Usability) is DONE — merged to `main`
+and tagged `stage-8.5`** (slices 1–11 each `audit-lite` 0/0/0/0/0; the full 5-role `audit-team` +
+`wiring-audit` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8 (CadQuery).**
 
-Still ahead before beta: usability (Stage 8.5, in progress), CadQuery
-(Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
-installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
-at Kim's.**
+Still ahead before beta: CadQuery (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native
+(Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
+— that's after Stage 11, at Kim's.**
 
 ---
 
@@ -207,9 +206,9 @@ Slices 1–6 each passed `audit-lite` at 0/0/0/0/0; the full 5-role `audit-team`
   line; strictly factual, never flattering.
 - ✅ Tests per check (Python + vitest); the deterministic gate remains the slice authority and
   PrintProof3D adds advisory depth (folding engine fails into the slice-gate is a noted follow-up).
-**Exit:** a part produces a Smart Mesh readiness report; PrintProof3D integration validated;
-passing parts are genuinely print-ready. **Remaining for the stage gate:** the full `audit-team` at
-0/0/0/0/0 → merge → tag `stage-7`. **Needs:** target box. **Size:** ~2–3 weeks.
+**Exit (met):** a part produces a Smart Mesh readiness report; PrintProof3D integration validated;
+passing parts are genuinely print-ready. The full `audit-team` closed at 0/0/0/0/0 and the stage was
+merged + tagged `stage-7`.
 
 ## Stage 8.5 — Usability: turn the demo into a tool people keep  ✅ DONE (merged to `main`, tagged `stage-8.5`)
 **Status: DONE — merged + tagged `stage-8.5`; stage gate clean 0/0/0/0/0 across all 5 audit lanes +

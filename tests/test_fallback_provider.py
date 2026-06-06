@@ -446,3 +446,21 @@ def test_pipeline_for_backend_is_bare_even_with_alt_configured():
     assert len(captured) == 1
     assert isinstance(captured[0], LLMProvider)
     assert not isinstance(captured[0], FallbackProvider)  # the alt is deliberately ignored
+
+
+def test_fallback_switch_message_never_leaks_the_api_key(capsys):
+    # TEST-101: the model layer is the secret-holding path. When the primary fails and the chain
+    # switches to the cloud alt, it logs to stderr — that line must name the backend by its config
+    # KEY only, never the API-key VALUE. (The connectors have this guard; the model layer must too.)
+    sentinel = "KIMCAD-SENTINEL-apikey-must-never-appear-in-logs"
+    primary = _mock_provider(error=_conn_err())
+    alt = _mock_provider(return_val="ok")
+    alt.backend.key = "cloud_alt"  # the config name — safe to print
+    # Plant the sentinel where a careless log line might pull it from, to prove it doesn't.
+    alt.backend.api_key = sentinel
+    primary.backend.api_key = sentinel
+    fp = FallbackProvider(primary, alt)
+    fp.generate_design_plan("a box", MagicMock(), MagicMock())
+    err = capsys.readouterr().err
+    assert "cloud_alt" in err  # the switch message names the backend by its config key
+    assert sentinel not in err  # ...and never the API-key value

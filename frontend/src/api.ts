@@ -161,7 +161,9 @@ export interface ConnectorStatusResponse {
 }
 
 export interface ConnectorsResponse {
-  connectors: Array<{ name: string; simulated: boolean }>
+  // `simulated` = a no-hardware loopback; `configured` = set up enough to actually send (QA-002) —
+  // e.g. an OctoPrint template with no API key is `simulated:false, configured:false`.
+  connectors: Array<{ name: string; simulated: boolean; configured: boolean }>
   default: string | null
 }
 

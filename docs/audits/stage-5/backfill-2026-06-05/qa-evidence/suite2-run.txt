@@ -1,0 +1,20 @@
+=== T9: thin-wall re-render should change gate (warn/fail) ===
+  initial gate: pass
+  wall=0.8 gate: pass | findings | ["mesh.solid:pass", "dim.match:pass", "volume.fits:pass", "wall.ok:pass"]
+  wall=8 gate: pass
+=== T10: oversized re-render (250^3) -> build-volume gate ===
+  250^3 gate: pass | findings | ["mesh.solid:pass", "dim.match:pass", "volume.fits:pass", "wall.ok:pass"]
+=== T11: empty values dict -> all defaults, 200, no adjusted ===
+  empty values: 200 | applied(defaults?) | {"width": 80.0, "depth": 60.0, "height": 40.0, "wall": 2.0} | adjusted | null
+=== T12: re-shape then attempt to SLICE -> slices NEW shape only ===
+  slice #1 (orig): 200 | sliced | True | estimate | ~50m 20s, 200 layers, 33.63 cm3 filament
+  reshape gate: pass | bbox via dims | {'width': 200.0, 'depth': 150.0, 'height': 120.0, 'wall': 4.0}
+  slice #2 (reshaped): 200 | sliced | False | estimate | None
+  estimate changed?: YES
+=== T13: gate-failed part cannot be sliced after re-render INTO failure ===
+  oversized gate: pass
+  slice attempt on failed part: 200 | sliced | False | reason | failed | note | orca-slicer exited -50: no slicer output — the part may be too large or too solid for this
+=== T14: id with whitespace / trailing chars ===
+  id with %20: 404 | {"error": "Not found."}
+  zero-padded id: 200 | (int parse may accept) | {"status": "completed", "plan": {"object_type": "box", "summary": "Demo part for: a box", "target_bbox_mm": [50.0, 60.0,
+=== DONE2 ===

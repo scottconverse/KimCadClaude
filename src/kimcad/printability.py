@@ -13,6 +13,7 @@ Phase-1 check set (start simple, expand in Phase 3):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import IntEnum
 
@@ -86,6 +87,7 @@ def run_gate(
 ) -> GateResult:
     result = GateResult()
 
+    _check_finite_extents(result, report)
     _check_integrity(result, report)
     _check_dimensions(result, report, plan, dim_tol_mm, dim_tol_frac)
     _check_build_volume(result, report, printer)
@@ -95,6 +97,20 @@ def run_gate(
     if not result.findings:
         result.add(Level.PASS, "ok", "All Phase-1 printability checks passed.")
     return result
+
+
+def _check_finite_extents(result: GateResult, report: MeshReport) -> None:
+    """ENG-001: a degenerate mesh can produce NaN/inf bounding-box extents. Because IEEE NaN
+    compares False against every threshold, a non-finite bbox would otherwise SILENTLY PASS the
+    dimension and build-volume checks — a part that can't be measured must never read as printable.
+    Fail closed, first, so the later numeric checks never see a non-finite value."""
+    if not all(math.isfinite(v) for v in report.bounding_box_mm):
+        result.add(
+            Level.FAIL,
+            "dim.non_finite",
+            "The part's measured size is not a finite number (degenerate or broken geometry) — "
+            "it can't be verified or printed. Rebuild the part.",
+        )
 
 
 def _check_integrity(result: GateResult, report: MeshReport) -> None:

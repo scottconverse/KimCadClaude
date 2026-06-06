@@ -147,8 +147,51 @@ def test_printproof_nit_does_not_surface_as_a_risk():
                           issues=(PrintProofIssue("MINOR_THING", "cosmetic", "nit"),))
     r = assess_readiness(_gate((Level.PASS, "dim.match", "ok")), _mesh(), printproof=pp)
     assert r.risks == []  # a nit is not a risk
-    assert r.score == 91  # only a 1-point nit penalty
+    # ENG-702: a nit is fully cosmetic — it surfaces NO risk, so it dents the score by NOTHING
+    # (anything that dents must surface; the two can't drift). Was a silent 1-point penalty.
+    assert r.score == 92
     assert r.verdict == "Ready to print"  # still clean
+
+
+def test_printproof_unknown_severity_surfaces_a_warn_not_a_silent_penalty():
+    # ENG-702/QA-702: an unrecognized engine severity (drift) must SURFACE as a warn risk, not
+    # silently dent the score with nothing on the card.
+    pp = PrintProofReport("warning", "high",
+                          issues=(PrintProofIssue("WEIRD", "engine drift", "trivial"),))
+    r = assess_readiness(_gate((Level.PASS, "dim.match", "ok")), _mesh(), printproof=pp)
+    assert len(r.risks) == 1 and r.risks[0].tone == "warn"  # surfaced, not silent
+    assert r.score == 86  # 92 base - 6 (the conservative unknown penalty), and it's visible
+
+
+def test_attribution_is_gate_only_when_the_engine_returned_no_report():
+    # TEST-S7-101: when PrintProof3D produced no report (None — e.g. the binary was configured but
+    # the run returned nothing, the most likely real degrade), readiness must be attributed to the
+    # GATE ALONE — never claim the engine ran, never report High confidence. This is the honesty
+    # invariant behind the pipeline's "binary configured but validate_model -> None" path.
+    r = assess_readiness(_gate((Level.PASS, "dim.match", "ok")), _mesh(), printproof=None)
+    assert "printproof3d" not in r.sources  # the engine is NOT credited
+    assert r.confidence != "High"  # High requires a real engine report
+    assert "gate" in r.attribution.lower()  # attributed to the printability gate
+
+
+def test_engine_pass_with_a_minor_issue_is_warn_not_ready_to_print():
+    # ENG-701: even when BOTH the gate passes AND the engine's overall status is "pass", a surfaced
+    # minor issue makes the verdict "warn" — "Ready to print" is never shown over a discrete risk.
+    pp = PrintProofReport("pass", "high",
+                          issues=(PrintProofIssue("SMALL_GAP", "a small gap", "minor"),))
+    r = assess_readiness(_gate((Level.PASS, "dim.match", "ok")), _mesh(), printproof=pp)
+    assert len(r.risks) == 1 and r.risks[0].tone == "warn"
+    assert r.tone == "warn" and r.verdict != "Ready to print"
+
+
+def test_warn_verdict_never_renders_with_zero_risks():
+    # QA-701: a PrintProof3D overall "warning" status with NO per-issue risks still drives a warn
+    # verdict (worst-of-two-signals); the card must carry a synthesized "why" note so it never shows
+    # a non-pass verdict with an empty risk list.
+    pp = PrintProofReport("warning", "high", issues=())
+    r = assess_readiness(_gate((Level.PASS, "dim.match", "ok")), _mesh(), printproof=pp)
+    assert r.tone == "warn" and r.verdict != "Ready to print"
+    assert r.risks  # never empty for a non-pass verdict
 
 
 # --- confidence / mesh-analysability ---------------------------------------------------------

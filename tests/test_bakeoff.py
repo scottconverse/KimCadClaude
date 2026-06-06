@@ -165,6 +165,25 @@ def test_to_text_keep_recommendation():
     assert "KEEP default local" in text
 
 
+def test_to_text_zero_completion_reads_n_a_not_a_misleading_zero():
+    # TEST-103: a model that completed NOTHING must render "n/a" axes + an explicit note, never a
+    # "0/0" that scans as a real 0 score — the exact anti-pattern that once masked a dead LLM.
+    dead = ModelRun(
+        backend="local", model_name="gemma4:e4b",
+        summary=BenchSummary(outcomes=[
+            CaseOutcome("x", "render_failed", None, 0, 0.0,
+                        matches_request=False, correct_dimensions=False, slices_clean=False)
+            for _ in range(10)
+        ]),
+    )
+    bo = Bakeoff(runs=[dead, _run("local_qwen", "qwen", 5, 10, 60)], incumbent="local")
+    text = bo.to_text()
+    assert "0/10" in text  # completed count is honest
+    assert "n/a" in text  # the ungradeable axes read n/a, not 0/0
+    assert "no axes could be graded" in text  # the explicit note
+    text.encode("cp1252")  # still console-safe
+
+
 # --- run_bakeoff wiring --------------------------------------------------------
 
 def test_run_bakeoff_runs_each_backend_and_requests_slice(tmp_path):

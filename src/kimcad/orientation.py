@@ -35,12 +35,14 @@ def auto_orient(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, Orientation]:
 def _best_pose(mesh: trimesh.Trimesh) -> tuple[np.ndarray, float, str]:
     try:
         transforms, probs = mesh.compute_stable_poses()
-    except Exception:
+    except Exception:  # noqa: BLE001 - orientation is best-effort and must never break the build
         transforms, probs = [], []
     if len(transforms) > 0:
         idx = int(np.argmax(probs))
         return transforms[idx], float(probs[idx]), "rests on most stable facet"
-    return np.eye(4), 1.0, "no stable pose found; left as-is"
+    # ENG-004: no pose could be computed (or the call failed) — report 0.0 stability, NOT 1.0. The
+    # part is left as-is, but that's the LEAST-certain orientation, not maximum confidence.
+    return np.eye(4), 0.0, "no stable pose found; left as-is"
 
 
 def _drop_to_bed(mesh: trimesh.Trimesh) -> np.ndarray:

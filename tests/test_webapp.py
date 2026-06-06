@@ -47,6 +47,13 @@ def test_completed_payload_has_plan_report_and_mesh(tmp_path):
     # every axis reported as an exact match
     assert {d["axis"] for d in payload["report"]["dims"]} == {"X", "Y", "Z"}
     assert all(d["ok"] for d in payload["report"]["dims"])
+    # TEST-S7-104: the Stage 7 readiness survives serialization into the design response with its
+    # full shape (the card renders straight from this).
+    rd = payload["report"]["readiness"]
+    assert isinstance(rd["score"], (int, float)) and 0 <= rd["score"] <= 100
+    assert rd["verdict"] and rd["tone"] in ("pass", "warn", "fail") and rd["confidence"]
+    assert isinstance(rd["risks"], list) and isinstance(rd["recommendations"], list)
+    assert rd["attribution"]  # honest "gate alone" vs "engine ran" line
 
 
 def test_dim_mismatch_is_reported_per_axis(tmp_path):
@@ -312,31 +319,10 @@ def test_mesh_content_type_is_stl_for_stl_file(tmp_path):
     assert _design_and_get_content_type(tmp_path / "b", ".stl") == "model/stl"
 
 
-def test_serves_vendored_threejs_and_rejects_traversal(tmp_path):
-    """QA-006: three.js is vendored locally and served from /vendor/ (offline 3D), and
-    the route rejects anything but a plain filename (no path traversal)."""
-    import urllib.error
-    import urllib.request
-
-    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
-    with _serve(pipe, tmp_path) as (host, port):
-        base = f"http://{host}:{port}"
-        r = urllib.request.urlopen(base + "/vendor/three.min.js", timeout=10)
-        assert r.status == 200
-        assert "javascript" in r.headers.get("Content-Type", "")
-        assert len(r.read()) > 1000
-        for bad in ("/vendor/nope.js", "/vendor/", "/vendor/sub/x.js", "/vendor/..%2fx"):
-            try:
-                urllib.request.urlopen(base + bad, timeout=10)
-                raise AssertionError(f"expected 404 for {bad}")
-            except urllib.error.HTTPError as e:
-                assert e.code == 404
-
-
 def test_serves_spa_index_and_assets_and_rejects_traversal(tmp_path):
     """Stage 4: ``/`` serves the built React SPA shell, ``/assets/<file>`` serves its
     compiled JS/CSS bundles with a sensible content type, and the assets route rejects
-    anything but a plain filename (no path traversal) — exactly like /vendor/."""
+    anything but a plain filename (no path traversal)."""
     import re
     import urllib.error
     import urllib.request
@@ -633,19 +619,26 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
 # --- Stage 2 Slice 4b: send-to-printer web endpoints --------------------------
 
 
-def test_connectors_endpoint_lists_configured_connectors(tmp_path):
+def test_connectors_endpoint_lists_configured_connectors(tmp_path, monkeypatch):
     import json
+    import os
     import urllib.request
 
+    monkeypatch.delenv("OCTOPRINT_API_KEY", raising=False)
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
     with _serve(pipe, tmp_path) as (host, port):
         data = json.load(urllib.request.urlopen(f"http://{host}:{port}/api/connectors", timeout=10))
-    # Each entry is {name, simulated} so the UI can label a no-hardware connection honestly.
+    # Each entry is {name, simulated, configured} so the UI can label a no-hardware connection
+    # honestly AND distinguish a real-but-unset connector from one that's actually ready (QA-002).
     by_name = {c["name"]: c for c in data["connectors"]}
     assert "mock" in by_name
     assert by_name["mock"]["simulated"] is True  # the loopback is a simulation
+    assert by_name["mock"]["configured"] is True  # ...and always usable (no setup needed)
+    assert all("configured" in c for c in data["connectors"])  # contract: present on every entry
     if "octoprint" in by_name:
         assert by_name["octoprint"]["simulated"] is False  # a real connector
+        if "OCTOPRINT_API_KEY" not in os.environ:  # default template, no key -> not yet ready
+            assert by_name["octoprint"]["configured"] is False
     assert data["default"] is not None
 
 
@@ -960,20 +953,28 @@ def test_head_returns_headers_without_body(tmp_path):
 
 
 def test_static_assets_carry_an_etag_and_revalidate_304(tmp_path):
-    """QA-002: static assets (vendor/assets) carry an ETag; a matching If-None-Match gets a
-    body-less 304 (correct revalidation for the build's stable, un-hashed filenames)."""
+    """QA-002: static assets carry an ETag; a matching If-None-Match gets a body-less 304
+    (correct revalidation for the build's stable, un-hashed filenames). The asset path is
+    discovered from the served shell so the test never pins a build-specific filename."""
     import http.client
+    import re
+    import urllib.request
 
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
     with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        html = urllib.request.urlopen(base + "/", timeout=10).read().decode("utf-8")
+        ref = re.search(r'(?:src|href)="/assets/([^"]+)"', html)
+        assert ref, "the served shell should reference at least one /assets/ bundle"
+        asset = "/assets/" + ref.group(1)
         conn = http.client.HTTPConnection(host, port, timeout=10)
         try:
-            conn.request("GET", "/vendor/three.min.js")
+            conn.request("GET", asset)
             resp = conn.getresponse()
             etag = resp.getheader("ETag")
             resp.read()
             assert etag, "a static asset should carry an ETag"
-            conn.request("GET", "/vendor/three.min.js", headers={"If-None-Match": etag})
+            conn.request("GET", asset, headers={"If-None-Match": etag})
             resp2 = conn.getresponse()
             assert resp2.status == 304
             assert resp2.read() == b""
@@ -1510,6 +1511,31 @@ def test_render_flags_adjusted_params_when_values_are_clamped(tmp_path):
         assert "width" in [a["name"] for a in clamped["adjusted_params"]]
         _s, ok = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": 100}})
         assert "adjusted_params" not in ok
+        # QA-001: `requested` is a CONSISTENT JSON type — a number when the input parsed, else null
+        # (a non-numeric value, rejected) — never a raw echoed string, so the contract is typed.
+        for a in clamped["adjusted_params"]:
+            assert a["requested"] is None or isinstance(a["requested"], (int, float))
+        _s, junk = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": "huge"}})
+        if "adjusted_params" in junk:
+            assert junk["adjusted_params"][0]["requested"] is None  # non-numeric -> null, not "huge"
+        # QA-501: json.loads accepts the Infinity/NaN literals (and 1e400 overflows to inf). The
+        # geometry path clamps them, but echoing inf/nan would trip the response's allow_nan=False
+        # and 500 the endpoint. It must stay a clean 200 with `requested` coerced to null.
+        st_inf, inf = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": float("inf")}})
+        assert st_inf == 200
+        for a in inf.get("adjusted_params", []):
+            assert a["requested"] is None
+
+
+def test_rerender_unknown_family_is_render_failed(tmp_path):
+    # TEST-503: a base plan pointed at a family name not in the registry returns the render_failed
+    # status (the defensive branch in Pipeline.rerender), never a crash.
+    from kimcad.pipeline import PipelineStatus
+
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    res = pipe.rerender(_box_plan(), "no_such_family", {"width": 80}, tmp_path / "r")
+    assert res.status == PipelineStatus.render_failed
+    assert "unknown template family" in (res.error or "")
 
 
 def test_demo_gatefail_scenario_offers_experimental_then_gate_fails(tmp_path):
@@ -1712,6 +1738,29 @@ def test_designs_full_round_trip(tmp_path):
         assert sid not in [d["id"] for d in lst["designs"]] and len(lst["designs"]) == 1
 
 
+def test_save_names_a_refined_design_by_its_original_intent(tmp_path):
+    # QA-004: a refine turn carries the conversation history. The FIRST user prompt ("a desk
+    # organizer") is the design's intent, so an auto-save (blank name) names the library entry by
+    # that — not the latest tweak ("make it taller"). Keeps the library readable as a part evolves.
+    with _serve_with_designs(
+        _template_box_pipeline(), tmp_path / "web", tmp_path / "store"
+    ) as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {
+            "prompt": "make it taller",
+            "history": [
+                {"role": "user", "content": "a desk organizer"},
+                {"role": "assistant", "content": "Here's a desk organizer."},
+            ],
+        })
+        assert st == 200
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        st, saved = _jreq(h, p, "POST", "/api/designs/save",
+                          {"design_id": rid, "name": "", "thumbnail": _TINY_PNG})
+        assert st == 200
+        assert "desk organizer" in saved["name"].lower()
+        assert "taller" not in saved["name"].lower()
+
+
 def test_designs_save_without_a_design_is_404(tmp_path):
     with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
         st, _ = _jreq(h, p, "POST", "/api/designs/save", {"design_id": 9999, "name": "x"})
@@ -1722,6 +1771,38 @@ def test_designs_reopen_unknown_is_404(tmp_path):
     with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
         st, _ = _jreq(h, p, "GET", "/api/designs/deadbeef01")
         assert st == 404
+
+
+def test_reopen_that_regates_to_fail_shows_fail_and_blocks_slice(tmp_path, monkeypatch):
+    # TEST-401/402: the WIRED reopen path (not just the _regate_mesh helper). A saved design whose
+    # mesh re-gates to FAIL on reopen — e.g. a tampered/oversized .kimcad whose stored verdict lied
+    # "pass" — must (402) come back with report.gate_status == "fail" so the UI never shows
+    # "Ready to print" over a part it then silently refuses, AND (401) be rejected by the slice
+    # endpoint. Proven end to end over HTTP. A regression dropping the report sync or the gate check
+    # would otherwise leave every other test green while making a tampered part appear sliceable.
+    import kimcad.webapp as webapp_mod
+
+    with _serve_with_designs(
+        _template_box_pipeline(), tmp_path / "web", tmp_path / "store"
+    ) as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        assert st == 200 and design["report"]["gate_status"] == "pass"
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        st, saved = _jreq(h, p, "POST", "/api/designs/save",
+                          {"design_id": rid, "name": "Tampered", "thumbnail": _TINY_PNG})
+        assert st == 200
+        sid = saved["id"]
+        # Simulate the copied mesh re-gating to FAIL on reopen (tampered/oversized geometry).
+        monkeypatch.setattr(webapp_mod, "_regate_mesh", lambda *a, **k: "fail")
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{sid}")
+        assert st == 200
+        assert reopened["report"]["gate_status"] == "fail"  # TEST-402: report reflects the re-gate
+        newrid = int(reopened["mesh_url"].rsplit("/", 1)[-1])
+        # TEST-401: the wired slice endpoint refuses the re-gated-fail part — no G-code, no send.
+        st, s = _jreq(h, p, "POST", f"/api/slice/{newrid}",
+                      {"printer": "bambu_p2s", "material": "pla"})
+        assert st == 200 and s["sliced"] is False and s["reason"] == "gate_failed"
+        assert "gcode_url" not in s
 
 
 def test_designs_thumb_endpoint_rejects_traversal(tmp_path):

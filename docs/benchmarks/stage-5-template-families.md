@@ -22,3 +22,14 @@ Every built-in template family, re-rendered through the real `Pipeline.rerender`
 
 **Verdict: PASS** -- every family renders watertight at its declared envelope, deterministically, with no model call, under the 5s gate (all families under 1s).
 
+## How to re-run
+
+Needs the OpenSCAD binary the pipeline uses (`tools/openscad/`). From the repo root:
+
+```
+python -m kimcad.template_bench --write docs/benchmarks/stage-5-template-families.md
+```
+
+(Add `--date YYYY-MM-DD` to stamp the run.) The benchmark wires a provider that *raises* if the
+model is ever called, so the "no model call" property is enforced by the run, not assumed.
+

@@ -74,6 +74,10 @@ def compare_phrase(object_type: str, score: int, prior: list[PrintRecord]) -> st
     if behind == n:  # every prior is strictly higher
         return f"Below all {n} of your past {scope} - worth a closer look before printing."
     if ahead == 0:  # beats none, but ties at least one (not strictly below all)
+        # QA-703: "On par" overstates when the MAJORITY of priors strictly beat this part (it only
+        # ties a few). Reserve "On par" for when it isn't below most; otherwise say so honestly.
+        if behind > n / 2:
+            return f"Below {behind} of your {n} past {scope} - worth a closer look before printing."
         return f"On par with your {n} past {scope}."
     return f"Stronger than {ahead} of your {n} past {scope}."
 

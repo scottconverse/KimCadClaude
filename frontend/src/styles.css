@@ -58,9 +58,17 @@
   --kc-accent-deep: #9a4828;
   --kc-on-accent: #ffffff;
 
-  /* Semantic status (constant across themes) */
+  /* Semantic status (constant across themes). `--kc-pass` is the bright pass green for NON-text
+   * fills (gauge, dots, tint backgrounds, large gauge number); `--kc-pass-text` is a darker green
+   * for pass TEXT so a small label like the readiness verdict / confidence badge clears WCAG-AA
+   * (≥4.5:1) on the warm surface (UX-001) — mirroring the accent fill-vs-text split above. The
+   * warn/fail tones are already dark enough to use as text as-is. */
   --kc-pass: #1d7a4e;
+  --kc-pass-text: #15633d;
   --kc-warn: #876312;
+  /* UX-001 (Stage 7): a darker amber for warn TEXT on the warn tint — the readiness warn confidence
+   * badge/verdict measured ~4.2:1 with --kc-warn, just under AA; this clears it with margin. */
+  --kc-warn-text: #6a4e0b;
   --kc-warn-accent: #c9962f;
   --kc-fail: #a8431f;
 
@@ -179,6 +187,31 @@ input {
   gap: 10px;
 }
 
+/* M-1 / UX-005: on a phone the brand + chip + four action buttons overflow the fixed-height bar
+   (~90px past a 390px viewport). Let the bar grow to a second line as a hard safety net so nothing
+   ever clips the viewport, trim the widest, lowest-priority chrome (the printer build-volume
+   detail), and tighten the buttons so they still fit on one line in the common case. */
+@media (max-width: 480px) {
+  .kc-topbar {
+    height: auto;
+    min-height: var(--kc-topbar-h);
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    padding: 7px 12px;
+  }
+  .kc-topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .kc-printer-chip-vol {
+    display: none;
+  }
+  .kc-topbar .kc-btn {
+    padding: 7px 11px;
+  }
+}
+
 /* ------------------------------------------------------------------ Buttons */
 
 .kc-btn {
@@ -201,6 +234,9 @@ input {
 .kc-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  /* UX-004: a disabled button shouldn't capture pointer events (no hover/active flicker, and it
+     can't swallow a click meant for a control behind it). */
+  pointer-events: none;
 }
 
 .kc-btn-accent {
@@ -535,6 +571,11 @@ input {
   display: block;
   width: 100%;
   height: 100%;
+  /* QA-003: the WebGL drawing buffer is dpr-scaled (so it's intentionally wider than the CSS box on
+     a HiDPI screen), and KCViewport sizes via setSize(w,h,false) so CSS governs layout. This is a
+     belt-and-suspenders cap so the canvas layout box can never exceed its container even if a future
+     change sets an inline width — no horizontal scroll on any device. */
+  max-width: 100%;
   touch-action: none;
   cursor: grab;
 }
@@ -708,7 +749,10 @@ input {
 }
 
 /* Touch targets: on coarse pointers, the interactive chrome is at least ~44px tall. */
-@media (pointer: coarse) {
+/* UX-503: the dual-arm query (coarse pointer OR narrow viewport) so the 44px touch targets — the
+   slider especially — also apply on a desktop resized to a phone width, which reports pointer:fine
+   and otherwise left the slider a 9px-tall hit area. Matches the convention used elsewhere. */
+@media (pointer: coarse), (max-width: 640px) {
   .kc-btn,
   .kc-icon-btn,
   .kc-chip,
@@ -990,6 +1034,11 @@ input {
     align-items: center;
     justify-content: center;
   }
+  /* UX-504: the mm/in toggle buttons are short labels, so the 44px height alone left them ~25-35px
+     wide — under the comfortable touch width. Give them a real horizontal target too. */
+  .kc-unit-btn {
+    min-width: 44px;
+  }
 }
 
 .kc-card-sub {
@@ -1225,15 +1274,23 @@ input {
   color: var(--kc-muted);
 }
 
-/* Visually hidden but available to assistive tech — for non-color text equivalents. */
+/* Visually hidden but available to assistive tech — for non-color text equivalents.
+ * UX-002: an `position:absolute` box with AUTO offsets sits at its static position, which for a
+ * late child in a tall column lands BELOW the content and extends the scroll container's overflow
+ * (a ~248px phantom dead-scroll on the workspace). Pinning `top:0; left:0` anchors it to the
+ * containing block's origin so it can never push the scrollable area downward; `clip` + 1px size +
+ * overflow:hidden keep it invisible, and it stays in the accessibility tree for screen readers. */
 .kc-sr-only {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;
-  margin: -1px;
+  margin: 0;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
@@ -1244,18 +1301,24 @@ input {
  * and the dots WITHOUT the full badge background the `.kc-tone-*` classes apply. */
 .kc-readiness {
   --tone: var(--kc-muted);
+  /* UX-001: `--tone-text` is the AA-safe variant of the tone for small text (verdict, badge).
+     It tracks `--tone` for warn/fail (already dark enough) but uses the darker pass green. */
+  --tone-text: var(--kc-muted);
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 .kc-readiness.kc-rtone-pass {
   --tone: var(--kc-pass);
+  --tone-text: var(--kc-pass-text);
 }
 .kc-readiness.kc-rtone-warn {
   --tone: var(--kc-warn);
+  --tone-text: var(--kc-warn-text);
 }
 .kc-readiness.kc-rtone-fail {
   --tone: var(--kc-fail);
+  --tone-text: var(--kc-fail);
 }
 
 .kc-gauge-wrap {
@@ -1312,7 +1375,7 @@ input {
   font-family: var(--kc-font-display);
   font-weight: 700;
   font-size: 17px;
-  color: var(--tone);
+  color: var(--tone-text);
 }
 
 .kc-readiness-conf {
@@ -1327,7 +1390,7 @@ input {
   padding: 3px 10px;
   border-radius: var(--kc-r-chip);
   background: color-mix(in srgb, var(--tone) 14%, var(--kc-surface));
-  color: var(--tone);
+  color: var(--tone-text);
   font-size: 11.5px;
   font-weight: 700;
 }
@@ -1411,6 +1474,8 @@ input {
   color: var(--kc-muted);
   cursor: pointer;
   user-select: none;
+  /* UX-002: a >=24px-tall touch/click target (WCAG 2.5.8) — the label is the clickable surface. */
+  min-height: 24px;
 }
 .kc-hl-legend {
   display: flex;
@@ -1428,11 +1493,15 @@ input {
   border-radius: 2px;
   margin-right: 1px;
 }
+/* UX-003: the legend swatches sit in the CARD next to the risk-list dots, so they use the card's
+   fail/warn tones to match those dots (within-card consistency). The actual on-model highlight stays
+   a brighter red/amber (KCViewport HL_FAIL/HL_WARN) because it has to pop on the dark 3D viewport —
+   a deliberate cross-surface choice; the severity mapping (red=issue, amber=caution) is identical. */
 .kc-hl-swatch.kc-hl-fail {
-  background: #e5484d;
+  background: var(--kc-fail);
 }
 .kc-hl-swatch.kc-hl-warn {
-  background: #f5a623;
+  background: var(--kc-warn);
 }
 .kc-hl-hint {
   opacity: 0.8;
@@ -2173,10 +2242,18 @@ input {
   color: var(--kc-muted);
   cursor: pointer;
   border-radius: var(--kc-r-btn);
+  /* UX-003: the Backup action is an <a>; without this it alone is underlined, breaking the row's
+     visual consistency with the peer <button> actions. */
+  text-decoration: none;
 }
 .kc-design-act:hover {
   background: var(--kc-surface-2);
   color: var(--kc-ink);
+}
+/* UX-004: a resting destructive cue on the mouse pointer too — Delete reads as red at rest, not
+   only on hover, so it's distinguishable from the neutral actions before you touch it. */
+.kc-design-act-danger {
+  color: color-mix(in srgb, var(--kc-fail) 78%, var(--kc-muted));
 }
 .kc-design-act-danger:hover {
   background: color-mix(in srgb, var(--kc-fail) 14%, var(--kc-surface));
@@ -2731,6 +2808,18 @@ input {
   outline: 2px solid var(--kc-accent);
   outline-offset: 1px;
 }
+/* UX-003: on a phone the key row's input shares its row with Save/Replace, so its right edge falls
+   short of the full-width model input below it. Wrap the row and let both the input and the button
+   span full width, so every cloud field lines up. */
+@media (max-width: 640px) {
+  .kc-set-fieldrow {
+    flex-wrap: wrap;
+  }
+  .kc-set-fieldrow .kc-set-input,
+  .kc-set-fieldrow .kc-btn-sm {
+    flex: 1 1 100%;
+  }
+}
 .kc-btn-sm {
   font: inherit;
   font-size: 12.5px;
@@ -2766,7 +2855,9 @@ input {
 
 /* Slice 6 MS-4 — the experimental toggle badge + warn callout, and the chat offer card. */
 .kc-set-badge-exp {
-  color: var(--kc-warn);
+  /* UX-005: the small (11px) "Experimental · Untrusted" label sat right at the 4.5:1 AA floor on
+     the tinted background; a slightly darker amber gives comfortable margin. */
+  color: #6e500c;
   border-color: color-mix(in srgb, var(--kc-warn-accent) 45%, transparent);
   background: color-mix(in srgb, var(--kc-warn-accent) 14%, transparent);
 }
@@ -2845,6 +2936,13 @@ input {
     min-width: 0;
     width: 100%;
     min-height: 44px;
+  }
+  /* UX-007/008: the stacked set-row stretches its children, which suits a full-width select but
+     makes a segmented unit toggle and the small Reset cluster awkwardly full-width. Pin those two
+     to their content width, left-aligned. */
+  .kc-unit-toggle,
+  .kc-reset-confirm {
+    align-self: flex-start;
   }
 }
 

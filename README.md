@@ -14,13 +14,14 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU.
 > (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
 > Bambu A1, Elegoo Neptune 4 Max — software/profile validation, not yet a real print), and
 > Manifold3D mesh hardening are in (through Stage 7, tagged `stage-7`). **Stage 8.5 (Usability) is
-> in progress on branch `stage-8.5-usability` — not yet merged or tagged:** local-first persistence
+> done — merged to `main` and tagged `stage-8.5`:** local-first persistence
 > and a "My Designs" library keep your work between sessions (see *Saving your work*, below, and
 > `docs/guide-my-designs.md`); you can refine a part as a conversation with version history, type
 > exact numbers, switch between mm and inches, manage everything from an in-app Settings screen, and
 > start a design by **describing it with a photo** — read by the local vision model into a rough,
-> editable starting point that never leaves your machine. Real-hardware print validation on Kim's
-> printers is the final stage — see ROADMAP.
+> editable starting point that never leaves your machine. Next up: the CadQuery backend (Stage 8),
+> an image/sketch on-ramp (Stage 9), a direct-print UI (Stage 10), and a Windows installer + beta
+> gate (Stage 11). Real-hardware print validation on Kim's printers is the final stage — see ROADMAP.
 
 ## What it does
 
@@ -35,17 +36,20 @@ manifold geometry by construction, so output is dimensionally meaningful — not
 lumpy neural meshes. For template-backed parts the browser UI shows **live
 parameter sliders**: drag one and the part re-renders locally in well under a
 second with no model call (the `templates.py` engine; proof in
-`docs/benchmarks/stage-5-template-families.md`).
+`docs/benchmarks/stage-5-template-families.md`). You can also type exact values and
+switch between mm and inches — see [`docs/guide-sliders-and-units.md`](docs/guide-sliders-and-units.md).
 
 Every built part gets a **Smart Mesh readiness** report card — a 0–100 score, a plain
 verdict, the risks, and concrete recommendations — synthesized from the Printability Gate
 plus, when it's configured, the optional arm's-length **PrintProof3D** validation engine, and
 — once you've designed a few parts — an honest "compared to your past parts" line from a
-local-first history. It's advisory: the
+local-first history. The card also shows a **confidence** — **High** when the PrintProof3D engine
+ran and returned a usable report, **Medium** on the gate alone, and **Low** when the engine ran but
+couldn't fully analyse the mesh. It's advisory: the
 deterministic gate stays the slice authority, and the card never claims the engine ran when it
 didn't. *(Stage 7 — done; tagged `stage-7`.)*
 
-### Saving your work *(Stage 8.5 — in progress, on branch)*
+### Saving your work *(Stage 8.5 — done; tagged `stage-8.5`)*
 
 Your designs are now kept automatically. The moment a part is built it's saved to a local **My
 Designs** library and the page gets its own address, so a refresh (or coming back tomorrow) restores
@@ -63,8 +67,10 @@ on another machine — not a printable STL). A short walkthrough is in
 - OrcaSlicer (CLI)
 - An LLM backend. KimCad is **local-first**: out of the box it talks to a local
   runtime ([Ollama](https://ollama.com/) or LM Studio), so no API key and no network
-  are required. A cloud API (DeepSeek or any OpenAI-compatible endpoint) is an
-  optional fallback you can opt into via `config/local.yaml`.
+  are required. A cloud API is an optional, off-by-default fallback — enable it in the
+  in-app **Settings** screen (via [OpenRouter](https://openrouter.ai/), where you pick the
+  cloud model), or in `config/local.yaml` (DeepSeek / OpenRouter / any OpenAI-compatible
+  endpoint).
 
 OpenSCAD and OrcaSlicer are fetched as pinned portable builds into `tools/` by the
 setup step (see below); a system install can be pointed to via `config/local.yaml`.
@@ -108,10 +114,14 @@ fast and stable there:
 ollama pull gemma4:e4b
 ```
 
-That is all the LLM setup required — no API key, no network. To point at a different
-local model or a cloud fallback (DeepSeek / any OpenAI-compatible endpoint), set the
-active backend and its key in `config/local.yaml`; see `config/default.yaml` for the
-shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends.
+That is all the LLM setup required — no API key, no network. To enable a cloud fallback the
+easy way, use the in-app **Settings → Cloud acceleration** opt-in (OpenRouter; you pick the
+model, the key is stored locally and shown masked). To configure it in files instead — a
+different local model, or a cloud backend (DeepSeek / OpenRouter / any OpenAI-compatible
+endpoint) — set the active backend and its key in `config/local.yaml`; see `config/default.yaml`
+for the shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends. **Verify the
+cloud `model_name` against your provider's current model list before relying on it** — provider
+model tags change, and the shipped defaults are examples, not guaranteed-live tags.
 
 Not sure which model fits your machine? `kimcad models` examines your hardware (RAM,
 CPU, a discrete GPU if present) and which models Ollama has pulled, then recommends one
@@ -144,8 +154,11 @@ kimcad "a 40 mm cable clip" --printer bambu_a1 --material pla --slice
 The report then names the exact OrcaSlicer machine/process/filament profiles used and
 the proven G-code line count. All three of Kim's printers — the Bambu P2S, the Bambu A1,
 and the Elegoo Neptune 4 Max — are fully sliceable and proven end to end against the
-bundled OrcaSlicer. (If a printer were ever configured without a process profile, a
-slice for it reports that cleanly and the validated model is still produced.)
+bundled OrcaSlicer. (The configured build-volume *envelopes* are the nominal published
+sizes pending a physical confirmation — see the `VERIFY` notes in `config/default.yaml`;
+the gate also caps the on-screen design to the slicer's verified usable footprint.) (If a
+printer were ever configured without a process profile, a slice for it reports that cleanly
+and the validated model is still produced.)
 
 ### Web UI
 
@@ -160,6 +173,12 @@ back the design plan, the printability verdict, the target-vs-actual dimensions,
 3D preview of the rendered model — the same pipeline as the CLI, driven from the
 browser. Use `--demo` to serve a fixed sample part instantly with no model call (handy
 for trying the interface), and `--port` to change the port.
+
+**The 3D preview** is the real, gated mesh — the exact geometry that gets sliced, not a
+stand-in. Drag to orbit, scroll to zoom, and right-click-drag to pan; the projected
+width/depth/height pills and the orientation chip update as you turn it, so you can sanity-check
+the part's size and how it sits on the bed before you slice. In `--demo` mode it shows the bundled
+sample part (no model is called); otherwise it shows whatever you just described or reopened.
 
 The server binds to `127.0.0.1` (your machine only) by default. `--host` can bind it
 elsewhere, but do **not** expose it on a public interface without putting your own
@@ -193,6 +212,10 @@ hardware-verified.
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper via Moonraker — Creality-Klipper, Voron, RatRig, Mainsail/Fluidd | `base_url`, optional `api_key_env` (Moonraker often runs unauthenticated on a trusted LAN) |
 | `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
+
+> **Bambu note:** the reference Bambu P2S / A1 *slice* fully, but have **no native send connector
+> yet** (Bambu's own LAN/cloud protocol) — for now, download the G-code 3MF and load it via Bambu
+> Studio or SD. A Bambu-native direct-print path is Stage 10.
 
 A connection's credential is always read from an **environment variable** (named by
 `api_key_env`), never stored in config and never logged. Find it in your printer's settings —

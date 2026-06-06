@@ -1,4 +1,31 @@
+import pytest
+
 from kimcad.config import Config
+
+
+def test_unknown_printer_material_backend_raise_friendly_errors():
+    # QA-301: an unknown --printer/--material/backend/connector must raise a friendly RuntimeError
+    # naming the valid options (the CLI catches RuntimeError and prints it cleanly) — never a bare
+    # KeyError traceback for a simple typo.
+    cfg = Config.load()
+    for fn, kind in ((cfg.printer, "printer"), (cfg.material, "material"),
+                     (cfg.llm_backend, "LLM backend"), (cfg.connector_config, "connector")):
+        with pytest.raises(RuntimeError, match=f"unknown {kind}"):
+            fn("definitely-not-a-real-key")
+
+
+def test_every_shipped_printer_and_material_resolves():
+    # TEST-003: breadth across ALL shipped printers/materials (not just the defaults) — each must
+    # construct without raising, so a malformed profile in default.yaml fails the suite, not a user.
+    cfg = Config.load()
+    raw = cfg.raw
+    assert raw["printers"] and raw["materials"]
+    for pk in raw["printers"]:
+        p = cfg.printer(pk)
+        assert p.name and p.key == pk
+    for mk in raw["materials"]:
+        m = cfg.material(mk)
+        assert m.name and m.key == mk
 
 
 def test_loads_default_config():

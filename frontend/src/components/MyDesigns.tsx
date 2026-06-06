@@ -150,7 +150,7 @@ function DesignCard({
           download
           title="Download a .kimcad backup you can re-import — not a printable STL"
         >
-          Export (.kimcad)
+          Backup (.kimcad)
         </a>
         {confirmDelete ? (
           <>

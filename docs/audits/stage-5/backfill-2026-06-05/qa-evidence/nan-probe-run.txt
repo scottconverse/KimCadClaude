@@ -1,0 +1,9 @@
+design id 13
+--- NaN only ---
+(500, '{"error": "The server produced an out-of-range number."}')
+--- Infinity only ---
+(500, '{"error": "The server produced an out-of-range number."}')
+--- -Infinity only ---
+(500, '{"error": "The server produced an out-of-range number."}')
+--- 1e400 (overflow to inf via float) ---
+(500, '{"error": "The server produced an out-of-range number."}')

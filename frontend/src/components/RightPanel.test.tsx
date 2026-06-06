@@ -582,9 +582,9 @@ describe('RightPanel units (Slice 4)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // The value label is now "3.15 in" and the slider announces inches.
-    expect(screen.getByRole('button', { name: /Width: 3\.15 in/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Width: 3\.150 in/i })).toBeTruthy()
     const slider = screen.getByRole('slider', { name: 'Width' })
-    expect(slider.getAttribute('aria-valuetext')).toBe('3.15 in')
+    expect(slider.getAttribute('aria-valuetext')).toBe('3.150 in')
   })
 
   it('a numeric edit entered in inches commits the mm-converted value', () => {
@@ -595,7 +595,7 @@ describe('RightPanel units (Slice 4)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // Open the inline input (seeded with 3.15 in) and type a fresh inch value.
-    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.150 in/i }))
     const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     fireEvent.change(numInput, { target: { value: '4' } }) // 4 in → 101.6 mm
     fireEvent.keyDown(numInput, { key: 'Enter' })
@@ -613,7 +613,7 @@ describe('RightPanel units (Slice 4)', () => {
       result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
-    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.150 in/i }))
     const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     fireEvent.change(numInput, { target: { value: '40' } }) // 40 in → 1016 mm, over max 200
     fireEvent.keyDown(numInput, { key: 'Enter' })
@@ -641,9 +641,9 @@ describe('RightPanel units (Slice 4)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // 80mm shows as 3.15in. Open the editor and commit without changing the seeded value.
-    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.150 in/i }))
     const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
-    expect((numInput as HTMLInputElement).value).toBe('3.15') // seeded from the rounded display
+    expect((numInput as HTMLInputElement).value).toBe('3.150') // seeded from the 3-dp display
     fireEvent.keyDown(numInput, { key: 'Enter' })
     act(() => { vi.advanceTimersByTime(200) })
     // No drift to 80.01mm, no wasted re-render.
@@ -657,7 +657,7 @@ describe('RightPanel units (Slice 4)', () => {
       result: templateResult([param({ name: 'width', label: 'Width', value: 80, min: 10, max: 200 })]),
     })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
-    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.15 in/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Width: 3\.150 in/i }))
     const numInput = screen.getByRole('spinbutton', { name: /Width value in inches/i })
     fireEvent.change(numInput, { target: { value: '3.5' } }) // 3.5in → 88.9mm, a real change
     fireEvent.keyDown(numInput, { key: 'Enter' })
@@ -691,7 +691,7 @@ describe('RightPanel units (Slice 4)', () => {
     expect(screen.getByRole('button', { name: /Width: 80 mm/i })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // After ONE click: slider value 3.15 in AND the dims target/actual cells read 3.15.
-    expect(screen.getByRole('button', { name: /Width: 3\.15 in/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Width: 3\.150 in/i })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: /Target \(in\)/ })).toBeTruthy()
     expect(screen.getAllByText('3.15').length).toBeGreaterThanOrEqual(2)
   })
