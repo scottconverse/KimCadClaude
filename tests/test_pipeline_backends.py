@@ -25,9 +25,10 @@ from conftest import BAMBU, PLA, FakeProvider, make_plan
 _CQ = find_cadquery_interpreter()
 
 
-def _renderer(extents, *, backend="openscad", raises=False):
+def _renderer(extents, *, backend="openscad", raises=False, step=False):
     """A fake renderer that writes a trimesh box of the given extents (or always raises),
-    tagging the RenderResult with ``backend`` so the pipeline can attribute it."""
+    tagging the RenderResult with ``backend``. With ``step=True`` it also writes a STEP file and
+    sets ``step_path`` (mimicking the CadQuery backend's editable-CAD export)."""
     state = {"n": 0}
 
     def render(code, out_dir: Path, basename: str) -> RenderResult:
@@ -36,6 +37,10 @@ def _renderer(extents, *, backend="openscad", raises=False):
             raise RenderFailed(1, "synthetic render failure", engine=backend)
         path = out_dir / f"{basename}.stl"
         trimesh.creation.box(extents=extents).export(str(path))
+        step_path = None
+        if step:
+            step_path = out_dir / f"{basename}.step"
+            step_path.write_text("ISO-10303-21;\n", encoding="utf-8")
         return RenderResult(
             output_path=path,
             output_format="stl",
@@ -44,6 +49,7 @@ def _renderer(extents, *, backend="openscad", raises=False):
             duration_s=0.01,
             sanitize=SanitizeResult(code=code, removed=[]),
             backend=backend,
+            step_path=step_path,
         )
 
     return render, state
@@ -143,6 +149,27 @@ def test_gate_failed_part_is_not_sliced_on_the_multi_backend_path(tmp_path):
     )
     result = pipe.run("a block", tmp_path, confirm_print=True)
     assert result.status is PipelineStatus.gate_failed  # slicer never raised -> never called
+
+
+def test_cadquery_part_carries_a_step_path(tmp_path):
+    # Stage 8 Slice 4: a CadQuery-built part exposes its editable STEP via report.step_path.
+    provider = FakeProvider(make_plan((20, 20, 20)))
+    osc, _ = _renderer((20, 20, 20), raises=True)  # OpenSCAD fails -> fall back to CadQuery
+    cq, _ = _renderer((20, 20, 20), backend="cadquery", step=True)
+    result = _pipeline(provider, osc, cq).run("a block", tmp_path)
+
+    assert result.backend == "cadquery"
+    assert result.report.step_path is not None
+    assert Path(result.report.step_path).exists()
+
+
+def test_openscad_part_has_no_step_path(tmp_path):
+    provider = FakeProvider(make_plan((20, 20, 20)))
+    osc, _ = _renderer((20, 20, 20))  # OpenSCAD succeeds -> no fallback, no STEP
+    result = _pipeline(provider, osc).run("a block", tmp_path)
+
+    assert result.backend == "openscad"
+    assert result.report.step_path is None
 
 
 def test_all_real_providers_implement_the_full_contract():

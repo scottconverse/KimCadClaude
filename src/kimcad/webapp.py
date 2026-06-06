@@ -137,6 +137,7 @@ def _report_payload(report: Any) -> dict[str, Any]:
     return {
         "gate_status": report.gate_status,
         "headline": report.headline,
+        "backend": getattr(report, "backend", "openscad"),
         "dims": dims,
         "findings": [
             {"level": level, "code": code, "message": message}
@@ -657,6 +658,9 @@ def make_handler(
     # ENG-004: bounded LRU-by-insertion registries — oldest entries evicted past the cap.
     registry: "OrderedDict[int, Path]" = OrderedDict()
     gcode_registry: "OrderedDict[int, Path]" = OrderedDict()
+    # Stage 8 Slice 4: the editable-CAD (STEP) export per design id, for a CadQuery-built part.
+    # Served by GET /api/step/<id>; evicted in lockstep with `registry` via _evict.
+    step_registry: "OrderedDict[int, Path]" = OrderedDict()
     # ENG-001 (gate safety): the printability verdict per design id, so the web slice/send
     # endpoints can refuse a gate-FAILED part server-side. The CLI already refuses to send a
     # gate-failed part; the web orchestrator must too, so a direct API client (not just the
@@ -762,6 +766,7 @@ def make_handler(
         directory, so disk doesn't grow unbounded as the in-memory caps evict. Call under
         ``lock``."""
         gcode_registry.pop(rid, None)
+        step_registry.pop(rid, None)
         gate_status_by_rid.pop(rid, None)
         geometry_version.pop(rid, None)
         template_state.pop(rid, None)
@@ -892,6 +897,10 @@ def make_handler(
             if self.path.startswith("/api/gcode/"):
                 self._serve_gcode(urlsplit(self.path).path.rsplit("/", 1)[-1])
                 return
+            if self.path.startswith("/api/step/"):
+                # Stage 8 Slice 4: download the editable-CAD (STEP) export of a CadQuery part.
+                self._serve_step(urlsplit(self.path).path.rsplit("/", 1)[-1])
+                return
             # MS-3: poll the live phase of an in-flight design (planning/generating/rendering/
             # validating). Always 200 — an unknown or finished id returns a null phase, so the
             # client's poller never errors. Distinct from "/api/designs" (the saved-designs list).
@@ -932,6 +941,24 @@ def make_handler(
                 return
             ctype = _MESH_CONTENT_TYPES.get(gcode_path.suffix.lower(), "application/octet-stream")
             self._send_download(gcode_path.read_bytes(), ctype, gcode_path.name)
+
+        def _serve_step(self, raw_id: str) -> None:
+            # Stage 8 Slice 4: the editable-CAD (STEP/BREP) export, produced only for a
+            # CadQuery-built part. 404 when the id is unknown or the part is OpenSCAD (no STEP).
+            try:
+                sid = int(raw_id)
+            except ValueError:
+                self._json(404, {"error": "STEP not found"})
+                return
+            with lock:
+                step_path = step_registry.get(sid)
+            if step_path is None or not step_path.exists():
+                self._json(404, {"error": "STEP not found"})
+                return
+            # A safe, per-design filename: `sid` is the int-parsed id (no caller string -> no
+            # Content-Disposition header-injection), so each download is uniquely named rather
+            # than every STEP saving as the same "part.step".
+            self._send_download(step_path.read_bytes(), "application/step", f"kimcad-part-{sid}.step")
 
         def _serve_static(self, path: Path, content_type: str) -> None:
             # QA-002: serve a read-only static file with an ETag for cheap revalidation. The
@@ -1436,8 +1463,13 @@ def make_handler(
                     with progress_lock:
                         design_progress.pop(job_id, None)
             if mesh_path is not None:
+                # Stage 8 Slice 4: a CadQuery part also carries an editable-CAD (STEP) export.
+                step_src = getattr(result.report, "step_path", None) if result.report else None
+                step_ok = bool(step_src) and Path(step_src).exists()
                 with lock:
                     registry[rid] = mesh_path
+                    if step_ok:
+                        step_registry[rid] = Path(step_src)
                     # ENG-001: remember the gate verdict so slice/send can refuse a failed part
                     # (default to "fail" — fail closed — if a report is somehow absent).
                     rep = payload.get("report") or {}
@@ -1463,6 +1495,8 @@ def make_handler(
                         old_rid, _ = registry.popitem(last=False)
                         _evict(old_rid)
                 payload["mesh_url"] = f"/api/mesh/{rid}"
+                if step_ok:
+                    payload["step_url"] = f"/api/step/{rid}"
             self._json(200, payload)
 
         # --- Stage 8.5: saved designs ("My Designs") --------------------------------------

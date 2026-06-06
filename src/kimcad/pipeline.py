@@ -211,6 +211,10 @@ class PrintReport:
     # Which geometry backend built this part ("openscad" | "cadquery"). The CadQuery backend
     # (Stage 8) is the parallel fallback and the source of the editable STEP export.
     backend: str = "openscad"
+    # Path to the editable-CAD export (STEP/BREP), present only for a CadQuery-built part
+    # (Stage 8 Slice 4). This is the AS-DESIGNED geometry — orientation is applied only to the
+    # printable mesh, not to the STEP the user opens in CAD. None for OpenSCAD parts.
+    step_path: str | None = None
     # Pre-slice mesh hardening (Manifold3D); the exported/sliced mesh is the hardened one.
     hardened: bool = False
     harden_summary: str = ""
@@ -247,6 +251,8 @@ class PrintReport:
         ]
         if self.harden_summary:
             lines.append(f"Hardening: {self.harden_summary}")
+        if self.step_path:
+            lines.append(f"Editable CAD (STEP): {self.step_path}")
         if self.readiness is not None:
             r = self.readiness
             # ASCII separators on purpose: this report prints to the console, and an ASCII '-'
@@ -386,6 +392,7 @@ class Pipeline:
             interpreter=interpreter,
             out_dir=out_dir,
             basename=basename,
+            emit_step=True,  # Stage 8 Slice 4: CadQuery parts also export editable STEP (BREP) CAD
             timeout_s=self.config.cadquery_timeout_s(),
             max_output_bytes=self.config.limit("max_output_bytes"),
         )
@@ -1018,6 +1025,7 @@ class Pipeline:
             target_bbox_mm=plan.bounding_box_mm,
             actual_bbox_mm=mesh_report.bounding_box_mm,
             backend=render.backend,
+            step_path=str(render.step_path) if render.step_path is not None else None,
             findings=[(str(f.level), f.code, f.message) for f in gate.findings],
             watertight=mesh_report.watertight,
             repaired=mesh_report.repaired,

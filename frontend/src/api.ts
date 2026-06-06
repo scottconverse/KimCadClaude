@@ -44,6 +44,9 @@ export interface ReadinessPayload {
 export interface ReportPayload {
   gate_status: string
   headline: string
+  // Which geometry backend built the part: 'openscad' (default) or 'cadquery' (Stage 8 parallel
+  // backend). A CadQuery part also exposes an editable STEP export via `step_url`.
+  backend?: string
   dims: ReportDim[]
   findings: Array<{ level: string; code: string; message: string }>
   watertight?: boolean
@@ -78,6 +81,9 @@ export interface DesignResponse {
   error?: string
   has_mesh: boolean
   mesh_url?: string
+  // Stage 8 Slice 4: a CadQuery-built part also exposes an editable-CAD (STEP) download here.
+  // Absent for OpenSCAD parts (OpenSCAD can't emit a BREP/STEP).
+  step_url?: string
   // Template-backed (deterministic) designs carry their family name + the live-slider params.
   // LLM-backed parts have neither — there are no parametric sliders to drive.
   template?: string
