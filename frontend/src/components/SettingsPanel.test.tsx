@@ -101,6 +101,25 @@ describe('SettingsPanel', () => {
     expect(screen.queryByRole('combobox', { name: /model/i })).toBeNull()
   })
 
+  it('describes a CLOUD model as off-machine, not "nothing leaves your computer" (UX-001)', async () => {
+    // The privacy copy must track the live backend: when the effective model is cloud, the card
+    // must NOT claim the on-device privacy guarantee (that would contradict the core promise).
+    getModelStatus.mockResolvedValue({
+      model: 'anthropic/claude', backend: 'cloud', running: true, model_present: true,
+    })
+    const { container } = render(<SettingsPanel />)
+    // The description text spans a <code> child; assert on this render's container text after the
+    // async model-status load resolves.
+    await waitFor(() => expect(container.textContent).toMatch(/sent to the cloud/i))
+    expect(container.textContent).not.toMatch(/nothing leaves your computer/i)
+  })
+
+  it('describes a LOCAL model as on-device', async () => {
+    const { container } = render(<SettingsPanel />)  // RUNNING is backend:'local'
+    await waitFor(() => expect(container.textContent).toMatch(/nothing leaves your computer/i))
+    expect(container.textContent).not.toMatch(/sent to the cloud/i)
+  })
+
   it('tells the user to start Ollama when it isn’t running', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
     render(<SettingsPanel />)

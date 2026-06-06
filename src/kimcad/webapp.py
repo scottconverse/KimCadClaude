@@ -442,11 +442,12 @@ class _SettingsAwareProvider:
 def _mask_key(key: Any) -> str | None:
     """A masked form of an API key for redisplay — a fixed dot run + the last 5 characters. None
     when there's no key. The full key is NEVER returned by the API (only this masked form). A real
-    OpenRouter key is 40+ chars; for an implausibly short value we reveal nothing (the last-5 would
-    otherwise expose most/all of it)."""
+    OpenRouter key is 40+ chars; for a short value we reveal nothing (QA-001: last-5 of a 9-12 char
+    value would expose up to half of it — only reveal the tail once the key is long enough that 5
+    chars is a small fraction)."""
     if not isinstance(key, str) or not key:
         return None
-    tail = key[-5:] if len(key) > 8 else ""
+    tail = key[-5:] if len(key) >= 16 else ""
     return "•" * 16 + tail
 
 
@@ -1057,6 +1058,15 @@ def make_handler(
                     if tail.endswith("/" + verb):
                         self._handle_design_mutate(tail[: -(len(verb) + 1)], verb)
                         return
+            # QA-002: a POST to an existing GET-only resource is 405 (method not allowed) with an
+            # Allow header — a 404 would wrongly imply the resource doesn't exist.
+            getonly = self.path in ("/api/options", "/api/model-status", "/api/health", "/api/connectors")
+            if getonly or self.path.startswith(("/api/connector-status/", "/api/design/progress/")):
+                self.send_response(405)
+                self.send_header("Allow", "GET, HEAD")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self._json(404, {"error": "Not found."})
 
         # Stage 8.5 Slice 6 — the in-app Settings screen.

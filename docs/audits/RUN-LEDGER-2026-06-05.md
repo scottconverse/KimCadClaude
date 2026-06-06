@@ -16,7 +16,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS | ✅ audit-team 44 findings ALL fixed → re-audit 0/0/0/0/0 across 5 lanes | ✅ merged `fb65e6f` + tagged `stage-8.5` | ✅ DONE |
 | 3 | Backfill Stage 4 (SPA) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a (fixes on backfill branch) | ✅ DONE |
 | 4 | Backfill Stage 5 (templates/sliders) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
-| 5 | Backfill Stage 6 (model layer) audits | ☐ | ☐ (refresh) | n/a | ☐ |
+| 5 | Backfill Stage 6 (model layer) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 6 | Backfill Stage 7 (Smart Mesh) audits | ☐ | ☐ (refresh) | n/a | ☐ |
 | 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ☐ | n/a | ☐ |
 | 8 | Stage 8 (CadQuery backend) — build + gate | ☐ | ☐ | ☐ tag `stage-8` | ☐ |
@@ -49,7 +49,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 3 (printer coverage) | n/a | ☐ (move pkg into VC) | ☐ |
 | 4 (React SPA + viewport) | ✅ PASS | ✅ 0/0/0/0/0 (round-2 re-audit verified) | ✅ DONE — `docs/audits/stage-4/backfill-2026-06-05/` |
 | 5 (templates + sliders) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; 3 real bugs fixed) | ✅ DONE — `docs/audits/stage-5/backfill-2026-06-05/` |
-| 6 (model layer) | ☐ | ☐ | ☐ |
+| 6 (model layer) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; Critical privacy-copy bug fixed) | ✅ DONE — `docs/audits/stage-6/backfill-2026-06-05/` |
 | 7 (Smart Mesh + readiness) | ☐ | ☐ | ☐ |
 
 ## Phase C — build Stages 8 → 9 → 10 → 11 to the beta (per-slice audit-lite → stage gate → 0/0/0/0/0 → merge → tag)
@@ -61,6 +61,16 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-05 (Phase B / Stage 6): backfill audit of the model layer (advisor + fallback + bake-off
+  + Settings model/cloud surface). 6 independent agents → 0B/1C/2Maj/6Min/3Nit (advisor-logic
+  engineering pass itself 0/0/0/0/0). Real bug: a CRITICAL privacy-copy contradiction — the Settings
+  AI-model card claimed "nothing leaves your computer" even when CLOUD was active; fixed by branching
+  the copy on the live backend. Plus DOC-001 (README omitted OpenRouter), TEST-101 (cloud-key-leak
+  guard test), QA-001 (short-key masking), QA-002 (405 for GET-only), DOC-003 (Qwen 3B/7B
+  "deprioritized not bench-tested"), UX-003/004/005 minors. gemma4-top/Qwen-deprioritized design +
+  one-model UI treated as correct-by-design (Scott's hard rule), not flagged. Re-audit CLEAN
+  (Critical verified both ways live). Gate green (ruff, geometry, 773 pytest, 278 vitest, build
+  reproducible). Package: `docs/audits/stage-6/backfill-2026-06-05/`.
 - 2026-06-05 (Phase B / Stage 5): backfill audit of the template engine + live-slider surface.
   6 independent agents → 0B/1C/4Maj/7Min/4Nit. THREE real bugs (this is where they showed up):
   QA-501 (non-finite JSON 500'd /api/render), ENG-501 (thick wall collapsed a box to a solid block

@@ -65,8 +65,10 @@ on another machine — not a printable STL). A short walkthrough is in
 - OrcaSlicer (CLI)
 - An LLM backend. KimCad is **local-first**: out of the box it talks to a local
   runtime ([Ollama](https://ollama.com/) or LM Studio), so no API key and no network
-  are required. A cloud API (DeepSeek or any OpenAI-compatible endpoint) is an
-  optional fallback you can opt into via `config/local.yaml`.
+  are required. A cloud API is an optional, off-by-default fallback — enable it in the
+  in-app **Settings** screen (via [OpenRouter](https://openrouter.ai/), where you pick the
+  cloud model), or in `config/local.yaml` (DeepSeek / OpenRouter / any OpenAI-compatible
+  endpoint).
 
 OpenSCAD and OrcaSlicer are fetched as pinned portable builds into `tools/` by the
 setup step (see below); a system install can be pointed to via `config/local.yaml`.
@@ -110,10 +112,14 @@ fast and stable there:
 ollama pull gemma4:e4b
 ```
 
-That is all the LLM setup required — no API key, no network. To point at a different
-local model or a cloud fallback (DeepSeek / any OpenAI-compatible endpoint), set the
-active backend and its key in `config/local.yaml`; see `config/default.yaml` for the
-shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends.
+That is all the LLM setup required — no API key, no network. To enable a cloud fallback the
+easy way, use the in-app **Settings → Cloud acceleration** opt-in (OpenRouter; you pick the
+model, the key is stored locally and shown masked). To configure it in files instead — a
+different local model, or a cloud backend (DeepSeek / OpenRouter / any OpenAI-compatible
+endpoint) — set the active backend and its key in `config/local.yaml`; see `config/default.yaml`
+for the shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends. **Verify the
+cloud `model_name` against your provider's current model list before relying on it** — provider
+model tags change, and the shipped defaults are examples, not guaranteed-live tags.
 
 Not sure which model fits your machine? `kimcad models` examines your hardware (RAM,
 CPU, a discrete GPU if present) and which models Ollama has pulled, then recommends one

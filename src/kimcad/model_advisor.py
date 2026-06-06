@@ -111,10 +111,12 @@ MODEL_CATALOG: tuple[ModelSpec, ...] = (
               notes="REJECTED in the Stage-6 bake-off (0/10); never recommended over gemma4:e4b."),
     ModelSpec("qwen2.5-coder:3b", "Qwen2.5-Coder 3B", 3.0, min_ram_gb=10, tier=1,
               origin="Alibaba", non_china=False,
-              notes="REJECTED candidate; deprioritized below gemma4:e4b."),
+              notes="Deprioritized below gemma4:e4b (not bench-tested; the 1.5B sibling failed the "
+                    "Stage-6 bake-off 0/10, and gemma4 is THE model regardless)."),
     ModelSpec("qwen2.5-coder:7b", "Qwen2.5-Coder 7B", 7.0, min_ram_gb=18, tier=2,
               origin="Alibaba", non_china=False,
-              notes="REJECTED candidate; deprioritized below gemma4:e4b."),
+              notes="Deprioritized below gemma4:e4b (not bench-tested; the 1.5B sibling failed the "
+                    "Stage-6 bake-off 0/10, and gemma4 is THE model regardless)."),
     ModelSpec("llama3.1:8b", "Llama 3.1 8B", 8.0, min_ram_gb=18, tier=4,
               origin="Meta", non_china=True,
               notes="Non-China general model for a roomy box (alternative, not the default)."),
