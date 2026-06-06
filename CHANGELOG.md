@@ -26,6 +26,33 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 8 — CadQuery parallel geometry backend — BUILT (branch `stage-8-cadquery`; stage gate +
+  merge + tag pending).** A second,
+  type-safe CAD backend that runs alongside OpenSCAD as a **mutual fallback** (when the OpenSCAD
+  path can't render a part that passes the printability gate, KimCad generates it in CadQuery and
+  keeps the better result — the union lifts the done-gate) and adds **editable STEP (BREP)
+  export**, which OpenSCAD can't produce. CadQuery's OCCT kernel has no Python-3.14 wheels and the
+  app runs on 3.14, so the backend runs **out of process** on a ≤3.13 interpreter
+  (`kimcad.cadquery_worker`), shelled out like OpenSCAD/OrcaSlicer/PrintProof3D — optional and
+  gracefully absent (no interpreter → backend off, OpenSCAD unchanged). Built in 5 slices, each
+  through the real `audit-lite` (independent agent) with every finding remediated
+  (`docs/audits/stage-8/`); the Slice-1 audit caught and the fix closed a real sandbox escape
+  (`cq.exporters.os.system(...)` pivoting through the injected cadquery module — now neutralized by
+  a geometry-only facade + an `ast` block-list). The 5-role `audit-team` + `wiring-audit` stage
+  gate → merge → tag `stage-8` is the next step (the work is not yet on `main`).
+  - **Worker + runner:** the untrusted generated CadQuery is statically sanitized (`ast`
+    block-list: non-cadquery/math imports, banned names/attrs, all dunders incl. string-subscripts
+    + frame/`__globals__` introspection) and run in the worker with restricted builtins against a
+    geometry-only cadquery facade; the script assigns `result` and does no I/O — the worker exports
+    STL (+ STEP) to a result file (never stdout), with a timeout + output-size guard.
+  - **Discovery + config:** `binaries.cadquery_python` (null=auto-discover / false=off / a path),
+    `limits.cadquery_timeout_s` (120s).
+  - **Mutual fallback:** `generate_cadquery` + `prompts/system_cadquery.md`; OpenSCAD stays primary;
+    the report/result carry the producing `backend`.
+  - **STEP export:** `GET /api/step/<id>` + a "Download editable CAD (.STEP)" link for a CadQuery
+    part (the as-designed geometry; print orientation applies only to the printable mesh).
+  - **Docs + bench:** `docs/cadquery-backend.md` and a deterministic engine bench
+    (`kimcad.cadquery_bench`, `docs/benchmarks/stage-8-cadquery-backend.md`).
 - **Stage 8.5 — Usability — DONE (merged to `main`, tagged `stage-8.5`).** All 11 slices shipped and
   the stage gate passed both lanes: the runtime **wiring-audit** (drove the live app — every control
   proven genuinely wired + persisted) and the 5-role **audit-team**, which rolled up 42 findings

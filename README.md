@@ -8,7 +8,10 @@ engine** emits parametric [OpenSCAD](https://openscad.org/) directly — no mode
 LLM writes the OpenSCAD for anything a template doesn't cover. OpenSCAD renders manifold
 geometry, a validation-and-printability pipeline checks it against your printer and
 material, and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output.
-No CAD skills required, and the core path runs CPU-only — no discrete GPU.
+No CAD skills required, and the core path runs CPU-only — no discrete GPU. An optional
+[CadQuery](https://cadquery.readthedocs.io/) backend (Stage 8) runs alongside OpenSCAD as a
+fallback (a second generator that can clear prompts OpenSCAD can't) and adds **editable STEP/BREP
+CAD export** — see *Optional: the CadQuery backend*, below.
 
 > Status: **early development.** The deterministic pipeline, the gated G-code export
 > (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
@@ -19,9 +22,11 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU.
 > `docs/guide-my-designs.md`); you can refine a part as a conversation with version history, type
 > exact numbers, switch between mm and inches, manage everything from an in-app Settings screen, and
 > start a design by **describing it with a photo** — read by the local vision model into a rough,
-> editable starting point that never leaves your machine. Next up: the CadQuery backend (Stage 8),
-> an image/sketch on-ramp (Stage 9), a direct-print UI (Stage 10), and a Windows installer + beta
-> gate (Stage 11). Real-hardware print validation on Kim's printers is the final stage — see ROADMAP.
+> editable starting point that never leaves your machine. **Stage 8 (the CadQuery parallel backend
+> — mutual OpenSCAD↔CadQuery fallback + STEP export) is built** on branch `stage-8-cadquery` (its
+> stage gate → merge → tag is still pending, so it isn't on `main` yet). Next up: an image/sketch
+> on-ramp (Stage 9), a direct-print UI (Stage 10), and a Windows installer + beta gate (Stage 11).
+> Real-hardware print validation on Kim's printers is the final stage — see ROADMAP.
 
 ## What it does
 
@@ -129,6 +134,24 @@ CPU, a discrete GPU if present) and which models Ollama has pulled, then recomme
 `config/local.yaml` or `--backend`. (`gemma4:e4b` is the default; a `qwen2.5-coder:1.5b`
 candidate was evaluated with the `kimcad bakeoff` comparison and rejected — it can't
 produce a design plan on this pipeline — so gemma stays.)
+
+### Optional: the CadQuery backend (STEP export + a fallback generator)
+
+KimCad can use [CadQuery](https://cadquery.readthedocs.io/) as a **parallel** geometry backend.
+It runs alongside OpenSCAD: when the OpenSCAD path can't make a part that passes the printability
+gate, KimCad re-generates it in CadQuery and keeps the better result. Because the fallback only
+fires on an OpenSCAD failure, enabling it can only *raise* the pass rate, never lower it (the exact
+lift depends on the model and prompts — measure it live). A CadQuery-built part also offers an
+**editable `.STEP` (CAD) download** that OpenSCAD can't produce. It's entirely optional — with no CadQuery installed, KimCad behaves
+exactly as before.
+
+CadQuery's OCCT kernel ships no Python-3.14 wheels and KimCad runs on 3.14, so CadQuery runs in a
+separate **≤3.13** interpreter as an arm's-length worker (like OpenSCAD/OrcaSlicer). To enable it:
+install `cadquery` into a Python 3.13 environment; KimCad auto-discovers it (it probes
+`py -3.13/-3.12/-3.11` then `python3.x` on `PATH`). Pin or disable it with
+`binaries.cadquery_python` in `config/local.yaml` (`null` = auto, `false` = off, or an explicit
+interpreter path). Full details, including the security model for executing generated CadQuery,
+are in [`docs/cadquery-backend.md`](docs/cadquery-backend.md).
 
 ## Usage
 

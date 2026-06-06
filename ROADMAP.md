@@ -59,9 +59,13 @@ merged to `main` and tagged `stage-7`** (slices 1–6 each `audit-lite` 0/0/0/0/
 of the CadQuery backend (8.5-first, ratified 2026-06-03) because the deal-killer UX gaps had to be
 closed before adding a second geometry engine. **Stage 8.5 (Usability) is DONE — merged to `main`
 and tagged `stage-8.5`** (slices 1–11 each `audit-lite` 0/0/0/0/0; the full 5-role `audit-team` +
-`wiring-audit` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8 (CadQuery).**
+`wiring-audit` stage gate + remediation closed at 0/0/0/0/0). **Stage 8 (CadQuery parallel
+backend) is BUILT on branch `stage-8-cadquery`** (5 slices, each through `audit-lite` with all
+findings remediated; an arm's-length 3.13 worker, mutual OpenSCAD↔CadQuery fallback, STEP export)
+— its **stage gate (audit-team + wiring-audit) → merge → tag `stage-8` is still pending**, so it
+is not yet on `main`. **Next = the Stage 8 gate, then Stage 9 (image/sketch on-ramp).**
 
-Still ahead before beta: CadQuery (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native
+Still ahead before beta: the Stage 8 gate/merge/tag, image on-ramp (Stage 9), direct-print UI + Bambu-native
 (Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
 — that's after Stage 11, at Kim's.**
 
@@ -233,19 +237,36 @@ accessibility, copy, polish.
 **Exit:** a person can make a part, leave, come back, refine it, set units, see problems on the model,
 and discover the optional engines — without hitting a wall. **Needs:** target box. **Size:** large.
 
-## Stage 8 — CadQuery parallel backend  (after Stage 8.5)
-**Goal:** a second, type-safe CAD backend and real CAD export. **Feasibility proven** 2026-06-03:
-CadQuery 2.7 + real OCCT (OCP 7.8.1) installs + exports STEP/BREP/STL cleanly on Python 3.13 in an
-isolated venv. Note: the main KimCad venv is **3.14** (CadQuery tops out at 3.13), so the backend
-runs as an **arm's-length subprocess worker in its own 3.13 venv** (like OpenSCAD/OrcaSlicer/
-PrintProof3D), not an in-process import — keeps the main runtime on 3.14 and the heavy OCCT
-dependency optional. Discoverability (the enable UI) lands in Stage 8.5 Slice 5.
-- `kimcad.cadquery` parallel to `kimcad.openscad`, **real OCCT on Python 3.13** (CadQuery supports
-  3.9–3.13 — pin 3.13; not a trimesh stub); a CadQuery module library + prompts; **STEP/BREP
-  export**; renderer choice in config, parity-validated.
-- Tests; confirm OpenCASCADE installs cleanly on this class of machine before committing.
-**Exit:** an optional, real CadQuery backend with STEP/BREP export, switchable in config.
-**Needs:** target box (Python 3.13 venv). **Size:** ~3–4 weeks.
+## Stage 8 — CadQuery parallel backend  (built; pending the stage gate → merge → tag)
+**Goal:** a second, type-safe CAD backend and real CAD export. CadQuery 2.7 + real OCCT (OCP
+7.8.x) runs on Python 3.13; the main KimCad venv is **3.14** (CadQuery tops out at 3.13), so the
+backend runs as an **arm's-length subprocess worker** (`kimcad.cadquery_worker`) driven by
+`kimcad.cadquery_runner` — like OpenSCAD/OrcaSlicer/PrintProof3D, not an in-process import —
+keeping the main runtime on 3.14 and the heavy OCCT dependency optional + gracefully absent.
+**Built in 5 slices, each through the real `audit-lite` (independent agent) with every finding
+remediated** — reports in `docs/audits/stage-8/`. The Slice-1 audit found (and the fix closed) a
+real sandbox escape — `cq.exporters.os.system(...)` pivoting through the injected cadquery module —
+now neutralized by a geometry-only facade + an `ast` block-list. The **stage gate** (the 5-role
+`audit-team` + a `wiring-audit` of the STEP/export surface) → merge → tag `stage-8` is the next
+step; it is **not yet gated, merged, or tagged**.
+- **Slice 1** — the worker + runner: `sanitize_cadquery` (ast block-list: non-cadquery/math
+  imports, banned names/attrs, all dunders incl. string-subscripts + introspection attrs) and
+  `render_cadquery` (subprocess with timeout + output-size guard); the worker runs the untrusted
+  script with restricted builtins against a geometry-only cadquery facade, assigns `result`, and
+  the WORKER does every export to a result file (never stdout).
+- **Slice 2** — interpreter discovery + config (`Config.cadquery_interpreter()`,
+  `binaries.cadquery_python`: null=auto / false=off / path; `limits.cadquery_timeout_s`).
+- **Slice 3** — the mutual fallback in the pipeline: OpenSCAD stays primary; when it can't
+  render a gate-passing part, KimCad falls back to CadQuery codegen (`generate_cadquery` +
+  `prompts/system_cadquery.md`) and keeps the better result. The union lifts the done-gate.
+- **Slice 4** — STEP (BREP) export end to end: `GET /api/step/<id>` + a "Download editable CAD
+  (.STEP)" link for a CadQuery part (the as-designed geometry).
+- **Slice 5** — docs (`docs/cadquery-backend.md`) + the deterministic engine bench
+  (`kimcad.cadquery_bench`, `docs/benchmarks/stage-8-cadquery-backend.md`).
+**Exit:** an optional, real CadQuery backend with STEP/BREP export, switchable in config, that can
+lift the pass rate as a fallback (the union of two generators — measured live, not pinned to a
+fixed number). All slices built + per-slice audited; the stage gate → merge → tag `stage-8`
+remains to be done.
 
 ## Stage 9 — Image & sketch on-ramp (opt-in, experimental)
 **Goal:** a photo or dimensioned sketch seeds an editable, validated plan — **opt-in only**, honest
