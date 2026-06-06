@@ -38,7 +38,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 - ✅ **Re-audit round 1** (reaudit/): Engineering CLEAR 0/0/0/0/0; QA PASS; UI/Docs/Test all-prior-resolved + a second tier surfaced (remediation-introduced gaps). **Second-tier remediated** (UI focus-ring/dup-rule; docs reconciled; +6 tests).
 - ✅ **Re-audit round 2** (reaudit/round2-*): **UI 0/0/0/0/0, Docs 0/0/0/0/0, Test 0/0/0/0/0** (Test lane confirmed coverage with a false-green mutation sweep). 763 pytest non-live + 262 vitest.
 - 🟢 **STAGE 8.5 GATE = CLEAN: 0/0/0/0/0 across all 5 lanes (engineering/UI/docs/test/QA) + wiring-audit PASS.** All 44 original + second-tier findings closed, independently re-verified.
-- ▶ **MERGE + TAG `stage-8.5` — Scott authorized "do it all / finish the whole run" (2026-06-05).** Phase A: exec-doc 44→42 corrected; Stage-8.5 CHANGELOG block added; docs marked DONE; merge `stage-8.5-usability` → `main` (--no-ff) + tag `stage-8.5` IN PROGRESS.
+- ✅ **MERGE + TAG `stage-8.5` — DONE (2026-06-05, Scott authorized "do it all / finish the whole run").** Merged `stage-8.5-usability` → `main` (--no-ff, merge `fb65e6f`), tag `stage-8.5` on the merge commit; pushed gate-green (`c20c0d8..fb65e6f main`; `* [new tag] stage-8.5`). Stages 0–8.5 all tagged on origin. **RESUME = Phase B below.**
 
 ## Phase B — backfill owed audits on shipped stages 0–7 (wiring-audit first, then audit-team)
 | Stage | wiring-audit | audit-team | status |
