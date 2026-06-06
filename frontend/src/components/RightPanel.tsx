@@ -1,7 +1,10 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import type { DesignResponse, ParamSpec, ReadinessPayload } from '../api'
 import { gateLabel, gateTone, isFailureStatus, readinessTone } from '../designStatus'
+import { humanizeObjectType } from '../objectType'
+import { type Unit, useUnits } from '../useUnits'
 import ExportPanel from './ExportPanel'
+import InfoTip from './InfoTip'
 
 // Right column — parameters + printability, rendered from the design result.
 //
@@ -19,17 +22,114 @@ function formatValue(value: number, spec: ParamSpec): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
+/** Clamp and round a raw number to the spec's valid range. */
+function clampToSpec(raw: number, spec: ParamSpec): number {
+  const clamped = Math.max(spec.min, Math.min(spec.max, raw))
+  return spec.integer ? Math.round(clamped) : clamped
+}
+
+// Slice 3: the value label is now clickable — it opens an inline text input so the user can
+// type an exact number instead of dragging. Enter/blur commits (clamping to the valid range);
+// Escape cancels. Arrow keys on the slider already nudge by step (native range behaviour).
+// Slice 4: SliderRow receives the current unit and conversion helpers so it can display values
+// and accept numeric input in mm or inches while keeping internal state (and onChange calls) in mm.
 function SliderRow({
   spec,
   value,
   onChange,
+  unit,
+  toDisplay,
+  fromDisplay,
 }: {
   spec: ParamSpec
-  value: number
-  onChange: (name: string, value: number) => void
+  value: number   // always in mm
+  onChange: (name: string, value: number) => void  // always emits mm
+  unit: Unit
+  toDisplay: (mm: number) => number
+  fromDisplay: (val: number) => number
 }) {
   const span = spec.max - spec.min
   const pct = span > 0 ? Math.min(100, Math.max(0, ((value - spec.min) / span) * 100)) : 0
+
+  // The label for the display unit — backend spec.unit is always 'mm'; in inch mode we override.
+  const displayUnit = unit === 'in' && spec.unit === 'mm' ? 'in' : (spec.unit ?? '')
+  // UX-005: spell the unit out for the screen-reader aria-label so it doesn't read "value in in".
+  const unitWord = displayUnit === 'in' ? 'inches' : displayUnit === 'mm' ? 'millimeters' : displayUnit
+
+  // The display-unit range bounds (the value itself is formatted via formatDisplay below).
+  const displayMin = toDisplay(spec.min)
+  const displayMax = toDisplay(spec.max)
+  // Step in the display unit; for inch mode scale down so nudges feel right.
+  const displayStep = unit === 'in' && spec.unit === 'mm' ? spec.step / 25.4 : spec.step
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [inputError, setInputError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // The display-unit value the editor was seeded with — used to detect a no-op commit (see below).
+  const seedRef = useRef<number>(NaN)
+
+  // The label/edit string for a mm value in the current display unit. In mm mode it's the exact
+  // value (respecting integer specs); in inch mode it's a 3-dp inch reading (UX-004 — 2 dp was too
+  // coarse to edit nozzle-multiple walls: a 0.4mm step is invisible at 2 dp but resolves at 3 dp).
+  function formatDisplay(mm: number): string {
+    return unit === 'in' ? parseFloat(toDisplay(mm).toFixed(3)).toString() : formatValue(mm, spec)
+  }
+
+  function startEdit() {
+    // Seed draft in the current display unit and remember its numeric value.
+    const seed = formatDisplay(value)
+    setDraft(seed)
+    seedRef.current = Number(seed)
+    setInputError(null)
+    setEditing(true)
+    setTimeout(() => { inputRef.current?.select() }, 0)
+  }
+
+  function commitEdit() {
+    setEditing(false)
+    setInputError(null)
+    const trimmed = draft.trim()
+    // Empty or non-numeric entry reverts with no change. Number('') is 0, so check empty first;
+    // Number('12abc') is NaN (stricter than parseFloat, which would truncate to 12 — ENG-005).
+    if (trimmed === '') return
+    const rawDisplay = Number(trimmed)
+    if (!Number.isFinite(rawDisplay)) return
+    // No-op guard: if the typed display value equals the seed the editor opened with, the user
+    // didn't actually change anything — skip. Comparing display NUMBERS (not the rounded display
+    // string) suppresses the inch round-trip drift (0.08in→2.032mm on a no-op blur) WITHOUT
+    // swallowing a real sub-step mm edit like 2.0→2.04 (ENG-002).
+    if (rawDisplay === seedRef.current) return
+    // Convert from the display unit back to mm, then clamp to the mm spec range. Typed entry
+    // intentionally allows finer-than-step precision (you type to reach an exact value a drag's
+    // step can't hit); the backend re-clamps to range and the gate re-validates, so an off-step
+    // value is safe (ENG-003 — a deliberate product choice, not a gap).
+    const mm = clampToSpec(fromDisplay(rawDisplay), spec)
+    onChange(spec.name, mm)
+  }
+
+  function handleDraftChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setDraft(val)
+    const n = Number(val.trim())
+    if (val.trim() !== '' && Number.isFinite(n) && (n < displayMin || n > displayMax)) {
+      // UX-007: a self-describing alert ("Enter 10–250 mm"), not a bare range, so a screen reader
+      // announces what to do rather than just two numbers.
+      setInputError(
+        `Enter ${parseFloat(displayMin.toFixed(3))}–${parseFloat(displayMax.toFixed(3))} ${displayUnit}`
+      )
+    } else {
+      setInputError(null)
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+    if (e.key === 'Escape') { setEditing(false); setInputError(null) }
+  }
+
+  const displayStr = formatDisplay(value)
+
   return (
     <div className="kc-prow">
       <div className="kc-plabel">
@@ -37,24 +137,55 @@ function SliderRow({
           {spec.label}
           {spec.axis && <i className="kc-axis">{spec.axis}</i>}
         </span>
-        <span className="kc-pval">
-          {formatValue(value, spec)}
-          {spec.unit && <i>{spec.unit}</i>}
-        </span>
+        {editing ? (
+          <span className="kc-pval-edit-wrap">
+            <input
+              ref={inputRef}
+              type="number"
+              className={`kc-pval-input${inputError ? ' kc-pval-input-err' : ''}`}
+              value={draft}
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              aria-label={`${spec.label} value${unitWord ? ` in ${unitWord}` : ''}`}
+              aria-invalid={inputError ? 'true' : undefined}
+              aria-describedby={inputError ? `${spec.name}-err` : undefined}
+              onChange={handleDraftChange}
+              onBlur={commitEdit}
+              onKeyDown={handleKeyDown}
+            />
+            {displayUnit && <i className="kc-pval-unit">{displayUnit}</i>}
+            {inputError && (
+              <span id={`${spec.name}-err`} className="kc-pval-err" role="alert">
+                {inputError}
+              </span>
+            )}
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="kc-pval kc-pval-btn"
+            onClick={startEdit}
+            title={`Click to type an exact value (${parseFloat(displayMin.toFixed(2))}–${parseFloat(displayMax.toFixed(2))} ${displayUnit})`}
+            aria-label={`${spec.label}: ${displayStr}${displayUnit ? ` ${displayUnit}` : ''}. Click to edit.`}
+          >
+            {displayStr}
+            {displayUnit && <i>{displayUnit}</i>}
+          </button>
+        )}
       </div>
       <input
         type="range"
         className="kc-range"
         name={spec.name}
         aria-label={spec.label}
-        // Announce the unit too — the native value ("150") alone drops the "mm".
-        aria-valuetext={`${formatValue(value, spec)}${spec.unit ? ` ${spec.unit}` : ''}`}
+        aria-valuetext={`${displayStr}${displayUnit ? ` ${displayUnit}` : ''}`}
         min={spec.min}
         max={spec.max}
         step={spec.step}
         value={value}
         style={{ '--pct': `${pct}%` } as CSSProperties}
-        onChange={(e) => onChange(spec.name, Number(e.target.value))}
+        onChange={(e) => { setEditing(false); onChange(spec.name, Number(e.target.value)) }}
       />
     </div>
   )
@@ -73,10 +204,10 @@ function ParametersCard({
 }) {
   const plan = result?.plan
   const parameters = result?.parameters
+  // Slice 4: units preference — mm or inch. Persisted in localStorage; toggled here.
+  const { unit, setUnit, toDisplay, fromDisplay, formatMm } = useUnits()
 
-  // Local slider values, re-synced to the server's truth whenever the result's parameters change
-  // (a new design, or the clamped values a re-render returns). `valuesRef` mirrors them so the
-  // debounced post always sends the latest merged set without a stale closure.
+  // Local slider values (always in mm), re-synced to server truth on result change.
   const [values, setValues] = useState<Record<string, number>>({})
   const valuesRef = useRef<Record<string, number>>({})
   const timer = useRef<number | null>(null)
@@ -109,17 +240,36 @@ function ParametersCard({
     <section className="kc-card">
       <div className="kc-card-hd">
         <h2 className="kc-card-title">Parameters</h2>
-        {rerendering && (
-          <span className="kc-param-updating" role="status">
-            Re-rendering…
-          </span>
-        )}
+        <div className="kc-card-hd-right">
+          {rerendering && (
+            <span className="kc-param-updating" role="status">Re-rendering…</span>
+          )}
+          {/* Slice 4: unit toggle — 🟡 quick access near the dimensions, not buried in settings. */}
+          <div className="kc-unit-toggle" role="group" aria-label="Display units">
+            <button
+              type="button"
+              className={`kc-unit-btn${unit === 'mm' ? ' kc-unit-btn-active' : ''}`}
+              onClick={() => setUnit('mm')}
+              aria-pressed={unit === 'mm'}
+            >
+              mm
+            </button>
+            <button
+              type="button"
+              className={`kc-unit-btn${unit === 'in' ? ' kc-unit-btn-active' : ''}`}
+              onClick={() => setUnit('in')}
+              aria-pressed={unit === 'in'}
+            >
+              in
+            </button>
+          </div>
+        </div>
       </div>
 
       {parameters && parameters.length > 0 ? (
         <>
           <p className="kc-card-sub">
-            Drag a slider — the part re-renders locally in under a second, no AI round-trip.
+            Drag or click a value to type — the part re-renders locally, no AI round-trip.
           </p>
           <div className="kc-params">
             {parameters.map((p) => (
@@ -128,6 +278,9 @@ function ParametersCard({
                 spec={p}
                 value={values[p.name] ?? p.value}
                 onChange={handleSlide}
+                unit={unit}
+                toDisplay={toDisplay}
+                fromDisplay={fromDisplay}
               />
             ))}
           </div>
@@ -138,26 +291,30 @@ function ParametersCard({
             </p>
           )}
         </>
-      ) : plan ? (
+      ) : plan && result?.status !== 'needs_experimental' ? (
         <>
           <dl className="kc-paramlist">
             <div className="kc-paramrow">
               <dt>Type</dt>
-              <dd>{plan.object_type}</dd>
+              <dd>{humanizeObjectType(plan.object_type)}</dd>
             </div>
             {plan.target_bbox_mm && (
               <div className="kc-paramrow">
                 <dt>Size</dt>
                 <dd className="kc-mono">
-                  {plan.target_bbox_mm.map((n) => Math.round(n)).join(' × ')} mm
+                  {/* Slice 4: bbox display in the current unit */}
+                  {plan.target_bbox_mm.map((n) => formatMm(n)).join(' × ')} {unit}
                 </dd>
               </div>
             )}
           </dl>
+          {/* Slice 3 / Slice 2: LLM-backed parts have no sliders, but the refine input in the
+              conversation panel lets the user describe exact changes and get a new version. */}
           <p className="kc-muted-note kc-param-hint">
-            This part was generated directly rather than from a parametric template, so it has no
-            preset sliders — but you can still slice and download it, or describe a change to start
-            a new version.
+            This part doesn&rsquo;t have adjustable sliders — it was built straight from your
+            description rather than a ready-made shape with options. To change it, use the
+            conversation on the left: type an exact change like <em>"make it 10mm taller"</em> or
+            <em>"add M3 mounting holes"</em> and a new version will appear.
           </p>
         </>
       ) : isFailureStatus(result?.status) ? (
@@ -221,33 +378,86 @@ function ScoreGauge({ score }: { score: number }) {
   )
 }
 
-function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
+function ReadinessBody({
+  readiness,
+  onFocusRisk,
+  highlightsOn,
+  onToggleHighlights,
+}: {
+  readiness: ReadinessPayload
+  onFocusRisk?: (issueId: string) => void
+  highlightsOn?: boolean
+  onToggleHighlights?: () => void
+}) {
   const tone = readinessTone(readiness.tone)
+  // Slice 8: some risks (from PrintProof3D) carry geometry → they can be shown ON the model and
+  // clicked to focus. Only show the toggle/legend + make risks clickable when that's available.
+  const anyLocatable = readiness.risks.some((r) => r.geometry && r.issueId)
   return (
     <div className={`kc-readiness kc-rtone-${tone}`}>
       <ScoreGauge score={readiness.score} />
       <p className="kc-readiness-verdict">{readiness.verdict}</p>
       {readiness.confidence && (
-        <p className="kc-readiness-conf">
-          <span className="kc-conf-badge">{readiness.confidence} confidence</span>
+        <p className="kc-readiness-conf kc-tip-host">
+          <span className="kc-conf-line">
+            <span className="kc-conf-badge">{readiness.confidence} confidence</span>
+            <InfoTip term="confidence" />
+          </span>
           <span className="kc-conf-blurb">{CONFIDENCE_BLURB[readiness.confidence] ?? ''}</span>
         </p>
       )}
 
       {readiness.risks.length > 0 && (
         <div className="kc-readiness-sec">
-          <h3 className="kc-readiness-h">Risks</h3>
+          <div className="kc-risks-head kc-tip-host">
+            <h3 className="kc-readiness-h">Risks<InfoTip term="risks" /></h3>
+            {anyLocatable && onToggleHighlights && (
+              <label className="kc-hl-toggle">
+                <input
+                  type="checkbox"
+                  checked={highlightsOn ?? true}
+                  onChange={onToggleHighlights}
+                />
+                Show on model
+              </label>
+            )}
+          </div>
+          {anyLocatable && (
+            <p className="kc-hl-legend">
+              <span className="kc-hl-swatch kc-hl-fail" aria-hidden="true" /> issue
+              <span className="kc-hl-swatch kc-hl-warn" aria-hidden="true" /> caution
+              <span className="kc-hl-hint"> · click a located risk to focus it</span>
+            </p>
+          )}
           <ul className="kc-risks">
             {readiness.risks.map((r) => {
               const rtone = readinessTone(r.tone)
-              return (
-                <li key={`${r.title}:${r.detail}`} className={`kc-risk kc-rtone-${rtone}`}>
+              const locatable = Boolean(r.geometry && r.issueId && onFocusRisk)
+              const inner = (
+                <>
                   <span className="kc-risk-dot" aria-hidden="true" />
                   <span className="kc-risk-text">
                     <span className="kc-sr-only">{RISK_TONE_WORD[rtone] ?? 'Note'}: </span>
                     <b>{r.title}</b>
                     {r.detail && <span className="kc-risk-detail">{r.detail}</span>}
                   </span>
+                  {locatable && <span className="kc-risk-locate" aria-hidden="true">⊙ on model</span>}
+                </>
+              )
+              return (
+                <li key={`${r.title}:${r.detail}`} className={`kc-risk kc-rtone-${rtone}`}>
+                  {locatable ? (
+                    <button
+                      type="button"
+                      className="kc-risk-btn"
+                      onClick={() => onFocusRisk?.(r.issueId as string)}
+                      title="Show this problem on the model"
+                    >
+                      {inner}
+                    </button>
+                  ) : (
+                    inner
+                  )}
                 </li>
               )
             })}
@@ -257,7 +467,7 @@ function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
 
       {readiness.recommendations.length > 0 && (
         <div className="kc-readiness-sec">
-          <h3 className="kc-readiness-h">Recommendations</h3>
+          <h3 className="kc-readiness-h kc-tip-host">Recommendations<InfoTip term="recommendations" /></h3>
           <ul className="kc-recs">
             {readiness.recommendations.map((rec) => (
               <li key={rec} className="kc-rec">
@@ -279,13 +489,28 @@ function ReadinessBody({ readiness }: { readiness: ReadinessPayload }) {
   )
 }
 
-function ReadinessCard({ result }: { result: DesignResponse | null }) {
+function ReadinessCard({
+  result,
+  onFocusRisk,
+  highlightsOn,
+  onToggleHighlights,
+}: {
+  result: DesignResponse | null
+  onFocusRisk?: (issueId: string) => void
+  highlightsOn?: boolean
+  onToggleHighlights?: () => void
+}) {
   const readiness = result?.report?.readiness
   return (
-    <section className="kc-card">
-      <h2 className="kc-card-title">Readiness</h2>
+    <section className="kc-card kc-card-readiness">
+      <h2 className="kc-card-title kc-tip-host">Readiness<InfoTip term="readiness" /></h2>
       {readiness ? (
-        <ReadinessBody readiness={readiness} />
+        <ReadinessBody
+          readiness={readiness}
+          onFocusRisk={onFocusRisk}
+          highlightsOn={highlightsOn}
+          onToggleHighlights={onToggleHighlights}
+        />
       ) : isFailureStatus(result?.status) ? (
         <p className="kc-muted-note" role="status">
           No part to assess — the last attempt didn&rsquo;t produce a model.
@@ -302,14 +527,19 @@ function ReadinessCard({ result }: { result: DesignResponse | null }) {
 
 function PrintabilityCard({ result }: { result: DesignResponse | null }) {
   const report = result?.report
+  // Slice 4: dims table shows converted values in the user's chosen unit.
+  const { unit, formatMm } = useUnits()
   return (
-    <section className="kc-card">
-      <h2 className="kc-card-title">Printability</h2>
+    <section className="kc-card kc-card-report">
+      <h2 className="kc-card-title kc-tip-host">Printability<InfoTip term="printability" /></h2>
       {report ? (
         <>
-          <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
-            Gate: {gateLabel(report.gate_status)}
-          </span>
+          <div className="kc-gate-row kc-tip-host">
+            <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
+              Gate: {gateLabel(report.gate_status)}
+            </span>
+            <InfoTip term="gate" />
+          </div>
           {report.headline && <p className="kc-muted-note">{report.headline}</p>}
 
           {report.dims.length > 0 && (
@@ -317,17 +547,17 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
               <thead>
                 <tr>
                   <th scope="col">Axis</th>
-                  <th scope="col">Target</th>
-                  <th scope="col">Actual</th>
+                  <th scope="col">Target ({unit})</th>
+                  <th scope="col">Actual ({unit})</th>
                 </tr>
               </thead>
               <tbody>
                 {report.dims.map((d) => (
                   <tr key={d.axis} className={d.ok ? undefined : 'kc-dim-off'}>
                     <td>{d.axis}</td>
-                    <td className="kc-mono">{d.target}</td>
+                    <td className="kc-mono">{formatMm(d.target)}</td>
                     <td className="kc-mono">
-                      {d.actual}
+                      {formatMm(d.actual)}
                       {d.ok ? '' : ' ⚠'}
                     </td>
                   </tr>
@@ -337,12 +567,20 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
           )}
 
           {report.findings.length > 0 && (
-            <ul className="kc-findings">
-              {report.findings.map((f) => (
-                <li key={`${f.code}:${f.message}`} className={`kc-finding kc-finding-${f.level}`}>
-                  {f.message}
-                </li>
-              ))}
+            // UX-002: scannable icon-led checks (✓ pass / ⚠ needs-review) — the gate is the core
+            // trust moment; a glanceable verdict list reads better than a flat bullet list. The
+            // icon is reinforced by an SR-only word so the status isn't conveyed by colour alone.
+            <ul className="kc-checks">
+              {report.findings.map((f) => {
+                const warn = f.level !== 'pass'
+                return (
+                  <li key={`${f.code}:${f.message}`} className={`kc-check${warn ? ' kc-check-warn' : ''}`}>
+                    <span className="kc-check-ico" aria-hidden="true">{warn ? '⚠' : '✓'}</span>
+                    <span className="kc-sr-only">{warn ? 'Needs review: ' : 'OK: '}</span>
+                    <span>{f.message}</span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </>
@@ -365,11 +603,17 @@ export default function RightPanel({
   rerendering,
   rerenderError,
   onRerender,
+  onFocusRisk,
+  highlightsOn,
+  onToggleHighlights,
 }: {
   result: DesignResponse | null
   rerendering: boolean
   rerenderError: string | null
   onRerender: (values: Record<string, number>) => void
+  onFocusRisk?: (issueId: string) => void
+  highlightsOn?: boolean
+  onToggleHighlights?: () => void
 }) {
   return (
     <aside className="kc-col-right">
@@ -379,7 +623,12 @@ export default function RightPanel({
         rerenderError={rerenderError}
         onRerender={onRerender}
       />
-      <ReadinessCard result={result} />
+      <ReadinessCard
+        result={result}
+        onFocusRisk={onFocusRisk}
+        highlightsOn={highlightsOn}
+        onToggleHighlights={onToggleHighlights}
+      />
       <PrintabilityCard result={result} />
       <ExportPanel result={result} />
     </aside>

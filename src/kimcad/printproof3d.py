@@ -111,6 +111,52 @@ def validate_model(
         return _parse_report(data)
 
 
+_MAX_HL_TRIANGLES = 4000  # cap forwarded highlight triangles so a huge region can't bloat the payload
+
+
+def _num(v: object) -> float | None:
+    # bool is an int subclass — exclude it so True/False aren't read as coordinates.
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _vec3(v: object) -> list[float] | None:
+    if isinstance(v, (list, tuple)) and len(v) == 3:
+        out = [_num(x) for x in v]
+        if all(x is not None for x in out):
+            return out  # type: ignore[return-value]
+    return None
+
+
+def _sanitize_geometry(geom: object) -> dict | None:
+    """Validate PrintProof3D's issue ``location.geometry`` into a small, safe dict the viewport can
+    highlight. Recognizes the engine's three shapes (point / bounding_box / triangles); anything
+    else (or malformed) degrades to ``None`` ("no highlight"), never a crash. Triangle lists are
+    capped so a pathological problem region can't bloat the API payload sent to the browser."""
+    if not isinstance(geom, dict):
+        return None
+    kind = geom.get("type")
+    if kind == "point":
+        x, y, z = _num(geom.get("x")), _num(geom.get("y")), _num(geom.get("z"))
+        return {"type": "point", "x": x, "y": y, "z": z} if None not in (x, y, z) else None
+    if kind == "bounding_box":
+        keys = ("min_x", "min_y", "min_z", "max_x", "max_y", "max_z")
+        vals = {k: _num(geom.get(k)) for k in keys}
+        return {"type": "bounding_box", **vals} if all(v is not None for v in vals.values()) else None
+    if kind == "triangles":
+        raw = geom.get("triangles")
+        if not isinstance(raw, list):
+            return None
+        tris: list[dict] = []
+        for t in raw[:_MAX_HL_TRIANGLES]:
+            if not isinstance(t, dict):
+                continue
+            v0, v1, v2 = _vec3(t.get("v0")), _vec3(t.get("v1")), _vec3(t.get("v2"))
+            if v0 and v1 and v2:
+                tris.append({"v0": v0, "v1": v1, "v2": v2})
+        return {"type": "triangles", "triangles": tris} if tris else None
+    return None
+
+
 def _parse_report(data: object) -> PrintProofReport | None:
     """Map a PrintProof3D ``ValidationReport`` dict into a :class:`PrintProofReport`. Returns
     None for a non-dict / shapeless body so a malformed engine response degrades cleanly."""
@@ -130,14 +176,18 @@ def _parse_report(data: object) -> PrintProofReport | None:
             continue  # skip an issue with an unrecognized severity rather than guess
         fixes = raw.get("suggested_fixes")
         fixes = fixes if isinstance(fixes, list) else []
-        location = raw.get("location") or {}
-        region = location.get("region") if isinstance(location, dict) else None
+        location = raw.get("location") if isinstance(raw.get("location"), dict) else {}
+        region = location.get("region")
+        # Slice 8: keep the issue's geometry (the exact triangles / bbox / point) so the viewport
+        # can highlight WHERE the problem is — previously this was dropped and only a word shown.
+        geometry = _sanitize_geometry(location.get("geometry"))
         issues.append(PrintProofIssue(
             id=str(raw.get("id", "UNKNOWN")),
             message=str(raw.get("message", "")),
             severity=str(severity),
             suggested_fixes=tuple(str(f) for f in fixes if isinstance(f, str)),
             region=str(region) if region else None,
+            geometry=geometry,
         ))
     return PrintProofReport(
         status=str(status),

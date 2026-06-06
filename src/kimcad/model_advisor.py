@@ -27,6 +27,7 @@ import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -95,22 +96,28 @@ class ModelSpec:
 
 # The choosable catalog. Local-first; cloud entries are opt-in alternatives (need a key).
 # RAM floors are conservative heuristics (see module docstring). Tiers are relative.
+# ENG-006 (stage-8.5 gate remediation): gemma4:e4b is THE model. It is now the highest LOCAL tier,
+# so the advisor NEVER recommends a Chinese model over it, and if a user has manually pulled Qwen the
+# non-China escape surfaces gemma4 as the alternative — the "gemma4 is THE model" rule, enforced.
+# Qwen was evaluated via the live Stage-6 bake-off and REJECTED (0/10); it's kept here only as a
+# hard-deprioritized, never-recommended-over-gemma4 entry (the `local_qwen` config backend remains
+# selectable via `--backend` for power users re-running the bake-off — separate from this advisor).
 MODEL_CATALOG: tuple[ModelSpec, ...] = (
-    ModelSpec("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B", 1.5, min_ram_gb=6, tier=2,
-              origin="Alibaba", non_china=False,
-              notes="Small, fast, code-tuned -- the Stage 6 candidate default."),
-    ModelSpec("qwen2.5-coder:3b", "Qwen2.5-Coder 3B", 3.0, min_ram_gb=10, tier=3,
-              origin="Alibaba", non_china=False,
-              notes="More capable than 1.5B; needs a bit more headroom."),
-    ModelSpec("qwen2.5-coder:7b", "Qwen2.5-Coder 7B", 7.0, min_ram_gb=18, tier=5,
-              origin="Alibaba", non_china=False,
-              notes="Strong code model for a roomy box."),
-    ModelSpec("gemma4:e4b", "Gemma E4B", 4.0, min_ram_gb=8, tier=3,
+    ModelSpec("gemma4:e4b", "Gemma E4B", 4.0, min_ram_gb=8, tier=7,
               origin="Google", non_china=True,
-              notes="The current default; the non-China local alternative + vision-capable."),
+              notes="THE model: the local default — text, codegen, AND vision. Always recommended."),
+    ModelSpec("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B", 1.5, min_ram_gb=6, tier=1,
+              origin="Alibaba", non_china=False,
+              notes="REJECTED in the Stage-6 bake-off (0/10); never recommended over gemma4:e4b."),
+    ModelSpec("qwen2.5-coder:3b", "Qwen2.5-Coder 3B", 3.0, min_ram_gb=10, tier=1,
+              origin="Alibaba", non_china=False,
+              notes="REJECTED candidate; deprioritized below gemma4:e4b."),
+    ModelSpec("qwen2.5-coder:7b", "Qwen2.5-Coder 7B", 7.0, min_ram_gb=18, tier=2,
+              origin="Alibaba", non_china=False,
+              notes="REJECTED candidate; deprioritized below gemma4:e4b."),
     ModelSpec("llama3.1:8b", "Llama 3.1 8B", 8.0, min_ram_gb=18, tier=4,
               origin="Meta", non_china=True,
-              notes="Non-China general model for a roomy box."),
+              notes="Non-China general model for a roomy box (alternative, not the default)."),
     ModelSpec("cloud_deepseek", "DeepSeek (cloud)", 0.0, min_ram_gb=0, tier=6,
               origin="DeepSeek", non_china=False, location="cloud",
               notes="Opt-in cloud fallback -- needs DEEPSEEK_API_KEY; not local-first."),
@@ -240,14 +247,7 @@ def friendly_label(installed_name: str, catalog: tuple[ModelSpec, ...] = MODEL_C
     return best.label if best is not None else None
 
 
-def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[InstalledModel]:
-    """Ask Ollama (at ``base_url``) which models are pulled, via `/api/tags`. Returns [] if
-    Ollama isn't running or the response is unreadable -- never raises."""
-    try:
-        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as r:
-            data = json.load(r)
-    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
-        return []
+def _parse_tags(data: Any) -> list[InstalledModel]:
     out: list[InstalledModel] = []
     for m in data.get("models", []) if isinstance(data, dict) else []:
         name = m.get("name") or m.get("model")
@@ -256,6 +256,31 @@ def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[Insta
         size = m.get("size")
         out.append(InstalledModel(name=name, size_gb=size / 1e9 if isinstance(size, (int, float)) else None))
     return out
+
+
+def probe_installed_models(base_url: str, *, timeout: float = 3.0) -> list[InstalledModel]:
+    """Ask Ollama (at ``base_url``) which models are pulled, via `/api/tags`. Returns [] if
+    Ollama isn't running or the response is unreadable -- never raises."""
+    try:
+        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as r:
+            data = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return []
+    return _parse_tags(data)
+
+
+def probe_ollama(base_url: str, *, timeout: float = 3.0) -> tuple[bool, list[InstalledModel]]:
+    """``(reachable, installed-models)``. Unlike :func:`probe_installed_models` (which returns []
+    for both a down server AND an up-but-empty one), this distinguishes the two: ``reachable`` is
+    True whenever Ollama answered `/api/tags`, even with no models. Used by the Settings model-status
+    so the UI can tell "not running" (start Ollama) apart from "running, model not pulled" (get the
+    model). Never raises."""
+    try:
+        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as r:
+            data = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return False, []
+    return True, _parse_tags(data)
 
 
 # --- the pure decision (unit-tested without the machine) -------------------------

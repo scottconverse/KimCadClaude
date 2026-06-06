@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import PhotoOnramp from './PhotoOnramp'
 
 // The landing (empty) screen. Wired in Slice 3: the textarea + "Design it" submit a prompt,
-// and clicking an example submits it directly. The photo on-ramp is a later stage and is
-// intentionally absent.
+// and clicking an example submits it directly. Stage 8.5 Slice 7 adds the "describe with a photo"
+// on-ramp (Surface D) as a secondary affordance beside the text box — text stays the primary path.
 const EXAMPLES = [
   'a wall-mounted holder for a 1 kg filament spool',
   'a 40 mm desk cable clip',
@@ -39,12 +40,12 @@ export default function Landing({
       <div className="kc-landing-inner">
         <span className="kc-badge">
           <span className="kc-badge-dot" aria-hidden="true" />
-          No CAD skills needed · runs entirely on your machine
+          Ready to print in ~15 minutes · no CAD skills
         </span>
         <h1 className="kc-hero-title">What do you want to make today?</h1>
         <p className="kc-hero-sub">
           Describe a functional part in plain words — I&rsquo;ll design it, check that it&rsquo;s
-          actually printable, and get it ready for your printer.
+          actually printable, and get it ready for your printer. Runs entirely on your machine.
         </p>
 
         <form className="kc-input-card" onSubmit={submit}>
@@ -66,6 +67,10 @@ export default function Landing({
             <SendGlyph />
           </button>
         </form>
+
+        {/* Slice 7: the photo on-ramp — a rough, editable seed from a local-vision read of a photo.
+            Secondary to the text path; it pre-fills the same design flow. */}
+        <PhotoOnramp onSeed={onSubmit} disabled={busy} variant="landing" />
 
         <div className="kc-examples">
           <span className="kc-examples-label">Try</span>

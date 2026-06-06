@@ -1,6 +1,94 @@
-# KimCad — Handoff (2026-06-02 — Stage 7 DONE: Smart Mesh + PrintProof3D + readiness report + learning store, merged to `main` + tagged `stage-7`; Stage 8 (CadQuery) next)
+# KimCad — Handoff (2026-06-05 — Stage 8.5 (Usability) DONE: merged to `main` + tagged `stage-8.5` (stage gate clean 0/0/0/0/0 across all 5 lanes + wiring-audit PASS). Stages 0–8.5 tagged.)
+
+## ▶ RESUME HERE (5-line orientation) — THIS BOX + the RUN-LEDGER are the SINGLE SOURCE OF TRUTH
+- **Where:** `main` is tagged `stage-0`…`stage-7` **and `stage-8.5`** (Stage 8.5 merged). Forward build resumes on a fresh branch off `main`.
+- **What's done:** Stage 8.5 (all 11 slices) — gate clean 0/0/0/0/0 across all 5 audit lanes + wiring-audit PASS, merged + tagged.
+- **Active task:** (Phase B) backfill the owed wiring-audits + audit-teams on shipped stages 0–7; then (Phase C) build Stages 8 → 9 → 10 → 11 to the beta. Tracker: `docs/audits/RUN-LEDGER-2026-06-05.md`.
+- **Audit lanes are where real bugs surface** (Scott's directive): run `/wiring-audit` (UI stages) + `/audit-team` for real via independent agents on every stage; fix EVERY finding → 0/0/0/0/0.
+- **Rules:** per-slice audit-lite + stage gate (audit-team + wiring-audit) → 0/0/0/0/0 → merge → tag; real skills via independent agents; evidence committed; don't stop except a catastrophic break or a Scott-only decision.
+
+> ⚠ **The slice-by-slice narrative below is HISTORICAL build-log detail** (written through Slice 9/10
+> and not line-by-line current — stale SHAs, "RESUME = Slice 10", "Slice 9 MS-x REMAINING", etc.). For
+> current state use the RESUME box above + `docs/audits/RUN-LEDGER-2026-06-05.md`. The detail is kept
+> for provenance; do not treat its resume pointers as live.
 
 ## ⛔ READ FIRST
+
+- **🔧 STAGE 8.5 (Usability) IN PROGRESS — branch `stage-8.5-usability`** (off `main`/`stage-7`).
+  **= make the working core loop actually usable; 8.5-first, BEFORE the Stage 8 CadQuery backend**
+  (ratified by Scott 2026-06-03; spec Addendum B + design README addendum + `docs/stage-8.5-usability-plan.md`).
+  A code review of the shipped SPA found deal-killers: all in-memory (refresh wipes the part), no
+  saved-designs library, no in-workspace refinement (the "conversation" is one-shot; can't even
+  answer a clarifying question), no settings screen, mm-only, problems shown as text not on the
+  model, no progress on long model runs / no model-down recovery. **Slices** (each `audit-lite`
+  0/0/0/0/0 + a RENDERED desktop+mobile check; stage-end `audit-team` → merge → tag): (1) persistence
+  + "My Designs"; (2) refinement + version history (build the prototype's `VersionRail`); (3) numeric
+  editing; (4) units mm/inch; (5) settings + engine discoverability (`ModelPicker`); (6) problems on
+  the model (viewport raycast/highlight); (7) onboarding/model-down/progress/help (`FirstRunWizard`);
+  (8) output clarity + preview; (9) responsive/a11y/copy/polish. **Several surfaces are ALREADY
+  DESIGNED in the prototype** (`docs/design/prototype/jsx/`: `VersionRail`, `FirstRunWizard`,
+  `ModelPicker`, viewport raycast) — build to those. **RESUME HERE = Stage 8.5, Slice 11
+  (responsive/a11y/copy/polish). Slices 9 and 10 are COMPLETE.** **Slice 10 (output clarity +
+  print preview, commit `7fc5415`) is DONE + pushed:** the sliced result now shows a broken-out
+  estimate (print time / layers / filament length + weight) as labeled stats instead of one blob,
+  a "your design → sliced → print file ready" framing, the print file named with a copy-the-link
+  affordance, and the export formats spelled out (STL model + `.3mf` print file; STEP/BREP noted as
+  arriving with the CAD engine). Backend parses filament weight from the G-code (Prusa/Elegoo
+  `filament used [g] = N` + Bambu `total filament weight [g] : N`) and returns a structured
+  `estimate_detail` + `gcode_filename` on `/api/slice`. **A RENDERED check caught a real gap:** the
+  shipped Bambu P2S filament profile reports `filament_density=0`, so OrcaSlicer emits volume but no
+  grams — so `Material` gained a nominal `density` (config), and KimCad estimates weight = volume ×
+  density when the profile reports none, flagged `filament_g_estimated` and labeled "estimated" in
+  the UI (never a fabricated 0 g; zero-volume guarded at both layers). A true G-code layer viewer is
+  deliberately deferred to Stage 10's direct-print UI (the plan sanctions the clearer-framing option
+  here). audit-lite (independent) → 1 Major + 1 Minor + 1 Nit (stale API-contract doc; zero-volume
+  honesty edge; missing guard test) → all fixed → independent re-audit 0/0/0/0/0; gate-green push
+  (761 pytest incl. live + 231 vitest, build reproducible). Slice 9's micro-slices: MS-1
+  (model-down wall), MS-2 (in-app help/glossary), MS-3
+  (real step progress), MS-4 (first-run wizard), each audit-lite + independent re-audit → 0/0/0/0/0
+  and CI-green-pushed. **The "empty/loading/error-state copy sweep" item is satisfied:** those
+  states were built + audited comprehensively as each slice shipped (ChatPanel empty-thread/error/
+  Try-again; ExportPanel empty/slice-error/gate-failed; MyDesigns empty/load-error/per-card-error;
+  RightPanel placeholders + failed-attempt notes; Viewport busy/restoring/error/phase overlays;
+  FirstRunWizard model + settings errors; ConnectorStatus silent-on-failure by design) — a 2026-06-05
+  sweep verified them all present + plain-English. Broader copy/tone polish folds into **Slice 11
+  (responsive/a11y/copy/polish)** — the LAST slice before the gate. After Slice 11 → the Stage 8.5
+  gate (`audit-team` + `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`). **Defer to the
+  stage-merge:** the Stage 8.5 CHANGELOG block (batch-at-merge, as for Slices 8–10). MS-4 (first-run wizard) is DONE + pushed: `frontend/src/components/FirstRunWizard.tsx` — a 5-step modal
+  (Welcome → Your AI model → Your printer → Direct printing → Ready) wired to the existing
+  `/api/settings` + `/api/model-status` endpoints; **gemma4:e4b is THE model (never qwen)**; honest
+  download-vs-connect-later step; NO model-pull/SmartScreen (those are Stage 11). First-run gating =
+  the `localStorage` flag `kc-first-run-done` (read in `App.tsx`; "Start designing"/"Skip setup"/Esc
+  set it). Focus-trapped accessible dialog. audit-lite + independent re-audit → 0/0/0/0/0. MS-2 (in-app help/glossary
+  "(i)" tips — `frontend/src/glossary.ts` + `components/InfoTip.tsx`, wired onto
+  Readiness/Confidence/Risks/Recommendations/Printability/Gate) and MS-3 (real step progress —
+  pipeline phase callback `planning→generating→rendering→validating` → `GET /api/design/progress/<id>`
+  poll → the busy-screen phase label + 4-dot stepper; `frontend/src/designPhase.ts`) are DONE +
+  pushed, each audit-lite + independent re-audit to 0/0/0/0/0. Slices 1–8 plus Slice 9 MS-1 are built
+  on branch `stage-8.5-usability` and gated: Slice 1, the Slice 2–4 batch, Slice 6, and **Slice 7
+  (the photo on-ramp — MS-1 backend + MS-2 UI)** each passed their full `audit-team` (Slices 2–4 and
+  Slice 7 also a `wiring-audit`); Slice 5 was design-only (the three advanced on-ramps + the trust
+  rules, approved by Scott). **Slice 8 (problems ON the model — viewport raycast/highlight, commit
+  `391c89c`)** and **Slice 9 MS-1 (the model-down wall — Ollama-unreachable → recoverable + one-click
+  Try-again, commit `12a9686`)** each passed the real `audit-lite` to 0/0/0/0/0 with a CI-green push.
+  **Slice 9 micro-slices REMAINING:** MS-2 in-app help/glossary (frontend-only — plain-language
+  tooltips for gate/readiness/manifold/slice/overhang on the RightPanel card titles); MS-3 real step
+  progress (planning→generating→rendering→validating — **NEEDS backend progress events**, a larger
+  change); MS-4 first-run wizard (`FirstRunWizard` — detect Ollama, pull the model with progress,
+  pick a printer); plus an empty/loading/error-state copy sweep. (The escape-paths elapsed-timer +
+  Cancel overlay already shipped, pulling some "progress on long runs" scope forward.) Then **Slice
+  10** (output clarity + print preview) and **Slice 11** (responsive/a11y/copy/polish), then the
+  **Stage 8.5 stage gate: `audit-team` AND `wiring-audit` → 0/0/0/0/0 → merge → tag `stage-8.5`.**
+  Branch head `12a9686`, working tree clean, synced with `origin/stage-8.5-usability`. **Plus an
+  ESCAPE-PATHS stage inserted ahead of Slice 8** (after Scott hit an unkillable "Designing…" screen):
+  every blocking action (design, photo read, slice, import) is now cancelable — `audit-team` +
+  `wiring-audit` gated 0/0/0/0/0; load-bearing rule captured in
+  [feedback_escape_path_everywhere](memory). **Slice 7 + the escape stage are gated and pending
+  Scott's walkthrough.** (Some "real progress on long runs" scope was pulled forward from Slice 9
+  here.) The plan was RENUMBERED 2026-06-03 — the on-ramps design is Slice 5, so settings became
+  Slice 6 and the photo on-ramp is Slice 7 (was "8" in the old prototype list above).
+  NOT merged/tagged — that's Scott's authorization. CadQuery (Stage 8) is feasibility-proven (CadQuery
+  2.7 + OCCT on 3.13, arm's-length subprocess worker — the main venv is 3.14) but comes AFTER 8.5.
 
 - **✅ STAGE 7 IS DONE — merged to `main` and tagged `stage-7`** (the tag advanced past the merge to the
   docs-DONE commit so the tagged artifact's docs say "done"). All 6 slices passed `audit-lite` 0/0/0/0/0;
@@ -8,7 +96,7 @@
   fixed with a lock + atomic write) was remediated to **0/0/0/0/0**
   (`docs/audits/stage-7/audit-team-stage-7-2026-06-02/`). The deterministic slice gate is unchanged
   (readiness is advisory); PrintProof3D is optional/off-by-default; nothing leaves the machine.
-  **RESUME HERE = Stage 8 (CadQuery parallel backend).** Do NOT re-run the Stage 7 gate.
+  Do NOT re-run the Stage 7 gate. (RESUME is now Stage 8.5 — see the top bullet.)
   The historical Stage-7 build notes (slice plan + PrintProof3D contract) are retained below for reference.
 
 - **✅ PrintProof3D relationship — current truth (post-Stage-7, this session):** (1) During a post-stage
@@ -227,14 +315,25 @@ docs-consistency commit** so the tagged artifact carries the corrected docs rath
 contradictory ones. The `stage-4` tag and the `main` head are therefore the same commit (verify:
 `git rev-parse stage-4` == `git rev-parse main`); `dcbcd1a` remains the merge commit for provenance.
 
-**Backend API contract (the unchanged seam the SPA wires to):** `POST /api/design` {prompt} →
-{status, clarification?, plan{object_type,summary,target_bbox_mm}, report{gate_status,headline,dims,
-findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>` (STL/3MF); `POST /api/slice/<id>`
-{printer,material} → {sliced,reason?,estimate,gcode_url?}; `GET /api/gcode/<id>`; `GET /api/options`;
-`GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}. The
-server reads `web/index.html` at startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API.
-Browser **send** is intentionally NOT wired in the SPA (it's Stage 10) — the web UI is status +
-slice + download; the CLI (`--send`) and MCP are the send paths today.
+**Backend API contract — AUTHORITATIVE LIST IS `ARCHITECTURE.md` (kept current per stage).** The
+SPA seam GREW substantially across Stages 5–8.5; this block is a summary, not the full enumeration —
+read `ARCHITECTURE.md` for the complete, current route list. Core design/slice/send seam:
+`POST /api/design` {prompt} → {status, clarification?, plan{object_type,summary,target_bbox_mm},
+report{gate_status,headline,dims,findings,...}, error?, has_mesh, mesh_url?}; `GET /api/mesh/<id>`
+(STL/3MF); `POST /api/slice/<id>` {printer,material} → {sliced,reason?,estimate,estimate_detail{time,
+layers,filament_mm,filament_cm3,filament_g,filament_g_estimated}?,gcode_url?,gcode_filename?} (Slice
+10: `estimate_detail` is the structured breakout; weight is volume×material-density when the profile
+reports none, flagged `filament_g_estimated`); `GET /api/gcode/<id>`; `GET /api/options`;
+`GET /api/connectors`; `GET /api/connector-status/<name>`; `POST /api/send/<id>` {connector}.
+**Added Stage 5–8.5 (also in ARCHITECTURE.md):** `POST /api/render/<id>` (deterministic live-slider
+re-render, no model call); the `/api/designs*` family (list / reopen `<id>` / thumb / save / import /
+export / rename / delete / duplicate — local persistence + "My Designs"); `GET /api/settings` +
+`POST /api/settings` (defaults/units/cloud-opt-in/experimental; key masked, never echoed);
+`GET /api/model-status`; `GET /api/health`; `GET /api/design/progress/<job_id>` (the step-progress
+poll); `POST /api/photo-seed` (local-vision photo on-ramp). The server reads `web/index.html` at
+startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API. Browser **send** is intentionally
+NOT wired in the SPA (it's Stage 10) — the web UI is status + slice + download; the CLI (`--send`)
+and MCP are the send paths today.
 
 ---
 

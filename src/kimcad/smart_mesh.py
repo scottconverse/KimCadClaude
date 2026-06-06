@@ -44,6 +44,9 @@ class PrintProofIssue:
     severity: str  # one of _PP_SEVERITIES
     suggested_fixes: tuple[str, ...] = ()
     region: str | None = None  # e.g. "base", "overhang"
+    # Slice 8: the issue's location geometry (sanitized {type: point|bounding_box|triangles, ...})
+    # so the viewport can highlight WHERE the problem is. None when the engine gave no geometry.
+    geometry: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,11 @@ class Risk:
     title: str
     detail: str
     tone: str  # "fail" | "warn" — drives the card's red/amber treatment
+    # Slice 8: when this risk came from a PrintProof3D issue with a location, these let the UI
+    # highlight it on the model and click-to-focus it. None for gate-derived risks (no geometry).
+    issue_id: str | None = None
+    region: str | None = None
+    geometry: dict | None = None
 
 
 @dataclass
@@ -144,7 +152,10 @@ def assess_readiness(
             score -= _PP_PENALTY.get(issue.severity, 5)
             tone = _PP_RISK_TONE.get(issue.severity)
             if tone is not None:  # blocker/critical/major/minor surface; "nit" doesn't
-                risks.append(Risk(_humanize_pp_id(issue.id), issue.message, tone))
+                risks.append(Risk(
+                    _humanize_pp_id(issue.id), issue.message, tone,
+                    issue_id=issue.id, region=issue.region, geometry=issue.geometry,
+                ))
             recommendations.extend(issue.suggested_fixes)
 
     score = max(0, min(100, score))

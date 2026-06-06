@@ -29,6 +29,7 @@ _GCODE = (
     "; total layer number: 100\n"
     "; filament used [mm] = 2582.09\n"
     "; filament used [cm3] = 6.21\n"
+    "; filament used [g] = 7.62\n"
     "; model printing time: 14m 31s; total estimated time: 14m 45s\n"
     "G28\n"
     "G1 Z0.2 F300\n"
@@ -328,8 +329,55 @@ def test_prove_gcode_accepts_real_toolpath(tmp_path):
     assert proof.layer_count == 100
     assert proof.filament_mm == 2582.09
     assert proof.filament_cm3 == 6.21
+    assert proof.filament_g == 7.62
     summary = proof.estimate_summary()
-    assert "14m 45s" in summary and "100 layers" in summary and "6.21 cm3" in summary
+    # weight is the friendliest filament figure, so the summary leads with grams (and the cm3
+    # is superseded — not appended twice).
+    assert "14m 45s" in summary and "100 layers" in summary and "7.6 g" in summary
+    assert "cm3" not in summary
+    # the structured breakout carries every field for the UI to lay out as labeled stats
+    detail = proof.estimate_detail()
+    assert detail == {
+        "time": "14m 45s",
+        "layers": 100,
+        "filament_mm": 2582.09,
+        "filament_cm3": 6.21,
+        "filament_g": 7.62,
+    }
+
+
+def test_prove_gcode_parses_bambu_weight_wording(tmp_path):
+    # Bambu profiles spell the weight differently ("total filament weight [g] : N") — the
+    # estimate must still pick it up so Kim's Bambu P2S reports a weight, not a blank.
+    p = tmp_path / "bambu.gcode.3mf"
+    _write_gcode_3mf(
+        p,
+        gcode=(
+            "; total layer number: 42\n"
+            "; total filament weight [g] : 12.30\n"
+            "G1 X1 Y1 E0.1\n"
+        ),
+    )
+    proof = prove_gcode_3mf(p)
+    assert proof.filament_g == 12.30
+    assert proof.layer_count == 42
+    assert "12.3 g" in proof.estimate_summary()
+
+
+def test_estimate_detail_omits_unreported_fields(tmp_path):
+    # A profile that emits no estimate lines yields an all-None detail (the UI shows no rows
+    # rather than fabricated zeros) and an empty summary.
+    p = tmp_path / "bare.gcode.3mf"
+    _write_gcode_3mf(p, gcode="G1 X1 Y1 E0.1\nG1 X2 Y2 E0.2\n")
+    proof = prove_gcode_3mf(p)
+    assert proof.estimate_detail() == {
+        "time": None,
+        "layers": None,
+        "filament_mm": None,
+        "filament_cm3": None,
+        "filament_g": None,
+    }
+    assert proof.estimate_summary() == ""
 
 
 def test_prove_gcode_rejects_non_zip(tmp_path):

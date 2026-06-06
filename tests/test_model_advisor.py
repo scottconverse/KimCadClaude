@@ -48,11 +48,12 @@ def test_fits_gates_on_ram_for_local_and_always_true_for_cloud():
 # --- recommend(): the pure decision ----------------------------------------------
 
 def test_recommends_the_best_installed_model_that_fits():
-    # Roomy box, the 7B is installed and fits -> it's the pick, and it IS installed.
+    # ENG-006: gemma4:e4b is THE model (top local tier), so even with a rejected Qwen installed
+    # alongside it, gemma4 is the pick — the advisor never recommends Qwen over gemma4.
     rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b", "gemma4:e4b"))
-    assert rec.primary.name == "qwen2.5-coder:7b"
+    assert rec.primary.name == "gemma4:e4b"
     assert rec.installed is True
-    assert rec.upgrade is None  # nothing higher fits
+    assert rec.upgrade is None  # gemma4 is the top local tier; nothing higher to pull
 
 
 def test_recommends_installed_model_and_names_an_upgrade_the_box_could_run():
@@ -99,14 +100,16 @@ def test_no_non_china_alternative_when_primary_is_already_non_china():
     assert rec.non_china_alternative is None
 
 
-def test_non_china_escape_prefers_an_installed_option():
-    # China-origin primary (7B); gemma (non-China, installed) is preferred over llama (higher
-    # tier but not installed) so the escape is usable right now, and flagged installed.
-    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b", "gemma4:e4b"))
-    assert rec.primary.non_china is False
+def test_non_china_escape_names_gemma_when_only_a_china_model_is_installed():
+    # ENG-006: with gemma4:e4b the top tier, a China model is the primary ONLY if it's the lone
+    # install. In that case the non-China escape steers the user to gemma4:e4b — THE model — as the
+    # alternative to pull. (Installing gemma alongside Qwen instead makes gemma the primary; see
+    # test_recommends_the_best_installed_model_that_fits.)
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b"))
+    assert rec.primary.non_china is False  # only the deprioritized Qwen is installed
     assert rec.non_china_alternative is not None
     assert rec.non_china_alternative.name == "gemma4:e4b"
-    assert rec.non_china_installed is True
+    assert rec.non_china_installed is False
 
 
 def test_cloud_is_never_primary_when_a_local_model_fits_and_is_installed():

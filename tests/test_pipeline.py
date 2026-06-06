@@ -9,7 +9,7 @@ from kimcad.pipeline import Pipeline, PipelineStatus
 
 # TEST-007: FakeProvider, the box renderer, and BAMBU/PLA are hoisted into conftest.py
 # and shared with test_webapp.py. The local aliases keep every test body below unchanged.
-from conftest import BAMBU, PLA, FakeProvider
+from conftest import BAMBU, PLA, FakeProvider, make_plan
 from conftest import box_renderer as _box_renderer
 
 
@@ -158,6 +158,28 @@ def test_open_questions_dont_block_a_sized_plan(tmp_path):
     provider = FakeProvider(_plan([20, 20, 20], open_questions=["What screw size?"]))
     renderer, _ = _box_renderer((20, 20, 20))
     result = _pipeline(provider, renderer).run("a block", tmp_path)
+
+    assert result.status is PipelineStatus.completed
+    assert provider.openscad_calls >= 1
+
+
+def test_experimental_gate_offers_when_disallowed(tmp_path):
+    # Slice 6 MS-4: a non-template request with allow_experimental=False returns the offer
+    # (needs_experimental) and never calls the codegen model — no dead-end, no auto-run.
+    provider = FakeProvider(_plan([20, 20, 20]))  # object_type "block" -> non-template
+    renderer, _ = _box_renderer((20, 20, 20))
+    result = _pipeline(provider, renderer).run("a topo coaster", tmp_path, allow_experimental=False)
+
+    assert result.status is PipelineStatus.needs_experimental
+    assert provider.openscad_calls == 0  # codegen never ran
+    assert result.plan is not None  # the plan is kept (so the offer can name what was asked)
+
+
+def test_experimental_allowed_runs_codegen(tmp_path):
+    # The same request WITH experimental allowed (the default) runs codegen and completes.
+    provider = FakeProvider(_plan([20, 20, 20]))
+    renderer, _ = _box_renderer((20, 20, 20))
+    result = _pipeline(provider, renderer).run("a topo coaster", tmp_path, allow_experimental=True)
 
     assert result.status is PipelineStatus.completed
     assert provider.openscad_calls >= 1
@@ -464,3 +486,44 @@ def test_successful_slice_recorded_in_report(tmp_path):
     assert "G-code produced" in text
     assert "0.20mm Standard @BBL P2S" in text  # resolved profile shown to the user
     assert "Estimate:" in text and "14m 45s" in text  # print estimate surfaced
+
+
+def test_is_model_unreachable_detects_connection_and_timeout_by_name():
+    # The web layer's duck-typed detector: matches the OpenAI client's connection/timeout errors
+    # by class name (so the pipeline needn't import openai), and nothing else.
+    from kimcad.pipeline import _is_model_unreachable
+
+    assert _is_model_unreachable(type("APIConnectionError", (Exception,), {})())
+    assert _is_model_unreachable(type("APITimeoutError", (Exception,), {})())
+    assert not _is_model_unreachable(ValueError("a real bug"))
+    assert not _is_model_unreachable(RuntimeError("something else"))
+
+
+# MS-3 — the design run reports its coarse phase so a multi-minute local run can show progress.
+def test_run_reports_progress_phases_in_order(tmp_path):
+    # object_type "block" matches no template, so this walks the full LLM path.
+    render, _ = _box_renderer((20, 20, 20))
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(make_plan([20, 20, 20])), renderer=render)
+    phases: list[str] = []
+    pipe.run("a 20mm block", tmp_path, progress=phases.append)
+    assert phases == ["planning", "generating", "rendering", "validating"]
+
+
+def test_run_progress_emits_extra_generate_render_on_a_retry(tmp_path):
+    # A first render failure feeds back to the model and retries — the progress stream reflects the
+    # extra generate+render pass, so the UI doesn't look stuck during a retry.
+    render, _ = _box_renderer((20, 20, 20), fail_times=1)
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(make_plan([20, 20, 20])), renderer=render)
+    phases: list[str] = []
+    pipe.run("a block", tmp_path, progress=phases.append)
+    assert phases == [
+        "planning", "generating", "rendering", "generating", "rendering", "validating",
+    ]
+
+
+def test_run_without_progress_callback_is_unaffected(tmp_path):
+    # The callback is optional — omitting it must not change the result (backward compatible).
+    render, _ = _box_renderer((20, 20, 20))
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(make_plan([20, 20, 20])), renderer=render)
+    result = pipe.run("a 20mm block", tmp_path)
+    assert result.status is PipelineStatus.completed

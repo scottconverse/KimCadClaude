@@ -11,6 +11,7 @@ from kimcad.config import Config
 from kimcad.pipeline import Pipeline
 from kimcad.webapp import (
     DemoProvider,
+    _estimate_detail_with_weight,
     design_response,
     make_handler,
     slice_registered_mesh,
@@ -227,7 +228,7 @@ def test_malformed_content_length_is_clean_400(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         status, body = _post_with_raw_length(host, port, "not-a-number")
     assert status == 400
-    assert b"invalid request body" in body.lower()
+    assert b"valid json" in body.lower()
 
 
 class _MeshPipeline:
@@ -501,6 +502,16 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
         assert sdata["gcode_lines"] > 100
         assert sdata["estimate"]  # print estimate surfaced to the UI
         assert sdata["profiles"]["process"] == "0.20mm Standard @BBL P2S"
+        # Slice 10: the structured breakout reaches the UI (layer count + a filament weight),
+        # and the print file carries a recognizable .gcode.3mf name. The shipped Bambu PLA
+        # profile reports filament_density=0, so the slicer emits no grams — KimCad fills the
+        # weight from the reported volume × the material's nominal density and flags it estimated.
+        detail = sdata["estimate_detail"]
+        assert detail is not None
+        assert detail["layers"] and detail["layers"] > 0
+        assert detail["filament_g"] and detail["filament_g"] > 0
+        assert detail["filament_g_estimated"] is True
+        assert sdata["gcode_filename"].endswith(".gcode.3mf")
         gcode_url = sdata["gcode_url"]
 
         # ENG-003: an identical re-confirm is served from cache, same proven result.
@@ -835,7 +846,7 @@ def test_non_dict_json_body_is_clean_400(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         status, body = _post_with_raw_length(host, port, len(b"[1,2,3]"), body=b"[1,2,3]")
     assert status == 400
-    assert b"invalid request body" in body.lower()
+    assert b"json object" in body.lower()
 
 
 def test_non_string_prompt_is_400(tmp_path):
@@ -1046,6 +1057,100 @@ def test_slice_is_idempotent_one_real_slice_per_key(tmp_path, monkeypatch):
     assert d1["gcode_url"] == d2["gcode_url"]
 
 
+def test_slice_response_carries_structured_estimate_and_filename(tmp_path, monkeypatch):
+    """Slice 10: the slice HTTP response forwards the structured estimate breakout and the
+    print file's name, so the SPA can lay out labeled stats + name the download (offline)."""
+    import json
+    import urllib.request
+
+    import kimcad.webapp as webapp_mod
+
+    detail = {
+        "time": "1h 12m",
+        "layers": 84,
+        "filament_mm": 3120.0,
+        "filament_cm3": 7.5,
+        "filament_g": 9.3,
+    }
+
+    def stub_slice(config, mesh_path, printer, material):
+        gp = mesh_path.parent / "part_bambu_p2s_pla.gcode.3mf"
+        gp.write_bytes(b"PKfake")
+        return (
+            {"sliced": True, "printer": printer, "material": material, "gcode_lines": 9,
+             "estimate": "~1h 12m, 84 layers, 9.3 g filament", "estimate_detail": detail,
+             "profiles": {"machine": "m", "process": "p", "filament": "f"}},
+            gp,
+        )
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub_slice)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        s = json.load(urllib.request.urlopen(
+            urllib.request.Request(
+                base + f"/api/slice/{rid}",
+                data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=30))
+    assert s["estimate_detail"] == detail
+    assert s["gcode_filename"] == "part_bambu_p2s_pla.gcode.3mf"
+
+
+class _FakeProof:
+    def __init__(self, detail):
+        self._d = detail
+
+    def estimate_detail(self):
+        return dict(self._d)
+
+
+class _Mat:
+    def __init__(self, density):
+        self.density = density
+
+
+def test_weight_estimated_from_volume_when_slicer_emits_none():
+    # Slice 10: the profile reported no grams (filament_density=0) but did report volume, so
+    # KimCad estimates weight from cm³ × the material's nominal density and flags it estimated.
+    proof = _FakeProof(
+        {"time": "1h", "layers": 100, "filament_mm": 5000.0, "filament_cm3": 10.0,
+         "filament_g": None}
+    )
+    detail = _estimate_detail_with_weight(proof, _Mat(1.24))
+    assert detail["filament_g"] == 12.4
+    assert detail["filament_g_estimated"] is True
+
+
+def test_weight_prefers_slicer_grams_when_present():
+    # When the slicer DID compute grams (profile carried a real density), use them as-is.
+    proof = _FakeProof(
+        {"filament_mm": None, "filament_cm3": 10.0, "filament_g": 11.0}
+    )
+    detail = _estimate_detail_with_weight(proof, _Mat(1.24))
+    assert detail["filament_g"] == 11.0
+    assert detail["filament_g_estimated"] is False
+
+
+def test_weight_omitted_when_no_density_or_no_volume():
+    # No density → can't estimate; no volume → nothing to estimate from. Either way: no grams,
+    # not a fabricated zero.
+    no_density = _estimate_detail_with_weight(
+        _FakeProof({"filament_cm3": 10.0, "filament_g": None}), _Mat(None)
+    )
+    assert no_density["filament_g"] is None and no_density["filament_g_estimated"] is False
+    no_vol = _estimate_detail_with_weight(
+        _FakeProof({"filament_cm3": None, "filament_g": None}), _Mat(1.24)
+    )
+    assert no_vol["filament_g"] is None and no_vol["filament_g_estimated"] is False
+    # A degenerate zero-volume slice must NOT derive a "0.0 g (estimated)" — stays honestly None.
+    zero_vol = _estimate_detail_with_weight(
+        _FakeProof({"filament_cm3": 0.0, "filament_g": None}), _Mat(1.24)
+    )
+    assert zero_vol["filament_g"] is None and zero_vol["filament_g_estimated"] is False
+
+
 def test_slice_unexpected_error_is_clean_500(tmp_path, monkeypatch):
     """NEW-4: the slice-side except-Exception guard returns a clean 500 (no traceback)."""
     import json
@@ -1223,7 +1328,8 @@ def test_render_endpoint_unknown_id_is_design_not_found(tmp_path):
     with _serve(pipe, tmp_path) as (host, port):
         status, body = _req_json(host, port, "POST", "/api/render/999999", {"values": {"width": 50}})
     assert status == 404
-    assert "not found" in body["error"].lower()
+    # QA-003: wording unified with the reopen handler ("That design couldn't be found.").
+    assert "couldn't be found" in body["error"].lower()
     assert "no adjustable parameters" not in body["error"]
 
 
@@ -1329,6 +1435,114 @@ def test_rerender_invalidates_a_cached_slice(tmp_path, monkeypatch):
     assert calls["n"] == 2, "re-render must invalidate the cached slice, forcing a re-slice"
 
 
+def test_a_slice_that_finishes_after_a_rerender_is_dropped_as_stale(tmp_path, monkeypatch):
+    # ENG-001: a re-render landing WHILE a slice is in flight (the two use different locks) makes
+    # that slice's geometry stale. The stub slicer simulates the interleave by firing a re-render
+    # for the same id mid-slice (bumping the geometry version, clearing the cache) before returning
+    # its g-code; the slice must then respond sliced:false reason:stale and register NO g-code, so
+    # the old shape can never be downloaded or sent.
+    import kimcad.webapp as webapp_mod
+    where = {}
+
+    def _fake_slice(config, mesh_path, printer, material):
+        rid = int(mesh_path.parent.name)
+        gp = mesh_path.parent / "part.gcode.3mf"
+        gp.write_bytes(b"PK\x03\x04")
+        # A concurrent re-render lands now.
+        _req_json(where["host"], where["port"], "POST", f"/api/render/{rid}",
+                  {"values": {"width": 90, "depth": 70, "height": 50, "wall": 2}})
+        return {"sliced": True}, gp
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", _fake_slice)
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()))  # real renderer
+    with _serve(pipe, tmp_path) as (host, port):
+        where["host"], where["port"] = host, port
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        _s, s = _req_json(host, port, "POST", f"/api/slice/{rid}",
+                          {"printer": "bambu_p2s", "material": "pla"})
+        # The stale slice is refused and left unregistered.
+        assert s.get("sliced") is False and s.get("reason") == "stale", s
+        assert "gcode_url" not in s
+        g_status, _ = _req_json(host, port, "GET", f"/api/gcode/{rid}", None)
+        assert g_status == 404, "no g-code should be registered for the stale slice"
+
+
+def test_regate_mesh_rederives_fail_for_an_oversized_mesh(tmp_path):
+    # ENG-002: re-gating is independent of any stored verdict — an oversized mesh re-derives "fail"
+    # even if a tampered .kimcad claimed gate_status "pass", so it can't become sliceable on reopen.
+    import trimesh
+
+    from kimcad.webapp import _regate_mesh
+
+    cfg = Config.load()
+    big = tmp_path / "big.stl"
+    trimesh.creation.box(extents=(300.0, 60.0, 40.0)).export(big)  # 300mm > 256mm Bambu build
+    plan = _box_plan(width=300, depth=60, height=40, wall=2).model_dump()
+    assert _regate_mesh(cfg, big, plan) == "fail"
+
+
+def test_regate_mesh_passes_in_bounds_and_returns_none_on_error(tmp_path):
+    # ENG-002: an in-bounds watertight mesh re-gates non-fail; an unreadable mesh / missing plan
+    # returns None so the caller falls back to the stored value (never false-fails a real reopen).
+    import trimesh
+
+    from kimcad.webapp import _regate_mesh
+
+    cfg = Config.load()
+    small = tmp_path / "small.stl"
+    trimesh.creation.box(extents=(50.0, 40.0, 30.0)).export(small)
+    plan = _box_plan(width=50, depth=40, height=30, wall=2).model_dump()
+    assert _regate_mesh(cfg, small, plan) != "fail"
+    assert _regate_mesh(cfg, tmp_path / "nope.stl", plan) is None
+    assert _regate_mesh(cfg, small, None) is None
+
+
+def test_render_flags_adjusted_params_when_values_are_clamped(tmp_path):
+    # QA-001 / RTEST-005: an out-of-range render value is clamped and the response flags it; an
+    # in-range value produces no flag (so a raw API client knows when its input was changed).
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        _s, clamped = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": 99999}})
+        assert "adjusted_params" in clamped
+        assert "width" in [a["name"] for a in clamped["adjusted_params"]]
+        _s, ok = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": 100}})
+        assert "adjusted_params" not in ok
+
+
+def test_demo_gatefail_scenario_offers_experimental_then_gate_fails(tmp_path):
+    # QA-002 / RTEST-006: the demo:gatefail prompt routes to a non-template part (needs_experimental,
+    # an OFFER not an auto-run); running it experimental emits an oversized cube whose mesh FAILS the
+    # gate, and /api/slice then refuses it — so the gate-failed state is reachable in the live demo
+    # AND still correctly refused. Uses the real OpenSCAD renderer (present in the supported env).
+    from kimcad.config import Config
+
+    pipe = Pipeline(Config.load(), BAMBU, PLA, DemoProvider())
+    with _serve(pipe, tmp_path) as (host, port):
+        # The SPA always sends experimental:false, so a template miss is OFFERED, not auto-run.
+        _s, offer = _req_json(
+            host, port, "POST", "/api/design", {"prompt": "demo:gatefail", "experimental": False}
+        )
+        assert offer["status"] == "needs_experimental"  # offered, never auto-run
+        # Opting in (the "Try the experimental generator" button) runs it -> the oversized cube fails.
+        _s, e = _req_json(
+            host, port, "POST", "/api/design", {"prompt": "demo:gatefail", "experimental": True}
+        )
+        rid = int(e["mesh_url"].rsplit("/", 1)[-1])
+        assert e["report"]["gate_status"] == "fail"  # the 300mm cube exceeds the build plate
+        _s, sl = _req_json(
+            host, port, "POST", f"/api/slice/{rid}", {"printer": "bambu_p2s", "material": "pla"}
+        )
+        assert sl["sliced"] is False and sl["reason"] == "gate_failed"
+        # A default demo prompt is still a clean, gate-passing box (the template path).
+        _s, ok = _req_json(
+            host, port, "POST", "/api/design", {"prompt": "a normal box", "experimental": False}
+        )
+        assert ok["report"]["gate_status"] != "fail"
+
+
 def test_concurrent_rerenders_are_serialized(tmp_path):
     # RENDER-001: a deliberately slow renderer records its [enter, exit] interval; with the
     # render_lock, two concurrent /api/render calls for the same id must NOT overlap (else they
@@ -1388,3 +1602,1125 @@ def test_concurrent_rerenders_are_serialized(tmp_path):
     # Belt-and-suspenders: their wall-clock intervals also don't overlap.
     (a0, a1), (b0, b1) = sorted(intervals)
     assert a1 <= b0 + 0.001, "re-renders overlapped — render_lock is not serializing them"
+
+
+# --- Stage 8.5: saved designs ("My Designs") endpoints --------------------------------------
+import contextlib as _ctx2  # noqa: E402
+import http.client as _hc  # noqa: E402
+import json as _json2  # noqa: E402
+import threading as _thr2  # noqa: E402
+from http.server import ThreadingHTTPServer as _THS2  # noqa: E402
+from pathlib import Path as _Path2  # noqa: E402
+
+# A 1x1 transparent PNG as a data URL (a stand-in viewport thumbnail).
+_TINY_PNG = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
+
+
+@_ctx2.contextmanager
+def _serve_with_designs(pipe, root, designs_dir):
+    """Serve with the saved-designs store pointed at a tmp dir (never the real ~/.kimcad)."""
+    root = _Path2(root)
+    root.mkdir(parents=True, exist_ok=True)
+    cfg = Config({"paths": {"designs": str(designs_dir)}})
+    httpd = _THS2(("127.0.0.1", 0), make_handler(pipe, root, config=cfg))
+    _thr2.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        yield "127.0.0.1", httpd.server_address[1]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def _req(host, port, method, path, body=None):
+    conn = _hc.HTTPConnection(host, port, timeout=20)
+    try:
+        data = _json2.dumps(body).encode() if body is not None else None
+        headers = {"Content-Type": "application/json"} if data is not None else {}
+        conn.request(method, path, body=data, headers=headers)
+        resp = conn.getresponse()
+        return resp.status, resp.read()
+    finally:
+        conn.close()
+
+
+def _jreq(host, port, method, path, body=None):
+    status, raw = _req(host, port, method, path, body)
+    return status, _json2.loads(raw)
+
+
+def _template_box_pipeline():
+    from kimcad.ir import DesignPlan
+
+    plan = DesignPlan(
+        object_type="box", summary="a box",
+        dimensions={"width": 80, "depth": 60, "height": 40, "wall": 2},
+        bounding_box_mm=None, printer="bambu_p2s", material="pla",
+    )
+    return _pipeline(FakeProvider(plan), _box_renderer((80, 60, 40)))
+
+
+def test_designs_full_round_trip(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        assert st == 200 and design["status"] == "completed"
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        assert design.get("parameters")  # template-backed -> has live sliders
+
+        st, saved = _jreq(h, p, "POST", "/api/designs/save",
+                          {"design_id": rid, "name": "My Box", "thumbnail": _TINY_PNG})
+        assert st == 200 and saved["name"] == "My Box"
+        sid = saved["id"]
+
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert st == 200
+        entry = next(d for d in lst["designs"] if d["id"] == sid)
+        assert entry["name"] == "My Box" and entry["object_type"] == "box"
+        assert entry["thumb_url"] == f"/api/designs/{sid}/thumb"
+
+        st, raw = _req(h, p, "GET", f"/api/designs/{sid}/thumb")
+        assert st == 200 and raw[:8] == b"\x89PNG\r\n\x1a\n"
+
+        # Reopen -> fresh fully-functional design (mesh serves; sliders + re-render restored).
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{sid}")
+        assert st == 200 and reopened["saved_id"] == sid and reopened.get("parameters")
+        newrid = int(reopened["mesh_url"].rsplit("/", 1)[-1])
+        st, mesh = _req(h, p, "GET", f"/api/mesh/{newrid}")
+        assert st == 200 and len(mesh) > 0
+        # Re-render at the part's own size (the stub renderer always emits 80x60x40): a 200 +
+        # 'completed' proves the template re-render state was restored on reopen (a missing one
+        # would render-fail), without coupling to the stub's fixed output size.
+        st, rr = _jreq(h, p, "POST", f"/api/render/{newrid}",
+                       {"values": {"width": 80, "depth": 60, "height": 40, "wall": 2}})
+        assert st == 200 and rr["status"] == "completed"  # re-render on a reopened design works
+
+        st, _ = _jreq(h, p, "POST", f"/api/designs/{sid}/rename", {"name": "Renamed"})
+        assert st == 200
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert next(d for d in lst["designs"] if d["id"] == sid)["name"] == "Renamed"
+
+        st, dup = _jreq(h, p, "POST", f"/api/designs/{sid}/duplicate")
+        assert st == 200 and dup["ok"] and dup["id"]
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 2
+
+        st, _ = _jreq(h, p, "POST", f"/api/designs/{sid}/delete")
+        assert st == 200
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert sid not in [d["id"] for d in lst["designs"]] and len(lst["designs"]) == 1
+
+
+def test_designs_save_without_a_design_is_404(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, _ = _jreq(h, p, "POST", "/api/designs/save", {"design_id": 9999, "name": "x"})
+        assert st == 404
+
+
+def test_designs_reopen_unknown_is_404(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, _ = _jreq(h, p, "GET", "/api/designs/deadbeef01")
+        assert st == 404
+
+
+def test_designs_thumb_endpoint_rejects_traversal(tmp_path):
+    # S1B-001: a traversal id on the thumb endpoint must be rejected, never reading a file outside
+    # the store root. Plant a thumb.png at the traversal target and prove it is NOT served.
+    store_root = tmp_path / "store"
+    secret = tmp_path / "secret"
+    secret.mkdir(parents=True)
+    (secret / "thumb.png").write_bytes(b"\x89PNG\r\n\x1a\nSECRETBYTES")
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", store_root) as (h, p):
+        st, raw = _req(h, p, "GET", "/api/designs/..%2fsecret/thumb")
+        assert st == 404
+        assert b"SECRET" not in raw
+
+
+def test_save_after_rerender_persists_the_rerendered_parameters(tmp_path):
+    # S1B-002: saving after a slider re-render must persist the RE-RENDERED parameters, not the
+    # original (the snapshot is refreshed on re-render so it matches the saved mesh).
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        original_wall = next(pp for pp in design["parameters"] if pp["name"] == "wall")["value"]
+        assert original_wall == 2.0
+
+        # Re-render at a new wall (same size so the stub's 80x60x40 still passes the gate).
+        st, rr = _jreq(h, p, "POST", f"/api/render/{rid}",
+                       {"values": {"width": 80, "depth": 60, "height": 40, "wall": 3.0}})
+        assert st == 200 and rr["status"] == "completed"
+        assert next(pp for pp in rr["parameters"] if pp["name"] == "wall")["value"] == 3.0
+
+        st, saved = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "name": "tweaked"})
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{saved['id']}")
+        reopened_wall = next(pp for pp in reopened["parameters"] if pp["name"] == "wall")["value"]
+        assert reopened_wall == 3.0  # the stale-snapshot bug would persist the original 2.0
+
+
+def test_save_update_in_place_keeps_one_entry(tmp_path):
+    # Re-saving with the existing saved_id updates that entry (one library entry, name preserved),
+    # so adjusting a part and saving again doesn't spawn duplicates.
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        st, saved = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "name": "v1"})
+        sid = saved["id"]
+        _jreq(h, p, "POST", f"/api/render/{rid}",
+              {"values": {"width": 80, "depth": 60, "height": 40, "wall": 3.0}})
+        st, saved2 = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "saved_id": sid})
+        assert st == 200 and saved2["id"] == sid  # same entry, not a new id
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 1 and lst["designs"][0]["name"] == "v1"  # name preserved
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{sid}")
+        assert next(pp for pp in reopened["parameters"] if pp["name"] == "wall")["value"] == 3.0
+
+
+def _import_zip(host, port, blob):
+    conn = _hc.HTTPConnection(host, port, timeout=20)
+    try:
+        conn.request("POST", "/api/designs/import", body=blob,
+                     headers={"Content-Type": "application/zip"})
+        resp = conn.getresponse()
+        return resp.status, _json2.loads(resp.read())
+    finally:
+        conn.close()
+
+
+def test_designs_export_import_round_trip(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        st, saved = _jreq(h, p, "POST", "/api/designs/save", {"design_id": rid, "name": "Portable"})
+        sid = saved["id"]
+        st, blob = _req(h, p, "GET", f"/api/designs/{sid}/export")
+        assert st == 200 and blob[:2] == b"PK"  # a zip download
+        st, imp = _import_zip(h, p, blob)
+        assert st == 200 and imp["id"] and imp["id"] != sid  # a fresh id
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 2  # original + imported
+        st, reopened = _jreq(h, p, "GET", f"/api/designs/{imp['id']}")
+        assert reopened.get("parameters")  # the imported design reopens, sliders restored
+
+
+def test_designs_import_rejects_garbage(tmp_path):
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, body = _import_zip(h, p, b"not a real zip")
+        assert st == 400
+
+
+def test_designs_mutate_bad_id_is_404(tmp_path):
+    # QA-003: rename/delete/duplicate of an unsafe or absent id is a 404 (matching reopen/thumb/
+    # export), not a 200 {"ok": false} a status-only client would misread as success.
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        for verb in ("rename", "delete", "duplicate"):
+            body = {"name": "x"} if verb == "rename" else {}
+            st, _ = _jreq(h, p, "POST", "/api/designs/..%2f..%2fetc/" + verb, body)
+            assert st == 404, f"unsafe id / {verb}"
+            st, _ = _jreq(h, p, "POST", "/api/designs/deadbeef99/" + verb, body)
+            assert st == 404, f"absent id / {verb}"
+
+
+def test_concurrent_saves_without_saved_id_make_one_entry(tmp_path):
+    # QA-002: rapid auto-saves of the SAME live rid without a saved_id must converge to ONE library
+    # entry (the server reuses a stable per-rid id), not mint a duplicate per call.
+    import threading
+    with _serve_with_designs(_template_box_pipeline(), tmp_path / "web", tmp_path / "store") as (h, p):
+        st, design = _jreq(h, p, "POST", "/api/design", {"prompt": "a box"})
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        results: list[tuple[int, str]] = []
+
+        def fire() -> None:
+            st, saved = _jreq(h, p, "POST", "/api/designs/save",
+                              {"design_id": rid, "name": "Race"})
+            results.append((st, saved.get("id")))
+
+        threads = [threading.Thread(target=fire) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=20)
+        assert all(st == 200 for st, _ in results)  # the retry absorbs the Windows replace race
+        assert len({sid for _, sid in results}) == 1  # one shared id across all concurrent saves
+        st, lst = _jreq(h, p, "GET", "/api/designs")
+        assert len(lst["designs"]) == 1  # exactly one library entry, no duplicates
+
+
+def test_sanitize_history_keeps_only_wellformed_bounded_turns():
+    # Slice 2: the client-supplied conversation history is sanitized before it reaches the model.
+    from kimcad.webapp import MAX_HISTORY_CONTENT, MAX_HISTORY_TURNS, _sanitize_history
+    assert _sanitize_history(None) is None
+    assert _sanitize_history("not a list") is None
+    assert _sanitize_history([]) is None
+    assert _sanitize_history([{"role": "user", "content": "hi"}]) == [{"role": "user", "content": "hi"}]
+    # Drops bad roles, non-str content, and non-dict entries; preserves order of the good ones.
+    assert _sanitize_history([
+        {"role": "user", "content": "ok"},
+        {"role": "system", "content": "drop me (bad role)"},
+        {"role": "assistant", "content": 5},  # non-str content
+        "not a dict",
+        {"role": "assistant", "content": "kept"},
+    ]) == [{"role": "user", "content": "ok"}, {"role": "assistant", "content": "kept"}]
+    # Caps the number of turns (keeps the most recent).
+    many = [{"role": "user", "content": str(i)} for i in range(MAX_HISTORY_TURNS + 5)]
+    capped = _sanitize_history(many)
+    assert len(capped) == MAX_HISTORY_TURNS and capped[-1]["content"] == str(MAX_HISTORY_TURNS + 4)
+    # Caps each turn's content length.
+    long = _sanitize_history([{"role": "user", "content": "y" * (MAX_HISTORY_CONTENT + 100)}])
+    assert len(long[0]["content"]) == MAX_HISTORY_CONTENT
+
+
+def test_sanitize_history_bounds_aggregate_content_keeping_newest():
+    # ENG-001: even within the per-turn + turn-count caps, the TOTAL kept content is bounded, and
+    # the most-recent turns are the ones retained (newest is the relevant context for a refine).
+    from kimcad.webapp import (
+        MAX_HISTORY_CONTENT,
+        MAX_HISTORY_TOTAL_CONTENT,
+        _sanitize_history,
+    )
+
+    # 20 maxed-out turns would be 20 * 4000 = 80 KB; the aggregate cap must trim that down.
+    big = [
+        {"role": "user", "content": f"{i}-" + "x" * MAX_HISTORY_CONTENT}
+        for i in range(20)
+    ]
+    out = _sanitize_history(big)
+    total = sum(len(t["content"]) for t in out)
+    assert total <= MAX_HISTORY_TOTAL_CONTENT
+    # The kept turns are the most recent ones, in chronological order (last turn is index 19).
+    assert out[-1]["content"].startswith("19-")
+    # Earlier (older) turns were dropped to honor the budget, so fewer than all 20 survive.
+    assert len(out) < 20
+
+
+def test_design_threads_sanitized_history_to_the_model(tmp_path):
+    # Slice 2: a follow-up turn's prior conversation reaches generate_design_plan as `history`, so
+    # the model refines in context — and a malformed history never 400s/500s (it's dropped).
+    from conftest import FakeProvider
+    captured: dict = {}
+
+    class Recording(FakeProvider):
+        def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
+            captured["history"] = history
+            return super().generate_design_plan(prompt, printer, material, history=history)
+
+    pipe = _pipeline(Recording(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _jreq(host, port, "POST", "/api/design", {
+            "prompt": "make it 10mm taller",
+            "history": [
+                {"role": "user", "content": "a 20mm box"},
+                {"role": "assistant", "content": "Here you go — a 20mm box."},
+                {"role": "bogus", "content": "dropped"},
+            ],
+        })
+        assert st == 200
+        assert captured["history"] == [
+            {"role": "user", "content": "a 20mm box"},
+            {"role": "assistant", "content": "Here you go — a 20mm box."},
+        ]
+        # No history key -> standalone (None), and a non-list history is dropped to None, never an error.
+        st, _ = _jreq(host, port, "POST", "/api/design", {"prompt": "a fresh box"})
+        assert st == 200 and captured["history"] is None
+        st, _ = _jreq(host, port, "POST", "/api/design", {"prompt": "a box", "history": "garbage"})
+        assert st == 200 and captured["history"] is None
+
+
+# --- Stage 8.5 Slice 6: the Settings endpoint -------------------------------
+
+
+def test_settings_get_post_roundtrip_and_options_reflects(tmp_path, monkeypatch):
+    """Slice 6: /api/settings GET returns the choices + effective defaults; POST persists a new
+    default printer/material; GET and /api/options both then reflect it (the saved default is
+    authoritative app-wide)."""
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, get1 = _jreq(host, port, "GET", "/api/settings")
+        assert st == 200
+        printer_keys = [p["key"] for p in get1["printers"]]
+        material_keys = [m["key"] for m in get1["materials"]]
+        assert get1["default_printer"] in printer_keys
+        assert get1["default_material"] in material_keys
+        # Pick a DIFFERENT printer + material than the current default to prove the change sticks.
+        new_printer = next(k for k in printer_keys if k != get1["default_printer"])
+        new_material = next(k for k in material_keys if k != get1["default_material"])
+        st, resp = _jreq(host, port, "POST", "/api/settings",
+                         {"default_printer": new_printer, "default_material": new_material})
+        assert st == 200 and resp["saved"] is True
+        assert resp["default_printer"] == new_printer
+        assert resp["default_material"] == new_material
+        # A fresh GET reflects the persisted choice.
+        st, get2 = _jreq(host, port, "GET", "/api/settings")
+        assert get2["default_printer"] == new_printer and get2["default_material"] == new_material
+        # And /api/options (what the rest of the app reads) reflects it too.
+        st, opt = _jreq(host, port, "GET", "/api/options")
+        assert opt["default_printer"] == new_printer and opt["default_material"] == new_material
+        # The choice actually landed on disk (not just in memory).
+        assert settings_file.exists()
+
+
+def test_settings_post_rejects_unknown_keys(tmp_path, monkeypatch):
+    """An unknown printer/material value is a clean 400 — never a 500, never a silent save."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _jreq(host, port, "POST", "/api/settings", {"default_printer": "no-such-printer"})
+        assert st == 400
+        st, _ = _jreq(host, port, "POST", "/api/settings", {"default_material": "no-such-material"})
+        assert st == 400
+        # Nothing was persisted by the rejected requests.
+        st, opt = _jreq(host, port, "GET", "/api/settings")
+        assert st == 200  # still serving the config defaults, no corruption
+
+
+def test_settings_clear_override_falls_back_to_config_default(tmp_path, monkeypatch):
+    """Sending null clears an override, restoring the shipped config default."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, get1 = _jreq(host, port, "GET", "/api/settings")
+        config_default = get1["default_printer"]
+        new_printer = next(k for k in [p["key"] for p in get1["printers"]] if k != config_default)
+        _jreq(host, port, "POST", "/api/settings", {"default_printer": new_printer})
+        st, mid = _jreq(host, port, "GET", "/api/settings")
+        assert mid["default_printer"] == new_printer
+        # Clear it -> back to the config default.
+        _jreq(host, port, "POST", "/api/settings", {"default_printer": None})
+        st, after = _jreq(host, port, "GET", "/api/settings")
+        assert after["default_printer"] == config_default
+
+
+def test_settings_post_reports_unsaved_when_store_write_fails(tmp_path, monkeypatch):
+    """When the local store can't persist (e.g. a read-only ~/.kimcad), POST returns 200 with
+    saved:false — never a 500, never a dishonest saved:true — so the UI can tell the user their
+    choice didn't stick."""
+    from kimcad import config as config_mod
+    from kimcad import settings_store as ss_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    # Simulate a persistence failure at the store layer.
+    monkeypatch.setattr(ss_mod.SettingsStore, "update", lambda self, updates: False)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, get1 = _jreq(host, port, "GET", "/api/settings")
+        new_printer = next(k for k in [p["key"] for p in get1["printers"]] if k != get1["default_printer"])
+        st, resp = _jreq(host, port, "POST", "/api/settings", {"default_printer": new_printer})
+        assert st == 200
+        assert resp["saved"] is False
+
+
+# --- Stage 8.5 Slice 6 MS-2: the model-status endpoint ----------------------
+
+
+def test_model_status_local_running_with_model(tmp_path, monkeypatch):
+    """The local (Ollama) backend, reachable and with the model pulled, reports running + present."""
+    from kimcad import model_advisor as ma
+    from kimcad.model_advisor import InstalledModel
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (True, [InstalledModel(name="gemma4:e4b")]))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["backend"] == "local"
+        assert s["model"] == "gemma4:e4b"
+        assert s["running"] is True and s["model_present"] is True
+
+
+def test_model_status_matches_quantized_variant(tmp_path, monkeypatch):
+    """A quantized install (gemma4:e4b-it-q4_K_M) still counts as the model being present."""
+    from kimcad import model_advisor as ma
+    from kimcad.model_advisor import InstalledModel
+
+    monkeypatch.setattr(ma, "probe_ollama",
+                        lambda base_url, timeout=3.0: (True, [InstalledModel(name="gemma4:e4b-it-q4_K_M")]))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200 and s["model_present"] is True
+
+
+def test_model_status_ollama_down_is_not_running(tmp_path, monkeypatch):
+    """Ollama unreachable -> running:false (the UI says "start Ollama"); a STATUS, never a 500."""
+    from kimcad import model_advisor as ma
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (False, []))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["running"] is False and s["model_present"] is False
+
+
+def test_model_status_running_but_model_absent(tmp_path, monkeypatch):
+    """Ollama up but the model not pulled -> running:true, model_present:false (the UI says
+    "get the model") — distinct from the down case, which the (reachable, models) probe enables."""
+    from kimcad import model_advisor as ma
+    from kimcad.model_advisor import InstalledModel
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (True, [InstalledModel(name="llama3:8b")]))
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["running"] is True and s["model_present"] is False
+
+
+def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):
+    """A cloud backend reports backend:'cloud' + running:true (configured) and does NOT probe
+    Ollama — the cloud path MS-3 builds on."""
+    from kimcad import config as config_mod
+    from kimcad import model_advisor as ma
+    from kimcad.config import LLMBackend
+
+    cloud = LLMBackend(
+        key="cloud_deepseek", provider="deepseek", base_url="https://api.deepseek.com/v1",
+        model_name="deepseek-v4-flash", api_key_env="DEEPSEEK_API_KEY", temperature=0.2,
+        max_tokens=8192, supports_structured_output=True,
+    )
+    monkeypatch.setattr(config_mod.Config, "llm_backend", lambda self, key=None: cloud)
+    # If the handler wrongly probed Ollama for a cloud backend, this would blow up the test.
+    def _boom(*a, **k):  # noqa: ANN002, ANN003
+        raise AssertionError("cloud backend must not probe Ollama")
+    monkeypatch.setattr(ma, "probe_ollama", _boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["backend"] == "cloud"
+        assert s["running"] is True and s["model"] == "deepseek-v4-flash"
+
+
+# --- Stage 8.5 Slice 6 slice-end remediation -----------------------------------
+
+
+def test_probe_ollama_distinguishes_reachable_from_empty(monkeypatch):
+    """probe_ollama returns reachable=True even when Ollama has no models (unlike
+    probe_installed_models, which returns [] for both down AND empty) — the whole reason it exists."""
+    import io
+    import json as _j
+    import urllib.error
+
+    from kimcad import model_advisor as ma
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _serve_json(payload):
+        return lambda url, timeout=3.0: _Resp(_j.dumps(payload).encode())
+
+    monkeypatch.setattr(ma.urllib.request, "urlopen", _serve_json({"models": [{"name": "gemma4:e4b"}]}))
+    reachable, models = ma.probe_ollama("http://localhost:11434/v1")
+    assert reachable is True and [m.name for m in models] == ["gemma4:e4b"]
+
+    monkeypatch.setattr(ma.urllib.request, "urlopen", _serve_json({"models": []}))
+    reachable, models = ma.probe_ollama("http://localhost:11434/v1")
+    assert reachable is True and models == []  # UP but empty
+
+    def _down(url, timeout=3.0):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(ma.urllib.request, "urlopen", _down)
+    reachable, models = ma.probe_ollama("http://localhost:11434/v1")
+    assert reachable is False and models == []  # DOWN
+
+
+def test_settings_aware_provider_degrades_to_local_on_cloud_build_error(tmp_path, monkeypatch):
+    """If building the cloud provider raises, the router falls back to LOCAL — never breaks a design."""
+    from kimcad import config as config_mod
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": "or-fake-key", "cloud_model": "x/y"}
+    )
+    orig = config_mod.Config.llm_backend
+
+    def _raise_for_cloud(self, key=None):
+        if key == "custom_openrouter":
+            raise RuntimeError("boom")
+        return orig(self, key)
+
+    monkeypatch.setattr(config_mod.Config, "llm_backend", _raise_for_cloud)
+    local = object()
+    assert _SettingsAwareProvider(local, cfg)._active() is local
+
+
+def test_model_status_cloud_never_returns_the_key(tmp_path, monkeypatch):
+    """The model-status cloud branch reads the key only to test presence — it must NOT appear in
+    the response."""
+    import json as _j
+
+    from kimcad import config as config_mod
+    from kimcad.settings_store import SettingsStore
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    SECRET = "or-fake-key-ABCDEwQ9f2"
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": SECRET, "cloud_model": "anthropic/claude-sonnet"}
+    )
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200 and s["backend"] == "cloud"
+        assert SECRET not in _j.dumps(s)
+
+
+def test_settings_reset_clears_everything_to_pristine(tmp_path, monkeypatch):
+    """A {reset:true} POST clears EVERY override (no stale false keys left on disk)."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, g0 = _jreq(host, port, "GET", "/api/settings")
+        new_printer = next(k for k in [p["key"] for p in g0["printers"]] if k != g0["default_printer"])
+        _jreq(host, port, "POST", "/api/settings", {
+            "default_printer": new_printer, "cloud_enabled": True,
+            "openrouter_api_key": "or-fake-wQ9f2", "experimental_enabled": True,
+        })
+        st, r = _jreq(host, port, "POST", "/api/settings", {"reset": True})
+        assert st == 200 and r["saved"] is True
+        assert r["default_printer"] == g0["default_printer"]  # back to config default
+        assert r["cloud_enabled"] is False
+        assert r["has_cloud_key"] is False
+        assert r["experimental_enabled"] is False
+        # The file holds NO stale keys.
+        assert _j.loads(settings_file.read_text(encoding="utf-8")) == {}
+
+
+# --- Stage 8.5 Slice 6 MS-5: tools health + version ----------------------------
+
+
+def test_health_reports_tools_and_version(tmp_path):
+    """GET /api/health reports OpenSCAD/OrcaSlicer presence + the app version; never 500s."""
+    from kimcad import __version__
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, h = _jreq(host, port, "GET", "/api/health")
+        assert st == 200
+        assert h["version"] == __version__
+        # The bundled binaries are configured + present in the repo (tools/…).
+        assert isinstance(h["openscad"], bool) and isinstance(h["orcaslicer"], bool)
+        assert h["openscad"] is True  # tools/openscad/openscad.exe is committed
+
+
+def test_health_missing_binary_is_a_status_not_a_500(tmp_path, monkeypatch):
+    """A missing/unconfigured binary is present:false, never a 500."""
+    from kimcad import config as config_mod
+
+    def _boom(self, name):  # noqa: ANN001
+        raise KeyError(name)
+
+    monkeypatch.setattr(config_mod.Config, "binary_path", _boom)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, h = _jreq(host, port, "GET", "/api/health")
+        assert st == 200
+        assert h["openscad"] is False and h["orcaslicer"] is False
+
+
+# --- Stage 8.5 Slice 6 MS-4: the experimental-generator gate --------------------
+
+
+def test_design_experimental_false_offers_instead_of_codegen(tmp_path, monkeypatch):
+    """The consumer default: a non-template request with experimental:false returns the offer
+    (needs_experimental) and never runs the codegen model — no dead-end, no auto-run."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    provider = FakeProvider(_plan([20, 20, 20]))  # object_type "block" -> non-template
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design",
+                      {"prompt": "a topographic coaster", "experimental": False})
+        assert st == 200
+        assert r["status"] == "needs_experimental"
+        assert not r.get("has_mesh")
+        assert provider.openscad_calls == 0
+
+
+def test_design_experimental_true_runs_codegen(tmp_path, monkeypatch):
+    """Opting in (experimental:true) runs the sandboxed codegen and completes."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design",
+                      {"prompt": "a topographic coaster", "experimental": True})
+        assert st == 200
+        assert r["status"] == "completed" and r["has_mesh"] is True
+        assert provider.openscad_calls >= 1
+
+
+def test_design_no_flag_defaults_to_running_codegen(tmp_path, monkeypatch):
+    """An ABSENT flag (raw API / CLI / older client) keeps the backward-compatible auto-run —
+    the consumer SPA is the layer that opts OUT by sending experimental:false."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design", {"prompt": "a topographic coaster"})
+        assert st == 200 and r["status"] == "completed"
+
+
+def test_design_experimental_setting_on_auto_runs(tmp_path, monkeypatch):
+    """With the Settings toggle ON, a non-template request auto-runs even when the SPA sends
+    experimental:false (the setting force-enables it)."""
+    from kimcad import config as config_mod
+    from kimcad.settings_store import SettingsStore
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    SettingsStore(settings_file).update({"experimental_enabled": True})
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, r = _jreq(host, port, "POST", "/api/design",
+                      {"prompt": "a topographic coaster", "experimental": False})
+        assert st == 200 and r["status"] == "completed"
+
+
+# --- Stage 8.5 Slice 6 MS-3: cloud opt-in + the masked OpenRouter key -----------
+
+
+def test_cloud_key_saved_locally_but_never_returned_in_full(tmp_path, monkeypatch):
+    """TRUST-CRITICAL: the OpenRouter key is stored on disk (the user's machine) but the API never
+    returns it in full — only a masked form (last 5). GET + POST both honor this."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    SECRET = "or-fake-openrouter-key-ABCDEwQ9f2"
+    with _serve(pipe, tmp_path) as (host, port):
+        st, resp = _jreq(host, port, "POST", "/api/settings", {
+            "cloud_enabled": True,
+            "openrouter_api_key": SECRET,
+            "cloud_model": "anthropic/claude-sonnet",
+        })
+        assert st == 200 and resp["saved"] is True
+        # The full key is NEVER anywhere in the response.
+        assert SECRET not in _j.dumps(resp)
+        assert resp["has_cloud_key"] is True
+        assert resp["cloud_key_masked"].endswith(SECRET[-5:])
+        assert resp["cloud_enabled"] is True
+        assert resp["cloud_model"] == "anthropic/claude-sonnet"
+        # A fresh GET also never returns it raw.
+        st, g = _jreq(host, port, "GET", "/api/settings")
+        assert SECRET not in _j.dumps(g)
+        assert g["cloud_key_masked"].endswith(SECRET[-5:])
+        # But the real key DID land on disk (local consumer storage, the user's machine).
+        on_disk = _j.loads(settings_file.read_text(encoding="utf-8"))
+        assert on_disk["openrouter_api_key"] == SECRET
+        # And model-status now reports the user's cloud model, not the local default.
+        st, ms = _jreq(host, port, "GET", "/api/model-status")
+        assert ms["backend"] == "cloud" and ms["model"] == "anthropic/claude-sonnet"
+
+
+def test_cloud_key_never_appears_in_logs(tmp_path, monkeypatch, capsys):
+    """TEST-003: the second leak vector — the key must not reach logs/exceptions either. Exercise
+    every endpoint that handles the key-bearing settings (POST + GET settings, model-status) and
+    assert the raw key is in neither stdout nor stderr (the server's request log + any print)."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    SECRET = "or-fake-openrouter-key-LEAKCHECK987"
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _jreq(host, port, "POST", "/api/settings", {
+            "cloud_enabled": True, "openrouter_api_key": SECRET, "cloud_model": "x/y",
+        })
+        assert st == 200
+        _jreq(host, port, "GET", "/api/settings")
+        _jreq(host, port, "GET", "/api/model-status")
+    captured = capsys.readouterr()
+    assert SECRET not in captured.out, "cloud key leaked to stdout"
+    assert SECRET not in captured.err, "cloud key leaked to stderr"
+    # Sanity: it really did persist (so the test exercised the real key path, not a no-op).
+    assert _j.loads(settings_file.read_text(encoding="utf-8"))["openrouter_api_key"] == SECRET
+
+
+def test_cloud_key_can_be_cleared(tmp_path, monkeypatch):
+    """A blank key clears it — has_cloud_key false, masked null."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "settings.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": "or-fake-key-wQ9f2"})
+        st, g1 = _jreq(host, port, "GET", "/api/settings")
+        assert g1["has_cloud_key"] is True
+        _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": ""})
+        st, g2 = _jreq(host, port, "GET", "/api/settings")
+        assert g2["has_cloud_key"] is False and g2["cloud_key_masked"] is None
+
+
+def test_settings_aware_provider_routes_by_cloud_setting(tmp_path, monkeypatch):
+    """The provider routes to LOCAL by default, to a cloud OpenRouter provider (the user's model +
+    key) when cloud is enabled + configured, and back to LOCAL when enabled-but-unconfigured."""
+    from kimcad import config as config_mod
+    from kimcad.llm_provider import LLMProvider
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    local = object()  # a sentinel local provider
+    prov = _SettingsAwareProvider(local, cfg)
+
+    # No settings -> local.
+    assert prov._active() is local
+    # Cloud enabled but no key/model -> still local (degrade, never break).
+    SettingsStore(settings_file).update({"cloud_enabled": True})
+    assert prov._active() is local
+    # Fully configured -> a cloud LLMProvider carrying the user's chosen model.
+    SettingsStore(settings_file).update(
+        {"openrouter_api_key": "or-fake-key-value", "cloud_model": "anthropic/claude-sonnet"}
+    )
+    active = prov._active()
+    assert active is not local
+    assert isinstance(active, LLMProvider)
+    assert active.backend.model_name == "anthropic/claude-sonnet"
+
+
+# --- Stage 8.5 Slice 7: the photo on-ramp (local vision seed) -------------------
+
+
+def _post_photo(host, port, body, content_length=None, content_type="image/png"):
+    import json as _j
+
+    conn = http.client.HTTPConnection(host, port, timeout=15)
+    try:
+        conn.putrequest("POST", "/api/photo-seed", skip_host=False, skip_accept_encoding=True)
+        conn.putheader("Content-Type", content_type)
+        conn.putheader("Content-Length", str(content_length if content_length is not None else len(body)))
+        conn.endheaders()
+        if body:
+            conn.send(body)
+        resp = conn.getresponse()
+        raw = resp.read()
+        return resp.status, (_j.loads(raw) if raw else {})
+    finally:
+        conn.close()
+
+
+def test_photo_seed_returns_a_rough_seed(tmp_path):
+    """POST a photo -> a rough text seed from the LOCAL vision provider (the fake/demo provider
+    returns a canned seed, so the on-ramp is exercisable without the real vision model)."""
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_photo(host, port, b"\x89PNG-fake-image-bytes")
+        assert st == 200
+        assert "seed" in d and "rough" in d["seed"].lower()
+        assert getattr(provider, "photo_calls", 0) == 1  # local vision ran once
+
+
+def test_photo_seed_oversized_is_413(tmp_path):
+    from kimcad.webapp import MAX_PHOTO_BYTES
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        # Declare an oversized Content-Length; the body is never read.
+        st, _ = _post_photo(host, port, b"", content_length=MAX_PHOTO_BYTES + 1)
+        assert st == 413
+
+
+def test_photo_seed_empty_upload_is_400(tmp_path):
+    """An empty body (Content-Length 0) is a clean 400 'Empty upload.' — not a 500 and not a vision
+    attempt on zero bytes (TEST-701: the 400 branch of _read_raw_body for this route)."""
+    provider = FakeProvider(_plan([20, 20, 20]))
+    pipe = _pipeline(provider, _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_photo(host, port, b"", content_length=0)
+        assert st == 400 and "empty" in d["error"].lower()
+        assert getattr(provider, "photo_calls", 0) == 0  # vision was never invoked on an empty body
+
+
+def test_photo_seed_unreadable_is_422_not_500(tmp_path):
+    """A vision failure is a clean 422 with a friendly message, never a 500."""
+
+    class _BadVision(FakeProvider):
+        def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+            raise RuntimeError("vision boom")
+
+    pipe = _pipeline(_BadVision(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, d = _post_photo(host, port, b"img")
+        assert st == 422 and "photo" in d["error"].lower()
+
+
+def test_photo_seed_empty_seed_is_422(tmp_path):
+    """An empty/blank seed (the model couldn't make out a part) is a 422, not a silent 200."""
+
+    class _EmptyVision(FakeProvider):
+        def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+            return "   "
+
+    pipe = _pipeline(_EmptyVision(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, _ = _post_photo(host, port, b"img")
+        assert st == 422
+
+
+def test_llm_describe_photo_uses_native_chat_with_think_false(monkeypatch):
+    """The local vision call hits Ollama's NATIVE /api/chat (not /v1) with the image attached and
+    think disabled — the wiring the live probe proved is required for a non-empty vision response."""
+    import io
+    import json as _j
+
+    from kimcad import llm_provider as lp
+    from kimcad.config import LLMBackend
+
+    backend = LLMBackend(
+        key="local", provider="openai_compatible", base_url="http://localhost:11434/v1",
+        model_name="gemma4:e4b", api_key_env=None, temperature=0.0, max_tokens=400,
+        supports_structured_output=False,
+    )
+    captured: dict = {}
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = _j.loads(req.data)
+        return _Resp(_j.dumps({"message": {"content": "a rough box, ~80mm"}}).encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    seed = lp.LLMProvider(backend).describe_photo(b"imgbytes", BAMBU, PLA)
+    assert seed == "a rough box, ~80mm"
+    assert captured["url"].endswith("/api/chat")  # NATIVE endpoint, not /v1
+    assert captured["body"]["think"] is False
+    assert captured["body"]["messages"][1]["images"]  # the image was attached
+
+
+def test_photo_never_routes_to_cloud_even_when_cloud_enabled(tmp_path, monkeypatch):
+    """LOAD-BEARING trust rule: the photo is ALWAYS read by the LOCAL vision model and is NEVER
+    auto-sent to the cloud — even with cloud TEXT fully enabled (key + model saved). The router's
+    ``describe_photo`` must build a LOCAL provider and must NOT consult the cloud-capable
+    ``_active()`` path (which is what would send a request to OpenRouter)."""
+    from kimcad import config as config_mod
+    from kimcad import llm_provider as lp
+    from kimcad.settings_store import SettingsStore
+    from kimcad.webapp import _SettingsAwareProvider
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    cfg = config_mod.Config.load()
+    # Cloud TEXT fully enabled + configured — exactly the state in which a design prompt WOULD be
+    # routed to the user's OpenRouter model. The photo must still stay local.
+    SettingsStore(settings_file).update(
+        {"cloud_enabled": True, "openrouter_api_key": "or-fake-key-value",
+         "cloud_model": "anthropic/claude-sonnet"}
+    )
+
+    built: list[str] = []
+
+    class _SpyProvider:
+        def __init__(self, backend, *a, **kw):  # noqa: ANN001
+            built.append(backend.key)  # record WHICH backend the photo was sent to
+            self.backend = backend
+
+        def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
+            return "a rough box (local vision)"
+
+    # describe_photo does ``from kimcad.llm_provider import LLMProvider`` at call time, so patching
+    # the module attribute makes it build the spy instead of a real client.
+    monkeypatch.setattr(lp, "LLMProvider", _SpyProvider)
+
+    prov = _SettingsAwareProvider(object(), cfg)
+    # Hard guard: the cloud-capable router must NOT be consulted for a photo.
+    def _no_active() -> object:
+        raise AssertionError("describe_photo must not route a photo through the cloud-capable _active()")
+
+    monkeypatch.setattr(prov, "_active", _no_active)
+
+    seed = prov.describe_photo(b"imgbytes", BAMBU, PLA)
+    assert seed == "a rough box (local vision)"
+    # The photo used the LOCAL backend, never the cloud (custom_openrouter) one — even though cloud
+    # TEXT is fully enabled above.
+    assert built == [cfg.llm_backend("local").key]
+    assert "custom_openrouter" not in built
+
+
+def test_design_with_model_down_returns_recoverable_status_not_500(tmp_path):
+    """Slice 9 MS-1: when the local AI (Ollama) is unreachable, /api/design returns a recoverable
+    `model_unavailable` status with a friendly message — never a raw 500/traceback."""
+    import json
+    import urllib.request
+
+    class _OllamaDown:
+        openscad_calls = 0
+
+        def generate_design_plan(self, prompt, printer, material, history=None):
+            # A connection error named like the OpenAI client's, matched by the duck-typed backstop.
+            raise type("APIConnectionError", (Exception,), {})("connection refused")
+
+        def generate_openscad(self, plan, printer, material, history=None):
+            return ""
+
+    pipe = _pipeline(_OllamaDown(), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            urllib.request.Request(
+                f"http://{host}:{port}/api/design",
+                data=json.dumps({"prompt": "a box", "experimental": True}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=15,
+        )
+        assert resp.status == 200  # recoverable status, not a 500
+        d = json.load(resp)
+    assert d["status"] == "model_unavailable"
+    assert d["has_mesh"] is False
+    assert "Ollama" in d["error"]
+
+
+def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
+    """Slice 9 MS-1: a connection drop during CODEGEN (past the plan step) is ALSO mapped to the
+    recoverable model_unavailable status, not a 500 — the web backstop covers any propagated error,
+    wherever in the run it was raised."""
+    import json
+    import urllib.request
+
+    from kimcad.templates import TemplateRegistry
+
+    class _DownAtCodegen:
+        openscad_calls = 0
+
+        def generate_design_plan(self, prompt, printer, material, history=None):
+            return _plan([20, 20, 20])  # a valid plan -> proceeds toward codegen
+
+        def generate_openscad(self, plan, printer, material, history=None):
+            raise type("APIConnectionError", (Exception,), {})("dropped mid-codegen")
+
+    # Empty registry -> no template matches -> the LLM codegen path runs (and raises).
+    pipe = _pipeline(_DownAtCodegen(), _box_renderer((20, 20, 20)), registry=TemplateRegistry(()))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            urllib.request.Request(
+                f"http://{host}:{port}/api/design",
+                data=json.dumps({"prompt": "a box", "experimental": True}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=15,
+        )
+        assert resp.status == 200
+        d = json.load(resp)
+    assert d["status"] == "model_unavailable" and d["has_mesh"] is False
+
+
+# MS-3 — live design-progress poll (planning/generating/rendering/validating).
+def test_progress_endpoint_unknown_id_returns_null(tmp_path):
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        data = json.load(
+            urllib.request.urlopen(base + "/api/design/progress/never-started", timeout=10)
+        )
+    assert data == {"phase": None}
+
+
+def test_progress_reports_planning_midrun_then_clears(tmp_path):
+    import json
+    import threading as _t
+    import urllib.request
+
+    started = _t.Event()
+    release = _t.Event()
+
+    class _BlockingProvider(FakeProvider):
+        # Park the run inside the plan step (after the pipeline emits "planning") until the test
+        # has observed the phase, so the cross-thread progress read is deterministic, not racy.
+        def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
+            started.set()
+            release.wait(timeout=10)
+            return super().generate_design_plan(prompt, printer, material, history=history)
+
+    pipe = _pipeline(_BlockingProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        job = "job-abc123"
+        out: dict = {}
+
+        def _post():
+            req = urllib.request.Request(
+                base + "/api/design",
+                data=json.dumps({"prompt": "a block", "job_id": job}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            out["data"] = json.load(urllib.request.urlopen(req, timeout=30))
+
+        th = _t.Thread(target=_post)
+        th.start()
+        assert started.wait(timeout=10)  # the run is parked in the plan step
+        prog = json.load(
+            urllib.request.urlopen(base + f"/api/design/progress/{job}", timeout=10)
+        )
+        assert prog == {"phase": "planning"}
+        release.set()
+        th.join(timeout=30)
+        assert out["data"]["status"] == "completed"
+        # The slot is cleaned up once the run finishes.
+        after = json.load(
+            urllib.request.urlopen(base + f"/api/design/progress/{job}", timeout=10)
+        )
+    assert after == {"phase": None}
+
+
+def test_design_accepts_invalid_job_id_without_tracking(tmp_path):
+    # A malformed job_id must not 400 the design — progress is best-effort; the run still completes.
+    import json
+    import urllib.request
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        req = urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a block", "job_id": "bad id!#"}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        data = json.load(urllib.request.urlopen(req, timeout=30))
+    assert data["status"] == "completed"

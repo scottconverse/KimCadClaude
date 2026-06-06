@@ -134,6 +134,20 @@ input {
   display: flex;
   align-items: center;
   gap: 11px;
+  /* The brand is a home link (Slice 6): reset the button chrome so it looks identical, but it's a
+     real focusable control that returns to a new design from any screen. */
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.kc-brand:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 3px;
+  border-radius: var(--kc-r-btn);
 }
 
 .kc-logo {
@@ -414,6 +428,15 @@ input {
   color: var(--kc-muted);
 }
 
+/* Stage 8.5 Slice 2: wraps the VersionRail (when present) + the 3-column workspace grid.
+   Flex-column so the rail sits above the grid without disturbing its height calculation. */
+.kc-workspace-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .kc-workspace {
   flex: 1 1 auto;
   min-height: 0;
@@ -437,7 +460,9 @@ input {
 @media (max-width: 1000px) {
   .kc-workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(240px, 42vh) auto;
+    /* UX-004: a shorter viewport on phones so the readiness verdict + Slice/Download aren't pushed
+       so far below the fold (paired with the sticky "Check & download" CTA). */
+    grid-template-rows: auto minmax(200px, 34vh) auto;
     overflow-y: auto;
   }
   .kc-col-left {
@@ -535,6 +560,97 @@ input {
   color: #e9a08a;
 }
 
+/* The design-in-flight overlay is INTERACTIVE (carries a Cancel button) and honest: a
+   "runs on your machine, can take a few minutes" line + a live elapsed timer + Cancel, so the
+   "Designing…" screen always shows progress and is never a trap. */
+/* Compound selector (not just .kc-viewport-busy) so the pointer-events override always beats the
+   base .kc-viewport-overlay { pointer-events: none } regardless of source order — Cancel must stay
+   clickable; a CSS reorder must never silently re-trap the user. */
+.kc-viewport-overlay.kc-viewport-busy {
+  flex-direction: column;
+  gap: 9px;
+  pointer-events: auto;
+  /* UX-802: near-solid so the dark copy + Cancel keep their contrast even when a part is framed
+     underneath during a refine (an 80% wash let the model show through and weaken it). */
+  background: color-mix(in srgb, var(--kc-viewport-bg) 94%, transparent);
+}
+.kc-viewport-restoring {
+  gap: 10px;
+}
+.kc-busy-title {
+  font-family: var(--kc-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+/* MS-3: the live phase label + a 4-step stepper on the "Designing…" screen. Light-on-dark for
+ * contrast; a warm tint on the label, the accent reserved for the active/done step dots. */
+.kc-busy-phase {
+  font-family: var(--kc-font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--kc-accent) 28%, #fff);
+}
+.kc-busy-steps {
+  display: flex;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-busy-step {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.kc-busy-step-done {
+  background: color-mix(in srgb, var(--kc-accent) 70%, #fff);
+}
+.kc-busy-step-active {
+  background: var(--kc-accent);
+  transform: scale(1.45);
+}
+.kc-busy-sub {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+}
+.kc-busy-elapsed {
+  font-family: var(--kc-font-mono);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.46);
+  font-variant-numeric: tabular-nums;
+}
+.kc-busy-cancel {
+  margin-top: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+}
+.kc-busy-cancel:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+}
+.kc-busy-cancel:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.kc-spin-lg {
+  width: 26px;
+  height: 26px;
+  border-width: 3px;
+}
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-busy-cancel {
+    min-height: 44px;
+  }
+}
+
 /* Print-aware viewport affordances: projected W/D/H dimension pills (positioned by KCViewport),
  * an orientation chip, and a drag hint. */
 .kc-dim-pill {
@@ -575,13 +691,45 @@ input {
   pointer-events: none;
 }
 
+/* ENG-004: stale-preview note — a part is still framed but its latest mesh couldn't load. */
+.kc-viewport-stale {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  max-width: 60%;
+  padding: 5px 10px;
+  border-radius: var(--kc-r-chip);
+  background: color-mix(in srgb, var(--kc-warn) 22%, rgba(0, 0, 0, 0.55));
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: right;
+  pointer-events: none;
+}
+
 /* Touch targets: on coarse pointers, the interactive chrome is at least ~44px tall. */
 @media (pointer: coarse) {
   .kc-btn,
   .kc-icon-btn,
   .kc-chip,
-  .kc-field select {
+  .kc-field select,
+  .kc-design-act,
+  .kc-mydesigns-sort select {
     min-height: 44px;
+  }
+  /* UX-003 / QA-005: the My Designs card actions (Rename / Duplicate / Export / Delete) join the
+     44px touch floor and gain breathing room, and the destructive Delete is pushed to the row's
+     end so a fingertip reaching for Export can't land on it. */
+  .kc-design-act {
+    display: inline-flex;
+    align-items: center;
+  }
+  .kc-design-actions {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .kc-design-act-danger {
+    margin-left: auto;
   }
   /* UX-001: the slider — the most-touched control of the live-slider feature — gets the same
      44px floor. A transparent vertical padding grows the hit area while the painted track stays
@@ -612,6 +760,21 @@ input {
   }
   .kc-design-btn {
     justify-content: center;
+  }
+  /* M-1 (wiring-audit): a narrow viewport is a phone-sized / cramped context, so give the card
+     actions a real 44px touch target here too — not only under `pointer: coarse` (which a desktop
+     browser resized to 375px never reports). Belt-and-suspenders with the coarse-pointer rule. */
+  .kc-design-act {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .kc-design-actions {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .kc-design-act-danger {
+    margin-left: auto;
   }
 }
 
@@ -692,7 +855,9 @@ input {
 .kc-msg-user {
   align-self: flex-end;
   margin-left: 28px;
-  background: var(--kc-accent);
+  /* UX-001: white-on-accent text needs the darker `-strong` to clear WCAG-AA 4.5:1 (raw
+     `--kc-accent` is 3.99:1 for normal text). */
+  background: var(--kc-accent-strong);
   color: var(--kc-on-accent);
   border-top-right-radius: 5px;
 }
@@ -775,9 +940,56 @@ input {
 /* Live parameter sliders (Stage 5) — the deterministic re-render controls. */
 .kc-card-hd {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+}
+/* Slice 4: right cluster in the Parameters card header (re-rendering note + unit toggle). */
+.kc-card-hd-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.kc-unit-toggle {
+  display: flex;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-btn);
+  overflow: hidden;
+}
+.kc-unit-btn {
+  border: 0;
+  background: none;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kc-muted);
+  cursor: pointer;
+  line-height: 1.6;
+}
+.kc-unit-btn:hover {
+  color: var(--kc-ink);
+  background: var(--kc-surface-2);
+}
+.kc-unit-btn-active {
+  /* UX-001: `-strong` for AA contrast on the white "mm"/"in" label (raw accent is 3.99:1). */
+  background: var(--kc-accent-strong);
+  color: #fff;
+}
+.kc-unit-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: -1px;
+}
+/* UX-002: the unit toggle + click-to-edit value button get a real 44px touch target on touch
+   devices AND on narrow viewports (a desktop resized to 375px never reports `pointer: coarse`,
+   so both queries are needed — the same belt-and-suspenders the My Designs actions use). */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-unit-btn, .kc-pval-btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .kc-card-sub {
@@ -841,6 +1053,75 @@ input {
   font-size: 13px;
   font-weight: 600;
   color: var(--kc-ink);
+}
+
+/* Slice 3: the value display is now a button so the user can click to type an exact number. */
+.kc-pval-btn {
+  border: 0;
+  background: none;
+  padding: 1px 4px;
+  margin-right: -4px;
+  border-radius: var(--kc-r-btn);
+  cursor: text;
+  text-align: right;
+}
+.kc-pval-btn:hover {
+  background: var(--kc-surface-2);
+}
+.kc-pval-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-pval-edit-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: 0 0 auto;
+  position: relative;
+}
+.kc-pval-input {
+  width: 60px;
+  font-family: var(--kc-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-ink);
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-accent);
+  border-radius: var(--kc-r-input);
+  padding: 1px 5px;
+  text-align: right;
+  /* Hide the browser's native spinner arrows — the slider is the coarse control */
+  -moz-appearance: textfield;
+}
+.kc-pval-input::-webkit-inner-spin-button,
+.kc-pval-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+.kc-pval-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-pval-input-err {
+  border-color: var(--kc-fail);
+  color: var(--kc-fail);
+}
+.kc-pval-unit {
+  font-size: 11px;
+  color: var(--kc-muted);
+  font-style: normal;
+}
+.kc-pval-err {
+  position: absolute;
+  top: calc(100% + 3px);
+  right: 0;
+  font-size: 11px;
+  color: var(--kc-fail);
+  white-space: nowrap;
+  background: var(--kc-surface);
+  padding: 1px 4px;
+  border-radius: var(--kc-r-btn);
+  border: 1px solid color-mix(in srgb, var(--kc-fail) 30%, transparent);
+  z-index: 1;
 }
 
 .kc-pval i {
@@ -1115,6 +1396,79 @@ input {
   font-size: 12.5px;
 }
 
+/* Slice 8: on-model problem highlights — the toggle, legend, and clickable located risks. */
+.kc-risks-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.kc-hl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--kc-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.kc-hl-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 2px 0 7px;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+.kc-hl-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 1px;
+}
+.kc-hl-swatch.kc-hl-fail {
+  background: #e5484d;
+}
+.kc-hl-swatch.kc-hl-warn {
+  background: #f5a623;
+}
+.kc-hl-hint {
+  opacity: 0.8;
+}
+/* A located risk is a button styled to read like the plain row, but clickable. */
+.kc-risk-btn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 3px 4px;
+  margin: -3px -4px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.kc-risk-btn:hover {
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+}
+.kc-risk-btn:focus-visible {
+  outline: 2px solid var(--tone);
+  outline-offset: 1px;
+}
+.kc-risk-locate {
+  margin-left: auto;
+  align-self: center;
+  flex: none;
+  font-size: 11px;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
 .kc-rec {
   display: flex;
   gap: 8px;
@@ -1127,7 +1481,7 @@ input {
 .kc-rec-arrow {
   flex: none;
   color: var(--kc-accent-deep);
-  font-weight: 800;
+  font-weight: 600; /* UX-017: lighter (was 800) */
   margin-top: 1px;
 }
 
@@ -1281,9 +1635,14 @@ input {
   border-color: var(--kc-accent);
 }
 
+.kc-slice-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 2px;
+}
 .kc-slice-btn {
   justify-content: center;
-  margin-top: 2px;
 }
 
 .kc-slice-result {
@@ -1313,6 +1672,319 @@ input {
   color: var(--kc-fail);
 }
 
+/* Slice 10 — print summary (the sliced result): a "your design → print file" flow strip, the
+ * estimate broken out into labeled stats (time / layers / filament length + weight) instead of
+ * one blob, the print file with a copy-the-link affordance, and the export-format clarity note. */
+.kc-print-lead {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+
+.kc-print-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--kc-muted);
+}
+.kc-flow-step::before {
+  content: '✓';
+  font-size: 10px;
+  color: var(--kc-accent-strong);
+}
+.kc-flow-done {
+  color: var(--kc-ink);
+}
+
+.kc-print-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 0;
+}
+.kc-print-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+}
+.kc-print-stat dt {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kc-muted);
+}
+.kc-print-stat dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+
+.kc-print-file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.kc-print-file .kc-download {
+  flex: 1 1 auto;
+}
+.kc-copy-link {
+  flex: 0 0 auto;
+}
+
+.kc-file-name {
+  margin: 0;
+  font-size: 11px;
+  color: var(--kc-muted);
+  word-break: break-all;
+}
+
+.kc-formats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.kc-formats-note {
+  font-size: 11.5px;
+}
+.kc-est-note {
+  font-size: 11px;
+}
+
+/* Slice 11 — keyboard-shortcuts help modal (opened with "?"). Mirrors the wizard overlay tokens. */
+.kc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above the first-run wizard's overlay (z 200) — they can't co-render today (the wizard guards
+   * the shortcut keys), but keep the shortcuts help on top if that ever changes. */
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--kc-ink) 55%, transparent);
+}
+.kc-shortcuts-dialog {
+  width: 100%;
+  max-width: 380px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 22px 24px;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-hero);
+}
+.kc-shortcuts-title {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--kc-ink);
+}
+.kc-shortcuts-list {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kc-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kc-shortcut-row dt {
+  flex: 0 0 56px;
+}
+.kc-shortcut-row dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--kc-ink);
+}
+.kc-kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 7px;
+  text-align: center;
+  font-family: var(--kc-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kc-ink);
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+}
+
+/* Stage 8.5 gate remediation (UI). UX-005: a compact "?" help button in the chrome. */
+.kc-help-btn {
+  min-width: 32px;
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* UX-001 / UX-009: restore the right-column hierarchy so the eye lands on the verdict. The
+ * Readiness card gets a warm accent tint + accent left edge; the Printability ("report") card a
+ * subtle accent border. Per-card modifiers (not the shared .kc-card) so the other cards stay flat. */
+.kc-card-readiness {
+  background: color-mix(in srgb, var(--kc-accent) 7%, var(--kc-surface));
+  border-color: color-mix(in srgb, var(--kc-accent) 26%, var(--kc-hair));
+  border-left: 3px solid var(--kc-accent);
+}
+.kc-card-report {
+  border-color: color-mix(in srgb, var(--kc-accent) 22%, var(--kc-hair-strong));
+}
+
+/* UX-003 / UX-010: refine-by-talking chips + a persistent hint above the composer. */
+.kc-refine-hint {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+.kc-refine-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.kc-refine-chip {
+  font-size: 12px;
+}
+
+/* UX-011: the quiet v1 "history exists" cue (the rail proper appears at v2+). */
+.kc-version-rail-hint {
+  align-items: center;
+}
+.kc-version-v1cue {
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+
+/* UX-002: the Printability checks as scannable icon tiles (✓ pass / ⚠ needs-review) instead of a
+ * flat bullet list — the product's core trust moment reads at a glance. */
+.kc-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kc-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--kc-ink);
+}
+.kc-check-ico {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--kc-pass, #3f8f5b) 16%, var(--kc-surface));
+  color: var(--kc-pass, #3f8f5b);
+}
+.kc-check-warn .kc-check-ico {
+  background: color-mix(in srgb, var(--kc-fail) 15%, var(--kc-surface));
+  color: var(--kc-fail);
+}
+
+/* UX-006: the Topbar printer-status chip — always-on "what am I targeting" cue. */
+.kc-printer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  border: 1px solid var(--kc-hair);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-printer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--kc-accent);
+}
+.kc-printer-chip-vol {
+  font-family: var(--kc-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--kc-muted);
+}
+@media (max-width: 820px) {
+  .kc-printer-chip-vol {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .kc-printer-chip {
+    display: none;
+  }
+}
+
+/* UX-004: a mobile-only sticky "jump to print actions" bar — hidden on desktop. */
+.kc-mobile-cta {
+  display: none;
+}
+@media (max-width: 1000px) {
+  .kc-mobile-cta {
+    display: block;
+    position: sticky;
+    bottom: 12px;
+    margin: 10px auto 0;
+    padding: 12px 20px;
+    min-height: 44px;
+    border: none;
+    border-radius: var(--kc-r-chip);
+    background: var(--kc-accent-strong);
+    color: var(--kc-on-accent);
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: var(--kc-shadow-hero);
+    cursor: pointer;
+  }
+  /* UX-NEW-1: the branded focus ring (matches .kc-btn) so the primary mobile action has a clear,
+     consistent keyboard-focus indicator. */
+  .kc-mobile-cta:focus-visible {
+    outline: 2px solid var(--kc-accent);
+    outline-offset: 2px;
+  }
+}
+
 /* Assistant message rows carry a small cube avatar. */
 .kc-ai-row {
   display: flex;
@@ -1338,4 +2010,1562 @@ input {
   border-radius: 9px;
   background: var(--kc-accent);
   color: var(--kc-on-accent);
+}
+
+/* --------------------------------------------------- My Designs library (Stage 8.5 Slice 1) */
+
+.kc-btn-ghost {
+  background: transparent;
+  color: var(--kc-ink);
+  border: 1px solid var(--kc-hair-strong);
+  padding: 7px 13px;
+  border-radius: var(--kc-r-btn);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kc-btn-ghost:hover {
+  background: var(--kc-surface-2);
+}
+
+.kc-mydesigns {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 28px clamp(16px, 4vw, 48px) 48px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+.kc-mydesigns-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.kc-mydesigns-title {
+  margin: 0;
+  font-family: var(--kc-font-display);
+  font-size: 26px;
+  font-weight: 800;
+}
+.kc-mydesigns-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 64px 16px;
+  color: var(--kc-ink);
+}
+.kc-mydesigns-empty p {
+  margin: 0;
+}
+
+.kc-design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px;
+}
+
+.kc-design-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair);
+  border-radius: var(--kc-r-card);
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.kc-design-card:hover {
+  box-shadow: var(--kc-shadow-card);
+  transform: translateY(-1px);
+}
+.kc-design-card-busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.kc-design-open {
+  border: 0;
+  padding: 0;
+  background: var(--kc-viewport-bg);
+  cursor: pointer;
+  aspect-ratio: 4 / 3;
+  display: block;
+}
+.kc-design-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.kc-design-thumb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--kc-muted);
+  font-size: 13px;
+  text-transform: capitalize;
+  background: var(--kc-surface-2);
+}
+/* L-1 (wiring-audit): the cube glyph reads as an intentional "no preview yet" placeholder for
+   thumb-less designs (imports / legacy), so the grid is visually consistent with rendered thumbs. */
+.kc-design-thumb-empty svg {
+  opacity: 0.45;
+}
+
+.kc-design-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 4px;
+}
+.kc-design-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--kc-ink);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.kc-design-name:hover {
+  color: var(--kc-accent-deep);
+}
+.kc-design-rename {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border: 1px solid var(--kc-accent);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+}
+.kc-design-date {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+
+.kc-design-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px 10px;
+}
+.kc-design-act {
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  font-size: 12px;
+  /* UX-009: a touch heavier than the passive date metadata, so the actions read as interactive
+     at rest rather than only on hover. */
+  font-weight: 600;
+  color: var(--kc-muted);
+  cursor: pointer;
+  border-radius: var(--kc-r-btn);
+}
+.kc-design-act:hover {
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+}
+.kc-design-act-danger:hover {
+  background: color-mix(in srgb, var(--kc-fail) 14%, var(--kc-surface));
+  color: var(--kc-fail);
+}
+
+/* My Designs toolbar (Stage 8.5 Slice 1 — search / sort / import) */
+.kc-mydesigns-headactions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kc-mydesigns-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.kc-mydesigns-search {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font-size: 13.5px;
+}
+.kc-mydesigns-search:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-mydesigns-sort select {
+  padding: 8px 10px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* UX-002: the library card controls were styled mouse-on-desktop only and skipped the app's
+   accent focus ring. Give every card control the same branded :focus-visible treatment the rest of
+   the chrome uses, so a keyboard/AT user can see which card + action is focused. The open button
+   has no padding (the thumbnail fills it), so it uses an inset offset to keep the ring visible. */
+.kc-design-name:focus-visible,
+.kc-design-act:focus-visible,
+.kc-design-rename:focus-visible,
+.kc-mydesigns-sort select:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-design-open:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: -2px;
+}
+
+/* UX-007: a per-card error when a Rename/Duplicate/Delete action fails, so a silent data-action
+   failure can't read as success. */
+.kc-design-err {
+  margin: 0 12px 8px;
+  font-size: 11.5px;
+  color: var(--kc-fail);
+}
+
+/* UX-005: the Topbar "My Designs" reflects the current route, so the user keeps a "you are here"
+   cue (the H1 + nav no longer read as a bare duplicate). */
+.kc-btn-ghost.kc-btn-active {
+  background: var(--kc-surface-2);
+  border-color: var(--kc-accent);
+  color: var(--kc-accent-deep);
+}
+
+/* UX-001: the quiet save indicator in the Topbar. Reassurance, not celebration. */
+.kc-savestate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kc-muted);
+  white-space: nowrap;
+}
+.kc-savestate-saved {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  border-radius: var(--kc-r-btn);
+  color: var(--kc-ink);
+  cursor: pointer;
+}
+.kc-savestate-saved:hover {
+  color: var(--kc-accent-deep);
+}
+.kc-savestate-saved:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-savestate-error {
+  color: var(--kc-fail);
+}
+.kc-savedot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.kc-savestate-saving .kc-savedot {
+  animation: kc-savepulse 1s ease-in-out infinite;
+}
+.kc-savestate-saved .kc-savedot {
+  background: var(--kc-pass, var(--kc-accent));
+}
+@keyframes kc-savepulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kc-savestate-saving .kc-savedot {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------ Slice 2: version rail (Stage 8.5) */
+/* A thin strip above the workspace that shows v1/v2/v3 pills when there are 2+ versions.
+   Hidden (returns null) when there is only one version. */
+.kc-version-rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--kc-surface-2);
+  border-bottom: 1px solid var(--kc-hair);
+  flex: none;
+  flex-wrap: wrap;
+  min-height: 40px;
+}
+.kc-version-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kc-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: none;
+}
+.kc-version-pills {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.kc-version-pill {
+  border: 1px solid var(--kc-hair-strong);
+  background: var(--kc-surface);
+  color: var(--kc-muted);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.kc-version-pill:hover {
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+}
+.kc-version-pill-active {
+  /* UX-001: `-strong` for AA contrast on the white "v2" label (raw accent is 3.99:1). */
+  background: var(--kc-accent-strong);
+  border-color: var(--kc-accent-strong);
+  color: #fff;
+}
+.kc-version-pill:focus-visible,
+.kc-version-step:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-version-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.kc-version-step {
+  border: 0;
+  background: none;
+  color: var(--kc-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--kc-r-btn);
+}
+.kc-version-step:hover {
+  color: var(--kc-ink);
+  background: var(--kc-surface);
+}
+.kc-version-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.kc-version-compare {
+  color: var(--kc-accent-deep);
+}
+/* UX-002: raise version pills/steps (Compare carries `.kc-version-step` too) to the 44px touch
+   floor (HIG / WCAG 2.5.5). Both arms — `coarse` for real touch devices AND `width <= 640px` so a
+   desktop resized to a phone width (which reports `pointer: fine`) still gets the target. */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-version-pill, .kc-version-step {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* Version compare card — injected into the thread when Compare is clicked */
+.kc-compare-card {
+  margin: 6px 0;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  overflow: hidden;
+  background: var(--kc-surface);
+}
+.kc-compare-header {
+  padding: 8px 14px;
+  background: var(--kc-surface-2);
+  border-bottom: 1px solid var(--kc-hair);
+}
+.kc-compare-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kc-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kc-compare-cols {
+  display: flex;
+  gap: 0;
+}
+.kc-compare-col {
+  flex: 1 1 0;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kc-compare-col-head {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kc-accent-deep);
+  text-transform: uppercase;
+}
+.kc-compare-sum {
+  margin: 0;
+  font-size: 13px;
+  color: var(--kc-ink);
+  line-height: 1.45;
+}
+.kc-compare-gate {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+.kc-gate-pass { background: color-mix(in srgb, var(--kc-pass) 14%, transparent); color: var(--kc-pass); }
+.kc-gate-warn { background: color-mix(in srgb, var(--kc-warn) 14%, transparent); color: var(--kc-warn-dark, #a05a00); }
+.kc-gate-fail { background: color-mix(in srgb, var(--kc-fail) 14%, transparent); color: var(--kc-fail); }
+.kc-gate-neutral { background: var(--kc-surface-2); color: var(--kc-muted); }
+.kc-compare-score {
+  font-size: 12px;
+  color: var(--kc-muted);
+}
+.kc-compare-divider {
+  width: 1px;
+  background: var(--kc-hair);
+  flex: none;
+}
+/* UX-006: the "what changed" delta row — turns Compare from a restatement into a decision aid. */
+.kc-compare-delta {
+  padding: 9px 14px;
+  border-top: 1px solid var(--kc-hair);
+  background: var(--kc-surface-2);
+}
+.kc-compare-delta-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kc-muted);
+}
+.kc-compare-delta-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+  color: var(--kc-ink);
+  line-height: 1.5;
+}
+.kc-compare-delta-none {
+  font-size: 12.5px;
+  color: var(--kc-muted);
+}
+
+/* ------------------------------------------------ Slice 6: the Settings screen */
+.kc-settings {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 22px 80px;
+}
+.kc-settings-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.kc-settings-title {
+  font-family: var(--kc-font-display);
+  font-weight: 800;
+  font-size: 26px;
+  margin: 0;
+}
+.kc-settings-note {
+  font-size: 12.5px;
+  color: var(--kc-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.kc-settings-note-ok { color: var(--kc-pass); }
+.kc-settings-note-err { color: var(--kc-fail); }
+.kc-settings-empty {
+  margin-top: 8px;
+}
+.kc-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kc-set-card {
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  padding: 18px 20px;
+}
+.kc-set-h {
+  font-family: var(--kc-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+.kc-set-sub {
+  margin: 0 0 14px;
+  color: var(--kc-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.kc-set-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--kc-hair);
+}
+.kc-set-row:first-of-type {
+  border-top: 0;
+}
+.kc-set-row > label,
+.kc-set-row > span:first-child {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+.kc-set-select {
+  min-width: 220px;
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  cursor: pointer;
+}
+.kc-set-select:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+/* Slice 6 MS-2 — the AI model status row inside the Settings card header. */
+.kc-set-cardhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.kc-set-cardhead .kc-set-h {
+  margin: 0;
+}
+.kc-set-grow {
+  flex: 1;
+}
+.kc-set-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--kc-r-chip);
+  border: 1px solid var(--kc-hair-strong);
+  color: var(--kc-muted);
+}
+.kc-set-badge-local {
+  color: var(--kc-pass);
+  border-color: color-mix(in srgb, var(--kc-pass) 35%, transparent);
+  background: color-mix(in srgb, var(--kc-pass) 10%, transparent);
+}
+.kc-set-badge-cloud {
+  color: var(--kc-accent-deep);
+  border-color: color-mix(in srgb, var(--kc-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--kc-accent) 10%, transparent);
+}
+.kc-model-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--kc-muted);
+}
+.kc-statdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kc-muted);
+}
+.kc-model-stat-ok .kc-statdot { background: var(--kc-pass); }
+.kc-model-stat-ok { color: var(--kc-pass); }
+.kc-model-stat-warn .kc-statdot { background: var(--kc-warn-accent); }
+.kc-model-stat-warn { color: var(--kc-warn); }
+.kc-spin-sm {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--kc-hair-strong);
+  border-top-color: var(--kc-accent);
+  display: inline-block;
+  animation: kc-spin 0.7s linear infinite;
+}
+.kc-model-action {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--kc-ink);
+}
+.kc-link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--kc-accent-deep);
+  cursor: pointer;
+}
+.kc-link-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.kc-model-refresh {
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+
+/* Slice 6 MS-3 — cloud opt-in (toggle switch, key + model fields). */
+.kc-switch {
+  width: 42px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--kc-hair-strong);
+  position: relative;
+  flex: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.kc-switch-on {
+  background: var(--kc-accent-strong);
+}
+.kc-switch::after {
+  content: '';
+  position: absolute;
+  /* Centred vertically so the visual knob stays put even when the touch target grows the track
+     to 44px on a phone/narrow viewport (UX-101). */
+  top: 50%;
+  transform: translateY(-50%);
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: left 0.12s;
+}
+.kc-switch-on::after {
+  left: 20px;
+}
+.kc-switch:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-set-callout {
+  border-radius: var(--kc-r-btn);
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+.kc-set-callout-privacy {
+  background: color-mix(in srgb, var(--kc-accent) 8%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-accent) 24%, transparent);
+  color: var(--kc-ink);
+}
+.kc-cloud-config {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.kc-set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kc-set-field > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.kc-set-fieldrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.kc-set-input {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+}
+.kc-set-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-btn-sm {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid var(--kc-hair-strong);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  padding: 8px 13px;
+  border-radius: var(--kc-r-btn);
+  cursor: pointer;
+  flex: none;
+}
+.kc-btn-accent-sm {
+  background: var(--kc-accent-strong);
+  border-color: var(--kc-accent-strong);
+  color: #fff;
+}
+.kc-btn-sm:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.kc-set-link {
+  font-size: 12.5px;
+  align-self: flex-start;
+  text-decoration: none;
+}
+.kc-set-fallback-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--kc-muted);
+  line-height: 1.5;
+}
+
+/* Slice 6 MS-4 — the experimental toggle badge + warn callout, and the chat offer card. */
+.kc-set-badge-exp {
+  color: var(--kc-warn);
+  border-color: color-mix(in srgb, var(--kc-warn-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--kc-warn-accent) 14%, transparent);
+}
+.kc-set-callout-warn {
+  background: color-mix(in srgb, var(--kc-warn-accent) 14%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-warn-accent) 40%, transparent);
+  color: #5d4708;
+}
+.kc-exp-offer {
+  margin-right: 22px;
+  background: color-mix(in srgb, var(--kc-warn-accent) 10%, var(--kc-surface));
+  border: 1px solid color-mix(in srgb, var(--kc-warn-accent) 35%, transparent);
+  border-radius: 13px;
+  padding: 11px 13px;
+}
+.kc-exp-warn {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kc-ink);
+}
+.kc-exp-try {
+  font-size: 13px;
+}
+.kc-exp-decline {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--kc-muted);
+}
+
+/* Slice 6 MS-5 — tools health + about/reset. */
+.kc-tool-stat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-muted);
+}
+.kc-tool-stat-ok { color: var(--kc-pass); }
+.kc-tool-stat-missing { color: var(--kc-fail); }
+.kc-set-about {
+  font-size: 13px;
+  color: var(--kc-muted);
+}
+.kc-reset-confirm {
+  display: inline-flex;
+  gap: 8px;
+}
+.kc-btn-danger-sm {
+  background: var(--kc-fail);
+  border-color: var(--kc-fail);
+  color: #fff;
+}
+
+/* UX-101/102/103: the Slice 6 controls (toggle switches, small Save/Replace/Reset buttons) and the
+   topbar nav reach the 44px touch floor on touch devices AND on narrow viewports (a desktop resized
+   to a phone width reports pointer:fine, so both arms are needed). The switch keeps its slim visual
+   track via content-box clipping + transparent vertical padding, so only the TAP AREA grows. */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-btn,
+  .kc-btn-sm {
+    min-height: 44px;
+  }
+  .kc-switch {
+    min-height: 44px;
+    padding-block: 10px;
+    background-clip: content-box;
+  }
+}
+
+@media (max-width: 640px) {
+  .kc-set-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .kc-set-select {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+/* ------------------------------------------------ Slice 2: refine input (Stage 8.5) */
+/* The follow-up / clarification input that lives at the bottom of the chat column.
+   Stays out of the viewport — sits as a footer beneath the scrollable thread. */
+.kc-refine-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--kc-hair);
+  background: var(--kc-surface);
+  flex: none;
+}
+.kc-refine-input {
+  flex: 1 1 auto;
+  resize: none;
+  padding: 8px 12px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+  font-size: 13.5px;
+  font-family: var(--kc-font-body);
+  line-height: 1.45;
+  min-height: 60px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.kc-refine-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-refine-send {
+  padding: 8px 14px;
+  flex: none;
+  align-self: flex-end;
+}
+@media (pointer: coarse) {
+  .kc-refine-send {
+    min-height: 44px;
+  }
+}
+
+/* --------------------------------------- Slice 7: the photo on-ramp (Surface D) */
+/* A secondary "describe with a photo" affordance + its reading/confirm/error card. Text stays the
+   primary path; this is honest, local-vision framing throughout. */
+.kc-photo-onramp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+/* Landing: a block under the input card, full width so the card aligns with it. */
+.kc-photo-landing {
+  width: 100%;
+  margin-top: 14px;
+}
+/* Workspace: sits on its own line at the foot of the refine row (the row is flex-wrap). */
+.kc-photo-workspace {
+  flex: 1 0 100%;
+  margin-top: 2px;
+}
+
+.kc-photo-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px dashed var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: transparent;
+  color: var(--kc-muted);
+  font-family: var(--kc-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.kc-photo-affordance:hover:not(:disabled) {
+  color: var(--kc-accent-strong);
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 7%, transparent);
+}
+.kc-photo-affordance:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.kc-photo-affordance:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
+.kc-photo-card {
+  width: 100%;
+  text-align: left;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-card);
+  padding: 14px;
+  animation: kc-fadeup 0.25s ease both;
+}
+.kc-photo-card-error {
+  background: color-mix(in srgb, var(--kc-fail) 7%, var(--kc-surface));
+  border-color: color-mix(in srgb, var(--kc-fail) 32%, transparent);
+}
+
+.kc-photo-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.kc-photo-thumb {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--kc-hair);
+  background: var(--kc-surface-2);
+}
+.kc-photo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.kc-photo-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--kc-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-photo-privacy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--kc-muted);
+}
+
+.kc-photo-seed {
+  width: 100%;
+  margin-top: 11px;
+  resize: vertical;
+  padding: 9px 12px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-input);
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+  font-size: 13.5px;
+  font-family: var(--kc-font-body);
+  line-height: 1.5;
+  min-height: 64px;
+}
+.kc-photo-seed:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+}
+.kc-photo-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--kc-muted);
+}
+.kc-photo-error-msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kc-ink);
+}
+
+.kc-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.kc-photo-cancel {
+  border: none;
+  background: transparent;
+  color: var(--kc-muted);
+  font-family: var(--kc-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 6px;
+}
+.kc-photo-cancel:hover {
+  color: var(--kc-ink);
+}
+.kc-photo-cancel:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
+/* Touch / narrow-viewport: the affordance, cancel, and seed textarea reach a real 44px tap target. */
+@media (pointer: coarse), (max-width: 640px) {
+  .kc-photo-affordance,
+  .kc-photo-cancel {
+    min-height: 44px;
+  }
+}
+
+/* Slice 9 MS-2 — in-app help / glossary "(i)" tips. A click-to-toggle disclosure: the definition
+ * drops in below the term's row, anchored to a full-width `.kc-tip-host` ancestor so it spans the
+ * card and never clips inside the scrolling side panel (a floating tooltip would). */
+.kc-tip-host {
+  position: relative;
+}
+/* The wrapper must NOT be a positioned/containing box, so the panel anchors to .kc-tip-host. */
+.kc-infotip {
+  display: inline;
+}
+.kc-infotip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 5px;
+  padding: 0;
+  vertical-align: middle;
+  position: relative;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-muted);
+  font: italic 700 10px/1 var(--kc-font-display);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+/* Expand the pointer hit area to ~25px (WCAG 2.5.8 ≥24px) without enlarging the 15px visual chip. */
+.kc-infotip-btn::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+.kc-infotip-btn:hover {
+  color: var(--kc-accent-strong);
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 10%, var(--kc-surface));
+}
+.kc-infotip-btn[aria-expanded='true'] {
+  color: #fff;
+  background: var(--kc-accent);
+  border-color: var(--kc-accent);
+}
+.kc-infotip-btn:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-infotip-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-left: 3px solid var(--kc-accent);
+  border-radius: 9px;
+  background: var(--kc-surface);
+  box-shadow: var(--kc-shadow-hero);
+  color: var(--kc-ink);
+  font-family: var(--kc-font-body, inherit);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+}
+/* The confidence row keeps the badge and its "(i)" together; the panel still drops full-width
+ * below (anchored to the .kc-readiness-conf host). */
+.kc-conf-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* The gate badge + its "(i)" sit on one row; the row stretches full card width so the help panel
+ * below spans the card. The badge keeps its natural chip width at the left. */
+.kc-gate-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Slice 9 MS-4 — the first-run setup wizard (built to docs/design/prototype/jsx/wizard.jsx). A
+ * full-screen modal: a left step rail + a step body with a footer nav. Stacks on narrow screens. */
+.kc-wiz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--kc-ink) 55%, transparent);
+}
+.kc-wiz-overlay:focus {
+  outline: none;
+}
+.kc-wiz {
+  display: flex;
+  width: 100%;
+  max-width: 880px;
+  max-height: 90vh;
+  overflow: hidden;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-card);
+  box-shadow: var(--kc-shadow-hero);
+}
+.kc-wiz-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 0 0 232px;
+  padding: 22px 20px;
+  background: var(--kc-surface-2);
+  border-right: 1px solid var(--kc-hair);
+}
+.kc-wiz-brand {
+  font-family: var(--kc-font-display);
+  font-size: 18px;
+  color: var(--kc-ink);
+}
+.kc-wiz-brand b {
+  color: var(--kc-accent);
+}
+.kc-wiz-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-wiz-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--kc-muted);
+}
+.kc-wiz-step.on {
+  background: color-mix(in srgb, var(--kc-accent) 12%, var(--kc-surface));
+  color: var(--kc-ink);
+  font-weight: 600;
+}
+.kc-wiz-step.done {
+  color: var(--kc-ink);
+}
+.kc-wiz-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--kc-surface);
+  border: 1px solid var(--kc-hair-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+.kc-wiz-step.on .kc-wiz-num {
+  background: var(--kc-accent);
+  border-color: var(--kc-accent);
+  color: #fff;
+}
+.kc-wiz-step.done .kc-wiz-num {
+  background: color-mix(in srgb, var(--kc-accent) 70%, #fff);
+  border-color: transparent;
+  color: var(--kc-ink);
+}
+.kc-wiz-budget {
+  margin: auto 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--kc-muted);
+}
+.kc-wiz-skip {
+  align-self: flex-start;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--kc-muted);
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.kc-wiz-skip:hover {
+  color: var(--kc-ink);
+}
+.kc-wiz-skip:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-wiz-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kc-wiz-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 30px 32px 18px;
+}
+.kc-wiz-h1 {
+  margin: 0 0 8px;
+  font-family: var(--kc-font-display);
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--kc-ink);
+}
+.kc-wiz-lede {
+  margin: 0 0 18px;
+  max-width: 52ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--kc-muted);
+}
+.kc-wiz-bullets {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13.5px;
+  color: var(--kc-ink);
+}
+.kc-wiz-modelcard {
+  padding: 15px 16px;
+  border: 1px solid var(--kc-hair-strong);
+  border-left: 3px solid var(--kc-accent);
+  border-radius: 11px;
+  background: var(--kc-surface);
+}
+.kc-wiz-modelcard-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kc-wiz-model-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--kc-ink);
+}
+.kc-wiz-model-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-model-ok .kc-statdot {
+  background: var(--kc-pass);
+}
+.kc-wiz-model-warn {
+  color: var(--kc-ink);
+}
+.kc-wiz-model-warn .kc-statdot {
+  background: var(--kc-warn-accent);
+}
+.kc-wiz-model-desc {
+  margin: 9px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kc-muted);
+}
+.kc-wiz-model-action {
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  color: var(--kc-ink);
+}
+.kc-wiz-cloud {
+  margin-top: 16px;
+}
+.kc-wiz-cloud-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--kc-ink);
+  cursor: pointer;
+}
+.kc-opt {
+  color: var(--kc-muted);
+  font-style: italic;
+}
+.kc-wiz-cloud-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.kc-text-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: 9px;
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font-size: 13px;
+}
+.kc-text-input:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 1px;
+  border-color: var(--kc-accent);
+}
+.kc-wiz-cloud-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--kc-muted);
+}
+.kc-wiz-printers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kc-wiz-printer {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: 11px;
+  background: var(--kc-surface);
+  font-size: 14px;
+  color: var(--kc-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.kc-wiz-printer:hover {
+  border-color: var(--kc-accent);
+}
+.kc-wiz-printer.on {
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 8%, var(--kc-surface));
+}
+.kc-wiz-printer:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-wiz-printer-radio {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--kc-hair-strong);
+}
+.kc-wiz-printer.on .kc-wiz-printer-radio {
+  border-color: var(--kc-accent);
+  background:
+    radial-gradient(circle, var(--kc-accent) 0 4px, transparent 5px);
+}
+.kc-wiz-printer-name {
+  font-weight: 600;
+}
+.kc-wiz-printer-note {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-direct {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kc-wiz-direct-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: 11px;
+  background: var(--kc-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.kc-wiz-direct-opt:hover {
+  border-color: var(--kc-accent);
+}
+.kc-wiz-direct-opt.on {
+  border-color: var(--kc-accent);
+  background: color-mix(in srgb, var(--kc-accent) 8%, var(--kc-surface));
+}
+.kc-wiz-direct-opt:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+.kc-wiz-direct-t {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-wiz-direct-d {
+  font-size: 12.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-done-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--kc-pass) 18%, var(--kc-surface));
+  color: var(--kc-pass);
+  font-size: 26px;
+  font-weight: 700;
+}
+.kc-wiz-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.kc-wiz-recap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--kc-hair);
+  border-radius: 9px;
+  background: var(--kc-surface-2);
+  font-size: 13.5px;
+}
+.kc-wiz-recap-row dt {
+  color: var(--kc-muted);
+}
+.kc-wiz-recap-row dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--kc-ink);
+}
+.kc-wiz-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 32px;
+  border-top: 1px solid var(--kc-hair);
+}
+.kc-wiz-dots {
+  display: flex;
+  gap: 7px;
+}
+.kc-wiz-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--kc-hair-strong);
+}
+.kc-wiz-dot.on {
+  background: var(--kc-accent);
+  transform: scale(1.3);
+}
+
+/* Stack the wizard on narrow screens: the rail becomes a slim top strip with horizontal steps. */
+@media (max-width: 720px) {
+  .kc-wiz {
+    flex-direction: column;
+    max-height: 94vh;
+  }
+  .kc-wiz-rail {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--kc-hair);
+    padding: 14px 18px;
+  }
+  .kc-wiz-steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+  .kc-wiz-step {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+  .kc-wiz-budget {
+    display: none;
+  }
+  .kc-wiz-skip {
+    margin-left: auto;
+  }
+  .kc-wiz-content {
+    padding: 22px 20px 14px;
+  }
+  .kc-wiz-foot {
+    padding: 12px 20px;
+  }
 }

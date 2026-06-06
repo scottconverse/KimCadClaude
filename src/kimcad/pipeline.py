@@ -17,6 +17,7 @@ Two safety behaviors from the threat model (§12) live here, not in the leaf sta
 
 from __future__ import annotations
 
+import os
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -52,6 +53,17 @@ from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
 Slicer = Callable[[Path, Path, str], Any]
+
+# MS-3 (real step progress): a design run reports the coarse phase it's working through, so a
+# multi-minute local run can show WHAT it's doing rather than just an elapsed timer. The callback
+# is optional and best-effort — it must never raise into the pipeline — and is called in order with
+# these phase keys (the web layer relays them to the SPA; see frontend/src/designPhase.ts):
+#   planning   — the model is turning the prompt into a design plan (the slow step)
+#   generating — the model is writing the OpenSCAD (LLM path only; skipped for template parts)
+#   rendering  — the SCAD is being rendered into a 3D mesh
+#   validating — orient + harden + the printability gate + readiness
+ProgressFn = Callable[[str], None]
+DESIGN_PHASES = ("planning", "generating", "rendering", "validating")
 
 # Gate failures the model can plausibly fix by regenerating geometry. A thin wall or
 # stray-shell WARN doesn't FAIL the gate; these two are the only FAIL codes, and both
@@ -115,6 +127,14 @@ class PipelineStatus(str, Enum):
     render_failed = "render_failed"
     gate_failed = "gate_failed"
     completed = "completed"
+    # Stage 8.5 Slice 9: the local AI server (Ollama) couldn't be reached. The pipeline itself
+    # PROPAGATES the connection error (the caller owns it); the WEB LAYER maps that to this status
+    # so the SPA shows a recoverable "your local AI isn't running" wall, not a raw 500/traceback.
+    model_unavailable = "model_unavailable"
+    # Stage 8.5 Slice 6 MS-4: no deterministic template fits and the experimental LLM-OpenSCAD
+    # generator wasn't allowed for this request — so we OFFER it rather than auto-run it (no codegen
+    # call, no dead-end). The web layer renders this as the "try the experimental generator" prompt.
+    needs_experimental = "needs_experimental"
 
 
 # Shown when the model's response can't be turned into a design plan (bad JSON, or valid
@@ -126,6 +146,20 @@ PLAN_FAILED_MESSAGE = (
     "not suited to structured planning. Try a different model (run `kimcad models` to "
     "see what fits your machine) or rephrase the request."
 )
+
+# Shown when the local model server (Ollama) can't be reached — a recoverable, actionable
+# message, not a raw connection traceback.
+MODEL_UNAVAILABLE_MESSAGE = (
+    "KimCad couldn't reach your local AI. Make sure Ollama is running, then try again. "
+    "You can check the AI's status in Settings."
+)
+
+
+def _is_model_unreachable(e: BaseException) -> bool:
+    """True if ``e`` is a model-server connection/timeout (Ollama down). Duck-typed by class name
+    so the pipeline needn't import the OpenAI client and a fake provider can raise a stand-in."""
+    return type(e).__name__ in {"APIConnectionError", "APITimeoutError"}
+
 
 @dataclass
 class PrintReport:
@@ -329,10 +363,15 @@ class Pipeline:
         history: list[dict[str, str]] | None = None,
         proceed_anyway: bool = False,
         confirm_print: bool = False,
+        allow_experimental: bool = True,
         basename: str = "part",
+        progress: ProgressFn | None = None,
     ) -> PipelineResult:
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # MS-3: a no-op default so the rest of the method calls emit() unconditionally.
+        emit = progress or (lambda _phase: None)
+        emit("planning")
         try:
             plan = self.provider.generate_design_plan(
                 prompt, self.printer, self.material, history=history
@@ -349,6 +388,9 @@ class Pipeline:
                 prompt=prompt,
                 error=f"{PLAN_FAILED_MESSAGE} (details: {detail})",
             )
+        # NOTE: a connection/timeout error is deliberately NOT caught here — the pipeline
+        # propagates it so the caller owns it (the CLI's handler; the web layer maps it to the
+        # recoverable `model_unavailable` response). See test_connection_error_is_not_swallowed.
         clarification = first_clarification(plan)
         if clarification is not None:
             return PipelineResult(
@@ -364,6 +406,15 @@ class Pipeline:
         # align the plan's target bbox to it — the gate then verifies the template built
         # what it declares, and the report/viewport show that size.
         match = self.registry.match(plan)
+        if match is None and not allow_experimental:
+            # No deterministic template fits, and the experimental LLM-OpenSCAD generator wasn't
+            # allowed for this request (the consumer default — it's OFF until the user opts in). Offer
+            # it rather than dead-ending: return without calling the model for codegen.
+            return PipelineResult(
+                status=PipelineStatus.needs_experimental,
+                prompt=prompt,
+                plan=plan,
+            )
         if match is not None:
             plan = plan.model_copy(
                 update={
@@ -376,7 +427,7 @@ class Pipeline:
             )
 
         render, scad, mesh, mesh_report, gate, attempts, error = self._build_geometry(
-            plan, out_dir, basename, gate_retry=not proceed_anyway, match=match
+            plan, out_dir, basename, gate_retry=not proceed_anyway, match=match, progress=emit
         )
         if render is None:
             return PipelineResult(
@@ -389,6 +440,7 @@ class Pipeline:
                 template=match,
             )
 
+        emit("validating")
         return self._assemble_result(
             prompt=prompt,
             plan=plan,
@@ -437,7 +489,13 @@ class Pipeline:
         # mesh, so a clean part goes to the slicer and to the user.
         hardened, harden_report = harden_mesh(oriented)
         mesh_path = out_dir / f"{basename}.oriented.stl"
-        hardened.export(str(mesh_path))
+        # ENG-001/ENG-003: export atomically (temp + os.replace) so a concurrent reader — a
+        # "save to My Designs" mesh copy, the viewport mesh GET, or the slicer input — never
+        # observes a half-written STL while a re-render rewrites this same path. file_type is
+        # forced because the temp name's ".tmp" suffix hides the .stl extension from trimesh.
+        tmp_path = out_dir / f"{basename}.oriented.stl.tmp"
+        hardened.export(str(tmp_path), file_type="stl")
+        os.replace(tmp_path, mesh_path)
 
         report = self._build_report(plan, render, mesh_report, gate, orientation, harden_report)
 
@@ -683,6 +741,7 @@ class Pipeline:
         *,
         gate_retry: bool = True,
         match: TemplateMatch | None = None,
+        progress: ProgressFn | None = None,
     ) -> tuple[
         RenderResult | None,
         str | None,
@@ -706,10 +765,12 @@ class Pipeline:
         Returns (render, scad, mesh, mesh_report, gate, attempts, error). ``render`` is
         None only when geometry never rendered (caller maps that to render_failed).
         """
+        emit = progress or (lambda _phase: None)
         if match is not None:
-            return self._build_from_template(match, plan, out_dir, basename)
+            return self._build_from_template(match, plan, out_dir, basename, progress=emit)
 
         thread: list[dict[str, str]] = []
+        emit("generating")
         scad = self.provider.generate_openscad(plan, self.printer, self.material, history=thread)
         last_error: str | None = None
         render: RenderResult | None = None
@@ -719,12 +780,14 @@ class Pipeline:
 
         for attempt in range(1, self.max_render_retries + 2):
             try:
+                emit("rendering")
                 render = self.renderer(scad, out_dir, basename)
             except (RenderError, BlockedCodeError) as e:
                 last_error = str(e)
                 if attempt > self.max_render_retries:
                     return None, scad, None, None, None, attempt, last_error
                 self._feed_back(thread, scad, _render_feedback(last_error))
+                emit("generating")
                 scad = self.provider.generate_openscad(
                     plan, self.printer, self.material, history=thread
                 )
@@ -737,6 +800,7 @@ class Pipeline:
             fixable = _fixable_gate_failures(gate) if gate_retry else []
             if fixable and attempt <= self.max_render_retries:
                 self._feed_back(thread, scad, _gate_feedback(fixable, plan, mesh_report))
+                emit("generating")
                 scad = self.provider.generate_openscad(
                     plan, self.printer, self.material, history=thread
                 )
@@ -752,6 +816,8 @@ class Pipeline:
         plan: DesignPlan,
         out_dir: Path,
         basename: str,
+        *,
+        progress: ProgressFn | None = None,
     ) -> tuple[
         RenderResult | None,
         str | None,
@@ -771,8 +837,11 @@ class Pipeline:
         adjust a parameter (a live-slider re-render), not to regenerate geometry. Returns
         the same 7-tuple as the LLM path with ``attempts`` fixed at 1.
         """
+        emit = progress or (lambda _phase: None)
         scad = match.scad()
         try:
+            # No "generating" phase here — the template SCAD is a pure function, no model call.
+            emit("rendering")
             render = self.renderer(scad, out_dir, basename)
         except (RenderError, BlockedCodeError) as e:
             # A proven library module shouldn't fail to render; surface it as a real defect

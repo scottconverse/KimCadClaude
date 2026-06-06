@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KimCad · Stage 8.5 Slice 5 — Advanced on-ramps (design mockup)</title>
+<style>
+  /* Workshop design tokens — copied from frontend/src/styles.css :root so this mockup matches the
+     real product exactly. This is a DESIGN ARTIFACT (no product code), for review only. */
+  :root{
+    --kc-bg:#f0ebe0; --kc-surface:#faf6ee; --kc-surface-2:#f4eee2;
+    --kc-ink:#272219; --kc-muted:#6f6857;
+    --kc-hair:rgba(39,34,25,.1); --kc-hair-strong:rgba(39,34,25,.16);
+    --kc-viewport-bg:#14171c;
+    --kc-accent:#c8623a; --kc-accent-strong:#b1542f; --kc-accent-deep:#9a4828; --kc-on-accent:#fff;
+    --kc-pass:#1d7a4e; --kc-warn:#876312; --kc-warn-accent:#c9962f; --kc-fail:#a8431f;
+    --kc-font-display:'Bricolage Grotesque Variable',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --kc-font-body:'Hanken Grotesk Variable',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --kc-font-mono:'JetBrains Mono Variable',ui-monospace,'Cascadia Code',monospace;
+    --kc-r-card:16px; --kc-r-modal:20px; --kc-r-btn:11px; --kc-r-input:11px; --kc-r-chip:999px;
+    --kc-shadow-card:0 1px 3px rgba(0,0,0,.05); --kc-shadow-hero:0 18px 50px -22px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--kc-bg);color:var(--kc-ink);font-family:var(--kc-font-body);
+    font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:0 auto;padding:40px 28px 80px}
+  h1{font-family:var(--kc-font-display);font-weight:800;font-size:30px;margin:0 0 4px}
+  .sub{color:var(--kc-muted);margin:0 0 6px;max-width:760px}
+  .note{color:var(--kc-muted);font-size:13px;margin:0 0 30px}
+  .seclabel{font-family:var(--kc-font-display);font-weight:700;font-size:13px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--kc-accent-deep);margin:42px 0 4px}
+  .seccap{color:var(--kc-muted);font-size:13.5px;margin:0 0 16px;max-width:780px}
+  .row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:1 1 340px;min-width:300px}
+
+  /* App chrome */
+  .app{background:var(--kc-surface);border:1px solid var(--kc-hair);border-radius:var(--kc-r-card);
+    box-shadow:var(--kc-shadow-card);overflow:hidden}
+  .topbar{height:54px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    border-bottom:1px solid var(--kc-hair);background:var(--kc-surface-2)}
+  .logo{width:26px;height:26px;border-radius:8px;background:var(--kc-accent);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+  .wordmark{font-family:var(--kc-font-display);font-weight:800}
+  .wordmark i{color:var(--kc-accent);font-style:normal}
+  .topbar .grow{flex:1}
+  .topbar .tab{font-size:13px;color:var(--kc-muted);padding:6px 10px;border-radius:var(--kc-r-btn)}
+  .topbar .tab.on{color:var(--kc-ink);background:var(--kc-surface);border:1px solid var(--kc-hair)}
+
+  /* Settings body */
+  .settings{padding:22px 22px 26px;display:flex;flex-direction:column;gap:18px}
+  .stitle{font-family:var(--kc-font-display);font-weight:800;font-size:20px;margin:2px 0 2px}
+  .card{background:var(--kc-surface);border:1px solid var(--kc-hair-strong);border-radius:var(--kc-r-card);
+    padding:16px 18px}
+  .card.sub2{background:var(--kc-surface-2)}
+  .ch{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .ch h3{font-family:var(--kc-font-display);font-weight:700;font-size:15px;margin:0}
+  .ch .grow{flex:1}
+  .muted{color:var(--kc-muted)}
+  .small{font-size:13px}
+  .tiny{font-size:12px}
+
+  /* Status dot + badges */
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .dot.ok{background:var(--kc-pass)} .dot.warn{background:var(--kc-warn-accent)} .dot.off{background:var(--kc-muted)}
+  .badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--kc-r-chip);
+    border:1px solid var(--kc-hair-strong);color:var(--kc-muted);background:var(--kc-surface)}
+  .badge.local{color:var(--kc-pass);border-color:color-mix(in srgb,var(--kc-pass) 35%,transparent);
+    background:color-mix(in srgb,var(--kc-pass) 10%,transparent)}
+  .badge.cloud{color:var(--kc-accent-deep);border-color:color-mix(in srgb,var(--kc-accent) 35%,transparent);
+    background:color-mix(in srgb,var(--kc-accent) 10%,transparent)}
+  .badge.exp{color:var(--kc-warn);border-color:color-mix(in srgb,var(--kc-warn-accent) 45%,transparent);
+    background:color-mix(in srgb,var(--kc-warn-accent) 14%,transparent)}
+
+  /* Buttons */
+  .btn{font:inherit;font-size:13.5px;font-weight:600;border:1px solid var(--kc-hair-strong);
+    background:var(--kc-surface);color:var(--kc-ink);padding:8px 14px;border-radius:var(--kc-r-btn);cursor:pointer}
+  .btn.accent{background:var(--kc-accent-strong);border-color:var(--kc-accent-strong);color:#fff}
+  .btn.small{padding:5px 10px;font-size:12.5px}
+  .btn.link{border:0;background:none;color:var(--kc-accent-deep);padding:0;font-weight:600}
+
+  /* Toggle switch */
+  .sw{width:42px;height:24px;border-radius:999px;background:var(--kc-hair-strong);position:relative;flex:none}
+  .sw.on{background:var(--kc-accent-strong)}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .12s}
+  .sw.on::after{left:20px}
+
+  /* Segmented (units) */
+  .seg{display:inline-flex;border:1px solid var(--kc-hair-strong);border-radius:var(--kc-r-btn);overflow:hidden}
+  .seg button{border:0;background:none;padding:5px 14px;font:inherit;font-size:12.5px;font-weight:700;
+    color:var(--kc-muted);cursor:pointer}
+  .seg button.on{background:var(--kc-accent-strong);color:#fff}
+
+  /* Inputs */
+  .field{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .input{flex:1;font:inherit;font-family:var(--kc-font-mono);font-size:13px;padding:9px 11px;
+    border:1px solid var(--kc-hair-strong);border-radius:var(--kc-r-input);background:var(--kc-surface);color:var(--kc-ink)}
+  .key-masked{font-family:var(--kc-font-mono);letter-spacing:1px}
+
+  /* Callout */
+  .callout{border-radius:var(--kc-r-btn);padding:9px 12px;font-size:12.5px;line-height:1.5;margin-top:10px}
+  .callout.privacy{background:color-mix(in srgb,var(--kc-accent) 8%,var(--kc-surface));
+    border:1px solid color-mix(in srgb,var(--kc-accent) 24%,transparent);color:var(--kc-ink)}
+  .callout.warn{background:color-mix(in srgb,var(--kc-warn-accent) 14%,var(--kc-surface));
+    border:1px solid color-mix(in srgb,var(--kc-warn-accent) 40%,transparent);color:#5d4708}
+  .callout.safe{background:color-mix(in srgb,var(--kc-pass) 9%,var(--kc-surface));
+    border:1px solid color-mix(in srgb,var(--kc-pass) 26%,transparent)}
+
+  /* Landing prompt mock */
+  .pad{padding:22px}
+  .promptcard{background:var(--kc-surface);border:1px solid var(--kc-hair-strong);border-radius:14px;
+    box-shadow:var(--kc-shadow-card);padding:14px}
+  .promptcard textarea{width:100%;border:0;background:none;resize:none;font:inherit;font-size:15px;
+    color:var(--kc-ink);outline:none}
+  .prow{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .ghost{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--kc-muted);
+    border:1px dashed var(--kc-hair-strong);border-radius:var(--kc-r-btn);padding:7px 11px;cursor:pointer}
+  .grow{flex:1}
+
+  /* Photo states */
+  .thumb{width:64px;height:64px;border-radius:10px;background:
+    repeating-linear-gradient(45deg,#d9cdbb,#d9cdbb 8px,#cdbfa9 8px,#cdbfa9 16px);flex:none;
+    border:1px solid var(--kc-hair-strong)}
+  .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--kc-hair-strong);
+    border-top-color:var(--kc-accent);display:inline-block;vertical-align:-2px}
+  .seedline{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--kc-hair)}
+  .seedline:last-child{border-bottom:0}
+  .annot{font-size:12px;color:var(--kc-muted);margin:8px 2px 0;display:flex;gap:7px}
+  .annot b{color:var(--kc-accent-deep);font-weight:700;white-space:nowrap}
+  .legend{font-size:12.5px;color:var(--kc-muted);background:var(--kc-surface-2);
+    border:1px solid var(--kc-hair);border-radius:var(--kc-r-btn);padding:10px 12px;margin:6px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>KimCad · Slice 5 — advanced on-ramps</h1>
+  <p class="sub">A visual mockup of the three opt-in on-ramps and the model story, against the real
+    Workshop palette. Design only — nothing here is wired. The trust notes (terracotta) are the hard
+    rules the Slice 6/7 builds must honor.</p>
+  <p class="note">gemma4:e4b is the default everywhere — text, codegen, and the photo's vision. No
+    Chinese model is ever offered in the UI. Cloud and the experimental generator are OFF until you
+    choose them. The API key is a normal saved field, shown masked on return.</p>
+
+  <!-- ============================================ SETTINGS SCREEN ============================ -->
+  <div class="seclabel">1 · Settings screen — the AI section (Surfaces A · B · C)</div>
+  <p class="seccap">One place for the model story: the safe local default first, the opt-in cloud
+    next, the untrusted experimental last. (Slice 6 builds this screen.)</p>
+
+  <div class="app">
+    <div class="topbar">
+      <span class="logo">K</span><span class="wordmark">Kim<i>Cad</i></span>
+      <span class="grow"></span>
+      <span class="tab">New design</span><span class="tab">My Designs</span><span class="tab on">Settings</span>
+    </div>
+    <div class="settings">
+      <div class="stitle">Settings</div>
+
+      <!-- Printer & material + Units (context, brief) -->
+      <div class="card">
+        <div class="ch"><h3>Printer &amp; material</h3><span class="grow"></span>
+          <span class="small muted">Bambu Lab P1S · PLA</span></div>
+        <div class="ch" style="margin:0"><h3 style="font-size:14px">Units</h3><span class="grow"></span>
+          <span class="seg"><button class="on">mm</button><button>in</button></span></div>
+      </div>
+
+      <!-- Surface A: model status -->
+      <div class="card">
+        <div class="ch">
+          <h3>AI model</h3><span class="badge local">Local</span><span class="grow"></span>
+          <span class="dot ok"></span><span class="small">Running</span>
+        </div>
+        <div class="small"><span style="font-family:var(--kc-font-mono)">gemma4:e4b</span>
+          — KimCad's local AI. Runs on your machine, on your CPU. No internet required; nothing leaves
+          your computer.</div>
+        <div class="annot"><b>Trust rule 1</b><span>THE model. No dropdown of alternatives; no Chinese
+          model ever offered. (Manual backend override is CLI-only, by design.)</span></div>
+      </div>
+
+      <!-- Surface B: cloud opt-in (OFF) -->
+      <div class="card">
+        <div class="ch">
+          <h3>Cloud acceleration</h3><span class="badge">Optional</span><span class="grow"></span>
+          <span class="sw" title="off"></span>
+        </div>
+        <div class="small muted">Local always works. Turn this on to let KimCad send a design prompt to
+          a cloud model (via OpenRouter) for a hard request.</div>
+        <div class="callout privacy"><b>This sends your prompt off your machine.</b> Off by default;
+          KimCad binds to your computer only until you choose this.</div>
+        <div class="annot"><b>Trust rule 2</b><span>Opt-in, OFF by default, labeled at the point of use.</span></div>
+      </div>
+
+      <!-- Surface C: experimental (OFF) -->
+      <div class="card">
+        <div class="ch">
+          <h3>Experimental: direct shape generator</h3><span class="badge exp">Experimental · Untrusted</span>
+          <span class="grow"></span><span class="sw" title="off"></span>
+        </div>
+        <div class="small muted">Lets the AI write the 3D shape directly when no template fits. Off by
+          default. Runs in a locked sandbox; never skips the printability check; results can be rough.</div>
+        <div class="annot"><b>Trust rule 4</b><span>Sandboxed (blocked-code check + isolation + timeout);
+          never bypasses the Printability Gate.</span></div>
+      </div>
+
+      <!-- Tools + About (brief) -->
+      <div class="card sub2">
+        <div class="ch" style="margin:0"><h3 style="font-size:14px">Tools</h3><span class="grow"></span>
+          <span class="dot ok"></span><span class="small muted">OpenSCAD ✓ · OrcaSlicer ✓</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ CLOUD KEY STATES ========================== -->
+  <div class="seclabel">2 · Cloud opt-in — the API key (Surface B, expanded)</div>
+  <p class="seccap">A normal consumer field: type it, save it, and on return it's shown masked — last
+    5–6 characters only. KimCad never re-renders the full key, and never types it for you.</p>
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="ch"><h3>Cloud acceleration</h3><span class="badge cloud">On</span>
+          <span class="grow"></span><span class="sw on"></span></div>
+        <div class="small muted">Enter your OpenRouter key. KimCad will use it only for the cloud calls
+          you trigger.</div>
+        <div class="field">
+          <input class="input" value="(your-OpenRouter-key-ends-in)wQ9f2" />
+          <button class="btn accent small">Save</button>
+        </div>
+        <button class="btn link small" style="margin-top:8px">Get a free OpenRouter key →</button>
+        <div class="legend">State: <b>entering</b> — the key is visible only while the user types it.</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div class="ch"><h3>Cloud acceleration</h3><span class="badge cloud">On</span>
+          <span class="grow"></span><span class="sw on"></span></div>
+        <div class="small muted">Your key is saved. Cloud requests show a “Cloud” chip in the workspace
+          so you always know where a request is going.</div>
+        <div class="field">
+          <input class="input key-masked" value="••••••••••••••••••••wQ9f2" readonly />
+          <button class="btn small">Replace</button>
+        </div>
+        <div class="callout safe small"><span class="dot ok"></span> Saved · masked on return (last 5
+          shown). The full key is never displayed again.</div>
+        <div class="legend">State: <b>saved / reopened</b> — Trust rule 3.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ EXPERIMENTAL INLINE OFFER ================= -->
+  <div class="seclabel">3 · Experimental generator — the no-dead-end inline offer (Surface C)</div>
+  <p class="seccap">When a request has no template match, the assistant offers the experimental
+    generator rather than dead-ending — with the warning carrying the weight. Never auto-run.</p>
+  <div class="app" style="max-width:620px">
+    <div class="pad">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span class="logo" style="background:var(--kc-surface-2);color:var(--kc-accent);border:1px solid var(--kc-hair)">◆</span>
+        <div class="card" style="flex:1;background:var(--kc-surface-2)">
+          <div class="small">I don't have a precise template for a <i>“topographic coaster of Mt.
+            Rainier.”</i> I can try an <b>experimental generator</b> that writes the shape directly —
+            it isn't always right, it runs in a locked sandbox, and it still has to pass the
+            printability check.</div>
+          <div class="callout warn"><b>Experimental · may not be perfect.</b> The result could be
+            rough or fail the check — you'll see exactly what happens.</div>
+          <div class="prow"><button class="btn accent small">Try the experimental generator</button>
+            <button class="btn small">Describe it differently</button></div>
+        </div>
+      </div>
+      <div class="annot"><b>Trust rule 4</b><span>Offered, never silent; sandboxed; still gated.</span></div>
+    </div>
+  </div>
+
+  <!-- ============================================ PHOTO ON-RAMP ============================= -->
+  <div class="seclabel">4 · Photo input mode — “describe with a photo” (Surface D · Slice 7)</div>
+  <p class="seccap">A secondary on-ramp beside the text box. Local vision (gemma4:e4b) reads the photo
+    into a <b>rough, editable seed</b> — it never auto-sends, and it never promises a finished part.</p>
+
+  <div class="row">
+    <!-- Entry -->
+    <div class="col">
+      <div class="promptcard">
+        <textarea rows="2" placeholder="Describe the part you want to make…"></textarea>
+        <div class="prow">
+          <span class="ghost">📷 Describe with a photo</span>
+          <span class="grow"></span>
+          <button class="btn accent small">Design it</button>
+        </div>
+      </div>
+      <div class="legend">State: <b>entry</b> — text is primary; the camera is a clear secondary
+        affordance (§5.3).</div>
+    </div>
+
+    <!-- Reading -->
+    <div class="col">
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:center">
+          <span class="thumb"></span>
+          <div>
+            <div class="small"><span class="spin"></span> &nbsp;Reading your photo…</div>
+            <div class="tiny muted" style="margin-top:4px">Local vision on your CPU — this takes a moment.</div>
+          </div>
+        </div>
+        <div class="callout privacy small">Your photo stays on your computer. It never leaves your machine.</div>
+        <div class="legend">State: <b>reading</b> — honest progress, no frozen spinner (Trust rule 5).</div>
+      </div>
+    </div>
+
+    <!-- Rough seed confirm -->
+    <div class="col">
+      <div class="card">
+        <div class="ch"><h3>A rough starting point</h3></div>
+        <div class="small muted" style="margin-bottom:6px">From your photo — these are guesses, not
+          measurements. Adjust anything, then continue.</div>
+        <div class="seedline"><span class="small">Looks like</span><span class="small">a rectangular box</span></div>
+        <div class="seedline"><span class="small">Width</span><span class="small" style="font-family:var(--kc-font-mono)">~80 mm</span></div>
+        <div class="seedline"><span class="small">Depth</span><span class="small" style="font-family:var(--kc-font-mono)">~50 mm</span></div>
+        <div class="seedline"><span class="small">Height</span><span class="small" style="font-family:var(--kc-font-mono)">~30 mm</span></div>
+        <div class="callout warn small">A photo can't tell us scale — these sizes are estimates until
+          you set them.</div>
+        <div class="prow"><button class="btn accent small">Use this as a starting point</button>
+          <button class="btn small">Start over</button></div>
+        <div class="legend">State: <b>confirm</b> — an editable seed into the normal text→DesignPlan
+          flow, then refine with the conversation + sliders. Never “photo → finished part.”</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:42px">Mockup for review · Stage 8.5 Slice 5 · companion to
+    <code>docs/design/stage-8.5-slice-5-onramps.md</code>. No product code — design gate only.</p>
+</div>
+</body>
+</html>

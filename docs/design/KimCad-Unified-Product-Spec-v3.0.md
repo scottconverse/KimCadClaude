@@ -382,3 +382,41 @@ Scored on Trimesh properties (`is_watertight`, `math.isclose(volume, expected)`,
 | Stage 10 — Windows Beta Gate | The final repo stage. |
 
 **Net:** stages 0–6 are done and tagged; **next = repo Stage 7 = Smart Mesh + PrintProof3D + readiness report.** The model decision (`gemma4:e4b` default; Qwen rejected) is settled and is not reopened.
+
+## Addendum B — Stage 8.5: Usability (RATIFIED by Scott, 2026-06-03)
+
+**Decision (ratified):** a **usability stage, repo "Stage 8.5", is inserted and executed BEFORE the
+CadQuery parallel backend** (the repo-Stage-8 work). Repo Stage 7 (Smart Mesh + PrintProof3D +
+readiness) is **done and tagged `stage-7`**. Stage 8.5 makes the product usable for real, repeated
+use before any further power features are added. Full plan: `docs/stage-8.5-usability-plan.md`.
+
+**Why:** a code-grounded review of the *built* UI (2026-06-03) found the core loop works (describe →
+3D preview → sliders → printability/readiness → slice → download) but the product *around* it is
+missing in ways that are **deal-killers** — a real user abandons the product on contact:
+- **No persistence at all** — state is entirely in-memory; a browser refresh wipes the current part.
+- **No saved-designs library** — your work vanishes the moment you start a new one (though the
+  Stage-7 learning store already records the metadata).
+- **No in-workspace refinement** — the "conversation" is one-shot: once a part is built there is no
+  input to refine it by talking, and **no way to answer a clarifying question** the model asks.
+- **No settings screen** — model, printer, material, units, and the optional engines all live in
+  config files a normal user never opens (the discoverability gap that also blocks CadQuery/
+  PrintProof3D adoption).
+- **Millimeters only** — no inches, walling out a US maker audience.
+- **Problems are described, not shown** — the validator returns the exact overhang triangles; the
+  viewport shows a word instead of highlighting them on the model.
+- **No real progress / no model-down recovery** — a multi-minute CPU model run shows a lone spinner;
+  if Ollama isn't running the user hits a raw error.
+
+Several of these surfaces were **already called for in the §5 design** (`docs/design/README.md`: the
+first-run wizard, refine-by-talking, the model picker, units) but were deferred during the build.
+Stage 8.5 **finishes that deferred design intent** and adds the missing product scaffolding (a "My
+Designs" library, an in-app Settings surface, on-model problem visualization). **CadQuery goes
+after 8.5** so the new backend lands into a product that can surface, persist, and present it,
+rather than stacking a second power feature on a base that still loses your work on refresh.
+
+**Slices (each `audit-lite` → 0/0/0/0/0 with a rendered desktop+mobile check; stage-end `audit-team`
+→ 0/0/0/0/0 → merge → tag):** (1) persistence + "My Designs"; (2) iterative refinement + version
+history; (3) direct numeric editing; (4) units (mm/inch); (5) settings + engine discoverability;
+(6) problems shown on the model; (7) onboarding / model-down / progress / help; (8) output clarity +
+print preview; (9) responsive, accessibility, copy, polish. Severity-tagged punch list in the plan
+doc. `ROADMAP.md` is the live operational roadmap.

@@ -41,6 +41,7 @@ describe('isFailureStatus', () => {
     expect(isFailureStatus('plan_failed')).toBe(true)
     expect(isFailureStatus('render_failed')).toBe(true)
     expect(isFailureStatus('gate_failed')).toBe(true)
+    expect(isFailureStatus('model_unavailable')).toBe(true) // Slice 9: the model-down wall
     expect(isFailureStatus('completed')).toBe(false)
     expect(isFailureStatus('clarification_needed')).toBe(false)
     expect(isFailureStatus(undefined)).toBe(false)
@@ -66,6 +67,11 @@ describe('assistantMessage', () => {
     expect(assistantMessage({ ...base, status: 'render_failed', error: 'kaboom' })).toContain(
       'kaboom',
     )
+    // Slice 9: model_unavailable prefers the backend's actionable message, else a clear default.
+    expect(
+      assistantMessage({ ...base, status: 'model_unavailable', error: 'Make sure Ollama is running.' }),
+    ).toContain('Make sure') // discriminating: a substring unique to the backend error, not the default
+    expect(assistantMessage({ ...base, status: 'model_unavailable' })).toMatch(/Ollama|local AI/i)
     expect(assistantMessage({ ...base, status: 'gate_failed' })).toMatch(/printability/i)
     // plan_failed gets a clean, actionable message and does NOT leak the raw parse error.
     const planFailed = assistantMessage({

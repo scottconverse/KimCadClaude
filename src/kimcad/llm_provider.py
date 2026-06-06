@@ -18,14 +18,17 @@ for its remaining calls, avoiding re-trying a dead primary on every codegen retr
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 from pydantic import ValidationError
@@ -86,6 +89,16 @@ class Provider(Protocol):
         history: list[dict[str, str]] | None = None,
     ) -> str: ...
 
+    # ENG-004: the photo on-ramp's local-vision entry point. Declared on the Protocol so the
+    # contract is total and type-checked — every provider must answer it (FallbackProvider delegates
+    # to its primary). The trust rule (vision stays local) is enforced by the caller, not here.
+    def describe_photo(
+        self,
+        image_bytes: bytes,
+        printer: Printer,
+        material: Material,
+    ) -> str: ...
+
 
 def _load_prompt(name: str) -> str:
     return (PROMPT_DIR / name).read_text(encoding="utf-8")
@@ -137,11 +150,15 @@ class LLMProvider:
         backend: LLMBackend,
         client: ChatClient | None = None,
         *,
+        api_key: str | None = None,
         max_attempts: int = 6,
         retry_wait_s: float = 30.0,
     ):
         self.backend = backend
-        self.client = client if client is not None else self._build_client(backend)
+        # An explicit api_key (e.g. a key the user saved in the in-app Settings — Slice 6 MS-3)
+        # takes precedence over the backend's api_key_env lookup, so a cloud backend can run on a
+        # locally-saved consumer key without an environment variable.
+        self.client = client if client is not None else self._build_client(backend, api_key=api_key)
         # A local CPU model server (Ollama) can briefly drop or restart mid-batch; retry
         # connection/timeout errors with a wait long enough to bridge a server restart
         # plus an 8 GB model reload, so one hiccup doesn't fail the case.
@@ -149,18 +166,21 @@ class LLMProvider:
         self.retry_wait_s = retry_wait_s
 
     @staticmethod
-    def _build_client(backend: LLMBackend) -> ChatClient:
+    def _build_client(backend: LLMBackend, *, api_key: str | None = None) -> ChatClient:
         from openai import OpenAI
 
-        api_key = "not-needed"
-        if backend.api_key_env:
-            api_key = os.environ.get(backend.api_key_env) or ""
-            if not api_key:
+        # An explicit (saved) key wins; otherwise fall back to the backend's env var.
+        key = api_key
+        if key is None and backend.api_key_env:
+            key = os.environ.get(backend.api_key_env) or ""
+            if not key:
                 raise RuntimeError(
                     f"Environment variable {backend.api_key_env} is not set; "
                     f"the {backend.key} backend needs an API key."
                 )
-        return OpenAI(base_url=backend.base_url, api_key=api_key, timeout=backend.timeout_s)
+        if not key:
+            key = "not-needed"
+        return OpenAI(base_url=backend.base_url, api_key=key, timeout=backend.timeout_s)
 
     def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
         kwargs: dict[str, Any] = {
@@ -227,6 +247,63 @@ class LLMProvider:
             {"role": "user", "content": "Design plan:\n" + plan.model_dump_json(indent=2)}
         )
         return _strip_fences(self._complete(messages, json_mode=False))
+
+    def describe_photo(
+        self, image_bytes: bytes, printer: Printer, material: Material
+    ) -> str:
+        """Read a photo into a ROUGH text seed for the text->DesignPlan path (Stage 8.5 Slice 7).
+
+        LOCAL-first by design: the photo is sent to the local Ollama vision model via the **native**
+        ``/api/chat`` endpoint (derived from the backend base_url) with ``think`` disabled. The
+        OpenAI-compatible ``/v1`` path leaves vision output EMPTY because gemma4:e4b's 'thinking' mode
+        spends the whole token budget before producing content; the native endpoint with
+        ``think: false`` returns the description. The seed is a plain description + ROUGH proportions
+        (a photo carries no scale) that the user confirms/edits — it never becomes the delivered
+        geometry. Untrusted input into the validated DesignPlan, the same trust boundary as typed text.
+        """
+        parts = urlsplit(self.backend.base_url)
+        chat_url = (
+            urlunsplit((parts.scheme, parts.netloc, "/api/chat", "", ""))
+            if parts.scheme and parts.netloc
+            else self.backend.base_url.rstrip("/").removesuffix("/v1") + "/api/chat"
+        )
+        system = _load_prompt("system_photo_seed.md").replace(
+            "{constraints}", build_constraints_block(printer, material)
+        )
+        body = json.dumps({
+            "model": self.backend.model_name,
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": "Describe the object in this photo as a part to 3D-print.",
+                    "images": [base64.b64encode(image_bytes).decode()],
+                },
+            ],
+            "stream": False,
+            # ``think: false`` is what keeps gemma4:e4b's thinking mode from spending the whole
+            # budget on an empty reply. NOTE (ENG-002): older Ollama builds that predate the
+            # ``think`` field silently ignore it, so vision can come back empty on a stale Ollama —
+            # which then looks identical to an unreadable photo. We log a one-line hint below so the
+            # cause is debuggable; the user still gets the graceful "couldn't read that photo" 422.
+            "think": False,
+            "options": {"temperature": 0, "num_predict": 400},
+        }).encode()
+        req = urllib.request.Request(
+            chat_url, data=body, headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
+            data = json.load(r)
+        seed = _strip_fences(((data.get("message") or {}).get("content") or "").strip())
+        if not seed:
+            # An empty vision response is usually an unreadable photo, but a too-old Ollama (no
+            # ``think`` support) presents identically — leave a breadcrumb for support/debugging.
+            print(
+                "[kimcad] vision returned an empty description; if this recurs on a clear photo, "
+                "update Ollama (older builds ignore think:false and gemma4 vision returns empty).",
+                file=sys.stderr,
+            )
+        return seed
 
 
 class FallbackProvider:
@@ -304,3 +381,9 @@ class FallbackProvider:
         history: list[dict[str, str]] | None = None,
     ) -> str:
         return self._call("generate_openscad", plan, printer, material, history=history)
+
+    def describe_photo(self, image_bytes: bytes, printer: Printer, material: Material) -> str:
+        # ENG-004: complete the Provider contract. Delegates through the same primary→alt fallback
+        # as the other calls. (The web photo path routes vision to a dedicated LOCAL provider per the
+        # trust rule and doesn't reach this; this makes the contract total + type-checked regardless.)
+        return self._call("describe_photo", image_bytes, printer, material)

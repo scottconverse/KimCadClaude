@@ -10,7 +10,9 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
 `docs/design/KimCad-Unified-Product-Spec-v3.0.md` (+ the design handoff under `docs/design/`).
 
 ## The target (this is the whole game)
-- **Hardware: a 32 GB-RAM machine with an AMD 780M integrated GPU — no discrete GPU.**
+- **Hardware: a 32 GB-RAM machine with an AMD 780M integrated GPU — no discrete GPU.** (The v3.0
+  spec's reference box is the slightly stronger Beelink **890M**; KimCad targets the 780M, so anything
+  that runs here runs on the spec reference too — see HANDOFF §9.)
   This is *both* the development target and the deployment target. If it doesn't run well
   here, it doesn't ship. There is no GPU box coming; "wait for the GPU" is off the table.
 - **Model: `gemma4:e4b`** — a small (~4B-effective) on-device model via local Ollama that fits and
@@ -53,9 +55,13 @@ robustness) is DONE — merged to `main` and tagged `stage-6`** (through the ful
 remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
 bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report + learning store) is DONE —
 merged to `main` and tagged `stage-7`** (slices 1–6 each `audit-lite` 0/0/0/0/0; the full 5-role
-`audit-team` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8 (CadQuery).**
+`audit-team` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8.5 (Usability), then
+Stage 8 (CadQuery)** — the usability stage was inserted ahead of the CadQuery backend (8.5-first,
+ratified 2026-06-03) because the deal-killer UX gaps must be closed before adding a second geometry
+engine. Stage 8.5 is currently IN PROGRESS on branch `stage-8.5-usability` (see the Stage 8.5
+section below); nothing in it is merged or tagged yet.
 
-Still ahead before beta: CadQuery
+Still ahead before beta: usability (Stage 8.5, in progress), CadQuery
 (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
 installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
 at Kim's.**
@@ -205,8 +211,36 @@ Slices 1–6 each passed `audit-lite` at 0/0/0/0/0; the full 5-role `audit-team`
 passing parts are genuinely print-ready. **Remaining for the stage gate:** the full `audit-team` at
 0/0/0/0/0 → merge → tag `stage-7`. **Needs:** target box. **Size:** ~2–3 weeks.
 
-## Stage 8 — CadQuery parallel backend
-**Goal:** a second, type-safe CAD backend and real CAD export.
+## Stage 8.5 — Usability: turn the demo into a tool people keep  ✅ DONE (merged to `main`, tagged `stage-8.5`)
+**Status: DONE — merged + tagged `stage-8.5`; stage gate clean 0/0/0/0/0 across all 5 audit lanes +
+wiring-audit PASS (`docs/audits/stage-8.5/stage-gate-2026-06-05/`). Executed BEFORE the Stage 8 CadQuery backend (8.5-first, ratified 2026-06-03;
+spec Addendum B).** Full punch list (AUTHORITATIVE): `docs/stage-8.5-usability-plan.md` — **renumbered
+to 11 slices 2026-06-03** (the on-ramps design became Slice 5, so settings/photo shifted up); spec
+Addendum B's "9 slices" predates the renumber. The plan doc is the source of truth for the slice list.
+**Goal:** fix the deal-killers that make the working core loop unusable for real, repeated use — and
+finish the design-spec surfaces (`docs/design/`) that were deferred during the build.
+**Why first:** the built UI is all in-memory (a refresh wipes the part), has no saved-designs
+library, no in-workspace refinement (the "conversation" is one-shot), no settings screen, mm-only,
+shows problems as text not on the model, and gives no real progress on long model runs. CadQuery
+would otherwise stack a second power feature on a base that loses your work on refresh.
+**Slices (renumbered to 11 — the authoritative list is `docs/stage-8.5-usability-plan.md`)** (each
+`audit-lite` → 0/0/0/0/0 with a rendered desktop+mobile check; stage-end `audit-team` + `wiring-audit`
+→ 0/0/0/0/0 → merge → tag): (1) persistence + "My Designs"; (2) iterative refinement + version
+history (`VersionRail`); (3) direct numeric editing; (4) units (mm/inch); (5) advanced on-ramps
+design (no code); (6) settings + engine discoverability; (7) photo on-ramp; (escape-paths sweep);
+(8) problems shown on the model (viewport raycast/highlight); (9) onboarding / model-down / progress
+/ help (`FirstRunWizard`); (10) output clarity + print estimate breakout; (11) responsive,
+accessibility, copy, polish.
+**Exit:** a person can make a part, leave, come back, refine it, set units, see problems on the model,
+and discover the optional engines — without hitting a wall. **Needs:** target box. **Size:** large.
+
+## Stage 8 — CadQuery parallel backend  (after Stage 8.5)
+**Goal:** a second, type-safe CAD backend and real CAD export. **Feasibility proven** 2026-06-03:
+CadQuery 2.7 + real OCCT (OCP 7.8.1) installs + exports STEP/BREP/STL cleanly on Python 3.13 in an
+isolated venv. Note: the main KimCad venv is **3.14** (CadQuery tops out at 3.13), so the backend
+runs as an **arm's-length subprocess worker in its own 3.13 venv** (like OpenSCAD/OrcaSlicer/
+PrintProof3D), not an in-process import — keeps the main runtime on 3.14 and the heavy OCCT
+dependency optional. Discoverability (the enable UI) lands in Stage 8.5 Slice 5.
 - `kimcad.cadquery` parallel to `kimcad.openscad`, **real OCCT on Python 3.13** (CadQuery supports
   3.9–3.13 — pin 3.13; not a trimesh stub); a CadQuery module library + prompts; **STEP/BREP
   export**; renderer choice in config, parity-validated.

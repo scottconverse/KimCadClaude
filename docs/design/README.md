@@ -1,5 +1,21 @@
 # Handoff: KimCad — Consumer AI → 3D-Print Interface
 
+> ## ⚠ SUPERSEDED POSTURE — read before building to this doc
+> This design reference predates two **settled, load-bearing** product decisions. Where the prototype
+> below contradicts these, the decisions win (build to them, not to the prototype's visuals):
+> - **Model:** `gemma4:e4b` is THE default and the only model the UI presents (text, codegen, AND
+>   vision). The "Choose a model" step's **Qwen2.5-Coder "RECOMMENDED"** card (§ first-run wizard) is
+>   superseded — Qwen was evaluated via a live bake-off and **rejected (0/10)**; it is not a default,
+>   not "recommended", and not bundled. The model surface is a **status readout** (is gemma4:e4b
+>   pulled / running?), never a menu of alternatives, and never a Chinese model.
+> - **Photo on-ramp vision is LOCAL by default.** The image on-ramp's "Default analysis runs on a
+>   free OpenRouter vision model — your photo leaves the device" is superseded: the photo is read by
+>   **gemma4:e4b's local vision** by default and never auto-sends. Any cloud vision path is strictly
+>   opt-in and labeled at the point of use. Cloud (OpenRouter) is OFF by default everywhere.
+>
+> Everything else in this doc (layout, Workshop tokens, states, copy craft) remains the build target.
+> The controlling spec (`KimCad-Unified-Product-Spec-v3.0.md`) carries the same corrections.
+
 ## Overview
 
 KimCad is a Windows-first desktop app that turns a **plain-English description — or a photo — of a functional part** into a printer-ready file, and optionally sends it to a real printer, through a conversation. The user describes what they want, sees a print-aware 3D preview with real dimensions, refines it by talking and by dragging parameter sliders, passes a Printability Gate, reviews a print report + Smart Mesh readiness score, and either downloads a file or prints directly. **No CAD skills, and the user never edits OpenSCAD.**
@@ -239,3 +255,38 @@ The prototype includes a “Tweaks” panel (toggle in the toolbar) to explore *
 To run the reference: open `prototype/KimCad.html` in a browser (needs internet for the CDN libraries + fonts).
 
 The controlling spec is `../KimCad-Unified-Product-Spec-v3.0.md`. A visual walkthrough is `../KimCad-Walkthrough.html` (open and print to PDF) and the same screens are in `screens/`.
+
+---
+
+## Addendum — Stage 8.5 usability (2026-06-03): finishing the deferred design intent
+
+A code-grounded review of the *shipped* SPA (2026-06-03) found the core loop works but much of the
+product around it — including several surfaces **already designed in this prototype** — was deferred
+during the build, leaving deal-killer gaps (no persistence; no in-workspace refinement; no settings;
+mm-only; problems shown as text, not on the model; no progress on long runs). **Stage 8.5 builds
+these now**, before the CadQuery backend. What/why: `../KimCad-Unified-Product-Spec-v3.0.md`
+Addendum B + `../stage-8.5-usability-plan.md`.
+
+**Build to THIS prototype where it already exists** (high-fidelity design source — recreate it
+faithfully in the React/TS SPA):
+- **`panels.jsx` → `VersionRail`** — the version history / timeline for Stage 8.5 Slice 2 (iterative
+  refinement). The SPA today has no version rail; build it from here.
+- **`wizard.jsx` → `FirstRunWizard` (5 steps)** — Slice 7 onboarding / first-run (detect Ollama,
+  pull the model, pick a printer). Designed here, never built.
+- **`advanced.jsx` → `ModelPicker`** — Slice 5 model selection inside the new Settings surface.
+- **`preview.jsx` → `KCViewport` click-to-point raycast + render modes** — the basis for Slice 6
+  (click a risk → focus that region on the model; highlight problem faces).
+- `ChatPanel` / `ParamPanel` (`panels.jsx`) — the in-workspace **refine-by-talking** input + numeric
+  param entry (Slices 2–3) follow these.
+
+**New surfaces this prototype did NOT cover** (design fresh, in the prototype's token system +
+Workshop theme; note them back here as built):
+- A **"My Designs" library + local persistence** (Slice 1) — the prototype assumed a single live
+  session; the product needs saved designs, reopen, auto-save/restore, and a real per-design URL.
+- A **full Settings screen** (Slice 5) beyond the model picker — printer/material defaults, units,
+  optional-engine (CadQuery / PrintProof3D) enable + install status.
+- **Units (mm/inch)** (Slice 4) across every dimension surface.
+- **On-model problem highlighting** (Slice 6) — coloring overhang/adhesion faces, beyond the
+  prototype's click-to-point.
+
+Each slice's rendered (desktop + mobile) audit-lite is the fidelity check against this design.

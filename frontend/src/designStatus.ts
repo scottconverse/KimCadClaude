@@ -56,7 +56,7 @@ export function gateLabel(gateStatus: string | undefined): string {
  * uses this to give the chat bubble an error tone and the right-panel cards a "failed" message
  * (distinct from the never-tried-yet idle placeholder). `gate_failed` is included: a part that
  * fails the printability gate is not a usable result on the design surface. */
-const FAILURE_STATUSES = new Set(['plan_failed', 'render_failed', 'gate_failed'])
+const FAILURE_STATUSES = new Set(['plan_failed', 'render_failed', 'gate_failed', 'model_unavailable'])
 
 export function isFailureStatus(status: string | undefined): boolean {
   return status !== undefined && FAILURE_STATUSES.has(status)
@@ -72,6 +72,13 @@ export function assistantMessage(result: DesignResponse): string {
       // The model's response couldn't be parsed into a plan. Keep this clean and
       // actionable — don't echo result.error, which carries technical parse details.
       return "I couldn't turn that into a workable plan — the model's response wasn't usable. Try describing the part a little differently, or switch to a model better suited to planning."
+    case 'model_unavailable':
+      // Ollama isn't reachable — a recoverable wall, not a dead error. Prefer the backend's
+      // actionable message (how to recover); fall back to a clear default.
+      return (
+        result.error ||
+        "Your local AI isn't running. Start Ollama, then try again — you can check its status in Settings."
+      )
     case 'render_failed':
       return result.error
         ? `I couldn't build that one — ${result.error}`
@@ -80,6 +87,14 @@ export function assistantMessage(result: DesignResponse): string {
       return result.plan
         ? `I made ${result.plan.summary}, but it didn't pass the printability check — see the notes on the right.`
         : "I made it, but it didn't pass the printability check — see the notes on the right."
+    case 'needs_experimental':
+      // Slice 6 MS-4: no deterministic template fit. We OFFER the experimental generator (the
+      // ChatPanel renders a "try it" button below this message) rather than dead-ending.
+      return (
+        "I don't have a precise template for that. I can try an experimental generator that " +
+        "writes the shape directly — it isn't always right, it runs in a locked sandbox, and it " +
+        "still has to pass the printability check."
+      )
     case 'completed':
       return result.plan?.summary ? `Here you go — ${result.plan.summary}` : 'Here you go.'
     default:

@@ -50,6 +50,13 @@ _EST_TIME_FALLBACK_RE = re.compile(
 )
 _FIL_MM_RE = re.compile(r"filament used \[mm\]\s*=\s*([0-9.]+)", re.IGNORECASE)
 _FIL_CM3_RE = re.compile(r"filament used \[cm3\]\s*=\s*([0-9.]+)", re.IGNORECASE)
+# Filament *weight*. The slicer computes this from the chosen filament profile's real density,
+# so it's the honest source for a "this print weighs ~X g" readout (no density guessing in KimCad).
+# Wording varies: PrusaSlicer-derived profiles (incl. Elegoo) write "filament used [g] = N";
+# Bambu writes "total filament weight [g] : N". Match either spelling.
+_FIL_G_RE = re.compile(
+    r"(?:filament used \[g\]\s*=|total filament weight \[g\]\s*:)\s*([0-9.]+)", re.IGNORECASE
+)
 _LAYERS_RE = re.compile(r"total layer number:\s*([0-9]+)", re.IGNORECASE)
 
 
@@ -133,6 +140,7 @@ class GcodeProof:
     layer_count: int | None = None
     filament_mm: float | None = None
     filament_cm3: float | None = None
+    filament_g: float | None = None
 
     def estimate_summary(self) -> str:
         parts = []
@@ -140,11 +148,25 @@ class GcodeProof:
             parts.append(f"~{self.estimated_time}")
         if self.layer_count is not None:
             parts.append(f"{self.layer_count} layers")
-        if self.filament_cm3 is not None:
+        if self.filament_g is not None:
+            parts.append(f"{self.filament_g:.1f} g filament")
+        elif self.filament_cm3 is not None:
             parts.append(f"{self.filament_cm3:.2f} cm3 filament")
         elif self.filament_mm is not None:
             parts.append(f"{self.filament_mm:.0f} mm filament")
         return ", ".join(parts)
+
+    def estimate_detail(self) -> dict[str, Any]:
+        """The parsed estimate as structured fields, for a UI to lay out as a labeled
+        breakout (time / layers / filament length / filament weight) rather than one blob.
+        Every value may be None when the slicer's profile didn't emit that line."""
+        return {
+            "time": self.estimated_time,
+            "layers": self.layer_count,
+            "filament_mm": self.filament_mm,
+            "filament_cm3": self.filament_cm3,
+            "filament_g": self.filament_g,
+        }
 
 
 @dataclass
@@ -281,6 +303,7 @@ def prove_gcode_3mf(path: Path) -> GcodeProof:
         layer_count=est.get("layers"),
         filament_mm=est.get("fil_mm"),
         filament_cm3=est.get("fil_cm3"),
+        filament_g=est.get("fil_g"),
     )
 
 
@@ -303,6 +326,10 @@ def _scan_estimate(line: str, est: dict[str, Any]) -> None:
         m = _FIL_CM3_RE.search(line)
         if m:
             est["fil_cm3"] = float(m.group(1))
+    if "fil_g" not in est:
+        m = _FIL_G_RE.search(line)
+        if m:
+            est["fil_g"] = float(m.group(1))
 
 
 # --- profile name -> on-disk JSON resolution ----------------------------------

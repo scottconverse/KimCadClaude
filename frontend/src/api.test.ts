@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { designIdFromMeshUrl, getOptions, postDesign, postRender, postSlice } from './api'
+import {
+  designIdFromMeshUrl,
+  exportDesignUrl,
+  getDesignProgress,
+  getOptions,
+  importDesign,
+  isAbortError,
+  postDesign,
+  postRender,
+  postSettings,
+  postSlice,
+  uploadPhoto,
+} from './api'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -41,6 +53,131 @@ describe('postDesign', () => {
       },
     }))
     await expect(postDesign('x')).rejects.toThrow(/unreadable/i)
+  })
+
+  // Slice 6 MS-4: the consumer opts OUT of the experimental generator by default.
+  it('sends experimental:false by default (no history)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    await postDesign('a box')
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body).toEqual({ prompt: 'a box', experimental: false })
+  })
+
+  it('sends experimental:true + threads history when opted in', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    await postDesign('taller', [{ role: 'user', content: 'a box' }], true)
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body.experimental).toBe(true)
+    expect(body.history).toEqual([{ role: 'user', content: 'a box' }])
+  })
+
+  // The user must be able to cancel a long local-model run — postDesign forwards an AbortSignal.
+  it('passes the AbortSignal to fetch so a design can be cancelled', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    const ctrl = new AbortController()
+    await postDesign('a box', undefined, false, ctrl.signal)
+    const init = (f.mock.calls[0] as unknown[])[1] as RequestInit
+    expect(init.signal).toBe(ctrl.signal)
+  })
+
+  // MS-3: a job id lets the UI poll the run's live phase; it's only sent when provided.
+  it('includes the job_id in the body when one is provided', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'completed' }) }))
+    await postDesign('a box', undefined, false, undefined, 'job-123')
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body.job_id).toBe('job-123')
+  })
+})
+
+describe('getDesignProgress (MS-3)', () => {
+  it('returns the phase from a 200 body', async () => {
+    mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ phase: 'rendering' }) }))
+    expect(await getDesignProgress('job-1')).toEqual({ phase: 'rendering' })
+  })
+
+  it('resolves to a null phase on a non-ok response (never throws — polling is best-effort)', async () => {
+    mockFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }))
+    expect(await getDesignProgress('job-1')).toEqual({ phase: null })
+  })
+
+  it('resolves to a null phase when fetch itself rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }))
+    expect(await getDesignProgress('job-1')).toEqual({ phase: null })
+  })
+})
+
+describe('isAbortError', () => {
+  it('recognizes an aborted-fetch error and nothing else', () => {
+    expect(isAbortError(Object.assign(new Error('x'), { name: 'AbortError' }))).toBe(true)
+    // The real browser path: fetch rejects with a DOMException named 'AbortError'.
+    expect(isAbortError(new DOMException('aborted', 'AbortError'))).toBe(true)
+    expect(isAbortError(new DOMException('boom', 'NetworkError'))).toBe(false)
+    expect(isAbortError(new Error('a real failure'))).toBe(false)
+    expect(isAbortError(null)).toBe(false)
+  })
+})
+
+describe('postSettings', () => {
+  it('posts a reset flag to clear everything to defaults', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ saved: true }) }))
+    await postSettings({ reset: true })
+    const body = JSON.parse(((f.mock.calls[0] as unknown[])[1] as RequestInit).body as string)
+    expect(body).toEqual({ reset: true })
+  })
+})
+
+describe('uploadPhoto (Slice 7)', () => {
+  it('POSTs the photo to /api/photo-seed and returns the seed', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'a rough box' }) }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    const r = await uploadPhoto(file)
+    expect(r.seed).toBe('a rough box')
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/photo-seed')
+    expect((call[1] as RequestInit).method).toBe('POST')
+  })
+
+  it('rejects an oversized photo up front (no request)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'x' }) }))
+    const big = { size: 13 * 1024 * 1024, type: 'image/png' } as File
+    await expect(uploadPhoto(big)).rejects.toThrow(/too large/i)
+    expect(f.mock.calls.length).toBe(0)
+  })
+
+  // The user must be able to cancel a slow local-vision read — uploadPhoto forwards an AbortSignal.
+  it('forwards an AbortSignal to fetch so a slow read can be cancelled', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'x' }) }))
+    const ctrl = new AbortController()
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    await uploadPhoto(file, ctrl.signal)
+    const init = (f.mock.calls[0] as unknown[])[1] as RequestInit
+    expect(init.signal).toBe(ctrl.signal)
+  })
+
+  // TEST-702: the server's friendly 422/413 message must reach the UI (the error-recovery copy is
+  // the user's only feedback on a vision failure). Exercises the real throwIfNotOk/readJson seam.
+  it('throws the backend error message on a non-2xx (422 vision failure)', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: 'Couldn’t read that photo — try a clearer shot, or cancel and describe the part in words.' }),
+    }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    await expect(uploadPhoto(file)).rejects.toThrow(/couldn.t read that photo/i)
+  })
+
+  it('throws a readable error when the photo response body is not JSON', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error('not json')
+      },
+    }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
+    await expect(uploadPhoto(file)).rejects.toThrow(/unreadable/i)
   })
 })
 
@@ -117,6 +254,63 @@ describe('designIdFromMeshUrl', () => {
   })
 })
 
+describe('importDesign / exportDesignUrl (Stage 8.5)', () => {
+  it('returns the new id on a 200', async () => {
+    const fetchMock = mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'imp9' }),
+    }))
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad', { type: 'application/zip' })
+    const r = await importDesign(file)
+    expect(r.id).toBe('imp9')
+    expect(fetchMock).toHaveBeenCalledWith('/api/designs/import', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('throws the backend error message on a non-2xx', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "That file isn't a valid KimCad design export." }),
+    }))
+    const file = new File([new Uint8Array([1, 2])], 'd.kimcad')
+    await expect(importDesign(file)).rejects.toThrow(/valid KimCad design export/i)
+  })
+
+  it('throws a readable error when the import body is not JSON', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error('not json')
+      },
+    }))
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad')
+    await expect(importDesign(file)).rejects.toThrow(/unreadable/i)
+  })
+
+  it('rejects an over-cap file up front with a friendly message and never fetches (QA-004)', async () => {
+    const fetchMock = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ id: 'x' }) }))
+    const big = { size: 33 * 1024 * 1024 } as File // only .size is read before the cap check
+    await expect(importDesign(big)).rejects.toThrow(/too large/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a friendly message when the upload connection fails (QA-004)', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new File([new Uint8Array([0x50, 0x4b])], 'd.kimcad')
+    await expect(importDesign(file)).rejects.toThrow(/too large|unreadable/i)
+  })
+
+  it('url-encodes the id in the export URL', () => {
+    expect(exportDesignUrl('a/b')).toBe('/api/designs/a%2Fb/export')
+    expect(exportDesignUrl('abc123')).toBe('/api/designs/abc123/export')
+  })
+})
+
 describe('getOptions / postSlice', () => {
   it('getOptions parses the printer/material options', async () => {
     mockFetch(async () => ({
@@ -144,5 +338,12 @@ describe('getOptions / postSlice', () => {
     expect(result.sliced).toBe(true)
     expect(result.gcode_url).toBe('/api/gcode/7')
     expect(fetchMock).toHaveBeenCalledWith('/api/slice/7', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('postSlice forwards an AbortSignal so a slow slice can be cancelled', async () => {
+    const fetchMock = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ sliced: true }) }))
+    const ctrl = new AbortController()
+    await postSlice(7, 'p2s', 'pla', ctrl.signal)
+    expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ signal: ctrl.signal })
   })
 })

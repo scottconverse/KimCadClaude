@@ -6,17 +6,89 @@ All notable changes to KimCad are documented here. Format follows
 ## [Unreleased]
 
 > The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
-> **Stages 1–6 are tagged (`stage-1` … `stage-6`).** Stage 5 (deterministic template engine +
+> **Stages 0–7 are tagged (`stage-0` … `stage-7`).** Stage 5 (deterministic template engine +
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
 > `audit-team` gate + remediation at 0/0/0/0/0). **Stage 7 (Smart Mesh + PrintProof3D + readiness
 > report + learning store) merged + tagged `stage-7` 2026-06-02** — through the full 5-role
-> `audit-team` stage gate + remediation at 0/0/0/0/0. These sections accumulate toward the `0.1.0` release.
+> `audit-team` stage gate + remediation at 0/0/0/0/0. **Stage 8.5 (Usability) is DONE — merged to
+> `main` and tagged `stage-8.5`.** All 11 slices shipped; the stage gate passed both the runtime
+> wiring-audit and the 5-role audit-team, with every finding remediated and independently re-audited
+> twice to 0/0/0/0/0 (see `docs/audits/stage-8.5/stage-gate-2026-06-05/`). Slices 1–7 below for reference:
+> Slice 1 (persistence + "My Designs"), Slices 2–4 (refine-as-a-conversation + version history,
+> numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
+> in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the
+> "describe with a photo" on-ramp). Slices 1, 2–4, and 6 have each passed their `audit-team` gate at
+> 0/0/0/0/0; Slice 7 is at its slice-end gate. All pending Scott's stage approval. These sections
+> accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 8.5 — Usability — DONE (merged to `main`, tagged `stage-8.5`).** All 11 slices shipped and
+  the stage gate passed both lanes: the runtime **wiring-audit** (drove the live app — every control
+  proven genuinely wired + persisted) and the 5-role **audit-team**, which rolled up 42 findings
+  (0 Blocker / 0 Critical / 11 Major / 20 Minor / 11 Nit). Every finding was fixed — including two
+  real safety bugs (a slice/re-render geometry-version race that could serve a stale-shape print, and
+  reopen/import trusting a stored gate verdict instead of re-validating the mesh), each with a
+  regression test — then independently re-audited twice to **0/0/0/0/0** across all five lanes
+  (`docs/audits/stage-8.5/stage-gate-2026-06-05/`). Final: 763 pytest (non-live) + 4 live OrcaSlicer
+  + 262 vitest; ruff clean; SPA build byte-reproducible. The slices, beyond 1–7 below:
+  - **Slice 8 — problems on the model:** PrintProof3D's flagged regions are highlighted in the 3D
+    viewport (overhangs / poor bed contact), with click-a-risk-to-focus and a legend/toggle.
+  - **Slice 9 — onboarding / model-down / progress / help:** a recoverable "your local AI isn't
+    running" wall, live step-progress (planning → generating → rendering → validating), a first-run
+    setup wizard, and in-app glossary "(i)" tips. gemma4:e4b is THE model throughout (never qwen).
+  - **Slice 10 — output clarity + print preview:** the slice estimate broken out (time / layers /
+    filament length + weight; weight estimated from volume × material density when the profile reports
+    none, labeled as such), a "design → print file" framing, named print file + copy-link, and clear
+    export formats. (A true G-code toolpath/layer viewer is scheduled for Stage 10's direct-print UI.)
+  - **Slice 11 — responsive / a11y / copy / polish:** keyboard shortcuts + a discoverable "?" help
+    modal, plain-English copy, the right-column visual hierarchy + icon-tile printability checks
+    restored, refine-by-talking chips, an always-on printer-status chip, and a mobile sticky CTA.
+- **Stage 8.5 — escape paths on every action (on branch, not yet merged/tagged):** every long or
+  blocking action is now cancelable, so the app never traps you. The "Designing your part…" screen
+  shows an honest "this runs on your computer's AI — it can take a few minutes" note, a live elapsed
+  timer, and a **Cancel** (plus Esc); the photo "Reading…" read, slicing, and importing each get a
+  **Cancel** that aborts the request and returns you to the prior control with no error. Requests are
+  abortable end to end (an AbortSignal threaded through the API client).
+- **Stage 8.5 Slice 7 — "describe with a photo" on-ramp (on branch, not yet merged/tagged):** a
+  secondary affordance on the landing + workspace reads a photo with gemma4:e4b's **local** vision
+  into a rough, editable text seed that pre-fills the existing text→DesignPlan path. It's a starting
+  point, never a "photo → finished part" promise: the user confirms/edits the seed (a photo carries
+  no scale, so sizes are estimates) before anything runs. The photo is read locally and **never
+  auto-sends off the machine** (vision is pinned to the local provider even when cloud TEXT is on),
+  is never persisted, and never logged; an unreadable/oversized photo is a clean 422/413, never a
+  500. New `POST /api/photo-seed` + `LLMProvider.describe_photo` (Ollama's native `/api/chat` with
+  `think:false`).
+- **Stage 8.5 Slice 6 — in-app Settings screen (on branch, not yet merged/tagged):** model status
+  (gemma4:e4b, local, with a health line — no menu of alternatives), an off-by-default **cloud
+  opt-in** via OpenRouter (the user picks the model; the API key is a normal Settings field, saved
+  locally and shown masked to the last few characters, never echoed back in full or stored in the
+  repo/logs), an off-by-default **experimental raw-codegen generator** (sandboxed, never bypasses the
+  Printability Gate, offered inline on an out-of-template request), plus tools health + about + a
+  two-step reset. New `settings_store.py`, `/api/settings`, `/api/model-status`.
+- **Stage 8.5 Slices 2–4 (on branch, not yet merged/tagged):** refine a part as a **conversation**
+  with full **version history** (a timeline with step-back/undo + a "what changed" compare);
+  **numeric parameter entry** alongside the live sliders; and a **mm / inch units** toggle so a US
+  maker isn't walled out. (Gated together by the Slice 2–4 `audit-team` + `wiring-audit` at
+  0/0/0/0/0.)
+- **Stage 8.5 Slice 1 — local persistence + "My Designs" library (on branch `stage-8.5-usability`, not yet merged/tagged):**
+  - Designs are saved automatically to a local, best-effort store under `~/.kimcad/designs/<id>/`
+    (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. A built
+    part auto-saves and the SPA routes to `#/design/<id>`, so a refresh restores the part + its
+    live sliders instead of losing the work.
+  - A **My Designs** gallery (`#/designs`): thumbnail grid with reopen, inline rename, duplicate,
+    two-step delete, search by name, and sort (newest / oldest / name). Reopen re-registers the
+    design into the live loop so its template sliders work again.
+  - **Export / import** a design as a portable `.kimcad` zip (zip-slip-safe — only the three known
+    files are read by exact name; a bounded inflated-read rejects a decompression bomb; the
+    compressed upload is capped at 32 MiB).
+  - A new `design_store.py` module (`DesignStore`) and `config.paths.designs`; new
+    `/api/designs*` endpoints (list / save / reopen / thumb / export / import / rename / delete /
+    duplicate). Writes are serialized + atomic (with a Windows `os.replace` retry); a save indicator
+    in the Topbar surfaces "Saving… / Saved / retrying."
 - **Stage 6 — model layer (merged + tagged `stage-6`):**
   - `kimcad models` — a hardware/availability-aware model advisor: probes RAM/CPU/GPU and the
     installed Ollama models and recommends the best one that fits, names an upgrade to pull, and
