@@ -89,6 +89,17 @@ class Provider(Protocol):
         history: list[dict[str, str]] | None = None,
     ) -> str: ...
 
+    # Stage 8: the CadQuery parallel-backend codegen. Declared on the Protocol so the contract
+    # is total — every provider answers it (FallbackProvider delegates to its primary). Only
+    # called when the OpenSCAD path fails and a CadQuery interpreter is available.
+    def generate_cadquery(
+        self,
+        plan: DesignPlan,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> str: ...
+
     # ENG-004: the photo on-ramp's local-vision entry point. Declared on the Protocol so the
     # contract is total and type-checked — every provider must answer it (FallbackProvider delegates
     # to its primary). The trust rule (vision stays local) is enforced by the caller, not here.
@@ -248,6 +259,28 @@ class LLMProvider:
         )
         return _strip_fences(self._complete(messages, json_mode=False))
 
+    def generate_cadquery(
+        self,
+        plan: DesignPlan,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> str:
+        """Generate a CadQuery (Python) script for the plan — KimCad's parallel geometry
+        backend (Stage 8). Same shape as :meth:`generate_openscad`: a system prompt with the
+        printer/material constraints, the plan as the user turn, fences stripped. The script
+        is untrusted and is statically sanitized + run in the out-of-process worker's sandbox
+        before any geometry is produced (see :mod:`kimcad.cadquery_runner`)."""
+        system = _load_prompt("system_cadquery.md").replace(
+            "{constraints}", build_constraints_block(printer, material)
+        )
+        messages = [{"role": "system", "content": system}]
+        messages.extend(history or [])
+        messages.append(
+            {"role": "user", "content": "Design plan:\n" + plan.model_dump_json(indent=2)}
+        )
+        return _strip_fences(self._complete(messages, json_mode=False))
+
     def describe_photo(
         self, image_bytes: bytes, printer: Printer, material: Material
     ) -> str:
@@ -381,6 +414,15 @@ class FallbackProvider:
         history: list[dict[str, str]] | None = None,
     ) -> str:
         return self._call("generate_openscad", plan, printer, material, history=history)
+
+    def generate_cadquery(
+        self,
+        plan: DesignPlan,
+        printer: Printer,
+        material: Material,
+        history: list[dict[str, str]] | None = None,
+    ) -> str:
+        return self._call("generate_cadquery", plan, printer, material, history=history)
 
     def describe_photo(self, image_bytes: bytes, printer: Printer, material: Material) -> str:
         # ENG-004: complete the Provider contract. Delegates through the same primary→alt fallback

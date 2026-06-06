@@ -8,6 +8,7 @@ accessors for the parts the pipeline needs.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -96,9 +97,19 @@ def _deep_merge(base: dict, overlay: dict) -> dict:
     return out
 
 
+_UNSET = object()
+
+
 class Config:
     def __init__(self, data: dict[str, Any]):
         self._d = data
+        # Cache for the discovered CadQuery interpreter (probing spawns a subprocess, so do it
+        # at most once per Config). _UNSET = not yet probed; None = probed, unavailable. The
+        # lock makes the probe-once guarantee hold on the threaded web server, where one Config
+        # is shared across worker threads (SLICE2-001) — without it, two cold requests could
+        # each spawn the ~3-4s probe.
+        self._cadquery_interpreter: Any = _UNSET
+        self._cadquery_lock = threading.Lock()
 
     @classmethod
     def load(cls, default: Path = DEFAULT_CONFIG, local: Path = LOCAL_CONFIG) -> Config:
@@ -135,6 +146,43 @@ class Config:
         p = Path(raw)
         p = p if p.is_absolute() else (PROJECT_ROOT / p)
         return p if p.exists() else None
+
+    def cadquery_interpreter(self) -> Path | None:
+        """Resolve the Python interpreter the CadQuery backend runs in, or None when CadQuery
+        isn't available (the backend then stays off — graceful absence, like
+        :meth:`printproof3d_binary`). Driven by ``binaries.cadquery_python``:
+
+        - ``null``/absent -> auto-discover (`py -3.13/-3.12/-3.11`, then python3.x on PATH);
+        - ``false`` or ``""`` -> force OFF (return None without probing);
+        - a path / argv list -> use ONLY that (authoritative; no auto-discovery fall-through).
+
+        The discovered interpreter is cached on this Config so repeated calls (every design that
+        might fall back to CadQuery) don't re-spawn the probe."""
+        if self._cadquery_interpreter is not _UNSET:
+            return self._cadquery_interpreter
+
+        # Imported lazily so importing Config never drags in the runner (which is only needed
+        # when the CadQuery backend is actually used).
+        from kimcad.cadquery_runner import find_cadquery_interpreter
+
+        with self._cadquery_lock:
+            # Double-checked: another thread may have probed while we waited for the lock.
+            if self._cadquery_interpreter is not _UNSET:
+                return self._cadquery_interpreter
+            raw = self._d.get("binaries", {}).get("cadquery_python")
+            # `false` (sentinel) or an explicitly-cleared empty string => force OFF, no probe.
+            if raw is False or raw == "":
+                result: Path | None = None
+            elif raw:
+                result = find_cadquery_interpreter([raw], include_defaults=False)
+            else:
+                result = find_cadquery_interpreter()
+            self._cadquery_interpreter = result
+            return result
+
+    def cadquery_timeout_s(self) -> int:
+        """Wall-clock limit for the out-of-process CadQuery worker (default 120s)."""
+        return int(self._d.get("limits", {}).get("cadquery_timeout_s", 120))
 
     def history_path(self) -> Path:
         """Where the Smart Mesh learning store lives (Stage 7). Defaults to a per-user file

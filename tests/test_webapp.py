@@ -319,6 +319,78 @@ def test_mesh_content_type_is_stl_for_stl_file(tmp_path):
     assert _design_and_get_content_type(tmp_path / "b", ".stl") == "model/stl"
 
 
+# --- Stage 8 Slice 4: editable-CAD (STEP) export for a CadQuery part ------------------------
+
+class _StepPipeline:
+    """A pipeline stand-in returning a CadQuery-built part: an STL mesh PLUS an editable STEP,
+    so the /api/step download + step_url payload wiring is exercised end to end over a socket."""
+
+    def run(self, prompt, out_dir, **kw):  # noqa: ANN001
+        import trimesh
+
+        from kimcad.ir import DesignPlan
+        from kimcad.pipeline import PipelineResult, PipelineStatus, PrintReport
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        mesh = out_dir / "part.oriented.stl"
+        trimesh.creation.box(extents=[20, 20, 20]).export(str(mesh))
+        step = out_dir / "part-cadquery.step"
+        step.write_text("ISO-10303-21;\nFAKE-STEP-FOR-TEST\nEND-ISO-10303-21;\n", encoding="utf-8")
+        plan = DesignPlan(object_type="block", summary="s", bounding_box_mm=[20, 20, 20])
+        report = PrintReport(
+            object_type="block", summary="s", printer="P", material="M",
+            gate_status="pass", headline="", target_bbox_mm=[20, 20, 20],
+            actual_bbox_mm=(20.0, 20.0, 20.0), backend="cadquery", step_path=str(step),
+            findings=[], watertight=True, repaired=False, repairs=[], n_bodies=1,
+            volume_mm3=8000.0, orientation="flat", orientation_stability=1.0, sanitizer_removed=[],
+        )
+        return PipelineResult(
+            status=PipelineStatus.completed, prompt=prompt, plan=plan, report=report,
+            mesh_path=mesh, backend="cadquery",
+        )
+
+
+def test_cadquery_part_exposes_a_step_download(tmp_path):
+    import json
+    import urllib.request
+
+    with _serve(_StepPipeline(), tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        req = urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a part"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        data = json.load(urllib.request.urlopen(req, timeout=30))
+        assert data["report"]["backend"] == "cadquery"
+        assert data.get("step_url"), data
+        resp = urllib.request.urlopen(base + data["step_url"], timeout=10)
+        assert resp.status == 200
+        body = resp.read()
+        assert b"ISO-10303-21" in body
+        assert "application/step" in (resp.headers.get("Content-Type") or "")
+
+
+def test_openscad_part_has_no_step_url_and_unknown_step_is_404(tmp_path):
+    import json
+    import urllib.error
+    import urllib.request
+
+    with _serve(_MeshPipeline(".stl"), tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        req = urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a part"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        data = json.load(urllib.request.urlopen(req, timeout=30))
+        assert "step_url" not in data  # an OpenSCAD part has no STEP
+        assert (data.get("report") or {}).get("backend") == "openscad"
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(base + "/api/step/999999", timeout=10)
+        assert exc.value.code == 404
+
+
 def test_serves_spa_index_and_assets_and_rejects_traversal(tmp_path):
     """Stage 4: ``/`` serves the built React SPA shell, ``/assets/<file>`` serves its
     compiled JS/CSS bundles with a sensible content type, and the assets route rejects

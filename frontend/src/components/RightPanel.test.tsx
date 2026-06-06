@@ -127,6 +127,18 @@ describe('RightPanel', () => {
     expect(screen.getByText(/printability check .* appears here/i)).toBeTruthy()
   })
 
+  it('shows the geometry-engine provenance chip (UX-001)', () => {
+    stubFetch()
+    renderPanel({ result: { ...passResult, report: { ...passResult.report!, backend: 'cadquery' } } })
+    expect(screen.getByText('Engine: CadQuery')).toBeTruthy()
+  })
+
+  it('names OpenSCAD as the engine for an OpenSCAD part', () => {
+    stubFetch()
+    renderPanel({ result: { ...passResult, report: { ...passResult.report!, backend: 'openscad' } } })
+    expect(screen.getByText('Engine: OpenSCAD')).toBeTruthy()
+  })
+
   it('shows a read-only note (no sliders) for an LLM-backed part with no parameters', () => {
     stubFetch()
     renderPanel({ result: passResult })
