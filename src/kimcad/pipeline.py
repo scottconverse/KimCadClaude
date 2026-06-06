@@ -384,6 +384,10 @@ class Pipeline:
         )
 
     def _default_cadquery_renderer(self, code: str, out_dir: Path, basename: str) -> RenderResult:
+        # NOTE (perf): each call spawns a fresh worker that cold-imports cadquery+OCCT (~3s on the
+        # dev box); the retry loop can pay it a few times. This sits OFF the common path — the
+        # fallback only runs when OpenSCAD already failed — and is dwarfed by the local model
+        # latency, so the fresh-process-per-render isolation is kept over a warm persistent worker.
         interpreter = self.config.cadquery_interpreter()
         if interpreter is None:  # pragma: no cover - guarded by _cadquery_renderer_or_none
             raise RenderError("CadQuery backend is unavailable (no interpreter found)")

@@ -68,3 +68,17 @@ else
         exit 1
     fi
 fi
+# TEST-001 (Stage 8): the CadQuery worker-sandbox RCE tests are `live` (need a <=3.13 + cadquery
+# interpreter). If none is discoverable, those tests SKIP — so the security-critical second layer
+# went unproven this run. Warn always; HARD-FAIL on a release, mirroring the OrcaSlicer gate, so a
+# tag is never cut without the worker-sandbox contract proven.
+if "$PY" -c "from kimcad.cadquery_runner import find_cadquery_interpreter as f; import sys; sys.exit(0 if f() else 1)" 2>/dev/null; then
+    echo "[ci] OK (CadQuery interpreter present — worker-sandbox live tests ran)."
+else
+    echo "[ci] WARNING: no CadQuery interpreter found — the worker-sandbox (RCE) live tests"
+    echo "[ci]          SKIPPED; the CadQuery second-layer contract was NOT proven this run."
+    if [ "${KIMCAD_RELEASE:-}" = "1" ]; then
+        echo "[ci] RELEASE GATE: refusing — CadQuery worker-sandbox contract unproven."
+        exit 1
+    fi
+fi

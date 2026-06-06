@@ -61,13 +61,13 @@ describe('ExportPanel gate-awareness', () => {
     expect(screen.getByText(/once a part is designed/i)).toBeTruthy()
   })
 
-  it('surfaces the model download and notes STEP is available with the CadQuery engine', () => {
+  it('surfaces the model download and notes STEP comes with the precision CAD engine', () => {
     stubFetch()
     render(<ExportPanel result={base('pass')} />)
     expect(screen.getByText(/download 3d model \(\.stl\)/i)).toBeTruthy()
     // An OpenSCAD part has no STEP — no STEP download link, but the copy explains how to get one.
     expect(screen.queryByText(/download editable cad/i)).toBeNull()
-    expect(screen.getByText(/built with the CadQuery engine/i)).toBeTruthy()
+    expect(screen.getByText(/precision CAD engine \(CadQuery\)/i)).toBeTruthy()
   })
 
   it('offers an editable STEP download for a CadQuery-built part (Stage 8 Slice 4)', () => {
@@ -81,7 +81,7 @@ describe('ExportPanel gate-awareness', () => {
     const link = screen.getByText(/download editable cad \(\.step\)/i) as HTMLAnchorElement
     expect(link).toBeTruthy()
     expect(link.getAttribute('href')).toBe('/api/step/1')
-    expect(screen.getByText(/editable, precision CAD model from the CadQuery engine/i)).toBeTruthy()
+    expect(screen.getByText(/editable, precision CAD model \(CadQuery\)/i)).toBeTruthy()
   })
 
   it('lets the user cancel an in-flight slice and return to the button — never stuck (escape)', async () => {

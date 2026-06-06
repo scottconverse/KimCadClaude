@@ -111,7 +111,9 @@ def test_no_fallback_when_cadquery_unavailable(tmp_path):
         Config.load(), BAMBU, PLA, provider,
         renderer=osc, registry=TemplateRegistry(()), max_render_retries=0,
     )
-    # Force "no CadQuery interpreter" regardless of what this dev box has installed.
+    # Belt-and-suspenders, INDEPENDENT of the autouse hermeticity fixture: poke the cache directly
+    # so this test holds even if that fixture regressed (TEST-007). The other fallback tests rely
+    # on the fixture for determinism; this one does not.
     pipe.config._cadquery_interpreter = None
     result = pipe.run("a block", tmp_path)
 
@@ -173,18 +175,55 @@ def test_openscad_part_has_no_step_path(tmp_path):
 
 
 def test_all_real_providers_implement_the_full_contract():
-    # audit FINDING-003: Provider is a structural Protocol (not runtime-enforced), so a concrete
-    # provider can silently miss a method — exactly how generate_cadquery was missing from the
-    # web providers (FINDING-001). Assert every provider wired as a REAL Provider answers the
-    # whole contract. (_NoModelProvider is a deliberate partial stub for the no-model template
-    # path and is intentionally excluded.)
+    # audit FINDING-003 + TEST-005: Provider is a structural Protocol (not runtime-enforced), so a
+    # concrete provider can silently miss a method (how generate_cadquery was missing from the web
+    # providers) OR carry an incompatible signature. Assert every provider wired as a REAL Provider
+    # both DEFINES each method AND its signature accepts the contract argument shape — a presence
+    # check alone wouldn't catch a wrong-arity stub. (_NoModelProvider is a deliberate partial stub
+    # for the no-model template path and is intentionally excluded.)
+    import inspect
+
     from kimcad.llm_provider import FallbackProvider, LLMProvider
     from kimcad.webapp import DemoProvider, _SettingsAwareProvider
 
-    contract = ("generate_design_plan", "generate_openscad", "generate_cadquery", "describe_photo")
+    codegen = ("generate_design_plan", "generate_openscad", "generate_cadquery")
     for cls in (LLMProvider, FallbackProvider, DemoProvider, _SettingsAwareProvider, FakeProvider):
-        for method in contract:
-            assert callable(getattr(cls, method, None)), f"{cls.__name__} is missing {method}"
+        for method in (*codegen, "describe_photo"):
+            fn = getattr(cls, method, None)
+            assert callable(fn), f"{cls.__name__} is missing {method}"
+            sig = inspect.signature(fn)  # includes `self`; None stands in for the instance
+            try:
+                if method == "describe_photo":
+                    sig.bind(None, b"img", object(), object())
+                else:
+                    sig.bind(None, object(), object(), object(), history=None)
+            except TypeError as e:
+                raise AssertionError(f"{cls.__name__}.{method} can't accept the contract args: {e}")
+
+
+def test_proceed_anyway_accepts_a_gate_failed_primary_without_fallback(tmp_path):
+    # TEST-004: proceed_anyway ("inspect this failed part") must short-circuit the fallback — an
+    # OpenSCAD render that gate-FAILs is accepted as-is, CadQuery is never invoked.
+    provider = FakeProvider(make_plan((20, 20, 20)))
+    osc, _ = _renderer((40, 40, 40))  # gate FAIL
+    cq, cq_state = _renderer((20, 20, 20), backend="cadquery")
+    result = _pipeline(provider, osc, cq).run("a block", tmp_path, proceed_anyway=True)
+
+    assert result.backend == "openscad"
+    assert provider.cadquery_calls == 0  # no fallback spent
+    assert cq_state["n"] == 0
+
+
+def test_backend_succeeded_accepts_a_warn_primary_without_fallback():
+    # TEST-004: a WARN (not FAIL) gate is acceptable — _backend_succeeded returns True, so a WARN
+    # primary short-circuits the fallback (a WARN primary never reaches _better_result).
+    from kimcad.printability import Finding, GateResult, Level
+
+    warn_gate = GateResult(findings=[Finding(Level.WARN, "wall.thin", "a wall is thin")])
+    rendered = (object(), "scad", object(), object(), warn_gate, 1, None)
+    assert Pipeline._backend_succeeded(rendered, gate_retry=True) is True
+    not_rendered = (None, None, None, None, None, 1, "err")
+    assert Pipeline._backend_succeeded(not_rendered, gate_retry=True) is False
 
 
 @pytest.mark.live

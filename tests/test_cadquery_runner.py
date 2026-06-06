@@ -16,13 +16,16 @@ import subprocess
 import pytest
 import trimesh
 
+import kimcad.cadquery_runner as cqr
 from kimcad.cadquery_runner import (
     WORKER_PATH,
+    _read_worker_result,
+    _worker_env,
     find_cadquery_interpreter,
     render_cadquery,
     sanitize_cadquery,
 )
-from kimcad.openscad_runner import BlockedCodeError, RenderFailed
+from kimcad.openscad_runner import BlockedCodeError, RenderFailed, RenderTimeout
 
 _CQ = find_cadquery_interpreter()
 _needs_cq = pytest.mark.skipif(_CQ is None, reason="no Python with cadquery discovered")
@@ -144,6 +147,102 @@ def test_render_cadquery_rejects_blocked_code_without_an_interpreter(tmp_path):
         )
 
 
+def test_bytes_dunder_subscript_is_blocked():
+    # ENG-003: a dunder hidden in a BYTES constant subscript key, not just a str one.
+    s = sanitize_cadquery('m = x[b"__globals__"]\nresult = None')
+    assert not s.safe
+    assert any("__globals__" in b for b in s.blocked)
+
+
+# ENG-001: a through-render_cadquery escape-class canary. The sanitizer runs BEFORE any subprocess,
+# so each known escape raises BlockedCodeError at the real entry point with NO interpreter — a
+# single-branch sanitizer regression would fail these loudly (not only the unit-branch tests).
+@pytest.mark.parametrize("payload", [
+    "import os\nresult = None",
+    "cq.exporters.os.system('x')\nresult = None",
+    'm = cq.version.__globals__["__builtins__"]["__import__"]("os")\nresult = None',
+    "r = ().__class__.__bases__[0].__subclasses__()\nresult = None",
+    'm = x["__globals__"]\nresult = None',
+    "b = g.gi_frame.f_builtins\nresult = None",
+    's = "{0.gi_frame}".format(x)\nresult = None',
+])
+def test_render_cadquery_blocks_escape_class_end_to_end(tmp_path, payload):
+    with pytest.raises(BlockedCodeError):
+        render_cadquery(payload, interpreter=tmp_path / "no-python", out_dir=tmp_path)
+
+
+def test_worker_env_scrubs_secrets(monkeypatch):
+    # ENG-002: the worker subprocess env must NOT carry API keys / tokens / secrets.
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sekret")
+    monkeypatch.setenv("SOME_TOKEN", "t")
+    monkeypatch.setenv("DB_PASSWORD", "p")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "s")
+    monkeypatch.setenv("KIMCAD_HARMLESS", "ok")
+    # REAUDIT-N1: segment-precise — look-alikes that merely CONTAIN a secret word survive.
+    monkeypatch.setenv("TOKENIZER_PATH", "x")
+    monkeypatch.setenv("PASSWORDLESS_MODE", "y")
+    env = _worker_env()
+    assert "OPENROUTER_API_KEY" not in env
+    assert "SOME_TOKEN" not in env
+    assert "DB_PASSWORD" not in env
+    assert "AWS_SECRET_ACCESS_KEY" not in env
+    assert env.get("KIMCAD_HARMLESS") == "ok"  # non-secret vars survive
+    assert env.get("TOKENIZER_PATH") == "x"  # not stripped — 'TOKENIZER' != 'TOKEN'
+    assert env.get("PASSWORDLESS_MODE") == "y"  # not stripped — 'PASSWORDLESS' != 'PASSWORD'
+
+
+def test_render_cadquery_timeout_is_raised(monkeypatch, tmp_path):
+    # TEST-002: a worker that exceeds the wall-clock limit surfaces as RenderTimeout (no interpreter
+    # needed — subprocess.run is stubbed to raise TimeoutExpired).
+    def _boom(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="cq", timeout=1)
+
+    monkeypatch.setattr(cqr.subprocess, "run", _boom)
+    with pytest.raises(RenderTimeout):
+        render_cadquery(_BOX, interpreter=tmp_path / "py", out_dir=tmp_path, timeout_s=1)
+
+
+def test_read_worker_result_synthesizes_failure_on_a_missing_result_file(tmp_path):
+    # TEST-002: a crashed/killed worker leaves no result file -> a clean RenderFailed dict synthesized
+    # from captured stderr, not an unparseable-JSON crash.
+    proc = subprocess.CompletedProcess(args=["cq"], returncode=139, stdout="", stderr="segfault!")
+    result = _read_worker_result(tmp_path / "missing.json", proc)
+    assert result["ok"] is False
+    assert result["kind"] == "exec"
+    assert "segfault!" in result["error"]
+
+
+def _fake_completed(stdout="", returncode=0):
+    return subprocess.CompletedProcess(args=["py"], returncode=returncode, stdout=stdout, stderr="")
+
+
+def test_find_interpreter_swallows_oserror(monkeypatch):
+    # TEST-006: a probe that errors (e.g. a bad `py` launcher) is skipped, never propagated.
+    def _boom(*a, **k):
+        raise OSError("no such launcher")
+
+    monkeypatch.setattr(cqr.subprocess, "run", _boom)
+    assert find_cadquery_interpreter([["py", "-9.9"]], include_defaults=False) is None
+
+
+def test_find_interpreter_skips_a_candidate_that_prints_a_bogus_path(monkeypatch):
+    # TEST-006/ENG-005: rc=0 but the sentinel-wrapped path doesn't exist -> skip (don't accept).
+    bogus = cqr._PROBE_SENTINEL + r"C:\definitely\not\here\python.exe" + cqr._PROBE_SENTINEL
+    monkeypatch.setattr(cqr.subprocess, "run", lambda *a, **k: _fake_completed(stdout=bogus))
+    assert find_cadquery_interpreter([["py"]], include_defaults=False) is None
+
+
+def test_find_interpreter_parses_the_sentinel_path_even_with_banner_noise(monkeypatch):
+    # TEST-006/ENG-005: a startup banner before/after the sentinel-wrapped path doesn't corrupt
+    # parsing; an existing path is returned.
+    import sys as _sys
+
+    noisy = "DeprecationWarning: blah\n" + cqr._PROBE_SENTINEL + _sys.executable + cqr._PROBE_SENTINEL
+    monkeypatch.setattr(cqr.subprocess, "run", lambda *a, **k: _fake_completed(stdout=noisy))
+    got = find_cadquery_interpreter([["py"]], include_defaults=False)
+    assert got is not None and str(got) == _sys.executable
+
+
 # --- live: the real worker on a real interpreter --------------------------------------------
 
 @pytest.mark.live
@@ -224,6 +323,18 @@ def test_worker_sandbox_blocks_open_even_if_the_sanitizer_were_bypassed(tmp_path
     result = _run_worker_directly(tmp_path, f'result = open(r"{marker}", "w")')
     assert result["ok"] is False
     assert not marker.exists()
+
+
+@pytest.mark.live
+@_needs_cq
+@pytest.mark.parametrize("expr", ["eval('1')", "exec('x=1')", "getattr(cq, 'Workplane')"])
+def test_worker_withholds_dangerous_builtins_beyond_open(tmp_path, expr):
+    # TEST-002: the worker's restricted builtins withhold eval/exec/getattr (not just open) — each
+    # fails at the worker layer with a clean error, proving the allowlist holds if the sanitizer
+    # were bypassed (the script is sent DIRECTLY to the worker).
+    result = _run_worker_directly(tmp_path, f"result = {expr}")
+    assert result["ok"] is False
+    assert result["kind"] == "exec"
 
 
 @pytest.mark.live

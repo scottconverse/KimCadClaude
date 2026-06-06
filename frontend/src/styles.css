@@ -1726,7 +1726,12 @@ input {
 }
 
 .kc-download-model {
-  margin-top: 2px;
+  /* UX-004: a comfortable touch target (≥44px tall incl. padding) instead of a bare 12.5px
+     text link — a mis-tap here downloads the wrong file format. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 2px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--kc-accent-strong);
@@ -1735,6 +1740,26 @@ input {
 
 .kc-download-model:hover {
   text-decoration: underline;
+}
+
+/* UX-003: the editable-CAD (.STEP) download is a different KIND of artifact than the print mesh
+   (.STL), so give it a distinct, slightly-elevated treatment with a leading edit glyph so a maker
+   reads it as "and here's the special, editable one" rather than a repeat of the STL link. */
+.kc-download-step::before {
+  content: "✎";
+  margin-right: 6px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+.kc-download-step {
+  align-self: flex-start;
+  border: 1px solid var(--kc-border, rgba(0, 0, 0, 0.12));
+  border-radius: 8px;
+  padding-left: 10px;
+  padding-right: 10px;
+  /* UX-N1: no fill — a tinted pill dropped the terracotta link text to 4.35:1 (just under AA).
+     The border + ✎ glyph already distinguish it; keeping the card surface behind the text holds
+     the STL/STEP link contrast at AA (4.66:1). */
 }
 
 .kc-export-error {
@@ -1832,7 +1857,7 @@ input {
 .kc-formats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px; /* UX-004: wider gap so adjacent download targets aren't mis-tapped */
   margin-top: 2px;
 }
 .kc-formats-note {
@@ -3240,6 +3265,21 @@ input {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* UX-001: a neutral provenance chip naming the geometry engine that built the part. Quiet by
+   design (it's provenance, not a status) — muted, bordered, distinct from the gate status badge. */
+.kc-engine-badge {
+  align-self: center;
+  padding: 3px 9px;
+  border: 1px solid var(--kc-border, rgba(0, 0, 0, 0.12));
+  border-radius: var(--kc-r-chip);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--kc-text-muted, #6f6857);
+  background: var(--kc-surface-2, rgba(0, 0, 0, 0.03));
+  white-space: nowrap;
 }
 
 /* Slice 9 MS-4 — the first-run setup wizard (built to docs/design/prototype/jsx/wizard.jsx). A

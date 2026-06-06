@@ -32,7 +32,10 @@ pytest tests/test_cadquery_bench.py
 
 Expected: **5/5 cases pass** (rendered, watertight, bbox within 0.5 mm of the declared
 envelope on every axis). Measured on the dev box (AMD 780M, CPU-only) against cadquery 2.7.0 /
-OCP 7.8.x on Python 3.13: all five pass; each render is well under a second of worker time.
+OCP 7.8.x on Python 3.13 (as-measured environment, **not** a version requirement): all five pass.
+Note the bbox check compares *sorted* dims (orientation-invariant) within 0.5 mm, so it proves
+"watertight at the right overall size," not axis assignment — the runner test
+`test_render_cadquery_builds_a_box` is the tight per-axis check.
 
 ## 2. Dual-backend union (the pass-rate lever) — live procedure
 

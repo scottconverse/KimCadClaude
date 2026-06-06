@@ -42,9 +42,12 @@ All notable changes to KimCad are documented here. Format follows
   gate → merge → tag `stage-8` is the next step (the work is not yet on `main`).
   - **Worker + runner:** the untrusted generated CadQuery is statically sanitized (`ast`
     block-list: non-cadquery/math imports, banned names/attrs, all dunders incl. string-subscripts
-    + frame/`__globals__` introspection) and run in the worker with restricted builtins against a
-    geometry-only cadquery facade; the script assigns `result` and does no I/O — the worker exports
-    STL (+ STEP) to a result file (never stdout), with a timeout + output-size guard.
+    + frame/`__globals__` introspection) and run in the worker with restricted builtins (an
+    `__import__` that yields the geometry-only cadquery facade / `math` and raises ImportError for
+    all else) against a geometry-only facade (every top-level cadquery submodule stripped); the
+    script assigns `result` and does no I/O — the worker exports STL (+ STEP) to a result file
+    (never stdout), in an isolated cwd with a secret-scrubbed env, with a timeout + output-size
+    guard. OS-level process confinement is a tracked Stage-11 hardening.
   - **Discovery + config:** `binaries.cadquery_python` (null=auto-discover / false=off / a path),
     `limits.cadquery_timeout_s` (120s).
   - **Mutual fallback:** `generate_cadquery` + `prompts/system_cadquery.md`; OpenSCAD stays primary;

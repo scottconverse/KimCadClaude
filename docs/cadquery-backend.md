@@ -37,10 +37,13 @@ cadquery_runner.render_cadquery(code)
 
 ## Enabling it
 
-Install a Python ≤3.13 and CadQuery into it, then point KimCad at it (or let it auto-discover):
+CadQuery has no Python-3.14 wheels (see *Why it runs out of process*, above), so it needs an
+interpreter at **Python ≤3.13**. If you already run KimCad on Python 3.11–3.13, you can install
+`cadquery` into **that same interpreter** — no second Python required. Only a 3.14 KimCad install
+needs a separate ≤3.13 interpreter for CadQuery.
 
-1. Install CadQuery on a 3.13 interpreter (its OCCT wheels are large): install `cadquery`
-   into a Python 3.13 environment.
+1. Install CadQuery on a ≤3.13 interpreter (its OCCT wheels are large): install `cadquery`
+   into a Python 3.11–3.13 environment.
 2. KimCad auto-discovers it. With `binaries.cadquery_python: null` (the default in
    `config/default.yaml`), KimCad probes `py -3.13/-3.12/-3.11` (Windows) then
    `python3.13/3.12/3.11` on `PATH`, and uses the first one whose `import cadquery` succeeds.
@@ -73,19 +76,28 @@ of what each guarantees:
    - frame/function introspection attributes (`gi_frame`, `f_builtins`, `func_globals`, …) and
      `str.format` field pivots.
 2. **Worker runtime (the secondary layer)** — the script runs with a **restricted
-   `__builtins__`** (no `open`/`eval`/`exec`/`compile`/`input`; an `__import__` that yields only
-   a geometry-only facade of cadquery / `math`) against a **geometry-only facade** — every
-   cadquery *submodule* (`exporters`, `importers`, `occ_impl`, …) is stripped, so there's no
-   module object in scope to pivot through to `os`. The script does **no I/O at all**: it only
-   assigns a `result` object; the worker performs every export, and writes its result to a
-   dedicated file (never stdout) so a native fd-1 write can't corrupt the contract.
+   `__builtins__`** (no `open`/`eval`/`exec`/`compile`/`input`; an `__import__` that returns the
+   geometry-only cadquery facade for `import cadquery`, the real `math` for `import math`, and
+   **raises `ImportError` for any other import**) against a **geometry-only facade** — every
+   *top-level* cadquery submodule (`exporters`, `importers`, `occ_impl`, …) is stripped from the
+   facade, so there's no module object in scope to pivot through to `os`. The script does **no I/O
+   at all**: it only assigns a `result` object; the worker performs every export, and writes its
+   result to a dedicated file (never stdout) so a native fd-1 write can't corrupt the contract.
+   The worker subprocess also runs in the **isolated render directory** with a **secret-scrubbed
+   environment** (the LLM/printer API keys are withheld), so a hypothetical escape can't read a
+   key from the env or write outside the render dir's tree. The render has a timeout and an
+   output-size guard (covering both the STL and the STEP).
 
 What the worker layer can **not** independently do, by CPython design: a cadquery function still
 carries its real `__builtins__` in `__globals__`, reachable via a dunder/introspection attribute
 — which the **static sanitizer** blocks. So that escape class is closed by layer 1, not layer 2.
-The durable defence-in-depth answer (OS-level process confinement: no network, restricted
-working dir) is a tracked future hardening; it is **not yet implemented**. The render also has a
-timeout and an output-size guard.
+There are therefore two regression backstops: a `render_cadquery`-level escape-class test suite
+(so a sanitizer regression fails loudly through the real entry point, not just a unit branch), and
+a **release gate** (`KIMCAD_RELEASE=1`) that hard-fails if the worker-sandbox live tests couldn't
+run. The durable, fuller answer — **OS-level process confinement** (no network, a restricted
+token / job object) — is a tracked **Stage 11** hardening (it lands with the installer/bundling
+work); it is **not yet implemented**. The env-scrub + isolated-cwd above are the in-tree
+mitigations until then.
 
 ## The script contract (what the codegen prompt teaches)
 

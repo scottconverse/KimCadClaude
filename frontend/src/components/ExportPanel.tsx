@@ -195,17 +195,19 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
           )}
           {result.step_url ? (
             <p className="kc-muted-note kc-formats-note">
-              The <strong>.3mf</strong> print file (from slicing above) is printer-agnostic and safe
-              to share; the <strong>.STL</strong> opens in other slicers and CAD tools. The{' '}
-              <strong>.STEP</strong> is the editable, precision CAD model from the CadQuery engine —
-              open it in any CAD program to keep modeling. (It&rsquo;s the as-designed shape; print
-              orientation is applied only to the printable mesh.)
+              The <strong>.STL</strong> opens in other slicers and CAD tools. The{' '}
+              <strong>.STEP</strong> is the editable, precision CAD model (CadQuery) — open it in
+              any CAD program to keep modeling; it&rsquo;s the as-designed shape, so print
+              orientation is applied only to the printable mesh. Once you slice, you&rsquo;ll also
+              get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
             </p>
           ) : (
             <p className="kc-muted-note kc-formats-note">
-              The <strong>.3mf</strong> print file is printer-agnostic and safe to share; the
-              <strong> .STL</strong> opens in other slicers and CAD tools. An editable{' '}
-              <strong>.STEP</strong> is available when a part is built with the CadQuery engine.
+              The <strong>.STL</strong> opens in other slicers and CAD tools, and once you slice
+              you&rsquo;ll get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
+              KimCad picks the geometry engine to fit each part (shown on the printability check
+              above); parts built with the precision CAD engine (CadQuery) also offer an editable{' '}
+              <strong>.STEP</strong> export.
             </p>
           )}
         </div>

@@ -32,8 +32,10 @@ There are two layers, with an HONEST division of what each one independently gua
    that closes the introspection / ``__globals__`` escape class — see point 3.
 2. **Worker runtime (the SECONDARY layer)** — the script runs with a **restricted
    ``__builtins__``** (no ``open``/``eval``/``exec``/``compile``/``input``; an ``__import__``
-   that yields only the cadquery FACADE / ``math``) against a **geometry-only facade** of
-   cadquery — every cadquery SUBMODULE (``exporters``, ``importers``, ``occ_impl`` …) is
+   that returns the cadquery FACADE for ``import cadquery``, the real ``math`` for ``import
+   math``, and **raises ``ImportError`` for every other import**) against a **geometry-only
+   facade** of cadquery — every top-level cadquery SUBMODULE (``exporters``, ``importers``,
+   ``occ_impl`` …) is
    stripped, so no module object is in scope to pivot through to ``os`` (the ``cq.exporters.os``
    class). The script does **no file I/O at all**: it assigns a ``result`` object; this worker
    does every export. The JSON result is written to a dedicated ``result_path`` file (never
@@ -54,6 +56,9 @@ executing generated OpenSCAD.
 
 from __future__ import annotations
 
+# These are HARNESS-ONLY imports (file read, file-size lookup, the stdout fallback). They are
+# never exposed to the executed script: the script runs against an explicit fresh namespace with
+# `_safe_builtins` (no `os`/`sys`), not this module's globals (ENG-007).
 import contextlib
 import io
 import json

@@ -545,6 +545,16 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
               Gate: {gateLabel(report.gate_status)}
             </span>
             <InfoTip term="gate" />
+            {/* UX-001: state which geometry engine built this part — a neutral provenance chip,
+                so the STEP affordance's presence/absence isn't the only (inferred) signal. */}
+            {report.backend && (
+              <span
+                className="kc-engine-badge"
+                title="The geometry engine that built this part. KimCad picks it to fit the part; CadQuery parts also offer an editable STEP export."
+              >
+                Engine: {report.backend === 'cadquery' ? 'CadQuery' : 'OpenSCAD'}
+              </span>
+            )}
           </div>
           {report.headline && <p className="kc-muted-note">{report.headline}</p>}
 

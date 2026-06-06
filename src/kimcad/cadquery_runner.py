@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import ast
 import json
+import os
+import re
 import subprocess
 import sys
 import time
@@ -42,6 +44,32 @@ from kimcad.openscad_runner import (
     RenderTimeout,
     SanitizeResult,
 )
+
+# Underscore-/non-alphanumeric-delimited NAME segments that mark an env var as secret-bearing
+# (ENG-002). Matching whole segments — not substrings — so a look-alike like ``TOKENIZER`` or
+# ``PASSWORDLESS`` is NOT stripped (REAUDIT-N1), while ``OPENROUTER_API_KEY`` / ``SOME_TOKEN`` /
+# ``DB_PASSWORD`` / ``AWS_SECRET_ACCESS_KEY`` are.
+_SECRET_ENV_SEGMENTS = frozenset({
+    "KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "CREDENTIALS",
+    "PRIVATEKEY",
+})
+
+
+def _is_secret_env(name: str) -> bool:
+    segments = re.split(r"[^A-Za-z0-9]+", name.upper())
+    if any(seg in _SECRET_ENV_SEGMENTS for seg in segments):
+        return True
+    # Catch the run-together forms (no delimiter): OPENROUTERAPIKEY, MYPRIVATEKEY.
+    compact = "".join(segments)
+    return "APIKEY" in compact or "PRIVATEKEY" in compact
+
+
+def _worker_env() -> dict[str, str]:
+    """The parent environment MINUS secret-bearing variables — what the worker subprocess runs
+    with (ENG-002), mirroring the OpenSCAD runner's env discipline. The worker is pure cadquery +
+    stdlib and needs no credentials, so withholding the LLM/printer API keys bounds the blast
+    radius if the sanitizer is ever bypassed."""
+    return {k: v for k, v in os.environ.items() if not _is_secret_env(k)}
 
 # The worker script, run by the foreign <=3.13 interpreter BY ABSOLUTE PATH (not `-m`,
 # since the kimcad package isn't installed in the 3.13 environment). It's a sibling file.
@@ -130,10 +158,17 @@ def sanitize_cadquery(code: str) -> SanitizeResult:
                 blocked.append(f"attribute access '.{node.attr}' is not allowed")
         elif isinstance(node, ast.Subscript):
             # A dunder hidden in a string-literal index — obj["__globals__"]["__import__"] —
-            # is invisible to the Name/Attribute dunder checks (NEW-007). Catch it here.
+            # is invisible to the Name/Attribute dunder checks (NEW-007). Catch str AND bytes
+            # constant keys (ENG-003). NOTE: a *computed* dunder key (e.g. chr(95)+...) can't be
+            # caught statically, but is inert by construction — the worker's restricted builtins
+            # withhold the string-building primitives (chr/ord/bytes/type/getattr), so a dunder
+            # string can't be built or used at runtime. Those two layers must stay coupled: never
+            # add a string-construction builtin to the worker without re-hardening this check.
             sl = node.slice
-            if isinstance(sl, ast.Constant) and isinstance(sl.value, str) and "__" in sl.value:
-                blocked.append(f"subscript with a dunder key '{sl.value}' is not allowed")
+            if isinstance(sl, ast.Constant) and isinstance(sl.value, (str, bytes)):
+                key = sl.value if isinstance(sl.value, str) else sl.value.decode("latin-1", "ignore")
+                if "__" in key:
+                    blocked.append(f"subscript with a dunder key '{key}' is not allowed")
         elif isinstance(node, (ast.Global, ast.Nonlocal)):
             # AST stores these names as plain strings (not Name nodes), so scan them too.
             for nm in node.names:
@@ -193,12 +228,16 @@ def render_cadquery(
 
     started = time.monotonic()
     try:
+        # ENG-002: run in the isolated out_dir with a secret-scrubbed env (mirrors the OpenSCAD
+        # runner's isolation), so the worker never inherits the project cwd or any API key.
         proc = subprocess.run(
             [str(interpreter), str(WORKER_PATH)],
             input=json.dumps(request),
             capture_output=True,
             text=True,
             timeout=timeout_s,
+            cwd=str(out_dir),
+            env=_worker_env(),
         )
     except subprocess.TimeoutExpired as e:
         _cleanup_outputs()
@@ -224,6 +263,11 @@ def render_cadquery(
     if size > max_output_bytes:
         _cleanup_outputs()
         raise OversizeOutput(f"cadquery produced {size} bytes (> {max_output_bytes} guard)")
+    # ENG-006: the size guard covers the STEP too (it's read whole into memory to serve).
+    if step_path is not None and step_path.exists() and step_path.stat().st_size > max_output_bytes:
+        step_size = step_path.stat().st_size
+        _cleanup_outputs()
+        raise OversizeOutput(f"cadquery STEP is {step_size} bytes (> {max_output_bytes} guard)")
 
     have_step = step_path if (step_path is not None and step_path.exists()) else None
     return RenderResult(
@@ -240,8 +284,14 @@ def render_cadquery(
 
 
 # The probe a candidate interpreter must pass: it can import cadquery (which implies a
-# compatible Python, since cadquery ships no 3.14 wheels) and prints its own executable path.
-_PROBE = "import cadquery, sys; sys.stdout.write(sys.executable)"
+# compatible Python, since cadquery ships no 3.14 wheels) and prints its own executable path,
+# sentinel-delimited so a noisy interpreter (a startup banner / deprecation print) doesn't
+# corrupt the parsed path (ENG-005).
+_PROBE_SENTINEL = "__KIMCAD_CQ__"
+_PROBE = (
+    "import cadquery, sys; "
+    f"sys.stdout.write('{_PROBE_SENTINEL}' + sys.executable + '{_PROBE_SENTINEL}')"
+)
 
 
 def find_cadquery_interpreter(
@@ -276,14 +326,20 @@ def find_cadquery_interpreter(
         try:
             # 20s is ample for an `import cadquery` probe (~3-4s warm) while bounding the
             # worst case if a candidate hangs; the Config layer caches the discovered result.
+            # Scrub secrets from the probe env too (the probe needs none) — ENG-002.
             proc = subprocess.run(
-                [*cmd, "-c", _PROBE], capture_output=True, text=True, timeout=20
+                [*cmd, "-c", _PROBE], capture_output=True, text=True, timeout=20,
+                env=_worker_env(),
             )
         except (OSError, subprocess.SubprocessError):
             continue
-        out = (proc.stdout or "").strip()
-        if proc.returncode == 0 and out:
-            p = Path(out)
+        if proc.returncode != 0:
+            continue
+        # Parse the path from between the sentinels, so a startup banner before/after it doesn't
+        # corrupt the result (ENG-005). Missing sentinels -> skip this candidate.
+        parts = (proc.stdout or "").split(_PROBE_SENTINEL)
+        if len(parts) >= 3:
+            p = Path(parts[1])
             if p.exists():
                 return p
     return None
