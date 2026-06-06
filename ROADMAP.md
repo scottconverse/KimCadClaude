@@ -60,12 +60,12 @@ of the CadQuery backend (8.5-first, ratified 2026-06-03) because the deal-killer
 closed before adding a second geometry engine. **Stage 8.5 (Usability) is DONE — merged to `main`
 and tagged `stage-8.5`** (slices 1–11 each `audit-lite` 0/0/0/0/0; the full 5-role `audit-team` +
 `wiring-audit` stage gate + remediation closed at 0/0/0/0/0). **Stage 8 (CadQuery parallel
-backend) is BUILT on branch `stage-8-cadquery`** (5 slices, each through `audit-lite` with all
-findings remediated; an arm's-length 3.13 worker, mutual OpenSCAD↔CadQuery fallback, STEP export)
-— its **stage gate (audit-team + wiring-audit) → merge → tag `stage-8` is still pending**, so it
-is not yet on `main`. **Next = the Stage 8 gate, then Stage 9 (image/sketch on-ramp).**
+backend) is DONE — merged to `main` and tagged `stage-8`** (5 slices, each `audit-lite` 0/0/0/0/0;
+the 5-role `audit-team` stage gate + two independent re-audit lanes closed at 0/0/0/0/0; an
+arm's-length 3.13 worker, mutual OpenSCAD↔CadQuery fallback, STEP export). **Next = Stage 9
+(image/sketch on-ramp).**
 
-Still ahead before beta: the Stage 8 gate/merge/tag, image on-ramp (Stage 9), direct-print UI + Bambu-native
+Still ahead before beta: image on-ramp (Stage 9), direct-print UI + Bambu-native
 (Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
 — that's after Stage 11, at Kim's.**
 
@@ -237,7 +237,7 @@ accessibility, copy, polish.
 **Exit:** a person can make a part, leave, come back, refine it, set units, see problems on the model,
 and discover the optional engines — without hitting a wall. **Needs:** target box. **Size:** large.
 
-## Stage 8 — CadQuery parallel backend  (built; pending the stage gate → merge → tag)
+## Stage 8 — CadQuery parallel backend  ✅ DONE — merged to `main`, tagged `stage-8`
 **Goal:** a second, type-safe CAD backend and real CAD export. CadQuery 2.7 + real OCCT (OCP
 7.8.x) runs on Python 3.13; the main KimCad venv is **3.14** (CadQuery tops out at 3.13), so the
 backend runs as an **arm's-length subprocess worker** (`kimcad.cadquery_worker`) driven by
@@ -247,8 +247,9 @@ keeping the main runtime on 3.14 and the heavy OCCT dependency optional + gracef
 remediated** — reports in `docs/audits/stage-8/`. The Slice-1 audit found (and the fix closed) a
 real sandbox escape — `cq.exporters.os.system(...)` pivoting through the injected cadquery module —
 now neutralized by a geometry-only facade + an `ast` block-list. The **stage gate** (the 5-role
-`audit-team` + a `wiring-audit` of the STEP/export surface) → merge → tag `stage-8` is the next
-step; it is **not yet gated, merged, or tagged**.
+`audit-team`; the small UI delta's wiring driven live by the QA + UX roles) rolled up 7 Major /
+16 Minor / 11 Nit — **all remediated, then two independent re-audit lanes closed at 0/0/0/0/0** —
+and was **merged to `main` and tagged `stage-8`**.
 - **Slice 1** — the worker + runner: `sanitize_cadquery` (ast block-list: non-cadquery/math
   imports, banned names/attrs, all dunders incl. string-subscripts + introspection attrs) and
   `render_cadquery` (subprocess with timeout + output-size guard); the worker runs the untrusted
@@ -263,10 +264,10 @@ step; it is **not yet gated, merged, or tagged**.
   (.STEP)" link for a CadQuery part (the as-designed geometry).
 - **Slice 5** — docs (`docs/cadquery-backend.md`) + the deterministic engine bench
   (`kimcad.cadquery_bench`, `docs/benchmarks/stage-8-cadquery-backend.md`).
-**Exit:** an optional, real CadQuery backend with STEP/BREP export, switchable in config, that can
-lift the pass rate as a fallback (the union of two generators — measured live, not pinned to a
-fixed number). All slices built + per-slice audited; the stage gate → merge → tag `stage-8`
-remains to be done.
+**Exit (met):** an optional, real CadQuery backend with STEP/BREP export, switchable in config,
+that can lift the pass rate as a fallback (the union of two generators — measured live, not pinned
+to a fixed number). All slices built + per-slice audited; stage gate + re-audit at 0/0/0/0/0;
+merged to `main`, tagged `stage-8`.
 
 ## Stage 9 — Image & sketch on-ramp (opt-in, experimental)
 **Goal:** a photo or dimensioned sketch seeds an editable, validated plan — **opt-in only**, honest

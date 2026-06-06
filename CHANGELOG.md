@@ -26,8 +26,8 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
-- **Stage 8 — CadQuery parallel geometry backend — BUILT (branch `stage-8-cadquery`; stage gate +
-  merge + tag pending).** A second,
+- **Stage 8 — CadQuery parallel geometry backend — DONE (merged to `main`, tagged `stage-8`).**
+  A second,
   type-safe CAD backend that runs alongside OpenSCAD as a **mutual fallback** (when the OpenSCAD
   path can't render a part that passes the printability gate, KimCad generates it in CadQuery and
   keeps the better result — the union lifts the done-gate) and adds **editable STEP (BREP)
@@ -38,8 +38,9 @@ All notable changes to KimCad are documented here. Format follows
   through the real `audit-lite` (independent agent) with every finding remediated
   (`docs/audits/stage-8/`); the Slice-1 audit caught and the fix closed a real sandbox escape
   (`cq.exporters.os.system(...)` pivoting through the injected cadquery module — now neutralized by
-  a geometry-only facade + an `ast` block-list). The 5-role `audit-team` + `wiring-audit` stage
-  gate → merge → tag `stage-8` is the next step (the work is not yet on `main`).
+  a geometry-only facade + an `ast` block-list). The 5-role `audit-team` stage gate (7 Major /
+  16 Minor / 11 Nit, all remediated) + two independent re-audit lanes closed at 0/0/0/0/0; merged
+  to `main` and tagged `stage-8`.
   - **Worker + runner:** the untrusted generated CadQuery is statically sanitized (`ast`
     block-list: non-cadquery/math imports, banned names/attrs, all dunders incl. string-subscripts
     + frame/`__globals__` introspection) and run in the worker with restricted builtins (an

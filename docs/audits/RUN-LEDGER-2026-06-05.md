@@ -19,7 +19,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 5 | Backfill Stage 6 (model layer) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 6 | Backfill Stage 7 (Smart Mesh) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ✅ 0/0/0/0/0 (re-audited; ENG-001 safety + QA-301) | ✅ committed | ✅ DONE |
-| 8 | Stage 8 (CadQuery backend) — build + gate | ☐ | ☐ | ☐ tag `stage-8` | ☐ |
+| 8 | Stage 8 (CadQuery backend) — build + gate | n/a (UI delta driven live by QA+UX roles) | ✅ audit-team 7M/16m/11n ALL fixed → 2 re-audit lanes 0/0/0/0/0 | ✅ merged + tagged `stage-8` | ✅ DONE |
 | 9 | Stage 9 (image on-ramp) — build + gate | ☐ | ☐ | ☐ tag `stage-9` | ☐ |
 | 10 | Stage 10 (direct-print + layer preview) — build + gate | ☐ | ☐ | ☐ tag `stage-10` | ☐ |
 | 11 | Stage 11 (installer + beta) — build + gate | ☐ | ☐ | ☐ tag `stage-11` | ☐ |
@@ -55,12 +55,27 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 ## Phase C — build Stages 8 → 9 → 10 → 11 to the beta (per-slice audit-lite → stage gate → 0/0/0/0/0 → merge → tag)
 | Stage | build | gate | tag | status |
 |---|---|---|---|---|
-| 8 (CadQuery backend) | ☐ | ☐ | ☐ `stage-8` | ☐ |
+| 8 (CadQuery backend) | ✅ 5 slices audit-lite | ✅ audit-team + 2 re-audit lanes 0/0/0/0/0 | ✅ `stage-8` | ✅ DONE |
 | 9 (image/sketch on-ramp) | ☐ | ☐ | ☐ `stage-9` | ☐ |
 | 10 (direct-print + layer preview) | ☐ | ☐ | ☐ `stage-10` | ☐ |
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-06 (Phase C / Stage 8 — CadQuery parallel backend): built in 5 slices (worker+runner,
+  interpreter discovery+config, pipeline mutual OpenSCAD↔CadQuery fallback, STEP export end-to-end,
+  docs+bench), each through an independent `audit-lite` to 0/0/0/0/0 — the Slice-1 audit caught a
+  REAL reproduced sandbox escape (`cq.exporters.os.system` pivot via the injected cadquery module),
+  closed by a geometry-only facade + `ast` block-list. The 5-role `audit-team` stage gate rolled up
+  0B/0C/7Maj/16Min/11Nit (the security model held under every role's probing; the small UI delta's
+  wiring was driven live by the QA + UX roles). ALL findings remediated — worker env/cwd isolation +
+  a through-`render_cadquery` escape-class canary + a `KIMCAD_RELEASE=1` backstop (so the
+  worker-sandbox RCE live tests can't silently skip), an "Engine: …" provenance chip, doc precision,
+  and the worker failure-direction tests — then TWO independent re-audit lanes (eng/security/test,
+  UX/docs) closed at 0/0/0/0/0 (2 new found+fixed: a STEP-pill contrast regression, an env-scrub
+  over-strip). Full OS-level worker confinement accepted-with-rationale as a Stage-11 item.
+  Merged to `main` (merge `f2fc2b8`) + tagged `stage-8`; gate green (ruff, 835 non-live + live
+  OrcaSlicer + live CadQuery worker, 287 vitest, build reproducible). Package:
+  `docs/audits/stage-8/audit-team-stage-8-2026-06-06/`. **Next: Stage 9 (image/sketch on-ramp).**
 - 2026-06-06 (Phase B / backend stages 0-3): combined backend audit-team (eng/test/QA/docs; UI/UX
   n/a) across the coupled backend (pipeline, gate, slicer, connectors, printer coverage), findings
   tagged per stage → 0B/0C/~5Maj/~9Min/~6Nit. STANDOUT safety bug: ENG-001 — a NaN/inf bbox extent

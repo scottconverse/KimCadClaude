@@ -23,10 +23,10 @@ CAD export** — see *Optional: the CadQuery backend*, below.
 > exact numbers, switch between mm and inches, manage everything from an in-app Settings screen, and
 > start a design by **describing it with a photo** — read by the local vision model into a rough,
 > editable starting point that never leaves your machine. **Stage 8 (the CadQuery parallel backend
-> — mutual OpenSCAD↔CadQuery fallback + STEP export) is built** on branch `stage-8-cadquery` (its
-> stage gate → merge → tag is still pending, so it isn't on `main` yet). Next up: an image/sketch
-> on-ramp (Stage 9), a direct-print UI (Stage 10), and a Windows installer + beta gate (Stage 11).
-> Real-hardware print validation on Kim's printers is the final stage — see ROADMAP.
+> — mutual OpenSCAD↔CadQuery fallback + STEP export) is done — merged to `main` and tagged
+> `stage-8`.** Next up: an image/sketch on-ramp (Stage 9), a direct-print UI (Stage 10), and a
+> Windows installer + beta gate (Stage 11). Real-hardware print validation on Kim's printers is the
+> final stage — see ROADMAP.
 
 ## What it does
 
