@@ -743,7 +743,10 @@ input {
 }
 
 /* Touch targets: on coarse pointers, the interactive chrome is at least ~44px tall. */
-@media (pointer: coarse) {
+/* UX-503: the dual-arm query (coarse pointer OR narrow viewport) so the 44px touch targets — the
+   slider especially — also apply on a desktop resized to a phone width, which reports pointer:fine
+   and otherwise left the slider a 9px-tall hit area. Matches the convention used elsewhere. */
+@media (pointer: coarse), (max-width: 640px) {
   .kc-btn,
   .kc-icon-btn,
   .kc-chip,
@@ -1024,6 +1027,11 @@ input {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+  /* UX-504: the mm/in toggle buttons are short labels, so the 44px height alone left them ~25-35px
+     wide — under the comfortable touch width. Give them a real horizontal target too. */
+  .kc-unit-btn {
+    min-width: 44px;
   }
 }
 

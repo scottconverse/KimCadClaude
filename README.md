@@ -36,7 +36,8 @@ manifold geometry by construction, so output is dimensionally meaningful — not
 lumpy neural meshes. For template-backed parts the browser UI shows **live
 parameter sliders**: drag one and the part re-renders locally in well under a
 second with no model call (the `templates.py` engine; proof in
-`docs/benchmarks/stage-5-template-families.md`).
+`docs/benchmarks/stage-5-template-families.md`). You can also type exact values and
+switch between mm and inches — see [`docs/guide-sliders-and-units.md`](docs/guide-sliders-and-units.md).
 
 Every built part gets a **Smart Mesh readiness** report card — a 0–100 score, a plain
 verdict, the risks, and concrete recommendations — synthesized from the Printability Gate

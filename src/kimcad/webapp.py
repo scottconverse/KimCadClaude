@@ -25,6 +25,7 @@ import base64
 import hashlib
 import itertools
 import json
+import math
 import re
 import shutil
 import threading
@@ -1812,12 +1813,19 @@ def make_handler(
                 # QA-001: keep `requested` a consistent JSON type — a number when the input parsed,
                 # else null (a non-numeric value was rejected) — instead of echoing a raw string so
                 # an API client can rely on the shape of the contract.
-                try:
-                    req_num: float | None = float(req)
-                    same = abs(req_num - float(applied[name])) <= 1e-6
-                except (TypeError, ValueError):
-                    req_num = None
-                    same = False
+                # QA-501: a strictly-valid JSON number can still be non-finite — json.loads accepts
+                # the `Infinity`/`NaN` literals, and `1e400` overflows to inf. The geometry path
+                # clamps those harmlessly, but echoing inf/nan here would trip the response's
+                # allow_nan=False and 500 the endpoint, so coerce a non-finite (or bool) to null.
+                if isinstance(req, bool):
+                    req_num: float | None = None
+                else:
+                    try:
+                        parsed = float(req)
+                        req_num = parsed if math.isfinite(parsed) else None
+                    except (TypeError, ValueError):
+                        req_num = None
+                same = req_num is not None and abs(req_num - float(applied[name])) <= 1e-6
                 if not same:
                     adjusted.append({"name": name, "requested": req_num, "applied": applied[name]})
             if adjusted:

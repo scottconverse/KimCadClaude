@@ -37,7 +37,9 @@ def _family(name: str, *aliases: str) -> TemplateFamily:
         name=name, summary="", object_types=aliases or ("widget",),
         library_file="containers.scad", module="snap_box",
         params=(ParamSpec(name="width", label="W", default=10, min=1, max=20),),
-        bbox_x=(BBoxTerm(ref="width"),),
+        # All three axes are non-empty: the registry now rejects a family with an empty bbox
+        # axis (ENG-504), so a minimal test family must declare each one.
+        bbox_x=(BBoxTerm(ref="width"),), bbox_y=(BBoxTerm(ref="width"),), bbox_z=(BBoxTerm(ref="width"),),
     )
 
 
@@ -141,9 +143,64 @@ def test_derive_falls_back_to_defaults_when_unspecified():
 def test_derive_clamps_out_of_range_dimensions():
     fam = default_registry().family("snap_box")
     vals = derive_values(fam, _plan("box", dimensions={"width": 9999, "depth": 1, "wall": 99}))
-    assert vals["width"] == 250.0  # clamped to max
+    assert vals["width"] == 170.0  # clamped to the sliceable footprint max (QA-502)
     assert vals["depth"] == 10.0   # clamped to min
-    assert vals["wall"] == 8.0     # clamped to max
+    # wall clamps to its own max (8.0), then the ENG-501 cavity rule holds it under half the
+    # smallest dimension so the box can't become a solid block: depth=10 -> wall <= 0.5*10 - 1 = 4.
+    assert vals["wall"] == 4.0
+
+
+def test_box_wall_cannot_collapse_to_a_solid_block():
+    # ENG-501: a thick wall on a small box must NOT collapse the cavity into a silently-solid block
+    # (which still gates PASS on its outer bbox). The cavity rule holds wall under half of EVERY
+    # outer dimension minus a 1 mm minimum cavity, for both the closed and open box families.
+    for name in ("snap_box", "box"):
+        fam = default_registry().family(name)
+        for dim in (10, 20, 40):
+            v = clamp_values(fam, {"width": dim, "depth": dim, "height": dim, "wall": 8})
+            assert v["wall"] <= 0.5 * dim - 1.0 + 1e-9, (name, dim, v["wall"])
+            assert dim - 2 * v["wall"] >= 2.0 - 1e-9  # a real >=2 mm cavity remains on each axis
+
+
+def test_footprint_capped_to_sliceable_envelope():
+    # QA-502: the X/Y footprint can't exceed the reference printers' sliceable plate (OrcaSlicer's
+    # auto-arrange clearance makes it smaller than the 256 mm bed), so a slider/LLM value can't pass
+    # the gate then fail to slice. Height stays free to the bed height.
+    fam = default_registry().family("snap_box")
+    v = clamp_values(fam, {"width": 250, "depth": 250, "height": 250, "wall": 2})
+    # EVERY outer dimension caps at the sliceable footprint side — the auto-orient can rotate any
+    # axis onto the bed, so a 170x170x170 cube is the worst corner and it slices.
+    assert v["width"] == 170.0 and v["depth"] == 170.0 and v["height"] == 170.0
+
+
+def test_emit_scad_reflects_changed_values_without_a_renderer():
+    # TEST-501: a binary-free proof that a re-render at new values actually changes the geometry
+    # SOURCE (emit_scad embeds the new dimension), so the offline suite isn't blind to a slider that
+    # silently renders the same shape when the OpenSCAD binary is absent (the offline stub renderer).
+    fam = default_registry().family("snap_box")
+    s80 = emit_scad(fam, clamp_values(fam, {"width": 80, "depth": 60, "height": 40, "wall": 2}))
+    s120 = emit_scad(fam, clamp_values(fam, {"width": 120, "depth": 60, "height": 40, "wall": 2}))
+    assert "width=80" in s80 and "width=120" in s120 and s80 != s120
+
+
+def test_drawer_divider_compartments_capped_to_length():
+    # ENG-505: too many compartments for a short frame would overlap the (compartments-1) cross-walls
+    # into a solid block; the count is capped to <= length/4 and stays a whole number.
+    fam = default_registry().family("drawer_divider")
+    v = clamp_values(fam, {"length": 12, "depth": 80, "height": 50, "compartments": 12})
+    assert v["compartments"] == int(v["compartments"])  # a whole count, never half a compartment
+    assert 1 <= v["compartments"] <= 0.25 * 12  # <= 3 bays for a 12 mm frame
+
+
+def test_registry_rejects_a_family_with_an_empty_bbox_axis():
+    # ENG-504: a forgotten bbox axis silently reports 0 mm; the registry rejects it at construction.
+    bad = TemplateFamily(
+        name="b", summary="", object_types=("b",), library_file="containers.scad", module="snap_box",
+        params=(ParamSpec(name="width", label="W", default=10, min=1, max=20),),
+        bbox_x=(BBoxTerm(ref="width"),), bbox_y=(BBoxTerm(ref="width"),),  # bbox_z left empty
+    )
+    with pytest.raises(ValueError, match="empty bbox_z"):
+        TemplateRegistry((bad,))
 
 
 def test_clamp_values_backfills_missing_and_ignores_unknown():

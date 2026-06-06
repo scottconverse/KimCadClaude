@@ -1,0 +1,14 @@
+=== T19: every re-render returns a fresh mesh_url (cache-bust) ===
+  4 renders distinct mesh_urls?: True | ['/api/mesh/23?v=58', '/api/mesh/23?v=59', '/api/mesh/23?v=60', '/api/mesh/23?v=61']
+=== T20: design has report.bounding_box absent but dims present (contract) ===
+  report keys: ['dims', 'findings', 'gate_status', 'headline', 'orientation', 'readiness', 'volume_mm3', 'watertight']
+  template echoed: snap_box | parameters present | True
+  has_mesh: True | status | completed
+=== T21: extremely long values dict (many unknown keys) ===
+  500 junk keys: 200 | adjusted | null | applied width | 100.0
+=== T22: value as bool / null / nested ===
+  width=True: 200 | adjusted | [{"name": "width", "requested": 1.0, "applied": 10.0}] | applied_width | 10.0
+  width=None: 200 | adjusted | [{"name": "width", "requested": null, "applied": 80.0}] | applied_width | 80.0
+  width={'a': 1}: 200 | adjusted | [{"name": "width", "requested": null, "applied": 80.0}] | applied_width | 80.0
+  width=[1, 2]: 200 | adjusted | [{"name": "width", "requested": null, "applied": 80.0}] | applied_width | 80.0
+=== DONE4 ===

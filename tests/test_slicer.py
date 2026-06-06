@@ -103,6 +103,29 @@ def test_slice_failed_on_nonzero(tmp_path, monkeypatch):
         )
 
 
+def test_slice_failed_arrange_message_names_the_footprint(tmp_path, monkeypatch):
+    # QA-504: an OrcaSlicer off-bed / can't-arrange failure is logged to STDOUT (stderr empty), so a
+    # bare exit code would fall through to the generic "too large or too solid" message that
+    # contradicts a green "fits the build plate" gate. The arrange signature must yield an honest
+    # footprint-specific reason instead.
+    def _run(cmd, **kwargs):
+        return subprocess.CompletedProcess(
+            cmd,
+            4294967246,
+            stdout="plate 1: can not be arranged inside plate!\nNothing to be sliced",
+            stderr="",
+        )
+
+    monkeypatch.setattr(slicer_mod.subprocess, "run", _run)
+    with pytest.raises(SliceFailed) as ei:
+        slice_model(
+            tmp_path / "x.stl", binary=Path("orca-slicer"), out_dir=tmp_path, settings=SETTINGS
+        )
+    msg = str(ei.value)
+    assert "footprint" in msg.lower() and "reduce the width/depth" in msg
+    assert "too large or too solid" not in msg  # not the generic fallback
+
+
 def test_slice_failed_message_is_user_legible():
     # QA-003: a Windows unsigned exit code is shown signed, and an empty stderr gets a
     # plain-English hint instead of a bare dangling colon.

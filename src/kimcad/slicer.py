@@ -218,6 +218,25 @@ def slice_model(
     duration = time.monotonic() - started
 
     if proc.returncode != 0:
+        # QA-504: OrcaSlicer logs an off-bed / can't-arrange failure to STDOUT (not stderr), so a
+        # bare exit code otherwise falls through to the generic "too large or too solid" message
+        # that contradicts a green "fits the build plate" gate. Detect the arrange signature and
+        # give an honest, specific reason: the footprint exceeds the slicer's USABLE plate area
+        # (auto-arrange reserves edge clearance, so it's smaller than the nominal bed).
+        blob = f"{proc.stdout}\n{proc.stderr}"
+        if any(
+            s in blob
+            for s in (
+                "can not be arranged inside plate",
+                "no object is fully inside the print volume",
+                "Nothing to be sliced",
+            )
+        ):
+            raise SliceFailed(
+                proc.returncode,
+                "the part's footprint is too large to fit the printer's usable plate area "
+                "(the slicer reserves clearance around the bed edges) — reduce the width/depth.",
+            )
         raise SliceFailed(proc.returncode, proc.stderr)
     if not gcode_path.exists():
         raise SliceFailed(proc.returncode, f"expected {gcode_path.name} was not written")

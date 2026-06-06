@@ -15,7 +15,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 1 | Stage 8.5 Slice 11 (responsive/a11y/copy/polish) — build + audit-lite | n/a (slice) | ✅ audit-lite 0/0/0/0/0 (`95b25e0`) | n/a | ✅ DONE |
 | 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS | ✅ audit-team 44 findings ALL fixed → re-audit 0/0/0/0/0 across 5 lanes | ✅ merged `fb65e6f` + tagged `stage-8.5` | ✅ DONE |
 | 3 | Backfill Stage 4 (SPA) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a (fixes on backfill branch) | ✅ DONE |
-| 4 | Backfill Stage 5 (templates/sliders) audits | ☐ | ☐ (refresh) | n/a | ☐ |
+| 4 | Backfill Stage 5 (templates/sliders) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a | ✅ DONE |
 | 5 | Backfill Stage 6 (model layer) audits | ☐ | ☐ (refresh) | n/a | ☐ |
 | 6 | Backfill Stage 7 (Smart Mesh) audits | ☐ | ☐ (refresh) | n/a | ☐ |
 | 7 | Backfill Stage 0–3 audit-team into VC | n/a (backend) | ☐ | n/a | ☐ |
@@ -48,7 +48,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 2 (connectors) | n/a | ☐ (move pkg into VC) | ☐ |
 | 3 (printer coverage) | n/a | ☐ (move pkg into VC) | ☐ |
 | 4 (React SPA + viewport) | ✅ PASS | ✅ 0/0/0/0/0 (round-2 re-audit verified) | ✅ DONE — `docs/audits/stage-4/backfill-2026-06-05/` |
-| 5 (templates + sliders) | ☐ | ☐ | ☐ |
+| 5 (templates + sliders) | ✅ PASS | ✅ 0/0/0/0/0 (re-audited; 3 real bugs fixed) | ✅ DONE — `docs/audits/stage-5/backfill-2026-06-05/` |
 | 6 (model layer) | ☐ | ☐ | ☐ |
 | 7 (Smart Mesh + readiness) | ☐ | ☐ | ☐ |
 
@@ -61,6 +61,15 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-05 (Phase B / Stage 5): backfill audit of the template engine + live-slider surface.
+  6 independent agents → 0B/1C/4Maj/7Min/4Nit. THREE real bugs (this is where they showed up):
+  QA-501 (non-finite JSON 500'd /api/render), ENG-501 (thick wall collapsed a box to a solid block
+  that still gated PASS), QA-502 (gate said "fits" but parts failed to slice — root-caused live to
+  OrcaSlicer arrange-clearance + auto-orient rotating the footprint; fixed by capping every template
+  dim at the verified-sliceable ~170mm + an honest slicer message). ALL findings fixed + regression
+  tests; round-2 re-audit CLEAN (false-green verified; worst corner 170³ slices to real G-code).
+  Gate green (ruff, geometry, 771 pytest, 276 vitest, build reproducible). Package:
+  `docs/audits/stage-5/backfill-2026-06-05/`.
 - 2026-06-05 (Phase B / Stage 4): backfill audit of the current SPA + viewport + web-serving code.
   6 independent agents (wiring-audit + 5-role audit-team) → 0B/0C/8Maj/17Min/9Nit. ALL fixed
   (backend ENG-401/403/404/405/406 + QA-001/002/004 + TEST-402; frontend UX-001..008 + M-1 + L-1/2 +

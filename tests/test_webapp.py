@@ -1511,6 +1511,24 @@ def test_render_flags_adjusted_params_when_values_are_clamped(tmp_path):
         _s, junk = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": "huge"}})
         if "adjusted_params" in junk:
             assert junk["adjusted_params"][0]["requested"] is None  # non-numeric -> null, not "huge"
+        # QA-501: json.loads accepts the Infinity/NaN literals (and 1e400 overflows to inf). The
+        # geometry path clamps them, but echoing inf/nan would trip the response's allow_nan=False
+        # and 500 the endpoint. It must stay a clean 200 with `requested` coerced to null.
+        st_inf, inf = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": {"width": float("inf")}})
+        assert st_inf == 200
+        for a in inf.get("adjusted_params", []):
+            assert a["requested"] is None
+
+
+def test_rerender_unknown_family_is_render_failed(tmp_path):
+    # TEST-503: a base plan pointed at a family name not in the registry returns the render_failed
+    # status (the defensive branch in Pipeline.rerender), never a crash.
+    from kimcad.pipeline import PipelineStatus
+
+    pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
+    res = pipe.rerender(_box_plan(), "no_such_family", {"width": 80}, tmp_path / "r")
+    assert res.status == PipelineStatus.render_failed
+    assert "unknown template family" in (res.error or "")
 
 
 def test_demo_gatefail_scenario_offers_experimental_then_gate_fails(tmp_path):

@@ -73,7 +73,11 @@ function SliderRow({
   // value (respecting integer specs); in inch mode it's a 3-dp inch reading (UX-004 — 2 dp was too
   // coarse to edit nozzle-multiple walls: a 0.4mm step is invisible at 2 dp but resolves at 3 dp).
   function formatDisplay(mm: number): string {
-    return unit === 'in' ? parseFloat(toDisplay(mm).toFixed(3)).toString() : formatValue(mm, spec)
+    // UX-501: a FIXED 3-dp inch reading (not parseFloat-stripped) so values in one slider group
+    // line up — "3.150 / 2.362 / 1.575", never the ragged "3.15 / 2.362 / 1.575". 3 dp (not 2) so
+    // a 0.2 mm wall step stays visible in inches (UX-004). One precision authority for the value,
+    // the edit seed, and the bounds hints below.
+    return unit === 'in' ? toDisplay(mm).toFixed(3) : formatValue(mm, spec)
   }
 
   function startEdit() {
@@ -166,7 +170,7 @@ function SliderRow({
             type="button"
             className="kc-pval kc-pval-btn"
             onClick={startEdit}
-            title={`Click to type an exact value (${parseFloat(displayMin.toFixed(2))}–${parseFloat(displayMax.toFixed(2))} ${displayUnit})`}
+            title={`Click to type an exact value (${parseFloat(displayMin.toFixed(3))}–${parseFloat(displayMax.toFixed(3))} ${displayUnit})`}
             aria-label={`${spec.label}: ${displayStr}${displayUnit ? ` ${displayUnit}` : ''}. Click to edit.`}
           >
             {displayStr}

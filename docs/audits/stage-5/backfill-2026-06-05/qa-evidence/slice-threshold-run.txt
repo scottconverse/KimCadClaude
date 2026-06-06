@@ -1,0 +1,7 @@
+design 17
+  100^3 wall=3 -> gate=pass | slice_http=200 sliced=True reason=None
+  150^3 wall=3 -> gate=pass | slice_http=200 sliced=True reason=None
+  180^3 wall=3 -> gate=pass | slice_http=200 sliced=True reason=None
+  200^3 wall=3 -> gate=pass | slice_http=200 sliced=False reason=failed
+  220^3 wall=3 -> gate=pass | slice_http=200 sliced=False reason=failed
+  250^3 wall=3 -> gate=pass | slice_http=200 sliced=False reason=failed
