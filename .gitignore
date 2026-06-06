@@ -21,6 +21,10 @@ venv/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+# A stray root-level node_modules / vitest cache can appear if a tool runs at the repo root —
+# never commit it (the real deps live under frontend/).
+node_modules/
+.vite/
 frontend/*.tsbuildinfo
 
 # Editor / OS
