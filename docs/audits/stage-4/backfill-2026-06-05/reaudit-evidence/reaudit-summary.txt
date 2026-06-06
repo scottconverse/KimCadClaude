@@ -1,0 +1,40 @@
+STAGE 4 UI RE-AUDIT — 2026-06-05 (independent, measured on running demo @127.0.0.1:8765)
+Tool note: preview_screenshot is non-functional this session (times out on every route incl.
+non-canvas) — DOM/computed-style/geometry used as authoritative per audit brief.
+
+UX-001 contrast: RESOLVED.
+  Demo part loads pass-tone (kc-rtone-pass), verdict "Ready to print".
+  .kc-readiness-verdict color #15633d(rgb 21,99,61) on panel rgb(240,235,224) = 6.13:1.
+  .kc-conf-badge "Medium confidence" #15633d on its OWN pill bg rgb(219,229,216) = 5.62:1.
+  Both >= 4.5:1.  warn(#876312)/fail(#a8431f) tone-text unchanged -> no regression.
+
+UX-002 dead-scroll: NOT RESOLVED.
+  Workspace desktop 1280x832: scrollHeight=1080 vs innerH=832 -> 248px dead scroll
+  (identical to original). scrollTo(0,400)->scrollY=248. .kc-sr-only still position:absolute;
+  clip-path:inset(50%) added but only clips paint, not layout. Neutralizing sr-only
+  position -> scrollHeight 1080->832 (proves -248px culprit). Fix ineffective.
+
+M-1/UX-005 topbar mobile: RESOLVED. 390px: kc-topbar scrollWidth=390=innerW; docEl
+  scrollWidth=390; horizDelta=0; all actions on-screen (rightmost right=370<=390).
+
+UX-003 backup underline: RESOLVED. <a>.kc-design-act "Backup (.kimcad)"
+  text-decoration-line=none, matches peer buttons.
+
+UX-004 delete resting color: RESOLVED. .kc-design-act-danger resting rgb(155,75,43)
+  red-leaning, distinct from neutral rgb(111,104,87).
+
+UX-007/008 settings clusters: RESOLVED @390px(<=640). .kc-unit-toggle align-self=flex-start
+  w=62 (content); .kc-reset-confirm align-self=flex-start w=196 (content), left-aligned.
+
+L-1 export copy: RESOLVED. Live DOM: "STEP and BREP precision formats are planned for a
+  later release." Old "arrive with the CAD engine" absent.
+
+L-2 backup label: RESOLVED. Label "Backup (.kimcad)" (not "Export").
+
+QA-003 canvas h-scroll: RESOLVED. Design route 390px w/ WebGL canvas: docEl scrollWidth=390,
+  horizDelta=0, no element wider than viewport.
+
+Regression sweep: desktop topbar nowrap no overflow (scrollW 1265<=1280); My Designs row
+  4 actions aligned (top=483,h=43 all); warn/fail verdict tokens unchanged. No new regressions.
+
+OPEN: UX-002 (dead-scroll 248px persists).

@@ -157,7 +157,7 @@ A send failure (offline/unreachable, bad key, misconfig) is a soft result, not a
 carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
 download stays as the fallback, as does the validated model itself.
 
-**Stage 8.5 additions (on the `stage-8.5-usability` branch):** `/api/designs*` persist + reopen the
+**Stage 8.5 additions (shipped; tagged `stage-8.5`):** `/api/designs*` persist + reopen the
 "My Designs" library; `/api/settings` + `/api/model-status` back the in-app Settings screen (the
 saved cloud API key is masked on redisplay and never echoed back in full); `GET /api/health` is a
 lightweight liveness check; `GET /api/design/progress/<job_id>` is the step-progress poll the
@@ -170,7 +170,8 @@ so the photo path is unreachable from the cloud-TEXT routing — the photo can't
 **The browser UI is a React + TypeScript SPA** (Stage 4), compiled by Vite from `frontend/`
 into `src/kimcad/web/` (`index.html` + `assets/`). Node/Vite are **build-time only** — the
 committed build output is served verbatim by this same stdlib server (the SPA shell at `/`,
-its bundles at `/assets/<file>` behind the same traversal guard as `/vendor/`), so `kimcad web`
+its bundles at `/assets/<file>` behind a traversal guard that allows only a plain filename; three.js
+is bundled into those assets, so there's no separately-served vendor copy), so `kimcad web`
 runs with no Node toolchain on the target box. The JSON endpoints above are the unchanged
 contract between the SPA and the pipeline. Rebuild the UI with
 `npm --prefix frontend ci && npm --prefix frontend run build` (see `frontend/README.md`).

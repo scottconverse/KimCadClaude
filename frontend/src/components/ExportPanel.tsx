@@ -191,7 +191,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
           <p className="kc-muted-note kc-formats-note">
             The <strong>.3mf</strong> print file is printer-agnostic and safe to share; the
             <strong> .STL</strong> opens in other slicers and CAD tools. STEP and BREP precision
-            formats arrive with the CAD engine.
+            formats are planned for a later release.
           </p>
         </div>
       )}

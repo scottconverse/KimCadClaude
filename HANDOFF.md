@@ -14,7 +14,7 @@
 
 ## ⛔ READ FIRST
 
-- **🔧 STAGE 8.5 (Usability) IN PROGRESS — branch `stage-8.5-usability`** (off `main`/`stage-7`).
+- **🔧 STAGE 8.5 (Usability) — `(HISTORICAL: this section was written mid-build; Stage 8.5 is now DONE, merged + tagged `stage-8.5` — see the RESUME box up top.)`** Original branch `stage-8.5-usability` (off `main`/`stage-7`).
   **= make the working core loop actually usable; 8.5-first, BEFORE the Stage 8 CadQuery backend**
   (ratified by Scott 2026-06-03; spec Addendum B + design README addendum + `docs/stage-8.5-usability-plan.md`).
   A code review of the shipped SPA found deal-killers: all in-memory (refresh wipes the part), no
@@ -330,8 +330,8 @@ re-render, no model call); the `/api/designs*` family (list / reopen `<id>` / th
 export / rename / delete / duplicate — local persistence + "My Designs"); `GET /api/settings` +
 `POST /api/settings` (defaults/units/cloud-opt-in/experimental; key masked, never echoed);
 `GET /api/model-status`; `GET /api/health`; `GET /api/design/progress/<job_id>` (the step-progress
-poll); `POST /api/photo-seed` (local-vision photo on-ramp). The server reads `web/index.html` at
-startup and serves `/`, `/assets/<f>`, `/vendor/<f>`, plus the API. Browser **send** is intentionally
+poll); `POST /api/photo-seed` (local-vision photo on-ramp). The server serves `/` (the SPA shell)
+and `/assets/<f>` (three.js bundled in), plus the API. Browser **send** is intentionally
 NOT wired in the SPA (it's Stage 10) — the web UI is status + slice + download; the CLI (`--send`)
 and MCP are the send paths today.
 

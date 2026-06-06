@@ -55,16 +55,15 @@ robustness) is DONE — merged to `main` and tagged `stage-6`** (through the ful
 remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
 bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report + learning store) is DONE —
 merged to `main` and tagged `stage-7`** (slices 1–6 each `audit-lite` 0/0/0/0/0; the full 5-role
-`audit-team` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8.5 (Usability), then
-Stage 8 (CadQuery)** — the usability stage was inserted ahead of the CadQuery backend (8.5-first,
-ratified 2026-06-03) because the deal-killer UX gaps must be closed before adding a second geometry
-engine. Stage 8.5 is currently IN PROGRESS on branch `stage-8.5-usability` (see the Stage 8.5
-section below); nothing in it is merged or tagged yet.
+`audit-team` stage gate + remediation closed at 0/0/0/0/0). The usability stage was inserted ahead
+of the CadQuery backend (8.5-first, ratified 2026-06-03) because the deal-killer UX gaps had to be
+closed before adding a second geometry engine. **Stage 8.5 (Usability) is DONE — merged to `main`
+and tagged `stage-8.5`** (slices 1–11 each `audit-lite` 0/0/0/0/0; the full 5-role `audit-team` +
+`wiring-audit` stage gate + remediation closed at 0/0/0/0/0). **Next = Stage 8 (CadQuery).**
 
-Still ahead before beta: usability (Stage 8.5, in progress), CadQuery
-(Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native (Stage 10), and the Windows
-installer + beta gate (Stage 11). **No part has driven real hardware yet — that's after Stage 11,
-at Kim's.**
+Still ahead before beta: CadQuery (Stage 8), image on-ramp (Stage 9), direct-print UI + Bambu-native
+(Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
+— that's after Stage 11, at Kim's.**
 
 ---
 

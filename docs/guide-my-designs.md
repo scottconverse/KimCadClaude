@@ -1,6 +1,6 @@
 # Saving your work & the "My Designs" library
 
-*Stage 8.5 Slice 1 — implemented on branch `stage-8.5-usability` (not yet merged/tagged).*
+*Stage 8.5 Slice 1 — shipped; merged to `main` and tagged `stage-8.5`.*
 
 KimCad keeps your designs for you. You don't have to remember to save, and closing the tab or
 refreshing the page no longer loses your part.

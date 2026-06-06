@@ -47,13 +47,13 @@ All notable changes to KimCad are documented here. Format follows
   - **Slice 11 — responsive / a11y / copy / polish:** keyboard shortcuts + a discoverable "?" help
     modal, plain-English copy, the right-column visual hierarchy + icon-tile printability checks
     restored, refine-by-talking chips, an always-on printer-status chip, and a mobile sticky CTA.
-- **Stage 8.5 — escape paths on every action (on branch, not yet merged/tagged):** every long or
+- **Stage 8.5 — escape paths on every action:** every long or
   blocking action is now cancelable, so the app never traps you. The "Designing your part…" screen
   shows an honest "this runs on your computer's AI — it can take a few minutes" note, a live elapsed
   timer, and a **Cancel** (plus Esc); the photo "Reading…" read, slicing, and importing each get a
   **Cancel** that aborts the request and returns you to the prior control with no error. Requests are
   abortable end to end (an AbortSignal threaded through the API client).
-- **Stage 8.5 Slice 7 — "describe with a photo" on-ramp (on branch, not yet merged/tagged):** a
+- **Stage 8.5 Slice 7 — "describe with a photo" on-ramp:** a
   secondary affordance on the landing + workspace reads a photo with gemma4:e4b's **local** vision
   into a rough, editable text seed that pre-fills the existing text→DesignPlan path. It's a starting
   point, never a "photo → finished part" promise: the user confirms/edits the seed (a photo carries
@@ -62,19 +62,19 @@ All notable changes to KimCad are documented here. Format follows
   is never persisted, and never logged; an unreadable/oversized photo is a clean 422/413, never a
   500. New `POST /api/photo-seed` + `LLMProvider.describe_photo` (Ollama's native `/api/chat` with
   `think:false`).
-- **Stage 8.5 Slice 6 — in-app Settings screen (on branch, not yet merged/tagged):** model status
+- **Stage 8.5 Slice 6 — in-app Settings screen:** model status
   (gemma4:e4b, local, with a health line — no menu of alternatives), an off-by-default **cloud
   opt-in** via OpenRouter (the user picks the model; the API key is a normal Settings field, saved
   locally and shown masked to the last few characters, never echoed back in full or stored in the
   repo/logs), an off-by-default **experimental raw-codegen generator** (sandboxed, never bypasses the
   Printability Gate, offered inline on an out-of-template request), plus tools health + about + a
   two-step reset. New `settings_store.py`, `/api/settings`, `/api/model-status`.
-- **Stage 8.5 Slices 2–4 (on branch, not yet merged/tagged):** refine a part as a **conversation**
+- **Stage 8.5 Slices 2–4:** refine a part as a **conversation**
   with full **version history** (a timeline with step-back/undo + a "what changed" compare);
   **numeric parameter entry** alongside the live sliders; and a **mm / inch units** toggle so a US
   maker isn't walled out. (Gated together by the Slice 2–4 `audit-team` + `wiring-audit` at
   0/0/0/0/0.)
-- **Stage 8.5 Slice 1 — local persistence + "My Designs" library (on branch `stage-8.5-usability`, not yet merged/tagged):**
+- **Stage 8.5 Slice 1 — local persistence + "My Designs" library:**
   - Designs are saved automatically to a local, best-effort store under `~/.kimcad/designs/<id>/`
     (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. A built
     part auto-saves and the SPA routes to `#/design/<id>`, so a refresh restores the part + its
@@ -237,7 +237,7 @@ All notable changes to KimCad are documented here. Format follows
 #### Stage 4 — React/TypeScript SPA shell + Three.js viewport + wired flow
 - The browser UI is now a **React + TypeScript + Vite single-page app** (`frontend/`), compiled
   to plain static files committed under `src/kimcad/web/` and served by the same dependency-free
-  stdlib `http.server` (shell at `/`, bundles at `/assets/<file>` behind the `/vendor/`-style
+  stdlib `http.server` (shell at `/`, bundles at `/assets/<file>` behind a plain-filename-only
   traversal guard). **Node/Vite are build-time only** — `kimcad web` runs with no Node toolchain.
   This **replaces the earlier vanilla-HTML/JS page** (and that page's in-browser send controls).
 - **Workshop design system** (the v3.0 design tokens) with self-hosted, latin-only variable fonts

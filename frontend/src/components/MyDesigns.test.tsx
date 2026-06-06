@@ -85,7 +85,8 @@ describe('MyDesigns', () => {
     vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
     render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
     await screen.findByText('My Box')
-    const link = screen.getByText(/Export/).closest('a') as HTMLAnchorElement
+    // L-2: the action is labelled "Backup (.kimcad)" — "Export" alone read as a print format.
+    const link = screen.getByText(/Backup/).closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/api/designs/a1/export')
     expect(link.hasAttribute('download')).toBe(true)
     // UX-004: the label names the format so it's not mistaken for a printable STL.

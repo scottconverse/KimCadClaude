@@ -1,5 +1,10 @@
 # Stage 8.5 — Usability: turn the demo into a tool people keep
 
+> ⚠ **HISTORICAL planning doc — Stage 8.5 is DONE** (all 11 slices shipped; merged to `main` and
+> tagged `stage-8.5`; stage gate clean 0/0/0/0/0 + wiring-audit PASS). The per-slice "on branch /
+> pending approval" statuses below are the working snapshot from during the build; they are NOT
+> current. For live state see `ROADMAP.md`, `CHANGELOG.md`, and `HANDOFF.md`.
+
 **Why this stage exists.** The core loop works (describe → 3D → sliders → printability/readiness →
 slice → download), but the product *around* the loop is missing in ways that make it unusable for
 real, repeated use. Several are flat deal-killers — people will leave the first time they hit them.

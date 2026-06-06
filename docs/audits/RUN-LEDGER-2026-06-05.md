@@ -13,8 +13,8 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | # | Phase | wiring-audit | audit-team 0/0/0/0/0 | merge+tag | status |
 |---|---|---|---|---|---|
 | 1 | Stage 8.5 Slice 11 (responsive/a11y/copy/polish) — build + audit-lite | n/a (slice) | ✅ audit-lite 0/0/0/0/0 (`95b25e0`) | n/a | ✅ DONE |
-| 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS 0/0/0/0 | ⏳ audit-team ran (0B/0C/11Maj/22Min/11Nit=44); REMEDIATING to 0/0/0/0/0 | ☐ tag `stage-8.5` | ⏳ IN PROGRESS |
-| 3 | Backfill Stage 4 (SPA) audits | ☐ | ☐ (refresh) | n/a (already on main) | ☐ |
+| 2 | Stage 8.5 STAGE GATE (whole stage) | ✅ wiring-audit PASS | ✅ audit-team 44 findings ALL fixed → re-audit 0/0/0/0/0 across 5 lanes | ✅ merged `fb65e6f` + tagged `stage-8.5` | ✅ DONE |
+| 3 | Backfill Stage 4 (SPA) audits | ✅ wiring PASS | ✅ 0/0/0/0/0 (re-audited) | n/a (fixes on backfill branch) | ✅ DONE |
 | 4 | Backfill Stage 5 (templates/sliders) audits | ☐ | ☐ (refresh) | n/a | ☐ |
 | 5 | Backfill Stage 6 (model layer) audits | ☐ | ☐ (refresh) | n/a | ☐ |
 | 6 | Backfill Stage 7 (Smart Mesh) audits | ☐ | ☐ (refresh) | n/a | ☐ |
@@ -47,7 +47,7 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 1 (deterministic pipeline) | n/a | ☐ (commit into VC) | ☐ |
 | 2 (connectors) | n/a | ☐ (move pkg into VC) | ☐ |
 | 3 (printer coverage) | n/a | ☐ (move pkg into VC) | ☐ |
-| 4 (React SPA + viewport) | ☐ | ☐ | ☐ |
+| 4 (React SPA + viewport) | ✅ PASS | ✅ 0/0/0/0/0 (round-2 re-audit verified) | ✅ DONE — `docs/audits/stage-4/backfill-2026-06-05/` |
 | 5 (templates + sliders) | ☐ | ☐ | ☐ |
 | 6 (model layer) | ☐ | ☐ | ☐ |
 | 7 (Smart Mesh + readiness) | ☐ | ☐ | ☐ |
@@ -61,4 +61,12 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-05 (Phase B / Stage 4): backfill audit of the current SPA + viewport + web-serving code.
+  6 independent agents (wiring-audit + 5-role audit-team) → 0B/0C/8Maj/17Min/9Nit. ALL fixed
+  (backend ENG-401/403/404/405/406 + QA-001/002/004 + TEST-402; frontend UX-001..008 + M-1 + L-1/2 +
+  QA-003; docs DOC-401..408; tests TEST-401/402/403 + QA regressions). Round-2 re-audit caught
+  UX-002 (clip-path was paint-only → re-fixed by pinning sr-only top:0; re-verified 248px→0px) and
+  4 residual `/vendor/` doc contradictions (all fixed). Final: 0/0/0/0/0 all lanes + wiring PASS;
+  gate green (ruff, geometry, 764 pytest, 276 vitest, build reproducible). Package committed at
+  `docs/audits/stage-4/backfill-2026-06-05/`. Removed dead `src/kimcad/web/vendor/`.
 - 2026-06-05: Run started. Slices 1–10 of Stage 8.5 built + pushed (Slice 10 = `7fc5415`). Slice 11 built + gated + pushed (`95b25e0`). Stage-8.5 stage gate ran: wiring-audit PASS; audit-team 44 findings. Remediation: docs (`d2764ad`) + engineering (`c1261f2`) done; UX/test/QA next.
