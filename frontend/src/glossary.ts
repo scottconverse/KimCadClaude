@@ -21,12 +21,17 @@ export const GLOSSARY = {
   printability: {
     term: 'Printability',
     definition:
-      "KimCad's automatic check that the part can actually be made on a 3D printer: its dimensions, how thick its walls are, and whether it fits on the printer's bed.",
+      "KimCad's automatic check that the part can actually be made on a 3D printer: its dimensions, how thick its walls are, and whether it fits on the printer's bed. If a part doesn't pass, KimCad won't slice it or send it to a printer until the problem is fixed.",
   },
-  gate: {
-    term: 'Gate',
+  // UX-109 (stage-BCD gate): the standalone "Gate" tip was removed with the badge jargon —
+  // the Printability entry (above) carries the concept; the pass-or-fail consequence lives
+  // there so one tip tells the whole story.
+  // UX-107 (stage-BCD gate): the engine chip's explanation was hover-only (a `title`) —
+  // unreachable by keyboard/touch. Same InfoTip affordance as every other technical term.
+  engine: {
+    term: 'Engine',
     definition:
-      "A simple pass-or-fail safety check. If a part doesn't pass, KimCad won't slice it or send it to a printer until the problem is fixed.",
+      'The geometry tool that built this part. KimCad picks whichever fits the part best; parts built by CadQuery also offer an editable STEP (CAD) download.',
   },
   risks: {
     term: 'Risks',

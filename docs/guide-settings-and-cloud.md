@@ -33,8 +33,8 @@ at a privacy cost you should make knowingly:
   back to its settings file and *tells you so* right under the key field.) The key is
   shown only masked after saving, and "Reset all settings" removes it from the credential
   store too.
-- **Turning it off:** flip the toggle; local keeps working exactly as before. Clearing
-  the key field deletes the stored key.
+- **Turning it off:** flip the toggle; local keeps working exactly as before. The
+  **Remove** button next to your saved key deletes it (from the credential store too).
 
 ## The experimental generator
 

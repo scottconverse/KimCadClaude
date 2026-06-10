@@ -556,19 +556,20 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
           <p className="kc-muted-note kc-card-rel">The detail behind the readiness score above.</p>
           <div className="kc-gate-row kc-tip-host">
             {/* UX-008: no "Gate:" jargon in the trust moment — the card title supplies the
-                subject; the badge carries the plain verdict ("Passed" / "Needs review"). */}
+                subject; the badge carries the plain verdict ("Passed" / "Needs review").
+                UX-109 (stage-BCD gate): the separate badge tip is gone too — it restated the
+                card title's own Printability tip under a different name. */}
             <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
               {gateLabel(report.gate_status)}
             </span>
-            <InfoTip term="gate" />
             {/* UX-001: state which geometry engine built this part — a neutral provenance chip,
-                so the STEP affordance's presence/absence isn't the only (inferred) signal. */}
+                so the STEP affordance's presence/absence isn't the only (inferred) signal.
+                UX-107 (stage-BCD gate): the explanation is an InfoTip (keyboard/touch
+                reachable), not a hover-only title. */}
             {report.backend && (
-              <span
-                className="kc-engine-badge"
-                title="The geometry engine that built this part. KimCad picks it to fit the part; CadQuery parts also offer an editable STEP export."
-              >
+              <span className="kc-engine-badge kc-tip-host">
                 Engine: {report.backend === 'cadquery' ? 'CadQuery' : 'OpenSCAD'}
+                <InfoTip term="engine" />
               </span>
             )}
           </div>

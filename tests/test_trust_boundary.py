@@ -85,28 +85,52 @@ def test_scrub_is_shared_single_source():
 def test_describe_photo_routes_local_even_with_cloud_enabled(monkeypatch, tmp_path):
     """The trust rule 'the photo never leaves your machine' must hold even when the user
     has cloud acceleration enabled + configured — describe_photo always routes to the
-    LOCAL vision provider."""
+    LOCAL vision endpoint.
+
+    TEST-003 (stage-BCD gate): intercepted at the TRANSPORT layer (the urllib call the
+    local path makes to Ollama's native /api/chat), not by patching describe_photo itself —
+    a method-level patch would pass even if the routing through _SettingsAwareProvider
+    regressed. A regression that routed the photo to the cloud would surface here as the
+    transport URL pointing at the cloud host, failing the host/path assertions below."""
+    import io
+    import json as _json
+
+    import kimcad.llm_provider as lp
+
     from kimcad.config import Config
+    from kimcad.settings_store import SettingsStore
     from kimcad.webapp import build_web_pipeline
 
     # Cloud fully enabled + configured in settings.
-    from kimcad.settings_store import SettingsStore
-
     store = SettingsStore(Config.load().settings_path())
     store.update({"cloud_enabled": True, "openrouter_api_key": "sk-or-x", "cloud_model": "gpt"})
 
-    calls = {}
+    seen = {}
 
-    # The local vision path goes through Ollama's native /api/chat via urllib — intercept it.
-    import kimcad.llm_provider as lp
+    def _fake_urlopen(req, timeout=None):
+        seen["url"] = req.full_url
+        payload = _json.dumps({"message": {"content": "a rough box"}}).encode()
+        resp = io.BytesIO(payload)
+        resp.__enter__ = lambda *a: resp  # context-manager shim
+        resp.__exit__ = lambda *a: False
+        return resp
 
-    def _fake_local_vision(self, image_bytes, printer, material):
-        calls["local"] = True
-        return "a rough box"
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _fake_urlopen)
 
-    monkeypatch.setattr(lp.LLMProvider, "describe_photo", _fake_local_vision)
     pipeline = build_web_pipeline(demo=False)
     seed = pipeline.provider.describe_photo(b"fakebytes", Config.load().printer(None),
                                             Config.load().material(None))
-    assert calls.get("local") is True
     assert seed == "a rough box"
+    # The transport hit the LOCAL Ollama native endpoint — host and path both pinned.
+    assert "/api/chat" in seen["url"]
+    assert "localhost" in seen["url"] or "127.0.0.1" in seen["url"]
+
+def test_cadquery_worker_source_never_imports_settings_or_keyring():
+    """TEST-007 (stage-BCD gate): suite hermeticity vs the real vault holds for subprocesses
+    by CONVENTION (the worker is stdlib+cadquery only) — pin the convention statically so a
+    future import of keyring/settings into the worker fails a test, not an audit."""
+    from pathlib import Path
+
+    src = (Path("src/kimcad/cadquery_worker.py")).read_text(encoding="utf-8")
+    assert "import keyring" not in src
+    assert "settings_store" not in src

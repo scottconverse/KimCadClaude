@@ -303,9 +303,10 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
 
   it('renders a help (i) tip on every jargon term across the readiness + printability cards', () => {
     stubFetch()
-    // readinessResult carries risks, recommendations, a confidence, and a gate verdict → all 6.
+    // readinessResult carries risks, recommendations, and a confidence. (UX-109, stage-BCD:
+    // the standalone Gate tip was removed — the Printability title tip carries the concept.)
     renderPanel({ result: readinessResult })
-    for (const term of ['Readiness', 'Confidence', 'Risks', 'Recommendations', 'Printability', 'Gate']) {
+    for (const term of ['Readiness', 'Confidence', 'Risks', 'Recommendations', 'Printability']) {
       expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
     }
   })
@@ -336,7 +337,7 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
     }
     renderPanel({ result: noRisks })
     expect(screen.queryByRole('button', { name: tip('Risks') })).toBeNull()
-    for (const term of ['Readiness', 'Recommendations', 'Printability', 'Gate', 'Confidence']) {
+    for (const term of ['Readiness', 'Recommendations', 'Printability', 'Confidence']) {
       expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
     }
   })
@@ -344,8 +345,8 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
   it('clicking a card tip reveals its plain-language definition inline', () => {
     stubFetch()
     renderPanel({ result: readinessResult })
-    fireEvent.click(screen.getByRole('button', { name: tip('Gate') }))
-    expect(screen.getByRole('note').textContent).toMatch(/pass-or-fail/i)
+    fireEvent.click(screen.getByRole('button', { name: tip('Printability') }))
+    expect(screen.getByRole('note').textContent).toMatch(/pass/i)
   })
 })
 

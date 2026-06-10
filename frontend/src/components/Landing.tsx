@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import ModelHealthPill from './ModelHealthPill'
 import PhotoOnramp from './PhotoOnramp'
 
@@ -32,11 +32,24 @@ export default function Landing({
   initialValue?: string
 }) {
   const [value, setValue] = useState(initialValue)
+  // UX-108 (stage-BCD gate): the "picked up" note describes the SEEDED text — hide it the
+  // moment the user edits (especially after clearing the box, where it read as a lie).
+  const [edited, setEdited] = useState(false)
 
   function submit(e: FormEvent) {
     e.preventDefault()
     const trimmed = value.trim()
     if (trimmed && !busy) onSubmit(trimmed)
+  }
+
+  // UX-104 (stage-BCD gate): same keyboard contract as the refine box — Enter sends,
+  // Shift+Enter is a newline (with the same visible hint).
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const trimmed = value.trim()
+      if (trimmed && !busy) onSubmit(trimmed)
+    }
   }
 
   return (
@@ -55,7 +68,7 @@ export default function Landing({
         {/* UX-002: surface a down model BEFORE the user invests a prompt + a wait. */}
         <ModelHealthPill />
 
-        {initialValue && (
+        {initialValue && !edited && (
           <p className="kc-muted-note kc-draft-note">Picked up where you left off.</p>
         )}
         <form className="kc-input-card" onSubmit={submit}>
@@ -65,7 +78,11 @@ export default function Landing({
             placeholder="e.g. a wall-mounted holder for a 1 kg filament spool"
             aria-label="Describe the part you want"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value)
+              setEdited(true)
+            }}
+            onKeyDown={handleKeyDown}
             disabled={busy}
           />
           <button
@@ -77,6 +94,7 @@ export default function Landing({
             <SendGlyph />
           </button>
         </form>
+        <span className="kc-key-hint">Enter to send · Shift+Enter for a new line</span>
 
         {/* Slice 7: the photo on-ramp — a rough, editable seed from a local-vision read of a photo.
             Secondary to the text path; it pre-fills the same design flow. */}

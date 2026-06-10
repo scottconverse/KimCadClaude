@@ -32,6 +32,9 @@ env:
   KIMCAD_CI_NODE: C:\kimcad-ci-tools\node22
   # The py launcher is a per-user install on this box (not on the service PATH).
   KIMCAD_PY_LAUNCHER: C:\Users\scott\AppData\Local\Programs\Python\Launcher\py.exe
+  # TEST-001 (stage-BCD gate): on the provisioned runner every test must EXECUTE — any
+  # skip (binary-gated, profile-gated, interpreter-gated) fails the gate in ci.sh.
+  KIMCAD_CI_STRICT: "1"
 
 jobs:
   gate:

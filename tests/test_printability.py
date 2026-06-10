@@ -112,14 +112,17 @@ def test_real_openscad_render_through_pipeline_matches_fake_contract(tmp_path):
 
 
 def test_open_mesh_is_repaired_and_reported():
-    # Knock a face out of a real box: validate_mesh must attempt repair and the report
-    # must say so (repaired=True when the fill succeeded, or an error recorded when not).
+    # TEST-008 (stage-BCD gate): concrete assertions on the OBSERVED repair behavior —
+    # a missing face on a real box fills deterministically (probed: repaired=True,
+    # watertight=True, "filled holes" recorded), so pin exactly that, not an OR-chain.
     mesh = trimesh.creation.box(extents=(20, 20, 20))
     mesh.faces = mesh.faces[:-1]
     mesh.process(validate=False)
     assert not mesh.is_watertight
     report, result = _gate(mesh, make_plan([20, 20, 20]))
-    assert report.repaired or report.errors  # repair happened, or honestly recorded
-    if report.repaired and report.watertight:
-        # A successful repair still surfaces as a WARN, never a silent pass.
-        assert _codes(result).get("mesh.repaired") is Level.WARN or result.status is not Level.FAIL
+    assert report.repaired is True
+    assert report.watertight is True  # the fill succeeded
+    assert any("filled holes" in r for r in report.repairs)
+    # A successful repair still surfaces as a WARN in the gate — never a silent pass.
+    assert _codes(result).get("mesh.repaired") is Level.WARN
+    assert result.status is not Level.FAIL

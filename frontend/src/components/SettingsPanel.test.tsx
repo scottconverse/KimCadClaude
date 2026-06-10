@@ -253,3 +253,32 @@ describe('SettingsPanel', () => {
     expect(localStorage.getItem('kc-units')).toBe('mm')
   })
 })
+
+describe('SettingsPanel key-storage disclosure + Remove (stage-BCD TEST-002 / DOC-D-001)', () => {
+  it('discloses the credential store when key_storage is keyring', async () => {
+    getSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, key_storage: 'keyring' })
+    render(<SettingsPanel />)
+    expect(await screen.findByText(/secure credential store/i)).toBeTruthy()
+    expect(screen.queryByText(/settings file on this computer/i)).toBeNull()
+  })
+
+  it('discloses the file fallback honestly (with the risk sentence) when key_storage is file', async () => {
+    getSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, key_storage: 'file' })
+    render(<SettingsPanel />)
+    expect(await screen.findByText(/settings file on this computer/i)).toBeTruthy()
+    expect(screen.getByText(/could read it/i)).toBeTruthy()
+  })
+
+  it('Remove deletes the saved key via the settings endpoint', async () => {
+    getSettings.mockResolvedValue({
+      ...SETTINGS, cloud_enabled: true, has_cloud_key: true,
+      cloud_key_masked: '****wQ9f2', key_storage: 'keyring',
+    })
+    postSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, has_cloud_key: false, saved: true })
+    render(<SettingsPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /^Remove$/ }))
+    await waitFor(() =>
+      expect(postSettings).toHaveBeenCalledWith({ openrouter_api_key: null }),
+    )
+  })
+})

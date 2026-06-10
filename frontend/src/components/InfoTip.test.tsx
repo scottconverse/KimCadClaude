@@ -8,8 +8,8 @@ afterEach(cleanup)
 
 describe('InfoTip', () => {
   it('renders a help button named for the term, with the definition hidden until opened', () => {
-    render(<InfoTip term="gate" />)
-    const btn = screen.getByRole('button', { name: /what does .*gate.* mean/i })
+    render(<InfoTip term="engine" />)
+    const btn = screen.getByRole('button', { name: /what does .*engine.* mean/i })
     expect(btn.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByRole('note')).toBeNull()
   })
@@ -40,8 +40,8 @@ describe('InfoTip', () => {
   it('closes when focus moves outside the tip (e.g. another surface takes focus)', () => {
     const outside = document.createElement('button')
     document.body.appendChild(outside)
-    render(<InfoTip term="gate" />)
-    fireEvent.click(screen.getByRole('button', { name: /gate/i }))
+    render(<InfoTip term="engine" />)
+    fireEvent.click(screen.getByRole('button', { name: /engine/i }))
     expect(screen.getByRole('note')).toBeTruthy()
     // Focus lands on an element outside the tip wrapper → the disclosure closes.
     outside.focus()

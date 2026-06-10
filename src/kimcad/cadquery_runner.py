@@ -272,9 +272,8 @@ def render_cadquery(
 
 
 # The probe a candidate interpreter must pass: it can import cadquery (which implies a
-# compatible Python, since cadquery ships no 3.14 wheels) and prints its own executable path,
-# sentinel-delimited so a noisy interpreter (a startup banner / deprecation print) doesn't
-# corrupt the parsed path (ENG-005).
+# compatible Python) and prints its own executable path, sentinel-delimited so a noisy
+# interpreter (a startup banner / deprecation print) doesn't corrupt the parsed path (ENG-005).
 _PROBE_SENTINEL = "__KIMCAD_CQ__"
 _PROBE = (
     "import cadquery, sys; "

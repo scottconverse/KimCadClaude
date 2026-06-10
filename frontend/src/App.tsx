@@ -14,6 +14,7 @@ import {
   type Message,
 } from './api'
 import { assistantMessage, isFailureStatus } from './designStatus'
+import ConfirmDialog from './components/ConfirmDialog'
 import FirstRunWizard from './components/FirstRunWizard'
 import Landing from './components/Landing'
 import MyDesigns from './components/MyDesigns'
@@ -111,8 +112,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   // UX-001 (2026-06-09 audit): the last submitted first-design prompt, preserved so a cancel
   // (or hard failure) that lands the user back on the Landing re-seeds their words instead of
-  // erasing them. Cleared on a successful design.
+  // erasing them. Cleared on a successful design AND on an explicit "start over" (UX-103).
   const [landingDraft, setLandingDraft] = useState('')
+  // UX-101 (stage-BCD gate): the styled new-design confirm (replaces window.confirm).
+  const [confirmNewDesign, setConfirmNewDesign] = useState(false)
   const [rerendering, setRerendering] = useState(false)
   const [rerenderError, setRerenderError] = useState<string | null>(null)
   const renderSeq = useRef(0)
@@ -503,12 +506,22 @@ export default function App() {
     // UX-005 (2026-06-09 audit): only genuinely-unsaved in-flight work asks for a confirm —
     // a first design still running (nothing saved yet), or a clarification thread that never
     // produced a version. Saved work never nags (autosave makes restarts cheap).
+    // UX-101 (stage-BCD gate): the confirm is the app's own styled dialog, not window.confirm.
     const unsavedInFlight =
       (busy && !restoring && !result?.saved_id) ||
       (!busy && messages.length > 0 && versions.length === 0 && !result?.saved_id)
-    if (unsavedInFlight && !window.confirm('Start over? Your current description isn’t saved yet.')) {
+    if (unsavedInFlight) {
+      setConfirmNewDesign(true)
       return
     }
+    discardAndStartNew()
+  }
+
+  function discardAndStartNew() {
+    setConfirmNewDesign(false)
+    // UX-103 / ENG-105 (stage-BCD gate): an explicit "start over" abandons the draft too —
+    // re-seeding the prompt the user just chose to discard contradicts the dialog.
+    setLandingDraft('')
     resetSaveIndicator()
     navigate('', { replace: true })
     setMessages([])
@@ -593,6 +606,14 @@ export default function App() {
       </a>
       {showWizard && <FirstRunWizard onClose={dismissWizard} />}
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
+      {confirmNewDesign && (
+        <ConfirmDialog
+          message="Start over? Your current description isn’t saved yet."
+          confirmLabel="Start over"
+          onConfirm={discardAndStartNew}
+          onCancel={() => setConfirmNewDesign(false)}
+        />
+      )}
       <Topbar
         showNewDesign={onWorkspace}
         onNewDesign={handleNewDesign}

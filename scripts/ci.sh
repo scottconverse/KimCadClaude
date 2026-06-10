@@ -29,7 +29,19 @@ echo "[ci] geometry backends..."
 echo "[ci] pytest..."
 # -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
 # mistaken for one that proved the real slicer contract (TEST-002).
-"$PY" -m pytest -q -ra
+# TEST-001 (stage-BCD gate): on the fully-provisioned CI box, EVERY test must execute —
+# a skip there means tools/profiles/interpreter drift hid real coverage (the binary-gated
+# tests aren't `live`-marked, so the live-subset assertion alone can't see them). Local
+# dev runs stay lenient (a fresh clone legitimately skips tool-gated tests).
+PYTEST_OUT="$(mktemp)"
+"$PY" -m pytest -q -ra | tee "$PYTEST_OUT"
+if [ "${KIMCAD_CI_STRICT:-}" = "1" ] && grep -qE '[0-9]+ skipped' "$PYTEST_OUT"; then
+    echo "[ci] STRICT GATE: tests were SKIPPED on a provisioned runner — coverage silently lost:"
+    grep -E '^SKIPPED' "$PYTEST_OUT" || true
+    rm -f "$PYTEST_OUT"
+    exit 1
+fi
+rm -f "$PYTEST_OUT"
 # Frontend unit tests (vitest) + build-reproducibility check. The committed SPA build is what
 # ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
 # KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a

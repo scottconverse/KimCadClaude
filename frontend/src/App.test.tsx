@@ -398,17 +398,14 @@ describe('App cancel / escape the "Designing…" screen (Stage 8.5)', () => {
     ;(api.postDesign as Mock)
       .mockImplementationOnce(() => new Promise<DesignResponse>((res) => { resolveA = res })) // A hangs
       .mockResolvedValueOnce(templateResult('/api/mesh/2')) // B completes
-    // UX-005: escaping an unsaved in-flight design now confirms first — accept it here
-    // (this test is about the supersede mechanics, not the confirm).
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-
     render(<App />)
     fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'design A' } })
     fireEvent.click(screen.getByRole('button', { name: /design it/i }))
     expect((await screen.findByTestId('busy')).textContent).toBe('true')
 
-    // Escape via New Design, then run B to completion.
+    // Escape via New Design (confirming the styled discard dialog), then run B to completion.
     fireEvent.click(screen.getByRole('button', { name: /new design/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^start over$/i }))
     fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'design B' } })
     fireEvent.click(screen.getByRole('button', { name: /design it/i }))
     await screen.findByTestId('mesh-url')
@@ -509,33 +506,65 @@ describe('App first-design cancel preserves the prompt (2026-06-09 audit UX-001)
   })
 })
 
-describe('App new-design confirm (2026-06-09 audit UX-005)', () => {
-  it('asks before discarding an unsaved in-flight first design, and respects "no"', async () => {
+describe('App new-design confirm (2026-06-09 audit UX-005 / stage-BCD UX-101)', () => {
+  it('shows the styled confirm for an unsaved in-flight first design, and "Keep working" keeps it', async () => {
     const api = await import('./api')
     localStorage.setItem('kc-first-run-done', '1')
     ;(api.postDesign as Mock).mockReturnValue(new Promise(() => {})) // stays in flight
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<App />)
     fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'a box' } })
     fireEvent.click(screen.getByRole('button', { name: /design it/i }))
     await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('true'))
     fireEvent.click(screen.getByRole('button', { name: /new design/i }))
-    expect(confirmSpy).toHaveBeenCalled()
-    // "No" keeps the run alive.
-    expect(screen.getByTestId('busy').textContent).toBe('true')
-    confirmSpy.mockRestore()
+    // UX-101: the app's OWN dialog (role=alertdialog), not window.confirm.
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog.getAttribute('aria-label')).toMatch(/start over/i)
+    fireEvent.click(screen.getByRole('button', { name: /keep working/i }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByTestId('busy').textContent).toBe('true') // the run survived
   })
 
-  it('does not nag when the work is already saved', async () => {
+  it('confirming Start over discards the run AND the landing draft (UX-103)', async () => {
+    const api = await import('./api')
+    localStorage.setItem('kc-first-run-done', '1')
+    ;(api.postDesign as Mock).mockReturnValue(new Promise(() => {}))
+    render(<App />)
+    fireEvent.change(screen.getByLabelText(/describe the part/i), { target: { value: 'a box' } })
+    fireEvent.click(screen.getByRole('button', { name: /design it/i }))
+    await waitFor(() => expect(screen.getByTestId('busy').textContent).toBe('true'))
+    fireEvent.click(screen.getByRole('button', { name: /new design/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^start over$/i }))
+    // Back on a CLEAN landing: the prompt the user chose to abandon is NOT re-seeded.
+    await waitFor(() => expect(screen.getByLabelText(/describe the part/i)).toBeTruthy())
+    expect((screen.getByLabelText(/describe the part/i) as HTMLTextAreaElement).value).toBe('')
+    expect(screen.queryByText(/picked up where you left off/i)).toBeNull()
+  })
+
+  it('does not show the dialog once a design has completed (it has a version)', async () => {
+    // TEST-009 (stage-BCD gate, honest framing): the no-nag branch here is "a completed
+    // design exists" (versions.length > 0) — autosave state isn't what this asserts.
     const api = await import('./api')
     localStorage.setItem('kc-first-run-done', '1')
     ;(api.postDesign as Mock).mockResolvedValue(templateResult('/api/mesh/1'))
-    const confirmSpy = vi.spyOn(window, 'confirm')
     render(<App />)
-    await designFrom('a box') // completes → autosaved (saved_id present via saveDesign mock)
+    await designFrom('a box')
     fireEvent.click(screen.getByRole('button', { name: /new design/i }))
-    expect(confirmSpy).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+})
+
+describe('Landing keyboard contract (stage-BCD UX-104)', () => {
+  it('Enter submits the landing prompt; Shift+Enter does not', async () => {
+    const api = await import('./api')
+    localStorage.setItem('kc-first-run-done', '1')
+    ;(api.postDesign as Mock).mockResolvedValue(templateResult('/api/mesh/1'))
+    render(<App />)
+    const box = screen.getByLabelText(/describe the part/i)
+    fireEvent.change(box, { target: { value: 'a 20mm cube' } })
+    fireEvent.keyDown(box, { key: 'Enter', shiftKey: true })
+    expect(api.postDesign).not.toHaveBeenCalled()
+    fireEvent.keyDown(box, { key: 'Enter' })
+    await waitFor(() => expect(api.postDesign).toHaveBeenCalledTimes(1))
   })
 })
 

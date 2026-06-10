@@ -58,11 +58,16 @@ _KEYRING_SERVICE = "KimCad"
 
 
 def _keyring():
-    """The keyring module, or None when unavailable/broken (then the file fallback rules)."""
+    """The keyring module, or None when unavailable/broken (then the file fallback rules).
+
+    QA-D-001 (stage-BCD gate): import success is NOT backend health — an importable-but-broken
+    backend would otherwise be disclosed as "keyring" right up until the save quietly landed in
+    the file. Probe with a real read (an absent entry returns None without raising; a broken
+    backend raises), so ``key_storage()``'s pre-save answer matches where a key would GO."""
     try:
         import keyring
-        from keyring.errors import KeyringError  # noqa: F401 - probe the real backend surface
 
+        keyring.get_password(_KEYRING_SERVICE, "__health_probe__")
         return keyring
     except Exception:  # noqa: BLE001 - any import/backend failure means "no keyring"
         return None
@@ -90,20 +95,31 @@ class SettingsStore:
     """A best-effort JSON key/value store for user settings at ``~/.kimcad/settings.json``,
     with the OpenRouter secret held in the OS credential store (ENG-001)."""
 
+    # ENG-101 (stage-BCD gate): the migration runs ONCE per settings path per process — the web
+    # layer constructs a fresh store per request, and a per-request read-migrate-write would race
+    # concurrent saves. Guarded by _WRITE_LOCK alongside the membership check.
+    _migrated_paths: set[str] = set()
+
     def __init__(self, path: Path):
         self._path = path
         # One-time legacy migration: a pre-Stage-C settings.json holds the key in PLAINTEXT.
-        # Move it into the credential store and rewrite the file with the sentinel. Best-effort:
+        # Move it into the credential store and rewrite the file with the sentinel. The WHOLE
+        # read-migrate-write runs under _WRITE_LOCK (ENG-101: a read taken outside the lock and
+        # written back under it was a lost-update race against concurrent saves). Best-effort:
         # a failure leaves the legacy file as-was (still functional, still disclosed by
         # key_storage() == "file").
         try:
-            raw = self._read_raw()
-            secret = raw.get(_SECRET_KEY)
-            if isinstance(secret, str) and secret and secret != _KEYRING_SENTINEL:
-                kr = _keyring()
-                if kr is not None:
-                    kr.set_password(_KEYRING_SERVICE, _SECRET_KEY, secret)
-                    with _WRITE_LOCK:
+            with _WRITE_LOCK:
+                key = str(path)
+                if key in SettingsStore._migrated_paths:
+                    return
+                SettingsStore._migrated_paths.add(key)
+                raw = self._read_raw()
+                secret = raw.get(_SECRET_KEY)
+                if isinstance(secret, str) and secret and secret != _KEYRING_SENTINEL:
+                    kr = _keyring()
+                    if kr is not None:
+                        kr.set_password(_KEYRING_SERVICE, _SECRET_KEY, secret)
                         raw[_SECRET_KEY] = _KEYRING_SENTINEL
                         self._path.parent.mkdir(parents=True, exist_ok=True)
                         _atomic_write_json(self._path, raw)
@@ -111,9 +127,11 @@ class SettingsStore:
             pass
 
     def _read_raw(self) -> dict[str, Any]:
-        """The file contents verbatim — the sentinel NOT resolved."""
+        """The file contents verbatim — the sentinel NOT resolved. ``utf-8-sig`` so a BOM'd
+        file (QA-D-002: e.g. saved by PowerShell's default Out-File) still parses instead of
+        silently reading as empty — which would also have blocked the plaintext migration."""
         try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
+            raw = json.loads(self._path.read_text(encoding="utf-8-sig"))
             return raw if isinstance(raw, dict) else {}
         except Exception:  # noqa: BLE001 - best-effort; a missing/corrupt file means "no overrides"
             return {}
@@ -171,6 +189,7 @@ class SettingsStore:
         the file — ``key_storage()`` then reports "file" so the UI discloses it. Returns True
         on success, False on any failure (the save is a no-op, the prior settings stand).
         Never raises."""
+        vault_rollback: tuple[str | None, bool] | None = None  # (previous secret, had_entry)
         try:
             with _WRITE_LOCK:
                 current = self._read_raw()
@@ -182,11 +201,18 @@ class SettingsStore:
                             self._delete_secret()
                         current.pop(k, None)
                     elif k == _SECRET_KEY:
+                        # ENG-106: the sentinel is a RESERVED value — a literal "@keyring" key
+                        # stored to the file fallback would later be misread as the sentinel
+                        # (the key silently vanishes). No real API key collides with it; refuse.
+                        if str(v) == _KEYRING_SENTINEL:
+                            continue
                         kr = _keyring()
                         stored = False
                         if kr is not None:
                             try:
+                                prev = kr.get_password(_KEYRING_SERVICE, _SECRET_KEY)
                                 kr.set_password(_KEYRING_SERVICE, _SECRET_KEY, str(v))
+                                vault_rollback = (prev, prev is not None)
                                 stored = True
                             except Exception:  # noqa: BLE001 - backend refusal → file fallback
                                 stored = False
@@ -197,6 +223,20 @@ class SettingsStore:
                 _atomic_write_json(self._path, current)
             return True
         except Exception:  # noqa: BLE001 - persistence is best-effort; never break the app
+            # ENG-102: "the prior settings stand" must include the VAULT — a file-write failure
+            # after the vault was already updated would otherwise leave the new secret live
+            # while update() reports failure. Best-effort rollback to the previous entry.
+            if vault_rollback is not None:
+                kr = _keyring()
+                if kr is not None:
+                    try:
+                        prev, had_entry = vault_rollback
+                        if had_entry and prev is not None:
+                            kr.set_password(_KEYRING_SERVICE, _SECRET_KEY, prev)
+                        else:
+                            kr.delete_password(_KEYRING_SERVICE, _SECRET_KEY)
+                    except Exception:  # noqa: BLE001 - rollback is best-effort
+                        pass
             return False
 
     @staticmethod

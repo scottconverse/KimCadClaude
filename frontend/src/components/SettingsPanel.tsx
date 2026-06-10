@@ -111,6 +111,15 @@ export default function SettingsPanel() {
     setKeyDraft('')
   }
 
+  // DOC-D-001 (stage-BCD gate): the guide promises a way to delete the stored key — this is
+  // it. Removes the key from the credential store (or the file fallback) via the same
+  // settings path; cloud stays opt-in-able again afterwards.
+  async function removeKey() {
+    await change({ openrouter_api_key: null })
+    setReplacingKey(false)
+    setKeyDraft('')
+  }
+
   function saveModel() {
     const m = modelDraft.trim()
     if (m === (settings?.cloud_model ?? '')) return // no change — don't fire a redundant save
@@ -248,7 +257,8 @@ export default function SettingsPanel() {
               </p>
             ) : (
               <p className="kc-set-sub">
-                <code className="kc-mono">{model?.model ?? 'gemma4:e4b'}</code> — KimCad’s local AI.
+                {/* UX-105 (stage-BCD gate): the friendly name leads; the slug is the detail. */}
+                KimCad’s local AI (<code className="kc-mono">{model?.model ?? 'gemma4:e4b'}</code>).
                 Runs on your machine, on your CPU. No internet required; nothing leaves your computer.
               </p>
             )}
@@ -320,6 +330,9 @@ export default function SettingsPanel() {
                         onClick={() => { setReplacingKey(true); setKeyDraft('') }}
                       >
                         Replace
+                      </button>
+                      <button type="button" className="kc-btn-sm" onClick={removeKey}>
+                        Remove
                       </button>
                     </div>
                   ) : (

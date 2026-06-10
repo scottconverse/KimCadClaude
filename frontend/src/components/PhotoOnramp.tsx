@@ -194,7 +194,12 @@ export default function PhotoOnramp({
                 {previewUrl && <img className="kc-photo-thumb" src={previewUrl} alt="" />}
                 <div className="kc-photo-body">
                   <span className="kc-photo-title">A rough starting point</span>
-                  <p className="kc-photo-privacy">Read locally — your photo never left your machine.</p>
+                  {/* UX-102 (stage-BCD gate): ONE privacy line covering both halves of the
+                      promise (read locally + not saved) — was two near-duplicate notes. */}
+                  <p className="kc-photo-privacy">
+                    Read locally — your photo never left your machine and isn’t saved; only this
+                    description continues.
+                  </p>
                 </div>
               </div>
               <textarea
@@ -208,11 +213,6 @@ export default function PhotoOnramp({
               />
               <p className="kc-photo-note">
                 A photo can’t tell us scale, so any sizes are estimates. Adjust anything, then continue.
-              </p>
-              {/* UX-010 (2026-06-09 audit): close the privacy loop — read locally AND discarded.
-                  (The server reads the bytes for this one description and persists nothing.) */}
-              <p className="kc-photo-note">
-                The photo isn’t saved anywhere — only this description continues.
               </p>
               {variant === 'workspace' && (
                 <p className="kc-photo-note">

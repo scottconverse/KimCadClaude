@@ -152,3 +152,93 @@ def test_sentinel_with_missing_keyring_entry_reads_as_no_key(tmp_path, _fake_key
     # The credential-store entry is gone (e.g. deleted by the user in Credential Manager):
     # the key honestly reads as absent, never as the literal sentinel.
     assert "openrouter_api_key" not in store.all()
+
+
+def test_concurrent_updates_keep_a_coherent_file_and_sentinel(tmp_path, _fake_keyring):
+    """TEST-004 (stage-BCD gate): the threaded web server hammers update() concurrently —
+    the file must stay parseable, the sentinel intact, and the last writer's non-secret
+    values present (no lost-update corruption, no raw key on disk)."""
+    import json
+    import threading
+
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    store.update({"openrouter_api_key": "sk-or-base"})
+
+    def writer(i: int) -> None:
+        store.update({"cloud_model": f"model-{i}", "cloud_enabled": i % 2 == 0})
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(24)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["openrouter_api_key"] == "@keyring"  # sentinel survived the storm
+    assert "sk-or-base" not in path.read_text(encoding="utf-8")
+    assert on_disk["cloud_model"].startswith("model-")  # a coherent last write, not a mash
+    assert store.all()["openrouter_api_key"] == "sk-or-base"
+
+
+def test_bom_settings_file_still_reads_and_migrates(tmp_path, _fake_keyring):
+    """QA-D-002 (stage-BCD gate): a UTF-8-BOM settings.json (PowerShell Out-File default)
+    must parse — silently reading {} also silently blocked the plaintext-key migration."""
+    import json
+
+    path = tmp_path / "settings.json"
+    payload = json.dumps({"openrouter_api_key": "sk-or-bom", "cloud_enabled": True})
+    path.write_bytes(b"\xef\xbb\xbf" + payload.encode("utf-8"))
+    store = SettingsStore(path)  # init migrates
+    assert store.all()["cloud_enabled"] is True
+    assert store.all()["openrouter_api_key"] == "sk-or-bom"
+    assert _fake_keyring.passwords[("KimCad", "openrouter_api_key")] == "sk-or-bom"
+    assert "sk-or-bom" not in path.read_text(encoding="utf-8-sig")
+
+
+def test_literal_sentinel_value_is_refused_as_a_key(tmp_path, monkeypatch):
+    """ENG-106 (stage-BCD gate): "@keyring" is reserved — in file-fallback mode storing it
+    literally would be misread as the sentinel and the key would silently vanish."""
+    from conftest import FakeKeyring
+
+    from kimcad import settings_store
+
+    monkeypatch.setattr(settings_store, "_keyring", lambda: FakeKeyring(fail=True))
+    store = SettingsStore(tmp_path / "settings.json")
+    store.update({"openrouter_api_key": "@keyring", "cloud_enabled": True})
+    assert "openrouter_api_key" not in store.all()  # refused, not corrupted
+    assert store.all()["cloud_enabled"] is True  # the rest of the batch still landed
+
+
+def test_update_failure_rolls_back_the_vault(tmp_path, _fake_keyring, monkeypatch):
+    """ENG-102 (stage-BCD gate): "the prior settings stand" includes the VAULT — a file
+    write failure after the vault was updated must restore the previous secret."""
+    from kimcad import settings_store
+
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    assert store.update({"openrouter_api_key": "sk-or-old"}) is True
+
+    def _boom(*a, **kw):
+        raise OSError("disk full")
+
+    real_write = settings_store._atomic_write_json
+    monkeypatch.setattr(settings_store, "_atomic_write_json", _boom)
+    assert store.update({"openrouter_api_key": "sk-or-new"}) is False
+    # Restore ONLY the write (monkeypatch.undo() would also strip the autouse fake-keyring
+    # patch and let this test read the developer's real vault).
+    monkeypatch.setattr(settings_store, "_atomic_write_json", real_write)
+    # The vault still holds the OLD secret — the failed save didn't half-apply.
+    assert _fake_keyring.passwords[("KimCad", "openrouter_api_key")] == "sk-or-old"
+    assert store.all()["openrouter_api_key"] == "sk-or-old"
+
+
+def test_broken_backend_is_disclosed_before_any_key_is_saved(tmp_path, monkeypatch):
+    """QA-D-001 (stage-BCD gate): key_storage()'s pre-save answer must reflect backend
+    HEALTH, not importability — a broken vault means a new key would land in the file."""
+
+    from kimcad import settings_store
+
+    monkeypatch.setattr(settings_store, "_keyring", lambda: None)  # health probe failed
+    store = SettingsStore(tmp_path / "settings.json")
+    assert store.key_storage() == "file"

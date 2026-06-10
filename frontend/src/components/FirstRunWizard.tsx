@@ -316,7 +316,9 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                         Used only when you opt into a cloud model. Sends your prompt off your machine;
                         never required to run KimCad.{' '}
                         {settings?.key_storage === 'file'
-                          ? 'The key is kept in a settings file on this computer.'
+                          ? 'The key is kept in a settings file on this computer (the secure ' +
+                            'credential store isn’t available here) — anyone who can read your ' +
+                            'files could read it.'
                           : 'The key is kept in this computer’s secure credential store.'}
                       </p>
                     </div>

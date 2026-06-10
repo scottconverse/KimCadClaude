@@ -20,6 +20,10 @@ import re
 _SECRET_ENV_SEGMENTS = frozenset({
     "KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "CREDENTIALS",
     "PRIVATEKEY",
+    # ENG-104 (stage-BCD gate): common credential namings the original set missed —
+    # npm_config__auth-style vars and SSH/GPG passphrases. Segment-exact, so AUTHOR
+    # (no AUTH segment) and PASSPHRASES-as-substring look-alikes still survive.
+    "AUTH", "PASSPHRASE",
 })
 
 

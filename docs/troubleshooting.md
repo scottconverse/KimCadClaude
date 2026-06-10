@@ -87,6 +87,17 @@ to STL automatically — your part is still fine.
 **Fix (optional):** use the bundled OpenSCAD (`python scripts\fetch_tools.py`), which has
 3MF support.
 
+## Settings says my key is "kept in a settings file"
+
+**Cause:** the secure credential store (Windows Credential Manager) wasn't usable on your
+machine, so KimCad fell back to keeping the key in its local settings file — and told you
+so under the key field. The key still works; it's just less protected at rest.
+
+**Fix (optional):** nothing is required — but anyone who can read your files could read
+the key, so prefer a low-value key, or remove it (the **Remove** button) when not using
+cloud acceleration. If Credential Manager starts working again (e.g. after a Windows
+repair), re-saving the key moves it there automatically.
+
 ## Python isn't found
 
 **Cause:** Python was installed without "Add python.exe to PATH", or the Microsoft Store

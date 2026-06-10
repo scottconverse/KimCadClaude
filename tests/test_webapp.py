@@ -3123,3 +3123,30 @@ def test_design_accepts_invalid_job_id_without_tracking(tmp_path):
         )
         data = json.load(urllib.request.urlopen(req, timeout=30))
     assert data["status"] == "completed"
+
+
+def test_settings_api_reports_key_storage(tmp_path, monkeypatch):
+    """TEST-002 (stage-BCD gate): the ENG-001 disclosure chain above the store — GET and
+    POST /api/settings must carry key_storage so the UI's note can tell the truth."""
+
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "s.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, g = _jreq(host, port, "GET", "/api/settings")
+        assert st == 200 and g["key_storage"] in ("keyring", "file")
+        st, p = _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": "sk-or-ks"})
+        assert st == 200 and p["key_storage"] == "keyring"  # fake-keyring fixture is healthy
+
+
+def test_settings_api_refuses_the_reserved_sentinel_as_a_key(tmp_path, monkeypatch):
+    """ENG-106 (stage-BCD gate): a literal "@keyring" key is rejected with a clear 400."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: tmp_path / "s.json")
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, body = _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": "@keyring"})
+        assert st == 400
+        assert "Invalid API key" in body["error"]

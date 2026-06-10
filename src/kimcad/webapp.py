@@ -1272,6 +1272,11 @@ def make_handler(
                 if k is not None and not isinstance(k, str):
                     self._json(400, {"error": "Invalid API key."})
                     return
+                # ENG-106: "@keyring" is the store's reserved sentinel — no real key collides
+                # with it, and persisting it literally would corrupt the at-rest contract.
+                if isinstance(k, str) and k.strip() == "@keyring":
+                    self._json(400, {"error": "Invalid API key."})
+                    return
                 # A blank/None key clears it; a real key is stored. It's never echoed back.
                 updates["openrouter_api_key"] = k.strip() if (isinstance(k, str) and k.strip()) else None
             # Slice 6 MS-4 — the experimental raw-codegen generator toggle (OFF by default).

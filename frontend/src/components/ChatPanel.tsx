@@ -256,9 +256,10 @@ export default function ChatPanel({
               <span className="kc-refine-hint">Refine by talking — tap a change or describe your own:</span>
               {/* UX-013 (2026-06-09 audit): chips are UNIVERSAL edits — size and walls apply to
                   every part family; the old "Add mounting holes" was a no-op for hole-less
-                  shapes (a flat clip) and is better typed when it genuinely applies. */}
+                  shapes (a flat clip) and is better typed when it genuinely applies.
+                  UX-110 (stage-BCD gate): grow/shrink offered symmetrically. */}
               <div className="kc-refine-chips" role="group" aria-label="Quick refinements">
-                {['Make it wider', 'Make it taller', 'Make it smaller', 'Thicker walls'].map(
+                {['Make it bigger', 'Make it smaller', 'Make it taller', 'Thicker walls'].map(
                   (chip) => (
                     <button
                       key={chip}
