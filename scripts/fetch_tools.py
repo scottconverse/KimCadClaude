@@ -57,6 +57,7 @@ PINS: dict[str, dict[str, ToolPin]] = {
             exe_name="openscad.exe",
             dest_subdir="openscad",
             verified=True,
+            sha256="fb0caabf5bbc89f8f2f80c10b79ae64d697aaff6efd58b2756f5d6270edb7ba7",
         ),
         "mac": ToolPin(
             url="https://files.openscad.org/OpenSCAD-2021.01.dmg",
