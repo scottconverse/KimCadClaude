@@ -79,8 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CONNECTOR",
         help="Slice, then send the print job to a configured connector by name. The stock config "
-        "ships 'mock' (loopback) and 'octoprint' active; 'moonraker'/'prusalink' are supported but "
-        "commented out in config until you enable one. This is the explicit per-send confirmation.",
+        "ships 'mock' (loopback) and 'octoprint' active, plus 'bambu_p2s'/'bambu_a1' templates "
+        "(Bambu LAN mode — fill in the IP + serial and set the access-code env var; needs the "
+        "optional bambulabs-api package); 'moonraker'/'prusalink' are supported but commented "
+        "out in config until you enable one. This is the explicit per-send confirmation.",
     )
 
     w = sub.add_parser("web", help="Launch the local web UI (Phase 2).")

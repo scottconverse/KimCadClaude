@@ -87,10 +87,12 @@ class ConnectorConfig:
     time and is never stored in config."""
 
     name: str
-    type: str  # "loopback" | "octoprint" | "moonraker" | "prusalink" | …
+    type: str  # "loopback" | "octoprint" | "moonraker" | "prusalink" | "bambu" | …
     base_url: str | None = None
     api_key_env: str | None = None
     storage: str | None = None  # e.g. PrusaLink target storage ("usb" | "local")
+    serial: str | None = None  # Bambu: the printer's serial number (LAN-mode identity)
+    use_ams: bool = True  # Bambu: feed from the AMS (True) or the external spool (False)
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -287,6 +289,8 @@ class Config:
             base_url=c.get("base_url"),
             api_key_env=c.get("api_key_env"),
             storage=c.get("storage"),
+            serial=c.get("serial"),
+            use_ams=bool(c.get("use_ams", True)),
         )
 
     # --- llm ----------------------------------------------------------------

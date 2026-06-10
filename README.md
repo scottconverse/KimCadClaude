@@ -260,10 +260,18 @@ hardware-verified.
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper via Moonraker — Creality-Klipper, Voron, RatRig, Mainsail/Fluidd | `base_url`, optional `api_key_env` (Moonraker often runs unauthenticated on a trusted LAN) |
 | `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
+| `bambu` | Bambu Lab, native LAN mode — P2S / A1 family (Stage 10) | `base_url` (printer IP), `serial`, `api_key_env` (the LAN access code), optional `use_ams` (default `true`) |
 
-> **Bambu note:** the reference Bambu P2S / A1 *slice* fully, but have **no native send connector
-> yet** (Bambu's own LAN/cloud protocol) — for now, download the G-code 3MF and load it via Bambu
-> Studio or SD. A Bambu-native direct-print path is Stage 10.
+> **Bambu setup (Stage 10):** the `bambu` connector drives the printer natively — MQTT-over-TLS
+> for control, FTPS for the upload — via the **optional** `bambulabs-api` package
+> (`pip install bambulabs-api`; without it the connection reports "not set up" with that exact
+> hint, never a crash). On the printer, enable LAN/Developer mode and note the **Access Code**
+> (*Settings → WLAN*) and **Serial** (*Settings → Device*); fill `base_url` + `serial` in
+> `config/default.yaml` (the `bambu_p2s` / `bambu_a1` templates ship visible-but-unconfigured)
+> and put the access code in the named env var. KimCad's sliced `.gcode.3mf` is Bambu's own
+> format, so it's uploaded as-is and started by plate — like every connector, only after your
+> explicit confirmation, and never for a gate-failed part. *(Validated against a mock transport;
+> first real-hardware run is the Stage 11 beta at Kim's.)*
 
 A connection's credential is always read from an **environment variable** (named by
 `api_key_env`), never stored in config and never logged. Find it in your printer's settings —
@@ -273,7 +281,9 @@ labels a no-hardware connection honestly rather than narrating a mock send as a 
 
 - **CLI:** `kimcad design "a cable clip" --send mock` slices and sends (the `--send` flag is the
   explicit confirmation). For a real printer: `--send octoprint` (shipped configured — just set
-  its API-key env var), or `--send moonraker` / `--send prusalink` once you've added that
+  its API-key env var), `--send bambu_p2s` / `--send bambu_a1` (shipped as templates — fill in
+  the IP + serial and set the access-code env var; see the Bambu setup note above), or
+  `--send moonraker` / `--send prusalink` once you've added that
   connector under `connectors:` and pointed `base_url` at your printer (the `config/default.yaml`
   entries for them are commented examples — uncomment and edit). If the printer is
   offline/unreachable, it says so and leaves the G-code on disk; a part that failed the
@@ -305,7 +315,7 @@ that names the cause.
 | `config` | misconfigured connection (missing credential / `base_url`) | status, send |
 | `unknown` | no configured connection by that name (a typo) | status, send |
 | `offline` | the printer could not be reached | status, send |
-| `busy` | the printer is busy (printing / paused) — retry when idle | status; send (PrusaLink 409 only — OctoPrint/Moonraker report a busy upload as `error`) |
+| `busy` | the printer is busy (printing / paused) — retry when idle | status; send (PrusaLink 409, and `bambu` refuses to send over a running job — OctoPrint/Moonraker report a busy upload as `error`) |
 | `auth` | reachable, but the credential was rejected | send (status shows `error` + `detail`) |
 | `bad_response` | the endpoint answered, but not with the expected JSON (wrong device) | send (status shows `error`) |
 | `error` | a generic / uncategorized failure | status, send |

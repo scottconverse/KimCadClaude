@@ -197,6 +197,24 @@ connectors:
   #   base_url: http://192.168.0.50
   #   api_key_env: PRUSALINK_API_KEY
   #   storage: usb        # target storage; "usb" (MK4/XL default) or "local" (e.g. MINI/SD)
+  # Bambu Lab printers (P2S / A1 family), native LAN mode (Stage 10). Needs the OPTIONAL
+  # bambulabs-api package (pip install bambulabs-api). On the printer: enable LAN/Developer
+  # mode, note the Access Code (Settings -> WLAN) and Serial (Settings -> Device). The access
+  # code is a secret - it lives in the env var, never in this file. use_ams: false feeds from
+  # the external spool instead of the AMS. These ship visible-but-unconfigured: the app's
+  # send picker lists them disabled with the reason until you fill them in.
+  bambu_p2s:
+    type: bambu
+    base_url:                       # the printer's IP, e.g. 192.168.0.60
+    serial:                         # e.g. 01S00C123456789
+    api_key_env: BAMBU_P2S_ACCESS_CODE
+    use_ams: true
+  bambu_a1:
+    type: bambu
+    base_url:                       # the printer's IP
+    serial:
+    api_key_env: BAMBU_A1_ACCESS_CODE
+    use_ams: true
 
 limits:
   openscad_timeout_simple_s: 30

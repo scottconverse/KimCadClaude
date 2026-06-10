@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
+from kimcad.bambu_connector import BAMBU_INSTALL_HINT, BambuConnector, bambulabs_api_available
 from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
@@ -29,6 +30,7 @@ _CONNECTOR_CLASSES: dict[str, type] = {
     "octoprint": OctoPrintConnector,
     "moonraker": MoonrakerConnector,
     "prusalink": PrusaLinkConnector,
+    "bambu": BambuConnector,
 }
 
 
@@ -120,6 +122,44 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
                 "See the README's send-to-printer setup.",
             )
         return PrusaLinkConnector(cc.base_url, api_key, name=name, storage=cc.storage or "usb")
+
+    if cc.type == "bambu":
+        # Stage 10 — Bambu LAN mode. Needs: the printer's IP (base_url), its serial, the
+        # access code (env var — a secret, never stored in config), and the OPTIONAL
+        # bambulabs-api package. Each gap is its own actionable config message so
+        # connector_is_configured / the UI can say exactly what's missing.
+        if not bambulabs_api_available():
+            raise ConnectorError(
+                f"connector {name!r} (bambu) needs the optional bambulabs-api package",
+                reason="config",
+                user_message=BAMBU_INSTALL_HINT,
+            )
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (bambu) has no base_url (printer IP) configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no printer address (IP) configured.",
+            )
+        if not cc.serial:
+            raise ConnectorError(
+                f"connector {name!r} (bambu) has no serial configured",
+                reason="config",
+                user_message=f"The '{name}' connection needs the printer's serial number "
+                "(on the printer: Settings → Device).",
+            )
+        access_code = os.environ.get(cc.api_key_env) if cc.api_key_env else None
+        if not access_code:
+            raise ConnectorError(
+                f"set the {cc.api_key_env} environment variable to send to {name!r}",
+                reason="config",
+                user_message=f"The '{name}' printer needs its LAN access code, which isn't "
+                "set up yet (on the printer: Settings → WLAN → Access Code).",
+            )
+        # base_url may be given as a bare IP or with a scheme; the MQTT/FTPS client wants a host.
+        host = cc.base_url.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+        return BambuConnector(
+            host, access_code, cc.serial, name=name, use_ams=cc.use_ams,
+        )
 
     raise ConnectorError(
         f"connector {name!r} has unknown type {cc.type!r}",
