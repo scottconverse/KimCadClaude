@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import { isAbortError, uploadPhoto } from '../api'
+import { isAbortError, uploadPhoto, uploadSketch } from '../api'
 
 // Stage 8.5 Slice 7 (Surface D) — the "describe with a photo" on-ramp.
 // A secondary affordance beside the text box: pick (or drop) a photo, KimCad's LOCAL vision reads
@@ -20,15 +20,49 @@ function CameraGlyph() {
   )
 }
 
+function PencilGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 3.5 20.5 7 8.5 19l-4.5 1 1-4.5Z" />
+      <path d="m14.5 6 3.5 3.5" />
+    </svg>
+  )
+}
+
+// Stage 9: the same on-ramp flow serves photos AND dimensioned sketches — only the endpoint,
+// the wording, and the scale note differ (a sketch CARRIES its dimensions; a photo estimates).
+const KIND_COPY = {
+  photo: {
+    affordance: 'Describe with a photo',
+    noun: 'photo',
+    reading: 'Reading your photo…',
+    scaleNote: 'A photo can’t tell us scale, so any sizes are estimates. Adjust anything, then continue.',
+    cantRead: 'Couldn’t read that photo — try a clearer shot, or cancel and describe the part in words.',
+    upload: uploadPhoto,
+  },
+  sketch: {
+    affordance: 'Start from a sketch',
+    noun: 'sketch',
+    reading: 'Reading your sketch…',
+    scaleNote: 'Labeled dimensions are read as written — check they came through, then continue.',
+    cantRead: 'Couldn’t read that sketch — try a clearer image with written dimensions, or cancel and describe the part in words.',
+    upload: uploadSketch,
+  },
+} as const
+
 export default function PhotoOnramp({
   onSeed,
   disabled = false,
   variant = 'landing',
+  kind = 'photo',
 }: {
   onSeed: (seed: string) => void
   disabled?: boolean
   variant?: 'landing' | 'workspace'
+  kind?: 'photo' | 'sketch'
 }) {
+  const copy = KIND_COPY[kind]
   const [phase, setPhase] = useState<Phase>('idle')
   const [seed, setSeed] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -84,10 +118,10 @@ export default function PhotoOnramp({
     setErrorMsg('')
     setPhase('reading')
     try {
-      const res = await uploadPhoto(file, controller.signal)
+      const res = await copy.upload(file, controller.signal)
       const text = (res.seed ?? '').trim()
       if (!text) {
-        setErrorMsg('Couldn’t read that photo — try a clearer shot, or cancel and describe the part in words.')
+        setErrorMsg(copy.cantRead)
         setPhase('error')
         return
       }
@@ -98,7 +132,7 @@ export default function PhotoOnramp({
         reset() // the user cancelled — back to the affordance, quietly (no error)
         return
       }
-      setErrorMsg(err instanceof Error ? err.message : 'Couldn’t read that photo — try again, or cancel and describe it in words.')
+      setErrorMsg(err instanceof Error ? err.message : copy.cantRead)
       setPhase('error')
     } finally {
       if (readAbortRef.current === controller) readAbortRef.current = null
@@ -129,7 +163,7 @@ export default function PhotoOnramp({
   }
 
   return (
-    <div className={`kc-photo-onramp kc-photo-${variant}`}>
+    <div className={`kc-photo-onramp kc-photo-${variant} kc-onramp-${kind}`}>
       <input
         ref={inputRef}
         type="file"
@@ -148,8 +182,8 @@ export default function PhotoOnramp({
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
         >
-          <CameraGlyph />
-          Describe with a photo
+          {kind === 'sketch' ? <PencilGlyph /> : <CameraGlyph />}
+          {copy.affordance}
         </button>
       )}
 
@@ -159,10 +193,10 @@ export default function PhotoOnramp({
           role="group"
           aria-label={
             phase === 'error'
-              ? 'Photo couldn’t be read'
+              ? `Your ${copy.noun} couldn’t be read`
               : phase === 'reading'
-                ? 'Reading your photo'
-                : 'A rough starting point from your photo'
+                ? `Reading your ${copy.noun}`
+                : `A rough starting point from your ${copy.noun}`
           }
         >
           {phase === 'reading' && (
@@ -171,12 +205,12 @@ export default function PhotoOnramp({
                 {previewUrl && <img className="kc-photo-thumb" src={previewUrl} alt="" />}
                 <div className="kc-photo-body">
                   <span className="kc-photo-title">
-                    <span className="kc-spin" aria-hidden="true" /> Reading your photo…
+                    <span className="kc-spin" aria-hidden="true" /> {copy.reading}
                   </span>
                   <p className="kc-photo-privacy">
-                    Your photo stays on your computer — KimCad’s local vision reads it into a rough
-                    starting point. It never leaves your machine. This can take a moment on your
-                    computer’s AI.
+                    Your {copy.noun} stays on your computer — KimCad’s local vision reads it into a
+                    rough starting point. It never leaves your machine. This can take a moment on
+                    your computer’s AI.
                   </p>
                 </div>
               </div>
@@ -197,8 +231,8 @@ export default function PhotoOnramp({
                   {/* UX-102 (stage-BCD gate): ONE privacy line covering both halves of the
                       promise (read locally + not saved) — was two near-duplicate notes. */}
                   <p className="kc-photo-privacy">
-                    Read locally — your photo never left your machine and isn’t saved; only this
-                    description continues.
+                    Read locally — your {copy.noun} never left your machine and isn’t saved; only
+                    this description continues.
                   </p>
                 </div>
               </div>
@@ -207,16 +241,14 @@ export default function PhotoOnramp({
                 className="kc-photo-seed"
                 value={seed}
                 onChange={(e) => setSeed(e.target.value)}
-                aria-label="Edit the description read from your photo"
+                aria-label={`Edit the description read from your ${copy.noun}`}
                 rows={3}
                 disabled={disabled}
               />
-              <p className="kc-photo-note">
-                A photo can’t tell us scale, so any sizes are estimates. Adjust anything, then continue.
-              </p>
+              <p className="kc-photo-note">{copy.scaleNote}</p>
               {variant === 'workspace' && (
                 <p className="kc-photo-note">
-                  This starts a new part from the photo — your current part is saved in My Designs.
+                  This starts a new part from the {copy.noun} — your current part is saved in My Designs.
                 </p>
               )}
               <div className="kc-photo-actions">
@@ -229,7 +261,7 @@ export default function PhotoOnramp({
                   Use this as a starting point
                 </button>
                 <button type="button" className="kc-btn kc-btn-ghost" onClick={openPicker} disabled={disabled}>
-                  Use a different photo
+                  Use a different {copy.noun}
                 </button>
                 <button type="button" className="kc-photo-cancel" onClick={reset}>
                   Cancel
@@ -243,7 +275,7 @@ export default function PhotoOnramp({
               <p className="kc-photo-error-msg" aria-live="polite">{errorMsg}</p>
               <div className="kc-photo-actions">
                 <button type="button" className="kc-btn kc-btn-accent" onClick={openPicker} disabled={disabled}>
-                  Use a different photo
+                  Use a different {copy.noun}
                 </button>
                 <button type="button" className="kc-photo-cancel" onClick={reset}>
                   Cancel

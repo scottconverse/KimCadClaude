@@ -7,9 +7,10 @@ import * as api from '../api'
 // Mock only uploadPhoto; keep the rest of the api module real.
 vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
-  return { ...actual, uploadPhoto: vi.fn() }
+  return { ...actual, uploadPhoto: vi.fn(), uploadSketch: vi.fn() }
 })
 const mockUpload = api.uploadPhoto as unknown as ReturnType<typeof vi.fn>
+const mockUploadSketch = api.uploadSketch as unknown as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   // jsdom doesn't implement the object-URL APIs the preview thumbnail uses.
@@ -168,5 +169,40 @@ describe('PhotoOnramp', () => {
     await screen.findByLabelText(SEED_LABEL)
     expect(URL.createObjectURL).toHaveBeenCalledTimes(2) // a fresh preview for the 2nd photo
     expect(URL.revokeObjectURL).toHaveBeenCalled() // the 1st blob URL was revoked — no leak on re-pick
+  })
+})
+
+describe('SketchOnramp (Stage 9 — the kind="sketch" mode)', () => {
+  it('shows the sketch affordance and reads via the sketch endpoint with sketch copy', async () => {
+    mockUploadSketch.mockResolvedValue({ seed: 'a 40 x 20 x 10 mm bracket' })
+    const onSeed = vi.fn()
+    const { container } = render(<PhotoOnramp onSeed={onSeed} kind="sketch" />)
+    fireEvent.click(screen.getByRole('button', { name: /Start from a sketch/i }))
+    pickFile(container)
+    // The SKETCH endpoint, not the photo one.
+    await waitFor(() => expect(mockUploadSketch).toHaveBeenCalledTimes(1))
+    expect(mockUpload).not.toHaveBeenCalled()
+    // Sketch-specific framing: dimensions are read as written, not estimated.
+    expect(await screen.findByText(/read as written/i)).toBeTruthy()
+    expect(screen.getByLabelText(/read from your sketch/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /use this as a starting point/i }))
+    expect(onSeed).toHaveBeenCalledWith('a 40 x 20 x 10 mm bracket')
+  })
+
+  it('surfaces the model-down message instead of blaming the sketch', async () => {
+    mockUploadSketch.mockRejectedValue(new Error("KimCad couldn't reach your local AI."))
+    const { container } = render(<PhotoOnramp onSeed={vi.fn()} kind="sketch" />)
+    fireEvent.click(screen.getByRole('button', { name: /Start from a sketch/i }))
+    pickFile(container)
+    expect(await screen.findByText(/reach your local AI/i)).toBeTruthy()
+    expect(screen.queryByText(/clearer image/i)).toBeNull()
+  })
+
+  it('an empty sketch read gets the sketch-specific guidance', async () => {
+    mockUploadSketch.mockResolvedValue({ seed: '' })
+    const { container } = render(<PhotoOnramp onSeed={vi.fn()} kind="sketch" />)
+    fireEvent.click(screen.getByRole('button', { name: /Start from a sketch/i }))
+    pickFile(container)
+    expect(await screen.findByText(/written dimensions/i)).toBeTruthy()
   })
 })

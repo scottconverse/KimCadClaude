@@ -97,8 +97,12 @@ export default function Landing({
         <span className="kc-key-hint">Enter to send · Shift+Enter for a new line</span>
 
         {/* Slice 7: the photo on-ramp — a rough, editable seed from a local-vision read of a photo.
-            Secondary to the text path; it pre-fills the same design flow. */}
-        <PhotoOnramp onSeed={onSubmit} disabled={busy} variant="landing" />
+            Stage 9 adds the sketch on-ramp beside it (a dimensioned sketch reads shape + written
+            sizes). Both secondary to the text path; both pre-fill the same design flow. */}
+        <div className="kc-onramps">
+          <PhotoOnramp onSeed={onSubmit} disabled={busy} variant="landing" kind="photo" />
+          <PhotoOnramp onSeed={onSubmit} disabled={busy} variant="landing" kind="sketch" />
+        </div>
 
         <div className="kc-examples">
           <span className="kc-examples-label">Try</span>

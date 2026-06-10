@@ -34,6 +34,10 @@ vi.mock('./api', () => ({
   }),
   // Real-ish helper so the cancel path classifies an AbortError correctly.
   isAbortError: (e: unknown) => (e as { name?: string })?.name === 'AbortError',
+  // Stage 9: the Landing renders both on-ramps (photo + sketch) — stub their uploads.
+  uploadPhoto: vi.fn(),
+  uploadSketch: vi.fn(),
+  MAX_PHOTO_BYTES: 12 * 1024 * 1024,
 }))
 
 // Replace the (three.js) Workspace so the test doesn't pull in WebGL.

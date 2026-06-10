@@ -2772,6 +2772,21 @@ input {
 .kc-statdot-warn {
   background: var(--kc-warn-accent);
 }
+/* Stage 9: the two on-ramps (photo + sketch) sit side by side under the prompt box;
+   they stack when a card opens (the card spans the row). */
+.kc-onramps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+.kc-onramps .kc-photo-onramp {
+  min-width: 0;
+}
+.kc-onramps .kc-photo-card {
+  flex-basis: 100%;
+}
+
 /* UX-101 (stage-BCD gate): the app's own confirm dialog (replaces window.confirm). */
 .kc-confirm-overlay {
   position: fixed;

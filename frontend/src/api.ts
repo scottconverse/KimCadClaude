@@ -385,6 +385,33 @@ export async function uploadPhoto(file: File, signal?: AbortSignal): Promise<Pho
   return data as PhotoSeedResponse
 }
 
+/** Stage 9: the sketch on-ramp — a dimensioned sketch read by the LOCAL vision model into an
+ * editable text seed (shape + the labeled dimensions). Same trust rules as the photo path:
+ * read locally, never auto-sent, nothing persisted. */
+export async function uploadSketch(file: File, signal?: AbortSignal): Promise<PhotoSeedResponse> {
+  if (file.size > MAX_PHOTO_BYTES) {
+    throw new Error('That sketch is too large to read (max 12 MB).')
+  }
+  let res: Response
+  try {
+    res = await fetch('/api/sketch-seed', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'image/jpeg' },
+      body: file,
+      signal,
+    })
+  } catch (err) {
+    if (isAbortError(err)) throw err
+    throw new Error('Couldn’t read that sketch — it may be too large or unreadable.')
+  }
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  if ((data as { status?: string }).status === 'model_unavailable') {
+    throw new Error((data as { error?: string }).error || 'Your local AI isn’t running yet.')
+  }
+  return data as PhotoSeedResponse
+}
+
 /** Persist a settings change. Pass only the fields you're changing; `null` (or a blank string for
  * the cloud fields) clears that value. The OpenRouter key is sent here to save it but is never
  * returned in full — only the masked form comes back. */
