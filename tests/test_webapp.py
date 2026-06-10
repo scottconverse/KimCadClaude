@@ -2615,9 +2615,11 @@ def test_cloud_key_saved_locally_but_never_returned_in_full(tmp_path, monkeypatc
         st, g = _jreq(host, port, "GET", "/api/settings")
         assert SECRET not in _j.dumps(g)
         assert g["cloud_key_masked"].endswith(SECRET[-5:])
-        # But the real key DID land on disk (local consumer storage, the user's machine).
+        # ENG-001 (stage-C): the file holds the SENTINEL, never the secret — the real key
+        # lives in the OS credential store (the suite's hermetic fake keyring).
         on_disk = _j.loads(settings_file.read_text(encoding="utf-8"))
-        assert on_disk["openrouter_api_key"] == SECRET
+        assert on_disk["openrouter_api_key"] == "@keyring"
+        assert SECRET not in settings_file.read_text(encoding="utf-8")
         # And model-status now reports the user's cloud model, not the local default.
         st, ms = _jreq(host, port, "GET", "/api/model-status")
         assert ms["backend"] == "cloud" and ms["model"] == "anthropic/claude-sonnet"
@@ -2645,8 +2647,11 @@ def test_cloud_key_never_appears_in_logs(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert SECRET not in captured.out, "cloud key leaked to stdout"
     assert SECRET not in captured.err, "cloud key leaked to stderr"
-    # Sanity: it really did persist (so the test exercised the real key path, not a no-op).
-    assert _j.loads(settings_file.read_text(encoding="utf-8"))["openrouter_api_key"] == SECRET
+    # Sanity: it really did persist (the sentinel proves the key path ran) — and ENG-001:
+    # the secret itself is NOT in the file (it's in the credential store).
+    on_disk = settings_file.read_text(encoding="utf-8")
+    assert _j.loads(on_disk)["openrouter_api_key"] == "@keyring"
+    assert SECRET not in on_disk
 
 
 def test_cloud_key_can_be_cleared(tmp_path, monkeypatch):

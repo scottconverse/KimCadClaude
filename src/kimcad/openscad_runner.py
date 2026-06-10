@@ -243,7 +243,13 @@ def sanitize_scad(code: str) -> SanitizeResult:
 
 def _run(cmd: list[str], *, cwd: Path, timeout_s: int) -> subprocess.CompletedProcess[str]:
     env_path = str(PROJECT_ROOT)
-    env = dict(os.environ)
+    # ENG-003 (stage-C): the OpenSCAD child runs with the SAME secret-scrubbed environment
+    # discipline as the CadQuery worker — generated code is the primary untrusted path, and
+    # a geometry tool needs no credentials. One shared scrub (kimcad.subprocess_env) so the
+    # two runners can't drift apart again.
+    from kimcad.subprocess_env import scrubbed_env
+
+    env = scrubbed_env()
     # Let `use <library/...>` resolve while the working dir stays the isolated temp.
     existing = env.get("OPENSCADPATH")
     env["OPENSCADPATH"] = env_path if not existing else f"{env_path}{os.pathsep}{existing}"

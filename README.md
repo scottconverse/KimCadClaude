@@ -130,7 +130,9 @@ ollama pull gemma4:e4b
 
 That is all the LLM setup required — no API key, no network. To enable a cloud fallback the
 easy way, use the in-app **Settings → Cloud acceleration** opt-in (OpenRouter; you pick the
-model, the key is stored locally and shown masked). To configure it in files instead — a
+model; the key is kept in the OS credential store — Windows Credential Manager — and shown
+only masked; if no credential store is usable, KimCad falls back to its local settings file
+and the Settings screen discloses that. See `docs/guide-settings-and-cloud.md`). To configure it in files instead — a
 different local model, or a cloud backend (DeepSeek / OpenRouter / any OpenAI-compatible
 endpoint) — set the active backend and its key in `config/local.yaml`; see `config/default.yaml`
 for the shape and the pre-defined `cloud_deepseek` / `custom_openrouter` backends. **Verify the
@@ -358,10 +360,14 @@ as separate subprocesses, never linked — see the spec's licensing section.
 ## Project layout
 
 ```
-src/kimcad/      application package
+src/kimcad/      application package (incl. src/kimcad/web/ — the committed built SPA)
+frontend/        React/TypeScript SPA source (build-time only; see frontend/README.md)
 library/         seed OpenSCAD module library (the quality moat)
 config/          default + local configuration
 bench/           benchmark harness (the Phase-1 done-gate)
 tests/           unit + integration tests
+docs/            user guides, design spec, benchmarks, audit trail (see docs/README.md)
+scripts/         fetch_tools.py (binaries), ci.sh (the authoritative gate)
+.githooks/       the pre-push gate hook (arm with: git config core.hooksPath .githooks)
 tools/           fetched OpenSCAD + OrcaSlicer binaries (gitignored)
 ```

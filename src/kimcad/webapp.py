@@ -483,9 +483,13 @@ def _mask_key(key: Any) -> str | None:
     return "•" * 16 + tail
 
 
-def settings_response(config: Any, saved: dict[str, Any]) -> dict[str, Any]:
+def settings_response(
+    config: Any, saved: dict[str, Any], *, key_storage: str | None = None
+) -> dict[str, Any]:
     """The full Settings payload: the printer/material choices + effective defaults, plus the cloud
-    opt-in state. The OpenRouter key is returned ONLY masked (last 5) — never in full."""
+    opt-in state. The OpenRouter key is returned ONLY masked (last 5) — never in full.
+    ``key_storage`` (ENG-001) tells the UI where the key lives at rest ("keyring" = the OS
+    credential store, "file" = the disclosed JSON fallback) so the disclosure is honest."""
     payload = web_options(config, saved)
     key = saved.get("openrouter_api_key")
     payload["cloud_enabled"] = bool(saved.get("cloud_enabled"))
@@ -493,6 +497,8 @@ def settings_response(config: Any, saved: dict[str, Any]) -> dict[str, Any]:
     payload["has_cloud_key"] = isinstance(key, str) and bool(key)
     payload["cloud_key_masked"] = _mask_key(key)
     payload["experimental_enabled"] = bool(saved.get("experimental_enabled"))
+    if key_storage is not None:
+        payload["key_storage"] = key_storage
     return payload
 
 
@@ -1144,7 +1150,11 @@ def make_handler(
             """The user's effective settings + the choices the Settings screen offers (printers,
             materials, the active default of each, and the cloud opt-in state). The OpenRouter key
             is returned only MASKED — never in full."""
-            self._json(200, settings_response(get_config(), saved_settings()))
+            store = get_settings_store()
+            self._json(200, settings_response(
+                get_config(), saved_settings(),
+                key_storage=store.key_storage() if store is not None else None,
+            ))
 
         def _handle_health(self) -> None:
             """Tool + app health for the Settings screen (Slice 6 MS-5): whether the bundled
@@ -1225,7 +1235,10 @@ def make_handler(
             if data.get("reset") is True:
                 store = get_settings_store()
                 ok = store.clear() if store is not None else False
-                payload = settings_response(cfg, saved_settings())
+                payload = settings_response(
+                    cfg, saved_settings(),
+                    key_storage=store.key_storage() if store is not None else None,
+                )
                 payload["saved"] = ok
                 self._json(200, payload)
                 return
@@ -1271,7 +1284,10 @@ def make_handler(
                 saved_ok = store.update(updates)
             else:
                 saved_ok = True
-            payload = settings_response(cfg, saved_settings())
+            payload = settings_response(
+                cfg, saved_settings(),
+                key_storage=store.key_storage() if store is not None else None,
+            )
             payload["saved"] = saved_ok
             self._json(200, payload)
 

@@ -311,6 +311,9 @@ export interface SettingsResponse extends OptionsResponse {
   cloud_model?: string
   has_cloud_key?: boolean
   cloud_key_masked?: string | null
+  /** ENG-001: where the key lives at rest — "keyring" (OS credential store) or "file"
+   * (the disclosed JSON fallback). Absent on older servers. */
+  key_storage?: 'keyring' | 'file'
   experimental_enabled?: boolean
 }
 

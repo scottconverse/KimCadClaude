@@ -141,6 +141,42 @@ def _isolate_kimcad_home(tmp_path, monkeypatch):
     return home
 
 
+class FakeKeyring:
+    """In-memory stand-in for the OS credential store (ENG-001 tests). Mirrors the three
+    keyring calls settings_store makes; ``fail=True`` simulates a broken backend."""
+
+    def __init__(self, fail: bool = False):
+        self.passwords: dict[tuple[str, str], str] = {}
+        self.fail = fail
+
+    def set_password(self, service, username, password):
+        if self.fail:
+            raise RuntimeError("keyring backend unavailable")
+        self.passwords[(service, username)] = password
+
+    def get_password(self, service, username):
+        if self.fail:
+            raise RuntimeError("keyring backend unavailable")
+        return self.passwords.get((service, username))
+
+    def delete_password(self, service, username):
+        if self.fail:
+            raise RuntimeError("keyring backend unavailable")
+        self.passwords.pop((service, username), None)
+
+
+@pytest.fixture(autouse=True)
+def _fake_keyring(monkeypatch):
+    """ENG-001 hermeticity: NO test may touch the real OS credential store. Every test gets
+    an in-memory keyring; tests that want the file-fallback path monkeypatch `_keyring` to
+    return None (or a FakeKeyring(fail=True)) on top of this."""
+    from kimcad import settings_store
+
+    fake = FakeKeyring()
+    monkeypatch.setattr(settings_store, "_keyring", lambda: fake)
+    return fake
+
+
 BAMBU = Printer(
     key="bambu_p2s",
     name="Bambu Lab P2S",

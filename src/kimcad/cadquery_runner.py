@@ -28,8 +28,6 @@ from __future__ import annotations
 
 import ast
 import json
-import os
-import re
 import subprocess
 import sys
 import time
@@ -45,23 +43,11 @@ from kimcad.openscad_runner import (
     SanitizeResult,
 )
 
-# Underscore-/non-alphanumeric-delimited NAME segments that mark an env var as secret-bearing
-# (ENG-002). Matching whole segments — not substrings — so a look-alike like ``TOKENIZER`` or
-# ``PASSWORDLESS`` is NOT stripped (REAUDIT-N1), while ``OPENROUTER_API_KEY`` / ``SOME_TOKEN`` /
-# ``DB_PASSWORD`` / ``AWS_SECRET_ACCESS_KEY`` are.
-_SECRET_ENV_SEGMENTS = frozenset({
-    "KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "CREDENTIALS",
-    "PRIVATEKEY",
-})
-
-
-def _is_secret_env(name: str) -> bool:
-    segments = re.split(r"[^A-Za-z0-9]+", name.upper())
-    if any(seg in _SECRET_ENV_SEGMENTS for seg in segments):
-        return True
-    # Catch the run-together forms (no delimiter): OPENROUTERAPIKEY, MYPRIVATEKEY.
-    compact = "".join(segments)
-    return "APIKEY" in compact or "PRIVATEKEY" in compact
+# ENG-003 (stage-C): the secret-scrub now lives in kimcad.subprocess_env — ONE source of
+# truth shared with the OpenSCAD runner. These aliases keep the existing tests/call sites
+# (the precision tests for the scrub import _is_secret_env from here).
+from kimcad.subprocess_env import is_secret_env as _is_secret_env  # noqa: F401
+from kimcad.subprocess_env import scrubbed_env as _scrubbed_env
 
 
 def _worker_env() -> dict[str, str]:
@@ -69,7 +55,7 @@ def _worker_env() -> dict[str, str]:
     with (ENG-002), mirroring the OpenSCAD runner's env discipline. The worker is pure cadquery +
     stdlib and needs no credentials, so withholding the LLM/printer API keys bounds the blast
     radius if the sanitizer is ever bypassed."""
-    return {k: v for k, v in os.environ.items() if not _is_secret_env(k)}
+    return _scrubbed_env()
 
 # The worker script, run by the foreign <=3.13 interpreter BY ABSOLUTE PATH (not `-m`,
 # since the kimcad package isn't installed in the 3.13 environment). It's a sibling file.

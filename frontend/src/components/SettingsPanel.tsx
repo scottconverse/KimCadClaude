@@ -353,6 +353,15 @@ export default function SettingsPanel() {
                   >
                     Get a free OpenRouter key →
                   </a>
+                  {/* ENG-001: disclose where the key lives at rest, honestly per backend. */}
+                  <p className="kc-muted-note kc-key-storage-note">
+                    {settings.key_storage === 'file'
+                      ? 'Your key is kept in a settings file on this computer (the secure ' +
+                        'credential store isn’t available here). Anyone who can read your ' +
+                        'files could read it.'
+                      : 'Your key is kept in this computer’s secure credential store ' +
+                        '(Windows Credential Manager) — never in a plain file.'}
+                  </p>
                 </div>
 
                 <div className="kc-set-field">

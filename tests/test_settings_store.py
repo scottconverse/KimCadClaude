@@ -74,3 +74,81 @@ def test_creates_parent_dir_on_first_write(tmp_path):
     assert store.update({"default_material": "petg"}) is True
     assert path.exists()
     assert store.all() == {"default_material": "petg"}
+
+
+# --- ENG-001 (stage-C): the OpenRouter secret lives in the OS credential store -----------
+
+
+def test_secret_goes_to_keyring_file_holds_sentinel(tmp_path, _fake_keyring):
+    import json
+
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    assert store.update({"openrouter_api_key": "sk-or-secret123"}) is True
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["openrouter_api_key"] == "@keyring"  # NEVER the secret
+    assert "sk-or-secret123" not in path.read_text(encoding="utf-8")
+    assert _fake_keyring.passwords[("KimCad", "openrouter_api_key")] == "sk-or-secret123"
+    # all() resolves the sentinel transparently - consumers are unchanged.
+    assert store.all()["openrouter_api_key"] == "sk-or-secret123"
+    assert store.key_storage() == "keyring"
+
+
+def test_legacy_plaintext_key_migrates_on_init(tmp_path, _fake_keyring):
+    import json
+
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"openrouter_api_key": "sk-or-legacy", "cloud_enabled": True}),
+                    encoding="utf-8")
+    store = SettingsStore(path)  # init runs the one-time migration
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["openrouter_api_key"] == "@keyring"
+    assert _fake_keyring.passwords[("KimCad", "openrouter_api_key")] == "sk-or-legacy"
+    assert store.all()["openrouter_api_key"] == "sk-or-legacy"
+    assert store.all()["cloud_enabled"] is True  # non-secrets untouched
+
+
+def test_broken_keyring_falls_back_to_file_and_discloses(tmp_path, monkeypatch):
+    import json
+
+    from conftest import FakeKeyring
+
+    from kimcad import settings_store
+
+    monkeypatch.setattr(settings_store, "_keyring", lambda: FakeKeyring(fail=True))
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    assert store.update({"openrouter_api_key": "sk-or-fallback"}) is True
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["openrouter_api_key"] == "sk-or-fallback"  # honest file fallback
+    assert store.key_storage() == "file"  # ...and DISCLOSED as such
+    assert store.all()["openrouter_api_key"] == "sk-or-fallback"
+
+
+def test_clearing_the_key_removes_it_from_keyring_too(tmp_path, _fake_keyring):
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    store.update({"openrouter_api_key": "sk-or-gone"})
+    assert ("KimCad", "openrouter_api_key") in _fake_keyring.passwords
+    store.update({"openrouter_api_key": None})
+    assert ("KimCad", "openrouter_api_key") not in _fake_keyring.passwords
+    assert "openrouter_api_key" not in store.all()
+
+
+def test_reset_clears_the_keyring_entry(tmp_path, _fake_keyring):
+    store = SettingsStore(tmp_path / "settings.json")
+    store.update({"openrouter_api_key": "sk-or-reset", "cloud_enabled": True})
+    assert store.clear() is True
+    assert ("KimCad", "openrouter_api_key") not in _fake_keyring.passwords
+    assert store.all() == {}
+
+
+def test_sentinel_with_missing_keyring_entry_reads_as_no_key(tmp_path, _fake_keyring):
+    import json
+
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"openrouter_api_key": "@keyring"}), encoding="utf-8")
+    store = SettingsStore(path)
+    # The credential-store entry is gone (e.g. deleted by the user in Credential Manager):
+    # the key honestly reads as absent, never as the literal sentinel.
+    assert "openrouter_api_key" not in store.all()

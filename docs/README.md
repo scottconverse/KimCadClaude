@@ -9,6 +9,8 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 - **`stage-8.5-usability-plan.md`** — the authoritative Stage 8.5 slice plan (11 slices).
 - **`guide-my-designs.md`** — user-facing guide for the "My Designs" library.
 - **`guide-sliders-and-units.md`** — user-facing guide for the live parameter sliders + mm/inch units.
+- **`guide-photo-onramp.md`** — user-facing guide for starting a design from a photo (and its local-only promise).
+- **`guide-settings-and-cloud.md`** — user-facing guide for Settings, incl. exactly what the cloud opt-in sends and where the key is stored.
 - **`printproof3d-integration.md`** — how the PrintProof3D validation engine plugs in (arm's-length; bundled at Stage 11).
 - **`benchmarks/`** — model + template benchmark notes (how to re-run them).
 - **`audits/`** — the audit trail: per-slice `audit-lite`, per-stage `audit-team` + `wiring-audit` packages, and `RUN-LEDGER-2026-06-05.md` (the live finish-the-product tracker).

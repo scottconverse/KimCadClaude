@@ -310,7 +310,10 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       />
                       <p className="kc-wiz-cloud-note">
                         Used only when you opt into a cloud model. Sends your prompt off your machine;
-                        never required to run KimCad.
+                        never required to run KimCad.{' '}
+                        {settings?.key_storage === 'file'
+                          ? 'The key is kept in a settings file on this computer.'
+                          : 'The key is kept in this computer’s secure credential store.'}
                       </p>
                     </div>
                   )}

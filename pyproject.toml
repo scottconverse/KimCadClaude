@@ -26,6 +26,10 @@ dependencies = [
     # fallback for a broken/partial install (degrades to the gate-validated mesh), NOT an
     # "optional feature" switch; see hardening.py's module docstring (ENG-007).
     "manifold3d>=3.0",
+    # ENG-001: the OpenRouter key lives in the OS credential store (Windows Credential
+    # Manager) at rest. settings_store degrades to the disclosed file fallback if the
+    # backend is unusable, so this stays a soft runtime requirement in behavior.
+    "keyring>=25.0",
 ]
 
 [project.optional-dependencies]

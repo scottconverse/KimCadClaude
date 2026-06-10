@@ -85,6 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     w = sub.add_parser("web", help="Launch the local web UI (Phase 2).")
     w.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1).")
+    w.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="Required to bind a non-loopback --host. The server has NO authentication: "
+        "anyone who can reach the port can run the full design pipeline and dispatch "
+        "prints. Loopback (the default) needs nothing.",
+    )
     w.add_argument("--port", type=int, default=8765, help="Bind port (default: 8765).")
     w.add_argument("--backend", default=None, help="LLM backend key (default from config).")
     w.add_argument(
@@ -411,8 +418,37 @@ def _cmd_bakeoff(config: Config, args: argparse.Namespace) -> int:
 def _cmd_web(args: argparse.Namespace) -> int:
     from kimcad.webapp import serve
 
+    # ENG-002 (stage-C): refuse a silent non-loopback bind. The server is unauthenticated
+    # by design (single trusted user on loopback); exposing it is an explicit, warned act.
+    if not _is_loopback_host(args.host) and not args.allow_remote:
+        print(
+            f"Error: refusing to bind non-loopback host {args.host!r} without --allow-remote.\n"
+            "  KimCad's web server has NO authentication: anyone who can reach the port can\n"
+            "  run the full design pipeline and dispatch prints. If you really mean to expose\n"
+            "  it on this network, re-run with --allow-remote.",
+            file=sys.stderr,
+        )
+        return 2
+    if not _is_loopback_host(args.host):
+        print(
+            f"WARNING: serving on {args.host} with NO authentication - anyone on this "
+            "network can use this KimCad, including sending prints.",
+            file=sys.stderr,
+        )
     serve(host=args.host, port=args.port, demo=args.demo, backend=args.backend)
     return 0
+
+
+def _is_loopback_host(host: str) -> bool:
+    """True for hosts that only ever reach this machine (localhost / 127.x / ::1)."""
+    import ipaddress
+
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _cmd_models(config: Config, args: argparse.Namespace) -> int:
