@@ -374,6 +374,11 @@ export async function uploadPhoto(file: File, signal?: AbortSignal): Promise<Pho
   }
   const data = await readJson(res)
   throwIfNotOk(res, data)
+  // QA-A-003: a down model server is reported as a typed status (the photo was fine) —
+  // surface the friendly start-Ollama message in the on-ramp's error card.
+  if ((data as { status?: string }).status === 'model_unavailable') {
+    throw new Error((data as { error?: string }).error || 'Your local AI isn’t running yet.')
+  }
   return data as PhotoSeedResponse
 }
 

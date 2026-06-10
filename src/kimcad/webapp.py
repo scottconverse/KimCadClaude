@@ -28,6 +28,7 @@ import json
 import math
 import re
 import shutil
+import sys
 import threading
 import uuid
 from collections import OrderedDict
@@ -610,6 +611,15 @@ def slice_registered_mesh(
     printer = config.printer(printer_key)
     material = config.material(material_key)
     try:
+        # QA-A-002 (stage-A gate): check the BINARY before profile resolution — the profile
+        # tree is derived from the binary's path, so a never-fetched OrcaSlicer otherwise
+        # surfaces as a confusing "no_profile" + raw filesystem path instead of the typed
+        # ToolMissingError with the fetch_tools.py recovery hint.
+        from kimcad.errors import ToolMissingError
+
+        orca = config.binary_path("orcaslicer")
+        if not orca.is_file():
+            raise ToolMissingError("OrcaSlicer", orca)
         settings = resolve_slice_settings(config.orca_profiles_root(), printer, material)
         result = slice_model(
             mesh_path,
@@ -1395,7 +1405,15 @@ def make_handler(
             try:
                 cfg = get_config()
                 seed = pipeline.provider.describe_photo(image, cfg.printer(None), cfg.material(None))
-            except Exception:  # noqa: BLE001 - never leak a traceback; vision is best-effort
+            except Exception as e:  # noqa: BLE001 - never leak a traceback; vision is best-effort
+                # QA-A-003 (stage-A gate): a DOWN model server is not a bad photo — blaming
+                # the user's shot for a dead Ollama is the trust-breaking wrong message.
+                from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
+
+                if _is_model_unreachable(e):
+                    self._json(200, {"status": "model_unavailable",
+                                     "error": MODEL_UNAVAILABLE_MESSAGE})
+                    return
                 self._json(422, cant_read)
                 return
             seed = (seed or "").strip()
@@ -1419,7 +1437,14 @@ def make_handler(
             try:
                 cfg = get_config()
                 seed = pipeline.provider.describe_sketch(image, cfg.printer(None), cfg.material(None))
-            except Exception:  # noqa: BLE001 - never leak a traceback; vision is best-effort
+            except Exception as e:  # noqa: BLE001 - never leak a traceback; vision is best-effort
+                # QA-A-003: same as the photo path — a down model is not a bad sketch.
+                from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
+
+                if _is_model_unreachable(e):
+                    self._json(200, {"status": "model_unavailable",
+                                     "error": MODEL_UNAVAILABLE_MESSAGE})
+                    return
                 self._json(422, cant_read)
                 return
             seed = (seed or "").strip()
@@ -1998,6 +2023,20 @@ def make_handler(
     return Handler
 
 
+class _ExclusiveBindServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with the bind made EXCLUSIVE on Windows (ENG-001 / WALK-A-001).
+
+    Python's socketserver sets ``allow_reuse_address``, which maps to ``SO_REUSEADDR`` —
+    and on Windows that lets a second ``kimcad web`` bind the same port *silently*, so two
+    servers fight over connections and the QA-006 friendly port-in-use message never fires
+    for its own headline case. Disabling reuse makes the second bind raise deterministically
+    (the right call here: KimCad restarts are full process restarts, so the TIME_WAIT
+    rebinding that SO_REUSEADDR exists for isn't a need on Windows)."""
+
+    if sys.platform == "win32":
+        allow_reuse_address = False
+
+
 def serve(
     *,
     host: str = "127.0.0.1",
@@ -2013,12 +2052,14 @@ def serve(
     pipeline = build_web_pipeline(demo=demo, backend=backend)
     web_root = out_root if out_root is not None else Path("output") / "web"
     try:
-        httpd = ThreadingHTTPServer((host, port), make_handler(pipeline, web_root, config=config))
+        httpd = _ExclusiveBindServer((host, port), make_handler(pipeline, web_root, config=config))
     except OSError as e:
         # QA-006: a second `kimcad web` (or anything else on the port) must end in one
         # actionable line, not a bind traceback.
+        # ASCII punctuation on purpose (QA-A-004): this line prints to consoles that may be
+        # on a legacy codepage when piped.
         raise RuntimeError(
-            f"Port {port} is already in use on {host} — is another KimCad still running? "
+            f"Port {port} is already in use on {host} - is another KimCad still running? "
             f"Close it, or pass a different port: `kimcad web --port {port + 1}`."
         ) from e
     mode = " (demo mode — no LLM)" if demo else ""

@@ -195,8 +195,14 @@ def _slice_intent(config: Config, printer: Any, material: Any) -> str:
     """A plain-English line, shown before a ``--slice`` run, naming the printer +
     material and the exact OrcaSlicer profiles the part will be sliced with — or a
     clear note when the chosen printer can't be sliced (no process profile)."""
+    from kimcad.errors import ToolMissingError
     from kimcad.slicer import OrcaProfileError, resolve_slice_settings
 
+    # QA-A-002: a never-fetched OrcaSlicer must read as "tool missing + how to fetch it",
+    # not as a profile-resolution failure with a raw path.
+    orca = config.binary_path("orcaslicer")
+    if not orca.is_file():
+        return f"Note: {ToolMissingError('OrcaSlicer', orca)}"
     try:
         s = resolve_slice_settings(config.orca_profiles_root(), printer, material)
     except OrcaProfileError as e:
@@ -240,11 +246,13 @@ def _send_print_job(config: Config, connector_name: str, gcode_path: str) -> Non
 
 
 # QA-005: human labels for the pipeline's coarse phases (same vocabulary the web UI shows).
+# ASCII on purpose (QA-A-004): a piped/redirected console on a legacy codepage (cp437/cp1252)
+# mojibakes non-ASCII even though direct console output is UTF-8-reconfigured.
 _PHASE_LABELS = {
-    "planning": "Planning the shape…",
-    "generating": "Writing the CAD code…",
-    "rendering": "Rendering the part…",
-    "validating": "Checking it for printing…",
+    "planning": "Planning the shape...",
+    "generating": "Writing the CAD code...",
+    "rendering": "Rendering the part...",
+    "validating": "Checking it for printing...",
 }
 
 
@@ -501,10 +509,18 @@ def main(argv: list[str] | None = None) -> int:
         # still crash loudly, not hide behind a friendly message.
         from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
 
+        # UX-A-003 (stage-A gate): the recovery command names the CONFIGURED model, not a
+        # hardcoded default — confidently-wrong advice is worse than generic advice.
+        def _model_name() -> str:
+            try:
+                return Config.load().llm_backend(getattr(args, "backend", None)).model_name
+            except Exception:  # noqa: BLE001 - advice fallback only; never mask the real error
+                return "gemma4:e4b"
+
         if _is_model_unreachable(e):
             print(f"Error: {MODEL_UNAVAILABLE_MESSAGE}", file=sys.stderr)
             print(
-                "  Start Ollama, pull the model if you haven't (`ollama pull gemma4:e4b`), "
+                f"  Start Ollama, pull the model if you haven't (`ollama pull {_model_name()}`), "
                 "then try again. `kimcad models` shows what's installed.",
                 file=sys.stderr,
             )
@@ -512,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
         if type(e).__name__ == "NotFoundError" and type(e).__module__.startswith("openai"):
             print(
                 "Error: the model isn't available on your local AI server. "
-                "Pull it first (`ollama pull gemma4:e4b`), then try again. "
+                f"Pull it first (`ollama pull {_model_name()}`), then try again. "
                 "`kimcad models` shows what's installed.",
                 file=sys.stderr,
             )

@@ -477,6 +477,13 @@ class _NoProcessConfig:
 
         return Path(".")
 
+    def binary_path(self, name):
+        # QA-A-002 moved the binary check ahead of profile resolution; this stand-in's
+        # purpose is the PROFILE refusal, so report an existing "binary" (any real file).
+        from pathlib import Path
+
+        return Path(__file__)
+
 
 def test_slice_registered_mesh_refuses_printer_without_process(tmp_path):
     """The web-layer refusal: a printer with no process profile reports a note (reason
@@ -1050,6 +1057,59 @@ def test_slice_tool_missing_is_typed_not_500(tmp_path, monkeypatch):
     assert body["sliced"] is False
     assert body["reason"] == "tool_missing"
     assert "fetch_tools.py" in body["note"]
+
+
+def test_slice_missing_binary_beats_profile_resolution(monkeypatch, tmp_path):
+    """QA-A-002 (stage-A gate): a never-fetched OrcaSlicer must surface as ToolMissingError
+    (with the fetch hint), NOT as a profile-resolution error with a raw filesystem path —
+    profiles are derived from the binary's location, so the binary check must run first."""
+    from kimcad.config import Config
+    from kimcad.errors import ToolMissingError
+    from kimcad.webapp import slice_registered_mesh
+
+    config = Config.load()
+    monkeypatch.setattr(
+        Config, "binary_path", lambda self, name: tmp_path / "absent" / f"{name}.exe"
+    )
+    mesh = tmp_path / "part.3mf"
+    mesh.write_bytes(b"stub")
+    with pytest.raises(ToolMissingError) as ei:
+        slice_registered_mesh(config, mesh, None, None)
+    assert "fetch_tools.py" in str(ei.value)
+    assert "resources" not in str(ei.value)  # no raw profile-tree path leaks
+
+
+def test_photo_seed_model_down_is_typed_not_blamed_on_the_photo(tmp_path):
+    """QA-A-003 (stage-A gate): a down model server returns the typed model_unavailable
+    status — never the 'try a clearer shot' message that blames the user's photo."""
+    import json
+    import urllib.request
+
+    class _ModelDownVision:
+        def run(self, prompt, out_dir, **kw):  # pragma: no cover - not reached
+            raise AssertionError
+
+        class _Err(Exception):
+            pass
+
+        def describe_photo(self, image_bytes, printer, material):
+            e = type("APIConnectionError", (Exception,), {})()
+            raise e
+
+    pipe = _ModelDownVision()
+    pipe.provider = pipe
+    with _serve(pipe, tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/photo-seed",
+            data=b"\x89PNG fakebytes",
+            headers={"Content-Type": "image/png"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            assert resp.status == 200
+            body = json.loads(resp.read())
+    assert body["status"] == "model_unavailable"
+    assert "Ollama" in body["error"]
+    assert "clearer shot" not in body.get("error", "")
 
 
 def test_unsupported_method_is_405(tmp_path):

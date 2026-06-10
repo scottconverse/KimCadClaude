@@ -206,8 +206,10 @@ class LLMProvider:
         # `timeout_s`. httpx ships with the openai client.
         import httpx
 
+        # ENG-002 (stage-A gate): max_retries=0 — KimCad's own loop owns retry policy; the
+        # SDK's default 2 internal retries stacked under it (up to 18 connect cycles).
         timeout = httpx.Timeout(backend.timeout_s, connect=5.0)
-        return OpenAI(base_url=backend.base_url, api_key=key, timeout=timeout)
+        return OpenAI(base_url=backend.base_url, api_key=key, timeout=timeout, max_retries=0)
 
     def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
         kwargs: dict[str, Any] = {
@@ -242,12 +244,25 @@ class LLMProvider:
 
     def _server_reachable(self, timeout_s: float = 2.0) -> bool:
         """A bare TCP connect to the backend host:port. Cheap, no HTTP — just 'is anything
-        listening?'. Used only to distinguish never-up from dropped-mid-run (QA-002)."""
+        listening?'. Used only to distinguish never-up from dropped-mid-run (QA-002).
+
+        ENG-003 (stage-A gate): the probe is meaningful ONLY for local/loopback backends —
+        the case the fail-fast exists for (Ollama never started). For a cloud backend a raw
+        TCP verdict lies in both directions (a proxy-only network can't connect directly
+        even when the API is fine; a CDN edge accepts connects even when the service behind
+        it is down), so non-local hosts always report reachable and keep the retry budget."""
+        import ipaddress
         import socket
         from urllib.parse import urlparse
 
         u = urlparse(self.backend.base_url)
         host = u.hostname or "localhost"
+        if host != "localhost":
+            try:
+                if not ipaddress.ip_address(host).is_loopback:
+                    return True  # non-loopback IP (cloud/LAN) — never fail-fast on a TCP probe
+            except ValueError:
+                return True  # a DNS name other than localhost — same: don't probe-judge it
         port = u.port or (443 if u.scheme == "https" else 80)
         try:
             with socket.create_connection((host, port), timeout=timeout_s):

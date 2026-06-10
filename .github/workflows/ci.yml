@@ -11,13 +11,17 @@ name: CI
 # fetch_tools.py, the .venv-cq313 CadQuery worker venv, frontend node_modules) and reuses those
 # caches afterwards — self-hosted _work persists between runs.
 #
+# Trigger policy (ENG-005, stage-A gate): push + manual only — NO pull_request. A self-hosted
+# runner on the dev box must never execute fork-PR code; this line is the guard that keeps the
+# repo safe the day it goes public. Do not add pull_request back without moving PR builds to an
+# isolated runner.
+#
 # Caveat (accepted): the runner lives in the developer's logon session on the dev box, so CI runs
 # only while that box is up and logged in. For a one-developer project whose dev machine IS the
 # deployment target, that is the honest trust boundary, not a shortcut.
 
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -36,56 +40,81 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ENG-004 (stage-A gate): every powershell step runs strict — terminating cmdlet errors
+      # AND native-command failures both fail the step, not just the last command's exit code.
       - name: Provision Python venv (cached across runs; pinned by requirements.lock)
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           if (-not (Test-Path ".venv\Scripts\python.exe")) {
             & $env:KIMCAD_PY_LAUNCHER -3.13 -m venv .venv
+            if ($LASTEXITCODE -ne 0) { throw "venv creation failed" }
           }
           .\.venv\Scripts\python.exe -m pip install --quiet --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
           .\.venv\Scripts\python.exe -m pip install --quiet -r requirements.lock
+          if ($LASTEXITCODE -ne 0) { throw "lockfile install failed" }
           .\.venv\Scripts\python.exe -m pip install --quiet --no-deps -e .
+          if ($LASTEXITCODE -ne 0) { throw "editable install failed" }
 
       - name: Provision CAD/slicer tools (cached; checksum-pinned fetch)
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           if (-not (Test-Path "tools\openscad\openscad.exe") -or -not (Test-Path "tools\orcaslicer\orca-slicer.exe")) {
             .\.venv\Scripts\python.exe scripts\fetch_tools.py
+            if ($LASTEXITCODE -ne 0) { throw "tool fetch failed" }
           } else { "tools cached" }
 
       - name: Provision CadQuery worker venv (cached; proves the sandbox second layer)
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           if (-not (Test-Path ".venv-cq313\Scripts\python.exe")) {
             & $env:KIMCAD_PY_LAUNCHER -3.13 -m venv .venv-cq313
+            if ($LASTEXITCODE -ne 0) { throw "cq venv creation failed" }
             .\.venv-cq313\Scripts\python.exe -m pip install --quiet cadquery
+            if ($LASTEXITCODE -ne 0) { throw "cadquery install failed" }
           } else { "cq venv cached" }
 
       - name: Provision frontend deps
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           $env:Path = "$env:KIMCAD_CI_NODE;$env:Path"
           npm --prefix frontend ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
 
       - name: Run the authoritative gate (scripts/ci.sh — full suite incl. live + SPA repro)
         # Git Bash by explicit path: `shell: bash` resolves to the WSL launcher
         # (C:\Windows\system32\bash.exe) on this box, and WSL is broken at the OS level here.
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           & "C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail ./scripts/ci.sh
           if ($LASTEXITCODE -ne 0) { throw "gate failed (exit $LASTEXITCODE)" }
 
+      # TEST-002 (stage-A gate): assert EXECUTION, not collection — run the live marker subset
+      # itself and require every selected test to PASS with zero skips. A missing binary,
+      # missing profiles, or a local.yaml redirect all surface as skips → this step goes red.
       - name: Assert the live tool contracts actually ran (no green-by-skip)
         shell: powershell
         run: |
-          $out = .\.venv\Scripts\python.exe -m pytest -m live --collect-only -q 2>$null | Select-Object -Last 2
+          $ErrorActionPreference = 'Stop'
+          $out = .\.venv\Scripts\python.exe -m pytest -m live -q -ra 2>&1 | Out-String
           $out
-          if (-not (Test-Path "tools\orcaslicer\orca-slicer.exe")) { throw "OrcaSlicer absent - live slice contract unproven" }
-          .\.venv\Scripts\python.exe -c "from kimcad.cadquery_runner import find_cadquery_interpreter as f; import sys; sys.exit(0 if f() else 1)"
-          if ($LASTEXITCODE -ne 0) { throw "No CadQuery interpreter - worker-sandbox contract unproven" }
+          if ($LASTEXITCODE -ne 0) { throw "live subset failed (exit $LASTEXITCODE)" }
+          if ($out -notmatch '(\d+) passed') { throw "could not read live pass count" }
+          $passed = [int]$Matches[1]
+          if ($passed -lt 1) { throw "zero live tests executed - contracts unproven" }
+          if ($out -match '(\d+) skipped') { throw "$($Matches[1]) live test(s) SKIPPED - contracts unproven (missing binary/profiles/interpreter?)" }
+          "live contracts proven: $passed executed, 0 skipped"
 
       - name: pip-audit (dependency CVE scan on the pinned lockfile)
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           .\.venv\Scripts\python.exe -m pip install --quiet pip-audit
+          if ($LASTEXITCODE -ne 0) { throw "pip-audit install failed" }
           .\.venv\Scripts\python.exe -m pip_audit -r requirements.lock --strict
+          if ($LASTEXITCODE -ne 0) { throw "pip-audit found vulnerabilities or failed" }

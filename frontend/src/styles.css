@@ -2752,22 +2752,39 @@ input {
   color: var(--kc-ink);
 }
 /* UX-002 (2026-06-09 audit): the Landing model-health pill — shown only when the local AI
-   isn't ready, so a down model is visible before the user invests a prompt + a wait. */
+   isn't ready, so a down model is visible before the user invests a prompt + a wait.
+   UX-A-004 (stage-A gate): --kc-warn-text (6.4:1 on this tinted bg) instead of --kc-warn
+   (which computed ≈4.3:1 — just under AA). */
 .kc-model-pill {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 14px;
   padding: 7px 14px;
   border: 1px solid var(--kc-warn-accent);
   border-radius: 999px;
   background: rgba(196, 138, 26, 0.08);
-  color: var(--kc-warn);
+  color: var(--kc-warn-text);
   font-size: 13.5px;
   font-weight: 600;
 }
 .kc-statdot-warn {
   background: var(--kc-warn-accent);
+}
+/* UX-A-005: inside a warn surface the link must not be color-only — underline it. */
+.kc-link-btn-warn,
+.kc-model-pill .kc-link-btn,
+.kc-wiz-recap-warn .kc-link-btn {
+  text-decoration: underline;
+}
+/* UX-A-007: the recap warn row matches the step-1/pill warn treatment (amber dot + tone). */
+.kc-wiz-recap-warn {
+  font-weight: 600;
+}
+.kc-wiz-recap-warn .kc-statdot {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .kc-link-btn {

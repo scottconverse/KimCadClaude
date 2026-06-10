@@ -18,14 +18,37 @@ All notable changes to KimCad are documented here. Format follows
 > Slice 1 (persistence + "My Designs"), Slices 2–4 (refine-as-a-conversation + version history,
 > numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
 > in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the
-> "describe with a photo" on-ramp). Slices 1, 2–4, and 6 have each passed their `audit-team` gate at
-> 0/0/0/0/0; Slice 7 is at its slice-end gate. All pending Scott's stage approval. These sections
-> accumulate toward the `0.1.0` release.
+> "describe with a photo" on-ramp). Slices passed their gates progressively; the stage closed at
+> the full audit-team gate. These sections accumulate toward the `0.1.0` release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage A — first-run hardening (beta-readiness remediation, 2026-06-10).** The most likely
+  non-developer first-run failures now end in one friendly, actionable line on every surface —
+  never a traceback or a silent multi-minute hang. Typed `ToolMissingError` (new
+  `src/kimcad/errors.py`) for never-fetched OpenSCAD/OrcaSlicer, checked before any subprocess
+  spawn and **before profile resolution**; CLI model-down fail-fast (a first-attempt connection
+  error + a failed 2 s TCP probe of a *local* backend aborts immediately — measured live at ~20 s
+  vs ~234 s before; cloud hosts are never probe-judged), with the OpenAI client at `max_retries=0`
+  and a 5 s connect / `timeout_s` read split; live CLI phase output (`Planning the shape...`);
+  port-in-use → friendly `--port` hint, with the server now binding **exclusively** on Windows so
+  a second instance can't silently share the port; web: typed `model_unavailable` /
+  `tool_missing` responses (design, slice, photo-seed, sketch-seed) and generic 500s that never
+  leak exception class names; `bench`/`bakeoff` abort with the friendly model-down message instead
+  of swallowing it per-case. UX: the first-run wizard recap tells the truth ("Almost ready" + the
+  fix + an in-place re-check when the model isn't usable) and the Landing gets a warn-only
+  model-health pill; both use persistently-mounted live regions (reliable screen-reader
+  announcements, no focus loss on "Check again"). Docs: `docs/getting-started-windows.md` +
+  `docs/troubleshooting.md` (non-developer Windows path, DOC-001/DOC-004), root `LICENSE`
+  (Apache-2.0) + `SECURITY.md`, committed `requirements.lock` (verified cp313 pin set), the
+  OpenSCAD fetch now sha256-pinned. CI: the authoritative gate runs on a **self-hosted runner on
+  the target box** (full suite incl. the live OpenSCAD/OrcaSlicer/CadQuery tests — 18 executed,
+  zero skips, asserted in CI), plus `pip-audit --strict` on the lockfile; `pull_request` triggers
+  removed (self-hosted fork-RCE guard). Gate: per-slice audit-lite at 0/0/0/0/0, a live
+  walkthrough against a genuinely stopped Ollama, and the 5-role audit-team stage gate with all
+  42 findings remediated to 0/0/0/0/0 (`docs/audits/stage-a/audit-team-2026-06-10/`).
 - **Stage 8 — CadQuery parallel geometry backend — DONE (merged to `main`, tagged `stage-8`).**
   A second,
   type-safe CAD backend that runs alongside OpenSCAD as a **mutual fallback** (when the OpenSCAD

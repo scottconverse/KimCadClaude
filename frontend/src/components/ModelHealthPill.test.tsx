@@ -22,18 +22,27 @@ async function mockStatus(status: object | Error) {
 
 const READY = { model: 'gemma4:e4b', backend: 'local', running: true, model_present: true }
 
-describe('ModelHealthPill (UX-002)', () => {
-  it('stays silent when the local AI is ready', async () => {
+// UX-A-002 (stage-A gate): the live region is PERSISTENTLY mounted — "silent" means the
+// region carries no visible warn content, not that it unmounts (mount-with-content live
+// regions announce unreliably). These tests assert the region's text, not its existence.
+function pillWarn() {
+  return document.querySelector('.kc-model-pill')
+}
+
+describe('ModelHealthPill (UX-002 / UX-A-001/002)', () => {
+  it('shows no warning when the local AI is ready (region mounted, empty)', async () => {
     const fn = await mockStatus(READY)
     render(<ModelHealthPill />)
     await waitFor(() => expect(fn).toHaveBeenCalled())
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(pillWarn()).toBeNull()
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('') // no spurious announcement on a healthy mount
   })
 
   it('warns with a start-Ollama line when nothing is running', async () => {
     await mockStatus({ ...READY, running: false, model_present: false })
     render(<ModelHealthPill />)
-    expect(await screen.findByRole('status')).toBeTruthy()
+    await waitFor(() => expect(pillWarn()).not.toBeNull())
     expect(screen.getByText(/start Ollama/)).toBeTruthy()
   })
 
@@ -43,13 +52,13 @@ describe('ModelHealthPill (UX-002)', () => {
     expect(await screen.findByText(/ollama pull gemma4:e4b/)).toBeTruthy()
   })
 
-  it('stays silent for a cloud backend and when the probe itself fails', async () => {
+  it('shows no warning for a cloud backend or when the probe itself fails', async () => {
     await mockStatus({ ...READY, backend: 'cloud', running: false })
     const { unmount } = render(<ModelHealthPill />)
     await waitFor(async () =>
       expect((await import('../api')).getModelStatus).toHaveBeenCalled(),
     )
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(pillWarn()).toBeNull()
     unmount()
 
     await mockStatus(new Error('no server'))
@@ -57,18 +66,32 @@ describe('ModelHealthPill (UX-002)', () => {
     await waitFor(async () =>
       expect((await import('../api')).getModelStatus).toHaveBeenCalled(),
     )
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(pillWarn()).toBeNull()
   })
 
-  it('Check again re-probes and clears the pill once the model comes up', async () => {
+  it('Check again re-probes without unmounting under the finger, then announces recovery', async () => {
     const api = await import('../api')
     const fn = api.getModelStatus as ReturnType<typeof vi.fn>
     fn.mockResolvedValueOnce({ ...READY, running: false }) // first probe: down
-    fn.mockResolvedValueOnce(READY) // re-check: up
+    let resolveRecheck: (v: object) => void = () => {}
+    fn.mockReturnValueOnce(new Promise((r) => { resolveRecheck = r })) // re-check: in flight
     render(<ModelHealthPill />)
     expect(await screen.findByText(/start Ollama/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /check again/i }))
-    await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+
+    const btn = screen.getByRole('button', { name: /check again/i })
+    btn.focus()
+    fireEvent.click(btn)
+    // UX-A-001: while the re-check is in flight the button STAYS MOUNTED (relabeled,
+    // aria-disabled) and keeps focus — it must not vanish under the user's finger.
+    const checking = screen.getByRole('button', { name: /checking/i })
+    expect(checking.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(checking)
+    fireEvent.click(checking) // no-op while in flight
     expect(fn).toHaveBeenCalledTimes(2)
+
+    resolveRecheck(READY)
+    // UX-A-002: recovery is ANNOUNCED — the persistent region's text flips to "ready".
+    await waitFor(() => expect(pillWarn()).toBeNull())
+    expect(screen.getByRole('status').textContent).toMatch(/ready/i)
   })
 })

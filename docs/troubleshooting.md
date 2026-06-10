@@ -13,9 +13,19 @@ then click **Check again** on the landing page — or just try your design again
 isn't installed yet, see [getting-started-windows.md](getting-started-windows.md), Step 2.
 `kimcad models` in a terminal shows exactly what KimCad can see.
 
-## "The model isn't available on your local AI server"
+## "requirements.lock not found" / "no such file" during setup
 
-**Cause:** Ollama is running but the model was never pulled (or was removed).
+**Cause:** your terminal isn't in the KimCad folder — usually because GitHub's ZIP
+unpacked into a nested folder (`KimCadClaude-main` inside the folder you unzipped to).
+
+**Fix:** `cd` into the folder that contains `pyproject.toml` and `requirements.lock`
+(check with `dir`), then re-run the command. See Step 3 of the
+[getting-started guide](getting-started-windows.md).
+
+## "The model isn't available on your local AI server" / "The model isn't pulled yet"
+
+**Cause:** Ollama is running but the model was never pulled (or was removed). The first
+wording is the terminal's; the second is the web page's — same cause, same fix.
 
 **Fix:**
 

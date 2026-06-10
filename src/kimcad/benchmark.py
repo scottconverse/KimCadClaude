@@ -306,6 +306,15 @@ def run_benchmark(
         try:
             summary.outcomes.append(run_one(case))
         except Exception as e:  # defensive: never let one case kill the run
+            # QA-A-001 (stage-A gate): a DOWN MODEL SERVER is not a per-case outcome — it
+            # fails every remaining case identically and deserves the friendly model-down
+            # exit, not N "APIConnectionError" rows and a green exit code. Re-raise so the
+            # CLI's central mapping (exit 2 + guidance) owns it; genuine per-case errors
+            # (a bad render, one weird prompt) still degrade case-by-case.
+            from kimcad.pipeline import _is_model_unreachable
+
+            if _is_model_unreachable(e):
+                raise
             summary.outcomes.append(
                 CaseOutcome(
                     id=case.id,

@@ -129,7 +129,9 @@ def test_mid_run_drop_still_retries(monkeypatch):
 
 def test_server_reachable_probe_true_and_false():
     """The probe is a bare TCP connect: true against a live listener, false against a
-    closed port — no HTTP semantics involved."""
+    closed port — no HTTP semantics involved. (TEST-005: the false case uses port 1 —
+    reserved, never bound — instead of a just-released ephemeral port, so a concurrent
+    process on a busy CI box can't grab the port between close and probe.)"""
     from kimcad.llm_provider import LLMProvider
 
     srv = socket.socket()
@@ -141,8 +143,29 @@ def test_server_reachable_probe_true_and_false():
         assert up._server_reachable(timeout_s=1.0) is True
     finally:
         srv.close()
-    # The listener is closed now — same port should refuse.
-    assert up._server_reachable(timeout_s=1.0) is False
+    down = LLMProvider(_backend("http://127.0.0.1:1/v1"), client=_AlwaysDownClient())
+    assert down._server_reachable(timeout_s=1.0) is False
+
+
+def test_probe_never_judges_non_local_hosts():
+    """ENG-003: a raw TCP probe lies for cloud backends (proxies block direct connects;
+    CDN edges accept them while the service is down) — so any non-loopback host reports
+    reachable WITHOUT a network call, preserving the full retry budget for cloud."""
+    from kimcad.llm_provider import LLMProvider
+
+    for url in ("https://openrouter.ai/api/v1", "https://api.deepseek.com/v1",
+                "http://192.168.1.50:11434/v1"):
+        p = LLMProvider(_backend(url), client=_AlwaysDownClient())
+        assert p._server_reachable(timeout_s=0.01) is True  # instant — no connect attempted
+
+
+def test_built_client_owns_no_sdk_retries(monkeypatch):
+    """ENG-002 / WALK-A-002: KimCad's loop owns retry policy — the built OpenAI client must
+    carry max_retries=0 so SDK-internal retries can't stack under it."""
+    from kimcad.llm_provider import LLMProvider
+
+    client = LLMProvider._build_client(_backend())
+    assert client.max_retries == 0
 
 
 # --- CLI mapping (QA-001): friendly line + exit 2, never a traceback ----------------------
@@ -215,6 +238,59 @@ def test_cli_tool_missing_exits_2_with_fetch_hint(monkeypatch, capsys, tmp_path)
     assert "fetch_tools.py" in err
 
 
+def test_cli_model_not_pulled_exits_2_with_pull_hint(monkeypatch, capsys, tmp_path):
+    """The openai NotFoundError (model not pulled) maps to the pull command + exit 2."""
+    import httpx
+    from openai import NotFoundError
+
+    from conftest import box_renderer
+
+    from kimcad import cli
+
+    class _NoModelProvider(_ModelDownProvider):
+        def generate_design_plan(self, *a, **kw):
+            req = httpx.Request("POST", "http://localhost:11434/v1")
+            raise NotFoundError(
+                "model not found", response=httpx.Response(404, request=req), body=None
+            )
+
+    renderer, _ = box_renderer((20, 20, 20))
+    _patch_pipeline_with(monkeypatch, _NoModelProvider(), renderer)
+    code = cli.main(["design", "a 20mm cube", "--out", str(tmp_path / "out")])
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "Traceback" not in err
+    assert "ollama pull" in err
+
+
+def test_bench_model_down_aborts_with_friendly_exit_2(monkeypatch, capsys, tmp_path):
+    """QA-A-001: a dead model server must abort the whole bench with the friendly message
+    and exit 2 — not produce N error rows and exit 0."""
+    from kimcad.benchmark import BenchCase, run_benchmark
+
+    def _run_one(case):
+        raise _conn_error()
+
+    cases = [BenchCase(id="c1", prompt="a box"), BenchCase(id="c2", prompt="a tube")]
+    import openai
+
+    with pytest.raises(openai.APIConnectionError):
+        run_benchmark(cases, _run_one)
+
+
+def test_phase_printer_dedupes_consecutive_repeats(capsys):
+    """QA-005 companion: codegen retries re-emit 'generating' — the console must not stutter."""
+    from kimcad.cli import _phase_printer
+
+    emit = _phase_printer()
+    for phase in ("planning", "generating", "generating", "generating", "rendering"):
+        emit(phase)
+    err = capsys.readouterr().err
+    assert err.count("Writing the CAD code") == 1
+    assert err.count("Planning the shape") == 1
+    assert err.count("Rendering the part") == 1
+
+
 # --- web server bind (QA-006) -------------------------------------------------------------
 
 
@@ -234,3 +310,23 @@ def test_serve_port_in_use_raises_friendly_runtime_error(tmp_path):
         assert "--port" in msg  # the recovery hint
     finally:
         blocker.close()
+
+
+def test_second_kimcad_server_cannot_silently_share_the_port():
+    """TEST-001 / WALK-A-001 / ENG-001: the walkthrough proved a second `kimcad web` bound
+    the SAME port silently on Windows (socketserver's SO_REUSEADDR). The server class now
+    binds exclusively, so a python-vs-python double-bind RAISES — which is what lets the
+    QA-006 friendly message fire for its own headline case."""
+    from kimcad.webapp import _ExclusiveBindServer
+
+    class _NullHandler:  # never accepts a request; we only test bind semantics
+        def __init__(self, *a, **kw):  # pragma: no cover
+            raise AssertionError("no request expected")
+
+    first = _ExclusiveBindServer(("127.0.0.1", 0), _NullHandler)
+    port = first.server_address[1]
+    try:
+        with pytest.raises(OSError):
+            _ExclusiveBindServer(("127.0.0.1", port), _NullHandler)
+    finally:
+        first.server_close()

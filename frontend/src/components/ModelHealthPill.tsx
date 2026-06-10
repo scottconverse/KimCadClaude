@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getModelStatus, type ModelStatus } from '../api'
 
 // UX-002 (2026-06-09 audit): a down model must be visible BEFORE the user invests a prompt
-// and a multi-minute wait. This pill sits on the Landing and shows only when the local AI
-// isn't ready — silence means healthy (no badge noise on the happy path). "Check again"
-// re-probes without a reload, mirroring the wizard's affordance.
+// and a multi-minute wait. Shown only when the local AI isn't ready — silence means healthy.
+//
+// UX-A-001/002 (stage-A gate): the status region is PERSISTENTLY MOUNTED and only its text
+// changes, so screen readers reliably announce both the warning and the recovery; and
+// "Check again" never unmounts under the user's finger (it no-ops while a check is in
+// flight instead of disabling, so keyboard focus is preserved).
 export default function ModelHealthPill() {
   const [model, setModel] = useState<ModelStatus | null>(null)
   const [checking, setChecking] = useState(true)
+  // Announce "ready" only after a recovery the user witnessed — not on a healthy mount.
+  const everWarned = useRef(false)
 
   const check = useCallback(() => {
     setChecking(true)
@@ -19,19 +24,37 @@ export default function ModelHealthPill() {
 
   useEffect(() => check(), [check])
 
-  if (checking || model === null || model.backend === 'cloud') return null
-  if (model.running && model.model_present) return null
+  const problem =
+    model !== null && model.backend !== 'cloud' && !(model.running && model.model_present)
+      ? !model.running
+        ? 'Your local AI isn’t running yet — start Ollama to design.'
+        : `The model isn’t pulled yet — run “ollama pull ${model.model}” first.`
+      : null
+  if (problem) everWarned.current = true
 
-  const problem = !model.running
-    ? 'Your local AI isn’t running yet — start Ollama to design.'
-    : `The model isn’t pulled yet — run “ollama pull ${model.model}” first.`
+  if (!problem) {
+    // Healthy/unknown: visually nothing, but the live region stays mounted so the
+    // recovery is announced ("ready") after a warning the user saw.
+    return (
+      <p className="kc-sr-only" role="status">
+        {everWarned.current && !checking ? 'Your local AI is ready.' : ''}
+      </p>
+    )
+  }
 
   return (
     <p className="kc-model-pill" role="status">
       <span className="kc-statdot kc-statdot-warn" aria-hidden="true" />
       {problem}{' '}
-      <button type="button" className="kc-link-btn" onClick={check}>
-        Check again
+      <button
+        type="button"
+        className="kc-link-btn kc-link-btn-warn"
+        aria-disabled={checking || undefined}
+        onClick={() => {
+          if (!checking) check()
+        }}
+      >
+        {checking ? 'Checking…' : 'Check again'}
       </button>
     </p>
   )

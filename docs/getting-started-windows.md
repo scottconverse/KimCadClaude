@@ -54,10 +54,12 @@ You should see `gemma4:e4b` in the list.
 ## Step 3 — Get KimCad
 
 Download the code as a ZIP from the project's GitHub page (the green **Code** button →
-**Download ZIP**), then unzip it somewhere easy, e.g. `C:\KimCad`. (If you know git:
-`git clone` works too.)
+**Download ZIP**), then unzip it somewhere easy. **Watch the folder nesting:** GitHub's
+ZIP unpacks into a folder named like `KimCadClaude-main` — that *inner* folder (the one
+containing `README.md` and `pyproject.toml`) is your KimCad folder. Move/rename it to
+`C:\KimCad` so it matches the commands below. (If you know git: `git clone` works too.)
 
-Then, in your terminal:
+Then, in your terminal — from the folder that contains `pyproject.toml`:
 
 ```
 cd C:\KimCad
@@ -99,4 +101,6 @@ screen shows live progress the whole time.
 Every common failure has a fix in **[troubleshooting.md](troubleshooting.md)** — the
 landing page and the terminal also tell you what's wrong in plain words (e.g. "Your local
 AI isn't running yet — start Ollama"). Nothing you can do in setup harms your PC; the
-worst case is deleting the folder and starting over.
+worst case is deleting the KimCad folder and redoing Step 3 (Python and Ollama are
+separate installs and keep working — uninstall those from Windows Settings → Apps if you
+ever want them gone too).

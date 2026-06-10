@@ -241,28 +241,42 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     KimCad’s local AI — runs on your CPU, no internet required. It’s the tested
                     default and handles everything, including reading a photo.
                   </p>
-                  {modelState === 'ready' && model?.backend === 'local' && !model.running && (
+                  {/* UX-A-001 (stage-A gate): the action line + its button stay MOUNTED while a
+                      re-check is in flight (last-known state drives visibility), so keyboard
+                      focus never drops and the wizard's Tab trap can't be escaped mid-check. */}
+                  {model?.backend === 'local' && !model.running && (
                     <p className="kc-wiz-model-action">
                       Start Ollama, then{' '}
-                      <button type="button" className="kc-link-btn" onClick={checkModel}>
-                        check again
+                      <button
+                        type="button"
+                        className="kc-link-btn"
+                        aria-disabled={modelState === 'checking' || undefined}
+                        onClick={() => {
+                          if (modelState !== 'checking') checkModel()
+                        }}
+                      >
+                        {modelState === 'checking' ? 'checking…' : 'check again'}
                       </button>
                       . You can finish setup either way.
                     </p>
                   )}
-                  {modelState === 'ready' &&
-                    model?.backend === 'local' &&
-                    model.running &&
-                    !model.model_present && (
-                      <p className="kc-wiz-model-action">
-                        The model isn’t pulled yet. Pull{' '}
-                        <code className="kc-mono">{model.model}</code> in Ollama, then{' '}
-                        <button type="button" className="kc-link-btn" onClick={checkModel}>
-                          check again
-                        </button>
-                        .
-                      </p>
-                    )}
+                  {model?.backend === 'local' && model.running && !model.model_present && (
+                    <p className="kc-wiz-model-action">
+                      The model isn’t pulled yet. Pull{' '}
+                      <code className="kc-mono">{model.model}</code> in Ollama, then{' '}
+                      <button
+                        type="button"
+                        className="kc-link-btn"
+                        aria-disabled={modelState === 'checking' || undefined}
+                        onClick={() => {
+                          if (modelState !== 'checking') checkModel()
+                        }}
+                      >
+                        {modelState === 'checking' ? 'checking…' : 'check again'}
+                      </button>
+                      .
+                    </p>
+                  )}
                 </div>
 
                 <div className="kc-wiz-cloud">
@@ -408,15 +422,24 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       {/* Only claim "+ OpenRouter" when it's actually usable — cloud routes only
                           with a key AND a model; a key alone is saved but stays inactive. */}
                       {cloudOn && keyDraft.trim() && cloudModelDraft.trim() ? ' + OpenRouter' : ''}
-                      {!modelOk && modelState !== 'checking' && (
+                      {/* UX-A-001/002: mounted through re-checks (no focus loss, reliable SR
+                          announcement); the button no-ops while checking instead of unmounting. */}
+                      {!modelOk && (
                         <span className="kc-wiz-model-warn kc-wiz-recap-warn" role="status">
                           {' '}
-                          —{' '}
+                          <span className="kc-statdot kc-statdot-warn" aria-hidden="true" />{' '}
                           {model && model.running && !model.model_present
                             ? `not pulled yet — run “ollama pull ${model.model}”, then `
                             : 'not reachable yet — start Ollama, then '}
-                          <button type="button" className="kc-link-btn" onClick={checkModel}>
-                            check again
+                          <button
+                            type="button"
+                            className="kc-link-btn"
+                            aria-disabled={modelState === 'checking' || undefined}
+                            onClick={() => {
+                              if (modelState !== 'checking') checkModel()
+                            }}
+                          >
+                            {modelState === 'checking' ? 'checking…' : 'check again'}
                           </button>
                         </span>
                       )}

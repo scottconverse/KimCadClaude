@@ -416,12 +416,19 @@ class Pipeline:
         slice the oriented mesh into a G-code-bearing 3MF. Raises :class:`SliceError`
         (e.g. when the printer has no process profile); ``run`` catches that and reports
         slicing as unavailable rather than failing the whole job."""
+        # QA-A-002: the binary check precedes profile resolution — profiles are derived
+        # from the binary's path, so a missing tool must not masquerade as a profile error.
+        orca = self.config.binary_path("orcaslicer")
+        if not orca.is_file():
+            from kimcad.errors import ToolMissingError
+
+            raise ToolMissingError("OrcaSlicer", orca)
         settings = resolve_slice_settings(
             self.config.orca_profiles_root(), self.printer, self.material
         )
         return slice_model(
             mesh_path,
-            binary=self.config.binary_path("orcaslicer"),
+            binary=orca,
             out_dir=out_dir,
             settings=settings,
             basename=basename,
@@ -615,8 +622,15 @@ class Pipeline:
         slice_result = None
         slice_error = None
         if confirm_print:
+            from kimcad.errors import ToolMissingError
+
             try:
                 slice_result = self.slicer(mesh_path, out_dir, basename)
+            except ToolMissingError as e:
+                # QA-A-002: a never-fetched OrcaSlicer. The DESIGN succeeded — the mesh is
+                # on disk and downloadable — so report slicing as unavailable with the
+                # recovery hint rather than failing the whole run.
+                slice_error = str(e)
             except OrcaProfileError as e:
                 # A profile gap, not an operational failure: either the printer has no process
                 # profile, or this material isn't available on it. The wrapped message names
