@@ -69,6 +69,7 @@ export default function PhotoOnramp({
   const [errorMsg, setErrorMsg] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const seedRef = useRef<HTMLTextAreaElement>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
   // Lets the user cancel a slow local-vision read (the photo never auto-sends, but the read can take
   // ~15-20s on CPU — they must be able to back out).
   const readAbortRef = useRef<AbortController | null>(null)
@@ -84,6 +85,13 @@ export default function PhotoOnramp({
   // assistive tech (the reading aria-live region is gone) and lets a sighted user edit immediately.
   useEffect(() => {
     if (phase === 'confirm') seedRef.current?.focus()
+  }, [phase])
+
+  // UX-906 (stage-9 gate): a failed read moves focus to the message itself — the seed
+  // field the user was headed for never appeared, and without a focus move a keyboard or
+  // screen-reader user is left where the spinner used to be with no announcement.
+  useEffect(() => {
+    if (phase === 'error') errorRef.current?.focus()
   }, [phase])
 
   function clearPreview() {
@@ -184,6 +192,8 @@ export default function PhotoOnramp({
         >
           {kind === 'sketch' ? <PencilGlyph /> : <CameraGlyph />}
           {copy.affordance}
+          {/* UX-910 (stage-9 gate): the buttons accept drag-and-drop but nothing said so. */}
+          <span className="kc-photo-drophint">— or drop an image here</span>
         </button>
       )}
 
@@ -193,7 +203,9 @@ export default function PhotoOnramp({
           role="group"
           aria-label={
             phase === 'error'
-              ? `Your ${copy.noun} couldn’t be read`
+              ? // UX-909 (stage-9 gate): neutral — the failure may be a missing model or a
+                // busy server, not the image; "couldn't be read" wrongly blames the picture.
+                `Something went wrong reading your ${copy.noun}`
               : phase === 'reading'
                 ? `Reading your ${copy.noun}`
                 : `A rough starting point from your ${copy.noun}`
@@ -227,7 +239,12 @@ export default function PhotoOnramp({
               <div className="kc-photo-row">
                 {previewUrl && <img className="kc-photo-thumb" src={previewUrl} alt="" />}
                 <div className="kc-photo-body">
-                  <span className="kc-photo-title">A rough starting point</span>
+                  {/* UX-903 (stage-9 gate): the visible title names the source too — with two
+                      on-ramps side by side, sighted users need the same disambiguation the
+                      group label already gives assistive tech. */}
+                  <span className="kc-photo-title">
+                    A rough starting point — from your {copy.noun}
+                  </span>
                   {/* UX-102 (stage-BCD gate): ONE privacy line covering both halves of the
                       promise (read locally + not saved) — was two near-duplicate notes. */}
                   <p className="kc-photo-privacy">
@@ -272,7 +289,9 @@ export default function PhotoOnramp({
 
           {phase === 'error' && (
             <>
-              <p className="kc-photo-error-msg" aria-live="polite">{errorMsg}</p>
+              <p className="kc-photo-error-msg" aria-live="polite" tabIndex={-1} ref={errorRef}>
+                {errorMsg}
+              </p>
               <div className="kc-photo-actions">
                 <button type="button" className="kc-btn kc-btn-accent" onClick={openPicker} disabled={disabled}>
                   Use a different {copy.noun}

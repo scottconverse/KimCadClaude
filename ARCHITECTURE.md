@@ -105,8 +105,8 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | `history.py` (Stage 7) | The **Smart Mesh learning store**. A local-first JSON record of built parts (coarse — type / readiness score / gate / material / largest dimension; no geometry, no prompt) at `~/.kimcad/history.json` by default (never the repo). Pure `compare_phrase()` produces the honest "compared to your past parts" line — strictly factual (a personal best needs a strict beat of every prior; a tie reads "on par," never "below"; no history → no line). All best-effort: every degrade path returns cleanly and **never raises**. |
 | `cli.py` | The `kimcad` command — `design` (the default verb for a bare prompt), `bench`, `web`, `models` (the hardware advisor), and `bakeoff` (the model comparison). `design --slice` is the explicit slice confirmation; `design --send <connector>` additionally sends the proven G-code through a connector behind the same confirmation gate (a gate-failed part is never sent; an offline printer is reported and the file is left on disk). Wires already-tested pieces together; turns foreseeable setup problems (bad config, missing key, missing prompt file) and un-parseable model output into a plain-English message and a stable non-zero exit rather than a traceback. |
 | `design_store.py` (Stage 8.5) | The **saved-designs store** ("My Designs"). Local-first, best-effort persistence of each built design under `~/.kimcad/designs/<id>/` (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. `save` / `list` / `get` / `rename` / `delete` / `duplicate` / `export_bytes` / `import_bytes`, all guarded by an ASCII-only `_safe_id` (no path escape) and serialized by a write lock with atomic `os.replace` meta writes (retried on the Windows open-handle race). Import is **zip-slip safe** — only the three known files are read by exact name (never the archive's paths) and a bounded inflated-read rejects a decompression bomb. Every method swallows failures (degrade, never raise), so a persistence miss never breaks a build. |
+| `design_registry.py` (Stage 9) | `DesignRegistry` — the web layer's per-design state, extracted from the webapp closure. One object owns every per-design registry/cache (mesh, G-code, STEP, gate verdict, geometry version, slice cache, template state, snapshot, saved-id) plus the lock and the three load-bearing protocols: lockstep eviction (incl. on-disk cleanup), LRU cap enforcement, and the geometry-version guard that drops a slice landing after a mid-flight re-render. `_locked`-suffixed methods require the caller to hold `reg.lock`. |
 | `webapp.py` | The local web layer (see below). |
-
 `config.py` loads `config/default.yaml` overlaid with an optional, gitignored
 `config/local.yaml`, exposing typed `Printer` / `Material` / `LLMBackend` / `Connector`
 accessors. A `Printer`'s build volume and nozzle may be left blank, to be auto-filled by
@@ -173,6 +173,16 @@ model call); and `POST /api/photo-seed` reads an uploaded photo with the **local
 a rough text seed (never persisted, never logged, never auto-sent). `_SettingsAwareProvider` routes a design prompt to the user's
 opt-in cloud model when configured, but `describe_photo` always builds a dedicated **local** provider,
 so the photo path is unreachable from the cloud-TEXT routing — the photo can't leave the machine.
+
+**Stage 9 additions:** `POST /api/sketch-seed` is the sketch twin of `/api/photo-seed` (a
+dimensioned sketch reads shape + the written sizes, taken as written). Both seeds are read by the
+dedicated **local** vision model `llm.vision_model` (default `qwen2.5vl:3b` — gemma4:e4b's vision
+is broken on this stack; see `docs/benchmarks/stage-9-vision-onramps.md`), with a structural
+loopback-only guard before any image leaves the process and typed failures: a missing model
+returns `{"status": "model_unavailable"}` with the exact pull command, and a non-404 read failure
+maps to a friendly try-again message. `/api/model-status` reports the vision model's presence
+alongside the design model's. Per-design server state moved into `DesignRegistry`
+(`design_registry.py`).
 
 **The browser UI is a React + TypeScript SPA** (Stage 4), compiled by Vite from `frontend/`
 into `src/kimcad/web/` (`index.html` + `assets/`). Node/Vite are **build-time only** — the

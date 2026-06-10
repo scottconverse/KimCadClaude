@@ -52,12 +52,28 @@ class VisionModelMissing(Exception):
     """The dedicated local vision model isn't pulled (Ollama answered 404 for it).
 
     Stage 9: a setup state with an exact recovery command — the web layer maps it to a
-    typed response so the UI never blames the user's image for a missing model."""
+    typed response so the UI never blames the user's image for a missing model.
+    (UX-904: plain copy, no backticks/jargon — this string renders in the on-ramp card.)"""
 
     def __init__(self, model: str):
         self.model = model
         super().__init__(
-            f"KimCad's vision model isn't pulled yet. Run `ollama pull {model}`, then try again."
+            "KimCad's image-reading model isn't downloaded yet. In a terminal, run: "
+            f"ollama pull {model} — then try again."
+        )
+
+
+class VisionReadError(Exception):
+    """The local vision backend errored (a non-404 HTTPError: 5xx OOM loading the model,
+    429, a runner crash). ENG-001 (stage-9 gate): an infrastructure hiccup must never be
+    blamed on the user's image — the web layer maps this to a typed try-again response
+    and logs the detail server-side."""
+
+    def __init__(self, code: int):
+        self.code = code
+        super().__init__(
+            "Your local AI had trouble reading the image just now (it may still be "
+            "loading). Wait a moment and try again."
         )
 
 
@@ -374,6 +390,14 @@ class LLMProvider:
             if parts.scheme and parts.netloc
             else self.backend.base_url.rstrip("/").removesuffix("/v1") + "/api/chat"
         )
+        # ENG-002 (stage-9 gate): "the image never leaves the machine" is enforced HERE,
+        # structurally — not only by the router convention upstream. A cloud backend's
+        # base_url would fail this check before any image byte is built into a request.
+        host = (urlsplit(chat_url).hostname or "").lower()
+        if host not in ("localhost", "127.0.0.1", "::1") and not host.startswith("127."):
+            raise RuntimeError(
+                f"vision reads are local-only by design; refusing non-local host {host!r}"
+            )
         system = _load_prompt(prompt_name).replace(
             "{constraints}", build_constraints_block(printer, material)
         )
@@ -399,15 +423,26 @@ class LLMProvider:
         req = urllib.request.Request(
             chat_url, data=body, headers={"Content-Type": "application/json"}
         )
+        # QA-902 (stage-9 gate, documented limitation): this is a synchronous read on the
+        # request thread — if the CLIENT aborts (the on-ramp's Cancel), the thread only
+        # notices when it writes the response, so the model finishes the abandoned read and
+        # an immediate retry queues behind it (~3x latency once, measured). Propagating
+        # cancellation into Ollama would need an async transport; accepted for the beta —
+        # the disconnect itself is handled quietly (webapp handle_error).
         try:
             with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
                 data = json.load(r)
         except urllib.error.HTTPError as e:
-            if e.code == 404:
-                # The vision model isn't pulled — a setup state with an exact recovery
-                # command, never "your image was unreadable".
-                raise VisionModelMissing(self.backend.vision_model) from e
-            raise
+            try:
+                if e.code == 404:
+                    # The vision model isn't pulled — a setup state with an exact recovery
+                    # command, never "your image was unreadable".
+                    raise VisionModelMissing(self.backend.vision_model) from e
+                # ENG-001 (stage-9 gate): any OTHER backend error (5xx OOM on the
+                # constrained box, 429, runner crash) is infrastructure, not a bad image.
+                raise VisionReadError(e.code) from e
+            finally:
+                e.close()  # ENG-005: don't leak the error response's socket/fp
         seed = _strip_fences(((data.get("message") or {}).get("content") or "").strip())
         if not seed:
             print(

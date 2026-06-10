@@ -690,7 +690,6 @@ def make_handler(
     gcode_registry = reg.gcode
     step_registry = reg.step
     gate_status_by_rid = reg.gate_status
-    geometry_version = reg.geometry_version
     slice_cache = reg.slice_cache
     template_state = reg.template_state
     design_snapshot = reg.snapshot
@@ -762,9 +761,6 @@ def make_handler(
         store = get_settings_store()
         return store.all() if store is not None else {}
 
-    # ENG-004 (Stage 9): the lockstep eviction lives on DesignRegistry — one method, can't
-    # be partially forgotten. Same call-under-lock contract as before.
-    _evict = reg.evict_locked
 
     class Handler(BaseHTTPRequestHandler):
         # QA-002: bound socket reads so a stalled/partial body (slowloris) can't pin a
@@ -1160,6 +1156,11 @@ def make_handler(
                 "model": model_name,
                 "backend": "local" if is_local else "cloud",
             }
+            # UX-902 (stage-9 gate): the photo/sketch on-ramps depend on a SECOND local model —
+            # the wizard's "everything's ready" verdict and the health pill must check it too,
+            # or a user without it ships straight into the on-ramps' failure path.
+            vision_model = (backend.vision_model if backend else "") or "qwen2.5vl:3b"
+            payload["vision_model"] = vision_model
             if is_local:
                 from kimcad.model_advisor import probe_ollama
 
@@ -1172,11 +1173,18 @@ def make_handler(
                 present = any(n == model_name or n.startswith(model_name + "-") for n in names)
                 payload["running"] = running
                 payload["model_present"] = present
+                payload["vision_present"] = any(
+                    n == vision_model or n.startswith(vision_model + "-") for n in names
+                )
             else:
                 # A cloud backend is "ready" when configured; reachability isn't probed in-band (it
                 # would need the key). MS-3 surfaces the cloud label + key state separately.
                 payload["running"] = True
                 payload["model_present"] = True
+                # The vision read is ALWAYS local (images never leave the machine), so even on a
+                # cloud chat backend the on-ramps still need the local model; without a local
+                # probe we can't know, and claiming present would be dishonest — omit the field
+                # and let the UI treat unknown as "don't warn".
             self._json(200, payload)
 
         def _handle_settings_post(self) -> None:
@@ -1389,10 +1397,16 @@ def make_handler(
                 # the user's shot for a dead Ollama is the trust-breaking wrong message.
                 # Stage 9: same for a MISSING vision model — a setup state with an exact
                 # recovery command, never "try a clearer shot".
-                from kimcad.llm_provider import VisionModelMissing
+                from kimcad.llm_provider import VisionModelMissing, VisionReadError
                 from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
 
                 if isinstance(e, VisionModelMissing):
+                    self._json(200, {"status": "model_unavailable", "error": str(e)})
+                    return
+                if isinstance(e, VisionReadError):
+                    # ENG-001 (stage-9 gate): backend hiccup, not a bad image — typed
+                    # try-again for the user, the detail to the server log.
+                    self.log_error("vision read failed: HTTP %s", e.code)
                     self._json(200, {"status": "model_unavailable", "error": str(e)})
                     return
                 if _is_model_unreachable(e):
@@ -1425,10 +1439,16 @@ def make_handler(
             except Exception as e:  # noqa: BLE001 - never leak a traceback; vision is best-effort
                 # QA-A-003: same as the photo path — a down model is not a bad sketch, and a
                 # missing vision model (Stage 9) gets the exact pull command.
-                from kimcad.llm_provider import VisionModelMissing
+                from kimcad.llm_provider import VisionModelMissing, VisionReadError
                 from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
 
                 if isinstance(e, VisionModelMissing):
+                    self._json(200, {"status": "model_unavailable", "error": str(e)})
+                    return
+                if isinstance(e, VisionReadError):
+                    # ENG-001 (stage-9 gate): backend hiccup, not a bad image — typed
+                    # try-again for the user, the detail to the server log.
+                    self.log_error("vision read failed: HTTP %s", e.code)
                     self._json(200, {"status": "model_unavailable", "error": str(e)})
                     return
                 if _is_model_unreachable(e):
@@ -1839,7 +1859,7 @@ def make_handler(
                 gate_failed = gate_status_by_rid.get(rid) == "fail"
                 # ENG-001: remember which geometry version we're about to slice, so a re-render
                 # landing mid-slice can invalidate this result at register time.
-                sliced_ver = geometry_version.get(rid, 0)
+                sliced_ver = reg.version_locked(rid)
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "Design the part first, then send it to a printer."})
                 return
@@ -2009,6 +2029,21 @@ class _ExclusiveBindServer(ThreadingHTTPServer):
 
     if sys.platform == "win32":
         allow_reuse_address = False
+
+    def handle_error(self, request, client_address):  # noqa: ANN001 - base signature
+        """QA-901 (stage-9 gate): a client that disconnects mid-response — the on-ramp's
+        Cancel button aborts the fetch during a 7-30s vision read, a tab close, a refresh —
+        is a NORMAL event, not a server error. The base class prints a full traceback for
+        every one; suppress just the disconnect classes (one quiet line), keep real errors
+        loud."""
+        import sys as _sys
+
+        exc = _sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            print(f"[kimcad] client disconnected mid-response ({client_address[0]})",
+                  file=_sys.stderr)
+            return
+        super().handle_error(request, client_address)
 
 
 def serve(

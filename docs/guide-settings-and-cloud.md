@@ -13,9 +13,13 @@ produce a print file yet.
 
 ## The AI model
 
-A health readout, not a menu: KimCad runs one tested local model (`gemma4:e4b` via
-Ollama). Settings shows whether it's running and pulled, with a re-check button — the
-same status the start page and setup wizard show.
+A health readout, not a menu: KimCad runs two tested local models, both via Ollama —
+`gemma4:e4b`, which designs your parts, and a small dedicated vision model
+(`qwen2.5vl:3b`) that reads photos and sketches. Settings shows whether Ollama is running
+and the design model is pulled, with a re-check button — the same status the start page
+and setup wizard show. `kimcad models` in a terminal (or the setup wizard) confirms both
+models at once; if photos and sketches fail while everything else works, the vision model
+is the one to check (`ollama pull qwen2.5vl:3b`).
 
 ## Cloud acceleration (optional — off by default)
 
@@ -24,8 +28,8 @@ design requests to a bigger model through OpenRouter, which can help with unusua
 at a privacy cost you should make knowingly:
 
 - **What it sends, when enabled and configured:** the text of your design request (your
-  prompt and the conversation around it). **Never your photo** — the photo on-ramp always
-  stays local. Nothing is sent until you've turned the toggle on, saved a key, *and*
+  prompt and the conversation around it). **Never your photo or sketch** — the image
+  on-ramps always stay local, read by the local vision model. Nothing is sent until you've turned the toggle on, saved a key, *and*
   chosen a cloud model.
 - **What it costs:** OpenRouter bills your key per request. KimCad doesn't meter or cap it.
 - **Where your key lives:** in **Windows Credential Manager** — your computer's secure

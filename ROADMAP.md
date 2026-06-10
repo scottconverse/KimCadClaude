@@ -62,10 +62,13 @@ and tagged `stage-8.5`** (slices 1–11 each `audit-lite` 0/0/0/0/0; the full 5-
 `wiring-audit` stage gate + remediation closed at 0/0/0/0/0). **Stage 8 (CadQuery parallel
 backend) is DONE — merged to `main` and tagged `stage-8`** (5 slices, each `audit-lite` 0/0/0/0/0;
 the 5-role `audit-team` stage gate + two independent re-audit lanes closed at 0/0/0/0/0; an
-arm's-length 3.13 worker, mutual OpenSCAD↔CadQuery fallback, STEP export). **Next = Stage 9
-(image/sketch on-ramp).**
+arm's-length 3.13 worker, mutual OpenSCAD↔CadQuery fallback, STEP export). **Stage 9 (image &
+sketch on-ramps) is DONE — merged to `main` and tagged `stage-9`** (sketch + photo reads on a
+dedicated working local vision model `qwen2.5vl:3b` — gemma4:e4b's vision measured broken on this
+stack; photo→3D reconstruction honestly descoped per the exit criterion; live walkthrough + 5-role
+audit-team gate remediated to 0/0/0/0/0). **Next = Stage 10 (direct-print UI + Bambu-native).**
 
-Still ahead before beta: image on-ramp (Stage 9), direct-print UI + Bambu-native
+Still ahead before beta: direct-print UI + Bambu-native
 (Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
 — that's after Stage 11, at Kim's.**
 
@@ -269,7 +272,7 @@ that can lift the pass rate as a fallback (the union of two generators — measu
 to a fixed number). All slices built + per-slice audited; stage gate + re-audit at 0/0/0/0/0;
 merged to `main`, tagged `stage-8`.
 
-## Stage 9 — Image & sketch on-ramp (opt-in, experimental)
+## Stage 9 — Image & sketch on-ramp (opt-in, experimental) ✅ DONE (tagged `stage-9`)
 **Goal:** a photo or dimensioned sketch seeds an editable, validated plan — **opt-in only**, honest
 about the hardware.
 - **Sketch path first** (a small vision model reads shape + written dimensions into the DesignPlan;
@@ -280,6 +283,12 @@ about the hardware.
   printed raw.
 **Exit:** sketch→plan working on-target; photo→plan working *or* honestly marked not-viable on this
 hardware. **Needs:** target box. **Size:** sketch ~1–2 weeks; photo unknown until measured.
+**EXIT MET (2026-06-10):** sketch→plan works on-target (5/5 end-to-end read through the real
+`/api/sketch-seed`, ~28 s on the target CPU); the photo→seed path also ships (working, sizes as
+estimates) on the dedicated local vision model `qwen2.5vl:3b` — adopted after measuring
+gemma4:e4b's vision broken on this stack; **photo→3D mesh reconstruction took the
+honestly-marked-not-viable branch** of this exit criterion for this hardware (measurements +
+verdict: `docs/benchmarks/stage-9-vision-onramps.md`; reproduce via `scripts/bench_vision.py`).
 
 ## Stage 10 — Direct-print UI + Bambu-native + first-run wizard
 **Goal:** the full direct-print experience in the SPA, plus the missing connector and onboarding.

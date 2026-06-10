@@ -301,8 +301,12 @@ export default function ChatPanel({
               shouldn't discover Enter-sends by accidentally firing a half-written request. */}
           <span className="kc-key-hint">Enter to send · Shift+Enter for a new line</span>
           {/* Slice 7: start a fresh part from a photo (a rough local-vision seed). Secondary to the
-              refine input; using it begins a new design from the seed. */}
-          <PhotoOnramp onSeed={onPhotoSeed} disabled={busy} variant="workspace" />
+              refine input; using it begins a new design from the seed. UX-907 (stage-9 gate): the
+              sketch on-ramp sits beside it — same pair as the landing, not a landing-only secret. */}
+          <div className="kc-onramps kc-onramps-workspace">
+            <PhotoOnramp onSeed={onPhotoSeed} disabled={busy} variant="workspace" kind="photo" />
+            <PhotoOnramp onSeed={onPhotoSeed} disabled={busy} variant="workspace" kind="sketch" />
+          </div>
         </div>
       )}
     </aside>

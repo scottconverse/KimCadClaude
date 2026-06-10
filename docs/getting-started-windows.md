@@ -11,7 +11,7 @@ as you should type it.
 
 ## What you'll need
 
-- A Windows 10/11 PC with about **15 GB free disk space** (most of it for the AI model)
+- A Windows 10/11 PC with about **20 GB free disk space** (most of it for the two AI models)
   and ideally 16 GB+ of RAM.
 - An internet connection for the downloads. (After setup, KimCad runs fully offline.)
 

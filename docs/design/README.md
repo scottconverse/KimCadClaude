@@ -13,6 +13,13 @@
 >   **gemma4:e4b's local vision** by default and never auto-sends. Any cloud vision path is strictly
 >   opt-in and labeled at the point of use. Cloud (OpenRouter) is OFF by default everywhere.
 >
+> **Stage 9 correction (2026-06-10) to the vision half of the above:** gemma4:e4b's vision is
+> **broken on this stack** (measured — it deterministically hallucinates and reports "no visible
+> image was provided"; see `docs/benchmarks/stage-9-vision-onramps.md`). Images are read by a
+> dedicated small LOCAL vision model, **`qwen2.5vl:3b`** (config `llm.vision_model`), in the same
+> Ollama. The local-only promise is unchanged; gemma4:e4b remains THE design model and the
+> no-model-menu rule stands — the vision model is a companion, never an alternative.
+>
 > Everything else in this doc (layout, Workshop tokens, states, copy craft) remains the build target.
 > The controlling spec (`KimCad-Unified-Product-Spec-v3.0.md`) carries the same corrections.
 
@@ -53,7 +60,7 @@ Your task is to **recreate these designs in the target codebase’s environment*
 | `kcSmartMesh()` canned score/history | Smart Mesh: PrintProof3D per-run + local history store (§6.12) |
 | `kcEstimate()` volume math | Real OrcaSlicer output (time/filament) (§6.9) |
 | `kcOpenSCAD()` returns display text | Deterministic template → OpenSCAD/CadQuery render (§6.3) |
-| Photo on-ramp “analyzing” timeout | Vision-LLM via OpenRouter / local Gemma (§6.10) |
+| Photo on-ramp “analyzing” timeout | LOCAL vision model `qwen2.5vl:3b` (§6.10; Stage 9 correction above) |
 | Print dialog “sending” timeout | PrintProof3D printer adapters (§6.11) |
 | `localStorage` for setup-done flag | App config / settings store (§6.13) |
 

@@ -86,3 +86,40 @@ def test_bump_drops_old_gcode_and_cached_slices(tmp_path):
         # Safety: the old shape can't be downloaded or sent after the part re-shaped.
         assert rid not in reg.gcode
         assert (rid, "p", "m") not in reg.slice_cache
+
+
+def test_eviction_clears_the_mesh_itself(tmp_path):
+    """TEST-002 (stage-9 gate): evict_locked must pop `meshes` too — leaving the mesh
+    while the gate verdict vanished was FAIL-OPEN (the slice gate treats a missing verdict
+    as not-failed)."""
+    reg = _reg(tmp_path)
+    rid = reg.new_rid()
+    with reg.lock:
+        reg.meshes[rid] = Path("m.stl")
+        reg.gate_status[rid] = "fail"
+        reg.evict_locked(rid)
+    assert rid not in reg.meshes  # the mesh is gone WITH its verdict — fail-closed
+
+
+def test_evict_is_idempotent_and_tolerates_unknown_rids(tmp_path):
+    """TEST-006: double-evict and never-registered rids are no-ops, never errors."""
+    reg = _reg(tmp_path)
+    with reg.lock:
+        reg.evict_locked(424242)  # never registered
+        rid = 7
+        reg.meshes[rid] = Path("m.stl")
+        reg.evict_locked(rid)
+        reg.evict_locked(rid)  # again — idempotent
+    assert rid not in reg.meshes
+
+
+def test_slice_cache_cap_actually_evicts(tmp_path):
+    """TEST-006: the cache cap demonstrably drops the oldest entry."""
+    reg = _reg(tmp_path)
+    rid = reg.new_rid()
+    with reg.lock:
+        v = reg.version_locked(rid)
+        for i in range(3):
+            assert reg.cache_slice_locked(rid, (rid, f"p{i}", "m"), {}, None, v, max_cache=2)
+    assert (rid, "p0", "m") not in reg.slice_cache  # oldest evicted
+    assert (rid, "p2", "m") in reg.slice_cache

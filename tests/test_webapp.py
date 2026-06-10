@@ -1195,6 +1195,26 @@ def test_evicted_design_dir_is_removed_from_disk(tmp_path, monkeypatch):
                     data=json.dumps({"prompt": "a box"}).encode(),
                     headers={"Content-Type": "application/json"},
                 ), timeout=30)
+        # TEST-003 (stage-9 gate): pin the lockstep eviction THROUGH the routes, so a
+        # silent rebinding of any transitional alias (step_registry, design_snapshot,
+        # rid_saved_id, …) fails a route test instead of leaking state quietly.
+        import urllib.error
+
+        for path in ("/api/mesh/1", "/api/step/1"):
+            try:
+                urllib.request.urlopen(base + path, timeout=10)
+                raise AssertionError(f"{path} should be 404 after eviction")
+            except urllib.error.HTTPError as e:
+                assert e.code == 404
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + "/api/designs/save",
+                data=json.dumps({"design_id": 1, "name": "ghost"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("saving an evicted design should fail")
+        except urllib.error.HTTPError as e:
+            assert e.code in (400, 404)  # the snapshot is gone with the design
     assert not (tmp_path / "1").exists()  # evicted dir cleaned up
     assert (tmp_path / "3").exists()      # newest survives
 

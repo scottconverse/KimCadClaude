@@ -330,6 +330,11 @@ export interface ModelStatus {
   backend: 'local' | 'cloud'
   running: boolean
   model_present: boolean
+  // UX-902 (stage-9 gate): the photo/sketch on-ramps run on a SECOND local model. Optional —
+  // a cloud chat backend can't probe the local vision model in-band, so absence means
+  // "unknown, don't warn", never "missing".
+  vision_model?: string
+  vision_present?: boolean
 }
 
 export function getModelStatus(): Promise<ModelStatus> {

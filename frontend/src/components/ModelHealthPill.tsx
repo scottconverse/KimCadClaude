@@ -24,12 +24,17 @@ export default function ModelHealthPill() {
 
   useEffect(() => check(), [check])
 
+  // UX-902 (stage-9 gate): the photo/sketch on-ramps use a SECOND local model — warn when
+  // it's missing too (vision_present === false; absent/undefined means unknown, stay quiet),
+  // or the user only learns at the moment their image fails.
   const problem =
     model !== null && model.backend !== 'cloud' && !(model.running && model.model_present)
       ? !model.running
         ? 'Your local AI isn’t running yet — start Ollama to design.'
         : `The model isn’t pulled yet — run “ollama pull ${model.model}” first.`
-      : null
+      : model !== null && model.backend !== 'cloud' && model.vision_present === false
+        ? `Photos and sketches need one more download — run “ollama pull ${model.vision_model}” to use them. Designing in words works now.`
+        : null
   if (problem) everWarned.current = true
 
   if (!problem) {

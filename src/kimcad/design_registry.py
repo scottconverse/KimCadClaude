@@ -9,8 +9,8 @@ protocols the 2026-06-09 audit flagged as "correct but enforced by comments":
    the full lockstep eviction (:meth:`enforce_caps_locked`).
 3. **The geometry-version protocol** — a re-render bumps the version; a slice captures the
    version it sliced and is registered ONLY if it still matches (:meth:`bump_version_locked`
-   / :meth:`try_register_slice`), so a re-render landing mid-slice can never leave stale
-   G-code registered.
+   / :meth:`register_gcode_locked` / :meth:`cache_slice_locked`), so a re-render landing
+   mid-slice can never leave stale G-code registered.
 
 Methods suffixed ``_locked`` REQUIRE ``self.lock`` to be held (they run inside the
 handlers' existing multi-field transactions); the others take the lock themselves.
@@ -74,15 +74,22 @@ class DesignRegistry:
             return next(self._counter)
 
     def next_mesh_version(self) -> int:
-        """Cache-busting suffix for a re-rendered mesh file name. Caller holds the lock
-        when used inside a transaction; the counter itself is GIL-atomic."""
+        """Cache-busting suffix for a re-rendered mesh URL. Uniqueness is all the cache
+        buster needs; the only call site runs inside a ``with reg.lock:`` transaction
+        (ENG-004, stage-9 gate: no free-standing atomicity claim — the lock is the
+        guarantee)."""
         return next(self._version_counter)
 
     # --- protocol 1+2: eviction in lockstep + cap enforcement ------------------------
 
     def evict_locked(self, rid: int) -> None:
-        """QA-003: drop ``rid`` from EVERY registry/cache AND remove its on-disk dir.
-        REQUIRES ``self.lock`` held (runs inside the handlers' transactions)."""
+        """QA-003: drop ``rid`` from EVERY registry/cache — ``meshes`` included (TEST-002,
+        stage-9 gate: leaving the mesh behind while the gate verdict vanished was a
+        fail-open seam, since the slice gate treats a MISSING verdict as not-failed) —
+        AND remove its on-disk dir. Idempotent. REQUIRES ``self.lock`` held (runs inside
+        the handlers' transactions; ``enforce_caps_locked`` pops the mesh first, which the
+        ``pop(rid, None)`` here tolerates)."""
+        self.meshes.pop(rid, None)
         self.gcode.pop(rid, None)
         self.step.pop(rid, None)
         self.gate_status.pop(rid, None)

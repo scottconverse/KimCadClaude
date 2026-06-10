@@ -2783,8 +2783,30 @@ input {
 .kc-onramps .kc-photo-onramp {
   min-width: 0;
 }
-.kc-onramps .kc-photo-card {
-  flex-basis: 100%;
+/* UX-901 (stage-9 gate): the Stage-8.5 single-on-ramp widths (.kc-photo-landing 100%,
+   .kc-photo-workspace flex 1 0 100%) defeated this row — each on-ramp filled it, stacking
+   the pair. Inside .kc-onramps an IDLE on-ramp shrinks to its affordance; once a card
+   opens (:has) that on-ramp takes the full row, wrapping its sibling below it. */
+.kc-onramps .kc-photo-onramp.kc-photo-landing {
+  width: auto;
+  margin-top: 0;
+}
+.kc-onramps .kc-photo-onramp.kc-photo-workspace {
+  flex: 0 1 auto;
+  margin-top: 0;
+}
+.kc-onramps .kc-photo-onramp:has(.kc-photo-card) {
+  width: 100%;
+  flex: 1 0 100%;
+}
+/* Landing: the row keeps the old on-ramp block's offset under the prompt card. */
+.kc-onramps {
+  margin-top: 14px;
+}
+/* Workspace (UX-907): the pair sits on its own line at the foot of the refine row. */
+.kc-onramps-workspace {
+  flex: 1 0 100%;
+  margin-top: 2px;
 }
 
 /* UX-101 (stage-BCD gate): the app's own confirm dialog (replaces window.confirm). */
@@ -3195,6 +3217,18 @@ input {
 .kc-photo-affordance:focus-visible {
   outline: 2px solid var(--kc-accent);
   outline-offset: 2px;
+}
+/* UX-910 (stage-9 gate): the affordances accept drag-and-drop — say so, quietly. Hidden on
+   touch devices, where there's nothing to drag from. */
+.kc-photo-drophint {
+  color: color-mix(in srgb, var(--kc-muted) 78%, transparent);
+  font-weight: 400;
+  font-size: 12px;
+}
+@media (pointer: coarse) {
+  .kc-photo-drophint {
+    display: none;
+  }
 }
 
 .kc-photo-card {

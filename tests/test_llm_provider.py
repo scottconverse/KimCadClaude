@@ -321,3 +321,44 @@ def test_missing_vision_model_raises_typed_with_pull_command(monkeypatch):
     except VisionModelMissing as e:
         assert "ollama pull" in str(e)
         assert BACKEND.vision_model in str(e)
+
+
+def test_non_404_vision_http_error_is_a_read_error_not_missing_model(monkeypatch):
+    """TEST-004 (stage-9 gate): a 5xx/429 from Ollama must NOT masquerade as a missing
+    model (wrong advice) — it maps to VisionReadError ("try again in a moment")."""
+    import urllib.error
+
+    import kimcad.llm_provider as lp
+    from kimcad.llm_provider import VisionModelMissing, VisionReadError
+
+    def _500(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 500, "model runner crashed", {}, None)
+
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _500)
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"))
+    try:
+        provider.describe_photo(b"png-bytes", BAMBU, PLA)
+        raise AssertionError("expected VisionReadError")
+    except VisionModelMissing:
+        raise AssertionError("a 500 must not claim the model is missing")
+    except VisionReadError as e:
+        assert e.code == 500
+        assert "try again" in str(e).lower()
+
+
+def test_vision_refuses_a_non_local_host_structurally(monkeypatch):
+    """ENG-002 (stage-9 gate): the image-stays-local promise is enforced INSIDE the
+    transport — a cloud base_url is refused before any request is built."""
+    from kimcad.config import LLMBackend
+
+    cloud = LLMBackend(
+        key="cloud", provider="openrouter", base_url="https://openrouter.ai/api/v1",
+        model_name="x", api_key_env=None, temperature=0.2, max_tokens=100,
+        supports_structured_output=True,
+    )
+    provider = LLMProvider(cloud, client=FakeChatClient("unused"))
+    try:
+        provider.describe_photo(b"png-bytes", BAMBU, PLA)
+        raise AssertionError("expected refusal")
+    except RuntimeError as e:
+        assert "local-only" in str(e)

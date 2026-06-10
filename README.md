@@ -24,7 +24,11 @@ CAD export** — see *Optional: the CadQuery backend*, below.
 > start a design by **describing it with a photo** — read by the local vision model into a rough,
 > editable starting point that never leaves your machine. **Stage 8 (the CadQuery parallel backend
 > — mutual OpenSCAD↔CadQuery fallback + STEP export) is done — merged to `main` and tagged
-> `stage-8`.** Next up: an image/sketch on-ramp (Stage 9), a direct-print UI (Stage 10), and a
+> `stage-8`.** **Stage 9 (image & sketch on-ramps) is done — merged to `main` and tagged
+> `stage-9`:** both on-ramps now run on a dedicated, *working* local vision model
+> (`qwen2.5vl:3b` — the second pull in Setup below; the photo path's Stage 8.5 wiring never
+> worked against the real model), and a new **start from a sketch** path reads written
+> dimensions as written (`docs/guide-photo-onramp.md`). Next up: a direct-print UI (Stage 10) and a
 > Windows installer + beta gate (Stage 11). Real-hardware print validation on Kim's printers is the
 > final stage — see ROADMAP.
 

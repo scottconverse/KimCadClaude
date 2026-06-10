@@ -487,3 +487,34 @@ def test_bakeoff_does_not_mutate_config(monkeypatch, tmp_path):
     code = cli._cmd_bakeoff(cfg, _Args())
     assert code == 0
     assert cfg.raw == before  # the bake-off only reads + recommends; it never writes config
+
+
+def test_models_reports_the_vision_model_state(monkeypatch, capsys):
+    """TEST-005 (stage-9 gate): the vision line is asserted, not just executed — both the
+    installed and not-installed wordings."""
+    from types import SimpleNamespace
+
+    import kimcad.model_advisor as adv
+
+    monkeypatch.setattr(adv, "probe_hardware", lambda: SimpleNamespace(summary=lambda: "hw"))
+    monkeypatch.setattr(
+        adv, "recommend",
+        lambda hw, installed: SimpleNamespace(
+            primary=None, installed=False, reason="r", upgrade=None,
+            non_china_alternative=None, non_china_installed=False,
+        ),
+    )
+    # Installed case: the probe reports the exact vision tag.
+    monkeypatch.setattr(
+        adv, "probe_installed_models",
+        lambda url: [SimpleNamespace(name="qwen2.5vl:3b", size_gb=3.2)],
+    )
+    assert main(["models"]) == 0
+    out = capsys.readouterr().out
+    assert "Vision model (photo/sketch on-ramps): qwen2.5vl:3b  (installed)" in out
+
+    # Not-installed case: the exact pull command is shown.
+    monkeypatch.setattr(adv, "probe_installed_models", lambda url: [])
+    assert main(["models"]) == 0
+    out = capsys.readouterr().out
+    assert "NOT installed -- ollama pull qwen2.5vl:3b" in out

@@ -1,6 +1,6 @@
 # Stage 9 — Vision on-ramps: on-target measurements and the photo→3D verdict
 
-**Date:** 2026-06-10 · **Box:** the target hardware (AMD 780M iGPU, ~32 GB RAM, CPU inference) · **Ollama:** 0.30.6 · **Method:** synthetic dimensioned sketches (PIL-drawn, Arial labels) POSTed through KimCad's real `/api/sketch-seed` on a live real-mode server, plus raw `/api/chat` isolation probes. Harness scripts live outside the repo (audit scratch); every number below is a real timed run on this machine.
+**Date:** 2026-06-10 · **Box:** the target hardware (AMD 780M iGPU, ~32 GB RAM, CPU inference) · **Ollama:** 0.30.6 · **Method:** synthetic dimensioned sketches (PIL-drawn, Arial labels) POSTed through KimCad's real `/api/sketch-seed` on a live real-mode server, plus raw `/api/chat` isolation probes. Every number below is a real timed run on this machine; the harness is committed as `scripts/bench_vision.py` (see `How to re-run` at the end).
 
 ## Finding 1 — gemma4:e4b's vision is BROKEN on this stack (Critical)
 
@@ -63,3 +63,19 @@ the 780M**. Verdict: **descoped.**
 ## Disk/footprint note
 qwen2.5vl:3b adds ~3.2 GB beside gemma4:e4b's 9.6 GB. moondream (1.7 GB) was a diagnostic
 pull only and can be removed (`ollama rm moondream`).
+
+## How to re-run
+
+The probes are committed (`scripts/bench_vision.py`; needs `pip install pillow` to draw the
+images — not a KimCad runtime dependency). With Ollama running:
+
+```
+python scripts/bench_vision.py sanity --model gemma4:e4b     # reproduces Finding 1 (misread)
+python scripts/bench_vision.py sanity --model qwen2.5vl:3b   # reproduces Finding 2 (read)
+kimcad web --port 8702          # a REAL-mode server in another terminal
+python scripts/bench_vision.py sketch --server http://127.0.0.1:8702   # end-to-end, timed
+```
+
+Fonts and antialiasing differ per box, so expect equivalent reads, not byte-identical
+phrasing; what must reproduce is which labels are read (sanity: triangle + WORLD; sketch:
+>=3 of the 4 written dimensions) and the order-of-magnitude timing.

@@ -25,6 +25,38 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 9 — Image & sketch on-ramps on a working local vision model — DONE (merged to `main`,
+  tagged `stage-9`).**
+  - **⚠ Setup-requirements change (upgrading from `stage-8.5`):** KimCad now needs a SECOND local
+    model — `ollama pull qwen2.5vl:3b` (~3.2 GB) — for the photo and sketch on-ramps. Designing in
+    words works without it; the wizard, health pill, `kimcad models`, and both image endpoints all
+    say so with the exact pull command if it's missing.
+  - **Fixed (Critical): the photo on-ramp never worked against the real model.** gemma4:e4b's
+    vision is broken on this stack — identical deterministic hallucination for any image, and "no
+    visible image was provided" with thinking enabled (measured; harness committed at
+    `scripts/bench_vision.py`, evidence in `docs/benchmarks/stage-9-vision-onramps.md`). Every
+    working Stage 8.5 photo impression came from demo mode — this corrects the Stage 8.5 entry's
+    "reads a photo with gemma4:e4b's local vision" line below. Images are now read by a dedicated
+    small local vision model (`llm.vision_model`, default `qwen2.5vl:3b`, config-overridable):
+    5/5 end-to-end sketch read in ~28 s on the target CPU.
+  - **New: the "start from a sketch" on-ramp** (`POST /api/sketch-seed` + the SPA affordance beside
+    the photo one, on the landing page and in the workspace). A dimensioned sketch reads shape +
+    the written sizes **as written** (a photo's sizes stay estimates); same editable-seed confirm
+    flow, same local-only promise, same 12 MB cap. Guide: `docs/guide-photo-onramp.md` (now covers
+    both on-ramps).
+  - **Trust boundary hardened:** a structural loopback-only guard refuses to send an image to any
+    non-local host (the local-only promise is enforced in the transport, not just by configuration),
+    and the vision read has typed failures — a missing model returns `model_unavailable` + the pull
+    command (never "your image was unreadable"); a non-404 read error maps to a friendly try-again
+    message. `/api/model-status` reports the vision model alongside the design model.
+  - **Photo→3D mesh reconstruction descoped** for this hardware after evaluation — ROADMAP Stage 9's
+    "honestly marked not-viable" exit branch, taken with the measurements in the benchmark doc.
+  - **Internal: `DesignRegistry`** (`src/kimcad/design_registry.py`) extracts the web layer's
+    per-design state + its three locking protocols (lockstep eviction, LRU caps, the
+    geometry-version stale-slice guard) out of the webapp closure into a tested class.
+  - Stage gate: per-slice `audit-lite` 0/0/0/0/0; live `/walkthrough` (real browser, real vision
+    model) clean; 5-role `audit-team` (32 findings: 0 Blocker / 0 Critical / 10 Major / 17 Minor /
+    5 Nit) fully remediated to 0/0/0/0/0 — package in `docs/audits/stage-9/`.
 - **Stage A — first-run hardening (beta-readiness remediation, 2026-06-10).** The most likely
   non-developer first-run failures now end in one friendly, actionable line on every surface —
   never a traceback or a silent multi-minute hang. Typed `ToolMissingError` (new

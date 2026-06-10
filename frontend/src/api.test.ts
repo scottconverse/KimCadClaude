@@ -22,6 +22,7 @@ import {
   reopenDesign,
   saveDesign,
   uploadPhoto,
+  uploadSketch,
 } from './api'
 
 afterEach(() => {
@@ -189,6 +190,54 @@ describe('uploadPhoto (Slice 7)', () => {
     }))
     const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
     await expect(uploadPhoto(file)).rejects.toThrow(/unreadable/i)
+  })
+})
+
+// TEST-001 (stage-9 gate): uploadSketch is a separate transport function — its endpoint, size
+// cap, abort plumbing, and error mapping were untested (the component tests mock it away).
+describe('uploadSketch (Stage 9)', () => {
+  const file = () => new File([new Uint8Array([1, 2, 3])], 's.png', { type: 'image/png' })
+
+  it('POSTs the sketch to /api/sketch-seed and returns the seed', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'a 40mm bracket' }) }))
+    const r = await uploadSketch(file())
+    expect(r.seed).toBe('a 40mm bracket')
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/sketch-seed')
+    expect((call[1] as RequestInit).method).toBe('POST')
+  })
+
+  it('rejects an oversized sketch up front (no request)', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'x' }) }))
+    const big = { size: 13 * 1024 * 1024, type: 'image/png' } as File
+    await expect(uploadSketch(big)).rejects.toThrow(/too large/i)
+    expect(f.mock.calls.length).toBe(0)
+  })
+
+  it('forwards an AbortSignal to fetch so a slow read can be cancelled', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ seed: 'x' }) }))
+    const ctrl = new AbortController()
+    await uploadSketch(file(), ctrl.signal)
+    const init = (f.mock.calls[0] as unknown[])[1] as RequestInit
+    expect(init.signal).toBe(ctrl.signal)
+  })
+
+  it('throws the backend error message on a non-2xx (422 vision failure)', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: 'Couldn’t read that sketch — try a clearer image with written dimensions.' }),
+    }))
+    await expect(uploadSketch(file())).rejects.toThrow(/couldn.t read that sketch/i)
+  })
+
+  it('maps a model_unavailable status to its friendly message (the sketch was fine)', async () => {
+    mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'model_unavailable', error: 'KimCad couldn’t reach your local AI.' }),
+    }))
+    await expect(uploadSketch(file())).rejects.toThrow(/reach your local AI/i)
   })
 })
 

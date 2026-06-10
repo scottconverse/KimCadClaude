@@ -195,10 +195,12 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                 <h1 id={headingId} className="kc-wiz-h1">
                   Welcome to KimCad
                 </h1>
+                {/* UX-905 (stage-9 gate): the welcome names all three on-ramps — words, photo,
+                    AND sketch — so the new path is discoverable from the first screen. */}
                 <p className="kc-wiz-lede">
-                  Describe a part in plain words — or photograph one — and get a print-ready file in
-                  minutes. It runs on your computer; nothing leaves your machine unless you choose to.
-                  Let’s get you set up.
+                  Describe a part in plain words — or start from a photo or a sketch — and get a
+                  print-ready file in minutes. It runs on your computer; nothing leaves your machine
+                  unless you choose to. Let’s get you set up.
                 </p>
                 <ul className="kc-wiz-bullets">
                   <li>Pick the AI model that turns your words into a design.</li>
@@ -241,12 +243,33 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       </span>
                     ) : null}
                   </div>
+                  {/* UX-908 (stage-9 gate): plain words — what the second download DOES, not
+                      its taxonomy ("separate small local vision model" was jargon soup). */}
                   <p className="kc-wiz-model-desc">
                     KimCad’s local AI — runs on your CPU, no internet required. It’s the tested
-                    default for designing parts; a separate small local vision model reads photos
-                    and sketches (<code className="kc-mono">qwen2.5vl:3b</code> — pulled the same
-                    way).
+                    default for designing parts. A second small download lets KimCad read photos and
+                    sketches (<code className="kc-mono">{model?.vision_model ?? 'qwen2.5vl:3b'}</code>).
                   </p>
+                  {/* UX-902 (stage-9 gate): check the SECOND model too — without this, a user
+                      finishes setup "all set" and only discovers the gap when their image fails.
+                      Designing in words works without it, so it's an action line, not a blocker. */}
+                  {model?.backend === 'local' && model.running && model.vision_present === false && (
+                    <p className="kc-wiz-model-action">
+                      Photos and sketches need that download — run{' '}
+                      <code className="kc-mono">ollama pull {model.vision_model}</code>, then{' '}
+                      <button
+                        type="button"
+                        className="kc-link-btn"
+                        aria-disabled={modelState === 'checking' || undefined}
+                        onClick={() => {
+                          if (modelState !== 'checking') checkModel()
+                        }}
+                      >
+                        {modelState === 'checking' ? 'checking…' : 'check again'}
+                      </button>
+                      . Designing in words works without it.
+                    </p>
+                  )}
                   {/* UX-A-001 (stage-A gate): the action line + its button stay MOUNTED while a
                       re-check is in flight (last-known state drives visibility), so keyboard
                       focus never drops and the wizard's Tab trap can't be escaped mid-check. */}
