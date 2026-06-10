@@ -68,8 +68,12 @@ jobs:
           npm --prefix frontend ci --no-audit --no-fund
 
       - name: Run the authoritative gate (scripts/ci.sh — full suite incl. live + SPA repro)
-        shell: bash
-        run: ./scripts/ci.sh
+        # Git Bash by explicit path: `shell: bash` resolves to the WSL launcher
+        # (C:\Windows\system32\bash.exe) on this box, and WSL is broken at the OS level here.
+        shell: powershell
+        run: |
+          & "C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail ./scripts/ci.sh
+          if ($LASTEXITCODE -ne 0) { throw "gate failed (exit $LASTEXITCODE)" }
 
       - name: Assert the live tool contracts actually ran (no green-by-skip)
         shell: powershell
