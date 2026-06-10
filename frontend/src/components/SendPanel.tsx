@@ -18,6 +18,17 @@ import ConfirmDialog from './ConfirmDialog'
 // dialog here IS the user's explicit start: the POST is the confirmation (the server treats it
 // as such and re-checks the gate verdict server-side) — so the send can only ever fire from
 // the dialog's confirm action, never from merely opening this panel.
+// UX-1004 (stage-10 gate): connection names come from config KEYS ("bambu_p2s") — present
+// them in the product's register ("Bambu P2S") instead of raw snake_case one dropdown below
+// the properly-named "Bambu Lab P2S" printer profile. Purely cosmetic: the VALUE sent to
+// the server stays the exact config key.
+export function displayName(key: string): string {
+  return key
+    .split('_')
+    .map((w) => (/\d/.test(w) || w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
+    .join(' ')
+}
+
 export default function SendPanel({ designId }: { designId: number | null }) {
   const [conns, setConns] = useState<ConnectorsResponse | null>(null)
   const [chosen, setChosen] = useState('')
@@ -75,9 +86,39 @@ export default function SendPanel({ designId }: { designId: number | null }) {
         }
       })
       .catch(() => {
-        /* a missed poll is not an error state — the last known status stands */
+        // ENG-1003 (stage-10 gate): one missed poll must not kill the live follow forever
+        // (a stale "printing" would stand for good). Keep the chain alive on the same
+        // bounded budget; the last known status shows meanwhile.
+        if (pollGen.current !== gen) return
+        if (remaining > 0) {
+          pollTimer.current = setTimeout(() => pollStatus(name, remaining - 1, gen), 5000)
+        }
       })
   }, [])
+
+  // UX-1001 (stage-10 gate): when the chosen connection isn't set up, fetch ITS status —
+  // the server's note names the exact missing piece (IP vs serial vs access code vs the
+  // optional package), which beats a generic pointer at a venue.
+  const [setupNote, setSetupNote] = useState<string | null>(null)
+  const entryForNote = conns?.connectors.find((c) => c.name === chosen) ?? null
+  const needsNote = !!entryForNote && !entryForNote.configured
+  useEffect(() => {
+    if (!needsNote || !chosen) {
+      setSetupNote(null)
+      return
+    }
+    let cancelled = false
+    getConnectorStatus(chosen)
+      .then((s) => {
+        if (!cancelled) setSetupNote(s.note || null)
+      })
+      .catch(() => {
+        if (!cancelled) setSetupNote(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [chosen, needsNote])
 
   const entry = conns?.connectors.find((c) => c.name === chosen) ?? null
   // Nothing to offer: no design id, no connectors at all, or none even selectable.
@@ -102,10 +143,13 @@ export default function SendPanel({ designId }: { designId: number | null }) {
     }
   }
 
+  // UX-1001/DOC-1001 (stage-10 gate): venue-honest hints — connections are set up in
+  // KimCad's config file + an environment variable, not in the app's Settings screen
+  // (no such section exists yet; an in-app surface is a Stage 11 item).
   const reasonHint: Record<string, string> = {
     offline: 'Check the printer is powered on and reachable on your network, then try again.',
-    auth: 'Check the connection’s key or access code in Settings.',
-    config: 'Finish setting this connection up in Settings.',
+    auth: 'The printer rejected the key or access code — re-check it on the printer and update the environment variable named in KimCad’s config file (config\\default.yaml).',
+    config: 'This connection isn’t fully set up — its entry in KimCad’s config file (config\\default.yaml) explains each field.',
     busy: 'The printer is busy with another job — try again when it’s free.',
     gate_failed: '', // the server’s note already says everything
   }
@@ -119,9 +163,9 @@ export default function SendPanel({ designId }: { designId: number | null }) {
           <select value={chosen} onChange={(e) => setChosen(e.target.value)} disabled={sending}>
             {conns.connectors.map((c) => (
               <option key={c.name} value={c.name} disabled={!c.configured}>
-                {c.name}
+                {displayName(c.name)}
                 {c.simulated ? ' (test connection — no real printer)' : ''}
-                {!c.configured ? ' (not set up yet — see Settings)' : ''}
+                {!c.configured ? ' (not set up yet)' : ''}
               </option>
             ))}
           </select>
@@ -138,15 +182,26 @@ export default function SendPanel({ designId }: { designId: number | null }) {
       {entry?.simulated && (
         <p className="kc-muted-note">
           This is a built-in test connection — it proves the send path without driving any
-          hardware. Connect a real printer in Settings to print directly.
+          hardware. To print directly, fill in a real printer’s entry in KimCad’s config
+          file (<code className="kc-mono">config\default.yaml</code> — instructions inside).
+        </p>
+      )}
+      {/* UX-1001: the chosen-but-unconfigured connection's EXACT missing piece, straight
+          from the server (the per-piece diagnosis was previously CLI/API-only). */}
+      {needsNote && setupNote && (
+        <p className="kc-muted-note">
+          {setupNote} Connections are set up in KimCad’s config file
+          (<code className="kc-mono">config\default.yaml</code> — instructions inside);
+          restart KimCad to pick up changes.
         </p>
       )}
       {/* Every connection unconfigured: the disabled button needs its "why" visible, not
           hidden inside the closed dropdown. */}
       {!conns.connectors.some((c) => c.configured) && (
         <p className="kc-muted-note">
-          None of these printer connections is set up yet — finish setup in Settings.
-          Downloading the print file above always works.
+          None of these printer connections is set up yet — they’re configured in KimCad’s
+          config file (<code className="kc-mono">config\default.yaml</code>). Downloading
+          the print file above always works.
         </p>
       )}
 
@@ -154,8 +209,8 @@ export default function SendPanel({ designId }: { designId: number | null }) {
         <ConfirmDialog
           message={
             entry.simulated
-              ? `Send a test job to “${entry.name}”? No real printer will run — this only exercises the send path.`
-              : `Start this print on “${entry.name}”? KimCad sends the print file and the printer begins the job.`
+              ? `Send a test job to “${displayName(entry.name)}”? No real printer will run — this only exercises the send path.`
+              : `Start this print on “${displayName(entry.name)}”? KimCad sends the print file and the printer begins the job.`
           }
           confirmLabel={entry.simulated ? 'Send test job' : 'Start the print'}
           onConfirm={doSend}
@@ -181,13 +236,24 @@ export default function SendPanel({ designId }: { designId: number | null }) {
         <div className="kc-send-result" role="status">
           <p className="kc-send-ok">
             {result.simulated
-              ? `Test job accepted by “${result.connector}” — the send path works. No hardware ran.`
-              : `Job sent to “${result.connector}”${result.job_id ? ` (job ${result.job_id})` : ''} — the printer is starting.`}
+              ? `Test job accepted by “${displayName(result.connector ?? chosen)}” — the send path works. No hardware ran.`
+              : `Job sent to “${displayName(result.connector ?? chosen)}”${result.job_id ? ` (job ${result.job_id})` : ''} — the printer is starting.`}
           </p>
           {!result.simulated && (
             <p className="kc-send-live">
-              <span className={`kc-status-dot kc-tone-${connectorTone(live)}`} aria-hidden="true" />{' '}
-              {connectorLabel(live)}
+              {/* UX-1006 (stage-10 gate): right after OUR send, "printing" is the user's
+                  own job — narrate it as progress, never as an amber "Busy" blocker. */}
+              {live?.state === 'printing' ? (
+                <>
+                  <span className="kc-status-dot kc-tone-ok" aria-hidden="true" /> Printing —
+                  your job is running.
+                </>
+              ) : (
+                <>
+                  <span className={`kc-status-dot kc-tone-${connectorTone(live)}`} aria-hidden="true" />{' '}
+                  {connectorLabel(live)}
+                </>
+              )}
             </p>
           )}
         </div>

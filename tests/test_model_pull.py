@@ -276,6 +276,86 @@ def test_pull_reports_a_down_ollama_as_a_typed_status(tmp_path, monkeypatch):
     assert "start it" in data["error"].lower()
 
 
+def test_pull_ignores_an_attacker_named_model_in_the_body(tmp_path, monkeypatch):
+    """TEST-1002 (stage-10 gate): the pull list is fixed SERVER-side. A request body
+    naming a model must change NOTHING — this pins the trust rule adversarially, so a
+    future convenience `data.get("model")` read fails loudly."""
+    import kimcad.model_advisor as ma
+
+    monkeypatch.setattr(ma, "probe_ollama", lambda url: (True, []))  # both models missing
+    started: dict = {}
+
+    def fake_start(self, base, missing, **kw):
+        started["missing"] = list(missing)
+        return {"running": True, "models": {}}
+
+    monkeypatch.setattr(mp.ModelPullJob, "start", fake_start)
+    with _serve(tmp_path, _cfg()) as (host, port):
+        conn = http.client.HTTPConnection(host, port, timeout=20)
+        try:
+            body = json.dumps({"model": "evil/backdoored:latest", "models": ["evil:1"]}).encode()
+            conn.request("POST", "/api/model-pull", body=body,
+                         headers={"Content-Type": "application/json"})
+            resp = conn.getresponse()
+            data = json.loads(resp.read())
+        finally:
+            conn.close()
+    assert resp.status == 200 and data["status"] == "ok"
+    names = [n for n, _ in started["missing"]]
+    assert "evil/backdoored:latest" not in names and "evil:1" not in names
+    assert names == ["gemma4:e4b", "qwen2.5vl:3b"]  # config's models, nothing else
+
+
+def test_pull_refuses_an_absurd_body_with_a_typed_413(tmp_path):
+    """QA-1003 (stage-10 gate): a giant body gets a clean 413, not a connection reset."""
+    with _serve(tmp_path, _cfg()) as (host, port):
+        conn = http.client.HTTPConnection(host, port, timeout=20)
+        try:
+            conn.request("POST", "/api/model-pull", body=b"x" * 100_000,
+                         headers={"Content-Type": "application/octet-stream"})
+            resp = conn.getresponse()
+            data = json.loads(resp.read())
+        finally:
+            conn.close()
+    assert resp.status == 413
+    assert "no request body" in data["error"]
+
+
+def test_concurrent_starts_never_fork_a_second_pull():
+    """TEST-1006 (stage-10 gate): N threads racing start() yield ONE worker (the
+    already-fixed deadlock's sibling hazard), and the test is bounded — a regression
+    deadlock fails as a red assertion, not a hung suite."""
+    release = threading.Event()
+    opened: list = []
+
+    class _Gated:
+        def __enter__(self):
+            opened.append(1)
+            release.wait(5)
+            return iter([json.dumps({"status": "success"}).encode()])
+
+        def __exit__(self, *a):
+            return False
+
+    job = ModelPullJob()
+    results: list = []
+
+    def racer():
+        results.append(job.start("http://127.0.0.1:11434", [("a", "chat")],
+                                 probe_dir=Path.cwd(), opener=lambda *a, **k: _Gated()))
+
+    threads = [threading.Thread(target=racer) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+    assert not any(t.is_alive() for t in threads), "start() deadlocked under contention"
+    release.set()
+    _wait_done(job)
+    assert len(opened) == 1  # exactly one pull ran, no matter how many starts raced
+    assert len(results) == 8  # every racer got a snapshot back
+
+
 def test_pull_starts_only_the_missing_models_fixed_server_side(tmp_path, monkeypatch):
     """The chat model is present, the vision model isn't — exactly the vision model is
     pulled, and the list came from CONFIG, not from any request body."""

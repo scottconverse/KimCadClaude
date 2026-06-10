@@ -11,6 +11,7 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 - **`guide-photo-onramp.md`** — user-facing guide for starting a design from a photo or a dimensioned sketch (and the local-only promise).
 - **`guide-settings-and-cloud.md`** — user-facing guide for Settings, incl. exactly what the cloud opt-in sends and where the key is stored.
 - **`printproof3d-integration.md`** — how the PrintProof3D validation engine plugs in (arm's-length; bundled at Stage 11).
+- **`cadquery-backend.md`** — the optional CadQuery parallel geometry backend (Stage 8): setup, the worker sandbox, STEP export.
 - **`benchmarks/`** — model + template benchmark notes (how to re-run them).
 - **`audits/`** — the audit trail: per-slice `audit-lite`, per-stage `audit-team` + `wiring-audit` packages, and `RUN-LEDGER-2026-06-05.md` (the live finish-the-product tracker).
 

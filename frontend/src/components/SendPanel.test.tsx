@@ -64,10 +64,28 @@ describe('SendPanel', () => {
   it('offers an unconfigured real connector disabled, with the reason', async () => {
     mockConnectors.mockResolvedValue(REAL_AND_MOCK)
     render(<SendPanel designId={1} />)
+    // UX-1004: the raw config key is presented in the product's register.
     const opt = (await screen.findByRole('option', {
-      name: /bambu_p2s \(not set up yet/i,
+      name: /Bambu P2S \(not set up yet\)/,
     })) as HTMLOptionElement
     expect(opt.disabled).toBe(true)
+    expect(opt.value).toBe('bambu_p2s') // the VALUE stays the exact config key
+  })
+
+  it('selecting an unconfigured connection surfaces the server’s per-piece diagnosis (UX-1001)', async () => {
+    mockConnectors.mockResolvedValue({
+      connectors: [{ name: 'bambu_p2s', simulated: false, configured: false }],
+      default: null,
+    })
+    mockStatus.mockResolvedValue({
+      name: 'bambu_p2s', ready: false, simulated: false, reason: 'config',
+      note: "The 'bambu_p2s' connection has no printer address (IP) configured.",
+    })
+    render(<SendPanel designId={1} />)
+    // The exact missing piece, from /api/connector-status — not a generic pointer.
+    expect(await screen.findByText(/no printer address \(IP\) configured/i)).toBeTruthy()
+    // And the venue is the config file (no Settings section exists for connections).
+    expect(screen.getAllByText(/config\\default\.yaml/i).length).toBeGreaterThanOrEqual(1)
   })
 
   it('sends ONLY after the confirm dialog is confirmed — cancel sends nothing', async () => {
@@ -113,31 +131,104 @@ describe('SendPanel', () => {
     fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
     expect(await screen.findByText(/job sent to “octoprint” \(job j9\)/i)).toBeTruthy()
     await waitFor(() => expect(mockStatus).toHaveBeenCalledWith('octoprint'))
-    expect(await screen.findByText(/busy — printing/i)).toBeTruthy()
+    // UX-1006: right after OUR send, "printing" is the user's own job — progress, not "Busy".
+    expect(await screen.findByText(/printing — your job is running/i)).toBeTruthy()
   })
 
   it('unmount stops the live-status poll chain (no background polling after re-slice)', async () => {
-    mockConnectors.mockResolvedValue(REAL_AND_MOCK)
-    mockSend.mockResolvedValue({ sent: true, connector: 'octoprint', simulated: false, job_id: 'j2' })
-    mockStatus.mockResolvedValue({
-      name: 'octoprint', ready: false, online: true, state: 'printing', reason: 'busy', simulated: false,
-    })
-    const { unmount } = render(<SendPanel designId={6} />)
-    fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }))
-    fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
-    await waitFor(() => expect(mockStatus).toHaveBeenCalledTimes(1))
-    unmount() // a re-slice unmounts the panel — the chain must die with it
-    const callsAtUnmount = mockStatus.mock.calls.length
+    // TEST-1001 (stage-10 gate): fake timers are installed BEFORE render — installing
+    // them after the real 5s timer was scheduled can never fire it, which made the old
+    // version of this test pass even with the cleanup deleted (empirically vacuous).
     vi.useFakeTimers()
-    await vi.advanceTimersByTimeAsync(30000) // 6 would-be poll ticks
-    vi.useRealTimers()
-    expect(mockStatus.mock.calls.length).toBe(callsAtUnmount)
+    try {
+      mockConnectors.mockResolvedValue(REAL_AND_MOCK)
+      mockSend.mockResolvedValue({ sent: true, connector: 'octoprint', simulated: false, job_id: 'j2' })
+      mockStatus.mockResolvedValue({
+        name: 'octoprint', ready: false, online: true, state: 'printing', reason: 'busy', simulated: false,
+      })
+      const { unmount } = render(<SendPanel designId={6} />)
+      await vi.advanceTimersByTimeAsync(0) // flush the connectors load
+      fireEvent.click(screen.getByRole('button', { name: /send to printer/i }))
+      fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
+      await vi.advanceTimersByTimeAsync(0) // send resolves; the first poll fires
+      expect(mockStatus).toHaveBeenCalledTimes(1)
+      // PROVE the chain is observable under these fake timers: a 5s tick polls again.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockStatus).toHaveBeenCalledTimes(2)
+      unmount() // a re-slice unmounts the panel — the chain must die with it
+      const callsAtUnmount = mockStatus.mock.calls.length
+      await vi.advanceTimersByTimeAsync(30000) // 6 would-be poll ticks
+      expect(mockStatus.mock.calls.length).toBe(callsAtUnmount)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a superseding send kills the old chain — the old connector is never polled again (TEST-1001)', async () => {
+    vi.useFakeTimers()
+    try {
+      mockConnectors.mockResolvedValue(REAL_AND_MOCK)
+      mockSend.mockResolvedValue({ sent: true, connector: 'octoprint', simulated: false, job_id: 'j3' })
+      mockStatus.mockResolvedValue({
+        name: 'octoprint', ready: false, online: true, state: 'printing', reason: 'busy', simulated: false,
+      })
+      render(<SendPanel designId={8} />)
+      await vi.advanceTimersByTimeAsync(0)
+      fireEvent.click(screen.getByRole('button', { name: /send to printer/i }))
+      fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockStatus).toHaveBeenCalledTimes(1) // the octoprint chain is live
+      // Supersede: switch to the simulated connector and send again (no poll for a test job).
+      mockSend.mockResolvedValue({ sent: true, connector: 'mock', simulated: true, job_id: 'j4' })
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'mock' } })
+      fireEvent.click(screen.getByRole('button', { name: /send test job/i }))
+      fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
+      await vi.advanceTimersByTimeAsync(0)
+      const callsAfterSupersede = mockStatus.mock.calls.length
+      await vi.advanceTimersByTimeAsync(30000)
+      // The OLD octoprint chain is dead — no further polls under the new job's banner.
+      expect(mockStatus.mock.calls.length).toBe(callsAfterSupersede)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('one failed status poll keeps the chain alive on the bounded budget (ENG-1003)', async () => {
+    vi.useFakeTimers()
+    try {
+      mockConnectors.mockResolvedValue(REAL_AND_MOCK)
+      mockSend.mockResolvedValue({ sent: true, connector: 'octoprint', simulated: false, job_id: 'j5' })
+      mockStatus
+        .mockResolvedValueOnce({
+          name: 'octoprint', ready: false, online: true, state: 'printing', reason: 'busy', simulated: false,
+        })
+        .mockRejectedValueOnce(new Error('one transient network blip'))
+        .mockResolvedValue({
+          name: 'octoprint', ready: true, online: true, state: 'operational', simulated: false,
+        })
+      render(<SendPanel designId={9} />)
+      await vi.advanceTimersByTimeAsync(0)
+      fireEvent.click(screen.getByRole('button', { name: /send to printer/i }))
+      fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockStatus).toHaveBeenCalledTimes(1) // poll 1 ok (printing)
+      await vi.advanceTimersByTimeAsync(5000) // poll 2 FAILS
+      expect(mockStatus).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(5000) // the chain survived the failure — poll 3 lands
+      expect(mockStatus).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows a visible why when every connection is unconfigured (button disabled)', async () => {
     mockConnectors.mockResolvedValue({
       connectors: [{ name: 'bambu_p2s', simulated: false, configured: false }],
       default: 'bambu_p2s',
+    })
+    // The unconfigured selection also fetches its per-piece status (UX-1001).
+    mockStatus.mockResolvedValue({
+      name: 'bambu_p2s', ready: false, simulated: false, reason: 'config', note: 'No IP configured.',
     })
     render(<SendPanel designId={1} />)
     expect(await screen.findByText(/none of these printer connections is set up yet/i)).toBeTruthy()

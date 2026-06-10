@@ -118,7 +118,10 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
   return (
     <section className="kc-card" id="kc-export-card">
       <h2 className="kc-card-title">Export &amp; print</h2>
-      <ConnectorStatus />
+      {/* UX-1007 (stage-10 gate): a green "Ready" connection pill directly above "this
+          part can't be sliced" reads as a contradiction — readiness of the printer is
+          irrelevant to a part that can never reach it, so the pill sits out gate-failed. */}
+      {!gateFailed && <ConnectorStatus />}
 
       {gateFailed ? (
         <p className="kc-muted-note">

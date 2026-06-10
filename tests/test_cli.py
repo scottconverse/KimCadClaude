@@ -45,7 +45,8 @@ def test_parser_design_requires_prompt():
 def test_bench_missing_prompts_file_is_graceful(tmp_path, capsys):
     code = main(["bench", "--prompts", str(tmp_path / "nope.yaml")])
     assert code == 2
-    assert "No benchmark prompts" in capsys.readouterr().out
+    # QA-1006 (stage-10 gate): errors go to stderr — stdout stays clean for reports.
+    assert "No benchmark prompts" in capsys.readouterr().err
 
 
 def test_design_missing_backend_key_is_graceful(monkeypatch, capsys):
@@ -326,9 +327,20 @@ def test_send_with_no_gcode_says_nothing_to_send(monkeypatch, capsys, tmp_path):
 def test_design_send_unknown_connector_fails_fast(capsys):
     # Validated before any pipeline run -> exit 2, no LLM/slicer invoked.
     code = main(["design", "a block", "--send", "no_such_connector"])
-    out = capsys.readouterr().out
+    err = capsys.readouterr().err
     assert code == 2
-    assert "Unknown connector 'no_such_connector'" in out
+    assert "Unknown connector 'no_such_connector'" in err
+
+
+def test_design_send_unconfigured_connector_fails_fast_before_the_run(capsys):
+    """QA-1004 (stage-10 gate): a connector that EXISTS but can't send (the shipped
+    bambu_p2s template has no IP/serial) must fail in <1s with its own actionable
+    message — not after a multi-minute design run."""
+    code = main(["design", "a block", "--send", "bambu_p2s"])
+    err = capsys.readouterr().err
+    assert code == 2
+    # The connector's own config message (which piece is missing), fast.
+    assert "bambu_p2s" in err or "address" in err.lower() or "package" in err.lower()
 
 
 def test_send_print_job_offline_falls_back_to_disk(capsys, tmp_path):
@@ -410,27 +422,27 @@ def _write_prompts(tmp_path):
 
 def test_bakeoff_missing_prompts_file_exit_2(capsys, tmp_path):
     code = main(["bakeoff", "--prompts", str(tmp_path / "nope.yaml")])
-    out = capsys.readouterr().out
+    err = capsys.readouterr().err  # QA-1006: errors to stderr
     assert code == 2
-    assert "No benchmark prompts" in out
+    assert "No benchmark prompts" in err
 
 
 def test_bakeoff_needs_two_backends_exit_2(capsys, tmp_path):
     # A real prompts file (so we reach the backend check), one backend -> exit 2.
     code = main(["bakeoff", "--backends", "local", "--prompts", str(_write_prompts(tmp_path))])
-    out = capsys.readouterr().out
+    err = capsys.readouterr().err
     assert code == 2
-    assert "at least two backends" in out
+    assert "at least two backends" in err
 
 
 def test_bakeoff_unknown_backend_exit_2_lists_configured(capsys, tmp_path):
     code = main(
         ["bakeoff", "--backends", "nope,local", "--prompts", str(_write_prompts(tmp_path))]
     )
-    out = capsys.readouterr().out
+    err = capsys.readouterr().err
     assert code == 2
-    assert "Unknown backend 'nope'" in out
-    assert "local" in out  # the error lists the configured backends
+    assert "Unknown backend 'nope'" in err
+    assert "local" in err  # the error lists the configured backends
 
 
 # --- TEST-002: a bake-off run never mutates config ------------------------------

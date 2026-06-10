@@ -672,13 +672,18 @@ def slice_registered_mesh(
 
 
 def make_handler(
-    pipeline: Any, web_root: Path, *, config: Any = None
+    pipeline: Any, web_root: Path, *, config: Any = None, pull_job: Any = None
 ) -> type[BaseHTTPRequestHandler]:
     """Build a request handler bound to a pipeline and an output directory.
 
     ``config`` is used for the printer/material options and for slicing the validated
     mesh on confirmation; it is loaded lazily on first need when not supplied, so the
     design-only tests can keep calling ``make_handler(pipeline, root)``.
+
+    ``pull_job`` (ENG-1007, stage-10 gate) is the model-download job — by default the
+    app-wide :data:`kimcad.model_pull.JOB` (one download at a time per PROCESS is the
+    intended semantic), injectable so tests and any future multi-instance embedding don't
+    share mutable state through the module global.
     """
     # ENG-004 (Stage 9): the per-design server state + its load-bearing protocols
     # (eviction-in-lockstep, cap enforcement, the geometry-version guard) live in
@@ -686,6 +691,8 @@ def make_handler(
     # per-design state as reg.<field> under reg.lock (the Stage-9 transitional aliases were
     # flattened at Stage-10-start as scheduled).
     reg = DesignRegistry(web_root)
+    if pull_job is None:
+        from kimcad.model_pull import JOB as pull_job  # noqa: N811 - the process-wide default
     # ENG-003: serialize actual slices to protect the target box and stop two OrcaSlicer
     # runs racing on disk (a server-level concern, not per-design state).
     slice_lock = threading.Lock()
@@ -759,16 +766,35 @@ def make_handler(
         # unaffected; this only times out a client that opens a connection and dawdles.
         timeout = 30
 
-        def log_message(self, *args: Any) -> None:  # keep the console quiet
+        def log_message(self, *args: Any) -> None:  # keep the console quiet (per-request noise)
             pass
+
+        def log_error(self, format: str, *args: Any) -> None:  # noqa: A002 - base signature
+            # QA-1001 (stage-10 gate): the base class routes log_error THROUGH log_message,
+            # so silencing request noise above also silenced every error — and the 500
+            # responses promise "the terminal shows the detail" while the terminal got
+            # nothing. Errors go to stderr; request chatter stays quiet.
+            print(f"[kimcad] {format % args}", file=sys.stderr)
 
         def _method_not_allowed(self) -> None:
             # QA-005: the resources exist for GET/HEAD/POST, so an unsupported verb is 405
             # (method not allowed), not the stdlib default 501 (not implemented). QA-006: return
             # the app's JSON error shape (not an empty body) so the error contract is uniform.
+            # QA-1002 (stage-10 gate): the Allow header is TRUTHFUL per path — a PUT to a
+            # POST-only route must not advertise GET.
+            path = urlsplit(self.path).path
+            if path in ("/api/model-pull", "/api/design"):
+                allow = "POST"
+            elif path in (
+                "/api/options", "/api/model-status", "/api/health", "/api/connectors",
+                "/api/model-pull/progress", "/api/designs",
+            ) or path.startswith(("/api/connector-status/", "/api/design/progress/")):
+                allow = "GET, HEAD"
+            else:
+                allow = "GET, HEAD, POST"
             body = json.dumps({"error": "Method not allowed."}).encode("utf-8")
             self.send_response(405)
-            self.send_header("Allow", "GET, HEAD, POST")
+            self.send_header("Allow", allow)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -833,9 +859,7 @@ def make_handler(
                 self._handle_model_status()
                 return
             if self.path == "/api/model-pull/progress":
-                from kimcad.model_pull import JOB
-
-                self._json(200, JOB.snapshot())
+                self._json(200, pull_job.snapshot())
                 return
             if self.path == "/api/health":
                 self._handle_health()
@@ -857,9 +881,15 @@ def make_handler(
                     }
                     for n in names
                 ]
-                # default = the first configured connector (config order); on a
-                # no-hardware box that's the built-in "mock" loopback, intentionally.
-                self._json(200, {"connectors": conns, "default": names[0] if names else None})
+                # default = the first CONFIGURED connector (config order); on a no-hardware
+                # box that's the built-in "mock" loopback, intentionally. ENG-1008 (stage-10
+                # gate): the code now does what this comment always said — with the shipped
+                # unconfigured Bambu templates in the list, `names[0]` alone is no longer
+                # guaranteed to be sendable.
+                default = next((c["name"] for c in conns if c["configured"]), None) or (
+                    names[0] if names else None
+                )
+                self._json(200, {"connectors": conns, "default": default})
                 return
             if self.path.startswith("/api/connector-status/"):
                 # Strip any query string and URL-decode so a name with a space / non-ASCII
@@ -906,6 +936,14 @@ def make_handler(
                     self._serve_design_export(tail[: -len("/export")])
                 else:
                     self._handle_design_reopen(tail)
+                return
+            # QA-1002 (stage-10 gate): GET on a POST-only resource is 405 with a TRUTHFUL
+            # Allow header, mirroring the do_POST tail's rule for GET-only resources.
+            if self.path in ("/api/model-pull", "/api/design"):
+                self.send_response(405)
+                self.send_header("Allow", "POST")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
                 return
             self._json(404, {"error": "Not found."})
 
@@ -1088,8 +1126,13 @@ def make_handler(
                         self._handle_design_mutate(tail[: -(len(verb) + 1)], verb)
                         return
             # QA-002: a POST to an existing GET-only resource is 405 (method not allowed) with an
-            # Allow header — a 404 would wrongly imply the resource doesn't exist.
-            getonly = self.path in ("/api/options", "/api/model-status", "/api/health", "/api/connectors")
+            # Allow header — a 404 would wrongly imply the resource doesn't exist. QA-1002
+            # (stage-10 gate): the Stage 10 GET-only routes joined the list, and /api/designs
+            # (the GET collection) gets the same treatment.
+            getonly = self.path in (
+                "/api/options", "/api/model-status", "/api/health", "/api/connectors",
+                "/api/model-pull/progress", "/api/designs",
+            )
             if getonly or self.path.startswith(("/api/connector-status/", "/api/design/progress/")):
                 self.send_response(405)
                 self.send_header("Allow", "GET, HEAD")
@@ -1136,7 +1179,20 @@ def make_handler(
             and only against a LOCAL loopback Ollama: this surface manages the on-device
             install, nothing else. Idempotent: POST while a pull runs returns the running
             snapshot. A down Ollama or non-local backend is a typed STATUS, never a 500."""
-            from kimcad.model_pull import JOB, is_loopback_url, ollama_native_root
+            from kimcad.model_pull import is_loopback_url, ollama_native_root
+
+            # QA-1003 (stage-10 gate): the route takes NO body, but a client that sends one
+            # must still get a clean answer — drain a small body so the connection stays
+            # healthy, refuse an absurd one with a typed 413 instead of a connection reset.
+            try:
+                clen = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                clen = 0
+            if clen > 65536:
+                self._json(413, {"error": "This endpoint takes no request body."})
+                return
+            if clen:
+                self.rfile.read(clen)
 
             # ENG-004 (slice-10.4 audit): demo mode must never start a real multi-GB
             # download — the demo provider exists precisely so UI checks touch no real AI.
@@ -1176,14 +1232,16 @@ def make_handler(
             def _present(tag: str) -> bool:
                 return any(n == tag or n.startswith(tag + "-") for n in names)
 
+            from kimcad.config import DEFAULT_CHAT_MODEL, DEFAULT_VISION_MODEL
+
             missing: list[tuple[str, str]] = []
-            chat = backend.model_name or "gemma4:e4b"
-            vision = backend.vision_model or "qwen2.5vl:3b"
+            chat = backend.model_name or DEFAULT_CHAT_MODEL
+            vision = backend.vision_model or DEFAULT_VISION_MODEL
             if not _present(chat):
                 missing.append((chat, "chat"))
             if not _present(vision):
                 missing.append((vision, "vision"))
-            snap = JOB.start(ollama_native_root(base_url), missing)
+            snap = pull_job.start(ollama_native_root(base_url), missing)
             self._json(200, {"status": "ok", **snap})
 
         def _handle_model_status(self) -> None:
@@ -1204,7 +1262,9 @@ def make_handler(
                 backend = cfg.llm_backend()
             except Exception:  # noqa: BLE001 - a config gap shouldn't 500 the status
                 backend = None
-            model_name = (backend.model_name if backend else "gemma4:e4b") or "gemma4:e4b"
+            from kimcad.config import DEFAULT_CHAT_MODEL, DEFAULT_VISION_MODEL
+
+            model_name = (backend.model_name if backend else DEFAULT_CHAT_MODEL) or DEFAULT_CHAT_MODEL
             base_url = (backend.base_url if backend else "") or ""
             # Local (Ollama) vs a cloud backend: an ollama provider or a localhost:11434 base_url.
             is_local = backend is not None and (backend.provider == "ollama" or "11434" in base_url)
@@ -1215,7 +1275,7 @@ def make_handler(
             # UX-902 (stage-9 gate): the photo/sketch on-ramps depend on a SECOND local model —
             # the wizard's "everything's ready" verdict and the health pill must check it too,
             # or a user without it ships straight into the on-ramps' failure path.
-            vision_model = (backend.vision_model if backend else "") or "qwen2.5vl:3b"
+            vision_model = (backend.vision_model if backend else "") or DEFAULT_VISION_MODEL
             payload["vision_model"] = vision_model
             if is_local:
                 from kimcad.model_advisor import probe_ollama

@@ -3,13 +3,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoist-safe mock of the api module (the factory runs before module-body consts exist).
-const { getSettings, postSettings, getModelStatus, getHealth } = vi.hoisted(() => ({
+const { getSettings, postSettings, getModelStatus, getHealth, getModelPullProgress } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   postSettings: vi.fn(),
   getModelStatus: vi.fn(),
   getHealth: vi.fn(),
+  getModelPullProgress: vi.fn(),
 }))
-vi.mock('../api', () => ({ getSettings, postSettings, getModelStatus, getHealth }))
+vi.mock('../api', () => ({ getSettings, postSettings, getModelStatus, getHealth, getModelPullProgress }))
 
 import SettingsPanel from './SettingsPanel'
 
@@ -39,6 +40,8 @@ beforeEach(() => {
   postSettings.mockResolvedValue({ ...SETTINGS, default_printer: 'elegoo', saved: true })
   getModelStatus.mockResolvedValue(RUNNING)
   getHealth.mockResolvedValue({ version: '0.1.0', openscad: true, orcaslicer: true })
+  getModelPullProgress.mockReset()
+  getModelPullProgress.mockResolvedValue({ running: false, models: {} })
 })
 
 afterEach(() => {
@@ -127,11 +130,14 @@ describe('SettingsPanel', () => {
     expect(screen.getByText(/Ollama isn.t running/i)).toBeTruthy()
   })
 
-  it('tells the user to pull the model when Ollama is up but it isn’t installed', async () => {
+  it('tells the user to get the model when Ollama is up but it isn’t installed', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: true, model_present: false })
     render(<SettingsPanel />)
     expect(await screen.findByText('Model not pulled')).toBeTruthy()
-    expect(screen.getByText(/isn.t pulled yet/i)).toBeTruthy()
+    // DOC-1005 (stage-10 gate): the in-app download is the first-named path now.
+    const action = screen.getByText(/isn.t downloaded yet/i)
+    expect(action.textContent).toMatch(/wizard.s Download button/i)
+    expect(action.textContent).toMatch(/ollama pull/i) // the manual path stays named
   })
 
   it('Refresh re-checks the model status', async () => {
@@ -266,6 +272,20 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
     await screen.findByText(/KimCad’s local AI/)
     expect(screen.queryByText(/Photo & sketch reader/)).toBeNull()
+  })
+
+  it('an in-flight in-app download shows as downloading — never a competing manual pull (UX-1002)', async () => {
+    getModelStatus.mockResolvedValue({
+      ...RUNNING, vision_model: 'qwen2.5vl:3b', vision_present: false,
+    })
+    getModelPullProgress.mockResolvedValue({
+      running: true,
+      models: { 'qwen2.5vl:3b': { status: 'pulling', completed: 800, total: 1000, error: '' } },
+    })
+    render(<SettingsPanel />)
+    expect(await screen.findByText(/downloading now \(80%\)/i)).toBeTruthy()
+    // The competing-manual-pull suggestion must NOT show while the download runs.
+    expect(screen.queryByText(/ollama pull qwen2\.5vl:3b/)).toBeNull()
   })
 
   it('Reset asks to confirm, then clears settings + units to defaults', async () => {

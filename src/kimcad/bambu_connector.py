@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from kimcad.printer_connector import (
+    AuthError,
     ConnectorError,
     JobState,
     PrinterCapabilities,
@@ -150,11 +151,57 @@ class BambuConnector:
                 printer.mqtt_stop()
             except Exception:  # noqa: BLE001 — teardown must never mask the real outcome
                 pass
+            # ENG-1002 (stage-10 gate): the lib's mqtt_stop is paho loop_stop() ONLY — no
+            # MQTT DISCONNECT is ever sent, so socket closure waits on GC. Bambu firmware
+            # limits concurrent connections, and per-request sessions + 5s status polling
+            # would otherwise churn ~120 half-closed handshakes per followed job. Reach the
+            # paho client (a private attr — hence the broad guard) and disconnect cleanly.
+            try:
+                printer.mqtt_client._client.disconnect()  # noqa: SLF001
+            except Exception:  # noqa: BLE001
+                pass
 
     @staticmethod
     def _state_name(printer: Any) -> str:
         state = printer.get_state()
         return getattr(state, "name", str(state)).upper()
+
+    def _settled_state(self, printer: Any, wait_s: float = 3.0) -> str:
+        """The printer's state, waiting briefly past UNKNOWN. ENG-1001 (stage-10 gate): the
+        lib's ready-flag flips on the FIRST MQTT message — the state push may not have
+        landed yet, so an instant read can say UNKNOWN while a job is running. Give the
+        push a moment; what's still UNKNOWN after that is treated as NOT safe to print
+        over (fail closed — the busy gate's whole job)."""
+        deadline = time.monotonic() + wait_s
+        name = self._state_name(printer)
+        while name == "UNKNOWN" and time.monotonic() < deadline:
+            time.sleep(0.2)
+            name = self._state_name(printer)
+        return name
+
+    @staticmethod
+    def _refuse_not_free(name: str, state_name: str, *, when: str) -> ConnectorError:
+        """The typed refusal for every not-known-free state at send time."""
+        if state_name == "UNKNOWN":
+            return ConnectorError(
+                f"{name}: printer state still UNKNOWN {when}",
+                reason="busy",
+                user_message=f"Couldn't confirm the printer '{name}' is free — it may be "
+                "mid-job. Check its screen, then try again.",
+            )
+        if state_name == "FAILED":
+            return ConnectorError(
+                f"{name}: printer reports FAILED {when}",
+                reason="busy",
+                user_message=f"The printer '{name}' is showing a failed state — clear it on "
+                "the printer's screen, then try again.",
+            )
+        return ConnectorError(
+            f"{name} is busy (state {state_name}) {when}",
+            reason="busy",
+            user_message=f"The printer '{name}' is already running a job — try again when "
+            "it's free.",
+        )
 
     # --- connector contract -----------------------------------------------------------
     def capabilities(self) -> PrinterCapabilities:
@@ -162,7 +209,11 @@ class BambuConnector:
             nozzle: float | None
             try:
                 raw = p.nozzle_diameter()
-                nozzle = float(raw) if raw is not None else None
+                # TEST-1003 (stage-10 gate): the real lib returns 0.0 — not None — when
+                # MQTT hasn't reported the nozzle yet; 0.0 is "unknown", never a diameter
+                # (passing it through produced a false "configured 0.40 vs reported 0.00"
+                # profile mismatch on first contact).
+                nozzle = float(raw) if raw else None
             except Exception:  # noqa: BLE001 — capability fields are best-effort by contract
                 nozzle = None
             # Build volume isn't reported over MQTT — the configured printer profile stays
@@ -209,10 +260,21 @@ class BambuConnector:
         # KimCad's sliced 3MF IS Bambu's native project format — upload whole, no extraction.
         # ENG-003 (slice-10.3 audit): starting is by PLATE and we start plate 1 — uphold the
         # single-plate invariant the other connectors enforce (slicer.py), so a future
-        # multi-plate file can never silently print the wrong plate.
+        # multi-plate file can never silently print the wrong plate. ENG-1004 (stage-10
+        # gate): matching is case-insensitive (zip member case isn't guaranteed — the same
+        # tolerance prove_gcode_3mf shows), and zero plates gets its own honest message.
         with zipfile.ZipFile(gcode_path) as zf:
-            plates = [n for n in zf.namelist() if n.startswith("Metadata/plate_") and n.endswith(".gcode")]
-        if len(plates) != 1:
+            plates = [
+                n for n in zf.namelist()
+                if n.lower().startswith("metadata/plate_") and n.lower().endswith(".gcode")
+            ]
+        if len(plates) == 0:
+            raise ConnectorError(
+                f"{self.name}: no print plate found in {gcode_path.name!r}",
+                user_message="This file doesn't contain a print plate — re-slice the part, "
+                "then send the new file.",
+            )
+        if len(plates) > 1:
             raise ConnectorError(
                 f"{self.name}: expected exactly one plate in {gcode_path.name!r}, found {len(plates)}",
                 user_message="This print file has more than one plate, which direct send "
@@ -222,17 +284,25 @@ class BambuConnector:
         upload_name = (job_name or gcode_path.name.removesuffix(".gcode.3mf")) + ".gcode.3mf"
         with self._session() as p:
             # Refuse to interrupt a job in progress — busy is a soft, typed outcome.
-            state_name = self._state_name(p)
-            if state_name in ("RUNNING", "PREPARE", "PAUSE"):
-                raise ConnectorError(
-                    f"{self.name} is busy (state {state_name})",
-                    reason="busy",
-                    user_message=f"The printer '{self.name}' is already running a job — "
-                    "try again when it's free.",
-                )
+            # ENG-1001 (stage-10 gate): the gate FAILS CLOSED — only a state KNOWN to be
+            # free (IDLE/FINISH) may print; UNKNOWN (push not landed) and FAILED refuse.
+            state_name = self._settled_state(p)
+            if state_name not in ("IDLE", "FINISH"):
+                raise self._refuse_not_free(self.name, state_name, when="at send time")
             try:
                 ftp_result = p.upload_file(io.BytesIO(payload), upload_name)
             except Exception as e:
+                # ENG-1005 (stage-10 gate): a rejected FTPS login (530 / auth wording) is
+                # an ACCESS-CODE problem — map it to `auth` so the UI's hint can fire,
+                # instead of a generic upload failure blaming the network.
+                msg = str(e)
+                if "530" in msg or "auth" in msg.lower() or "login" in msg.lower():
+                    raise AuthError(
+                        f"{self.name} rejected the FTPS login: {e}",
+                        user_message=f"The printer '{self.name}' rejected the access code — "
+                        "re-check it on the printer (Settings → WLAN → Access Code) and "
+                        "update the environment variable, then try again.",
+                    ) from e
                 raise ConnectorError(
                     f"{self.name} upload failed: {e}",
                     user_message=f"The file couldn't be uploaded to '{self.name}'. Check the "
@@ -248,6 +318,11 @@ class BambuConnector:
                     user_message=f"The file didn't finish uploading to '{self.name}' — check "
                     "the network connection to the printer and try again.",
                 )
+            # ENG-1001 (TOCTOU): a job (cloud, screen, another app) may have started while
+            # the file uploaded — re-check before the start command, same fail-closed rule.
+            state_name = self._settled_state(p, wait_s=1.0)
+            if state_name not in ("IDLE", "FINISH"):
+                raise self._refuse_not_free(self.name, state_name, when="after the upload")
             try:
                 started = p.start_print(upload_name, 1, use_ams=self._use_ams)
             except Exception as e:  # ENG-002: a raw library error must surface typed, not as a 500

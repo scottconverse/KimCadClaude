@@ -28,9 +28,13 @@ CAD export** — see *Optional: the CadQuery backend*, below.
 > `stage-9`:** both on-ramps now run on a dedicated, *working* local vision model
 > (`qwen2.5vl:3b` — the second pull in Setup below; the photo path's Stage 8.5 wiring never
 > worked against the real model), and a new **start from a sketch** path reads written
-> dimensions as written (`docs/guide-photo-onramp.md`). Next up: a direct-print UI (Stage 10) and a
-> Windows installer + beta gate (Stage 11). Real-hardware print validation on Kim's printers is the
-> final stage — see ROADMAP.
+> dimensions as written (`docs/guide-photo-onramp.md`). **Stage 10 (direct print) is done — merged
+> to `main` and tagged `stage-10`:** send a sliced part straight from the app (connector picker →
+> in-app confirm → live status; a built-in test connection proves the path with no hardware), a
+> **Bambu-native LAN connector** for the P2S/A1 (mock-validated — see *Send to a printer*, below),
+> and the setup wizard now **downloads the AI models in-app** with progress. Next up: the Windows
+> installer + beta gate (Stage 11, final). Real-hardware print validation on Kim's printers is the
+> final step — see ROADMAP.
 
 ## What it does
 
@@ -133,6 +137,9 @@ fast and stable there:
 ollama pull gemma4:e4b
 ollama pull qwen2.5vl:3b
 ```
+
+(Or skip the commands: with Ollama running, the in-app **setup wizard's Download button**
+fetches whichever of the two is missing, with progress — Stage 10.)
 
 The second pull is the **dedicated local vision model** for the photo/sketch on-ramps
 (Stage 9): measured on the target box, `gemma4:e4b`'s vision is broken on this stack (the
@@ -317,6 +324,7 @@ that names the cause.
 | `offline` | the printer could not be reached | status, send |
 | `busy` | the printer is busy (printing / paused) — retry when idle | status; send (PrusaLink 409, and `bambu` refuses to send over a running job — OctoPrint/Moonraker report a busy upload as `error`) |
 | `auth` | reachable, but the credential was rejected | send (status shows `error` + `detail`) |
+| `gate_failed` | the part failed the printability gate - it can never be sliced or sent (download-to-inspect only) | slice, send |
 | `bad_response` | the endpoint answered, but not with the expected JSON (wrong device) | send (status shows `error`) |
 | `error` | a generic / uncategorized failure | status, send |
 

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   getHealth,
+  getModelPullProgress,
   getModelStatus,
   getSettings,
   postSettings,
   type HealthStatus,
+  type ModelPullSnapshot,
   type ModelStatus,
   type SettingsResponse,
 } from '../api'
@@ -57,11 +59,19 @@ export default function SettingsPanel() {
   const [healthError, setHealthError] = useState(false)
   const [confirmingReset, setConfirmingReset] = useState(false)
 
+  // UX-1002 (stage-10 gate): the vision row must know about a RUNNING in-app download —
+  // telling the user to start a manual pull while the wizard's download is mid-flight
+  // sets up a competing second pull. Checked alongside the model status.
+  const [pull, setPull] = useState<ModelPullSnapshot | null>(null)
+
   const checkModel = useCallback(() => {
     setModelState('checking')
     getModelStatus()
       .then((m) => { setModel(m); setModelState('ready') })
       .catch(() => setModelState('error'))
+    getModelPullProgress()
+      .then((p) => setPull(p))
+      .catch(() => setPull(null))
   }, [])
 
   useEffect(() => {
@@ -271,6 +281,29 @@ export default function SettingsPanel() {
                 Photo &amp; sketch reader (<code className="kc-mono">{model.vision_model}</code>):{' '}
                 {model.vision_present ? (
                   'downloaded.'
+                ) : pull?.running && model.vision_model && pull.models?.[model.vision_model] ? (
+                  // UX-1002: an in-flight in-app download is named as such — never a
+                  // suggestion to start a competing manual pull.
+                  <>
+                    downloading now
+                    {(() => {
+                      const st = pull.models[model.vision_model]
+                      return st.status === 'pulling' && st.total > 0
+                        ? ` (${Math.min(100, Math.round((st.completed / st.total) * 100))}%)`
+                        : '…'
+                    })()}{' '}
+                    — it finishes in the background.{' '}
+                    <button
+                      type="button"
+                      className="kc-link-btn"
+                      aria-disabled={modelState === 'checking' || undefined}
+                      onClick={() => {
+                        if (modelState !== 'checking') checkModel()
+                      }}
+                    >
+                      {modelState === 'checking' ? 'checking…' : 'check again'}
+                    </button>
+                  </>
                 ) : (
                   <>
                     not downloaded — photos and sketches won’t work yet. Run{' '}
@@ -299,8 +332,8 @@ export default function SettingsPanel() {
             )}
             {modelState === 'ready' && model?.backend === 'local' && model.running && !model.model_present && (
               <p className="kc-model-action">
-                The model isn’t pulled yet. Pull <code className="kc-mono">{model.model}</code> in
-                Ollama, then{' '}
+                The model isn’t downloaded yet — the setup wizard’s Download button fetches it
+                (or run <code className="kc-mono">ollama pull {model.model}</code>), then{' '}
                 <button type="button" className="kc-link-btn" onClick={checkModel}>check again</button>.
               </p>
             )}

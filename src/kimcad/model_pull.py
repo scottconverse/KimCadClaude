@@ -81,6 +81,8 @@ class ModelPullJob:
     def _snapshot_locked(self) -> dict[str, Any]:
         """REQUIRES ``self.lock`` held — the lock is NOT reentrant, so the paths inside
         :meth:`start` must use this, never :meth:`snapshot` (deadlock, caught by test)."""
+        # TEST-1005 (stage-10 gate): the _locked contract enforced, same as DesignRegistry.
+        assert self.lock.locked(), "_snapshot_locked requires self.lock to be held"
         running = self._thread is not None and self._thread.is_alive()
         return {
             "running": running,
@@ -166,6 +168,7 @@ class ModelPullJob:
         )
         # No total timeout: a 10 GB pull takes as long as it takes. The read timeout bounds
         # a SILENT hang (no stream line for 5 minutes = something is wrong).
+        saw_success = False
         with opener(req, timeout=300) as resp:
             for raw in resp:
                 if not raw.strip():
@@ -176,6 +179,8 @@ class ModelPullJob:
                     continue  # a torn line mid-stream isn't an error
                 if line.get("error"):
                     raise RuntimeError(str(line["error"]))
+                if str(line.get("status", "")).lower() == "success":
+                    saw_success = True
                 with self.lock:
                     if "total" in line:
                         # UX-002 (slice-10.4 audit): Ollama reports totals PER LAYER, so a
@@ -186,9 +191,11 @@ class ModelPullJob:
                         if total >= self._models[name]["total"]:
                             self._models[name]["total"] = total
                             self._models[name]["completed"] = int(line.get("completed") or 0)
-        # Stream ended without an error line: Ollama reports success as its last status
-        # line, but the absence of an error + a closed stream is the working signal the
-        # API documents. Presence is re-verified by the model-status probe the UI runs next.
+        # ENG-1006 (stage-10 gate): "done" requires Ollama's terminal `success` line — a
+        # stream that closed cleanly mid-pull (proxy drop, Ollama restart) must NOT render
+        # a "✓ done" row that the next model-status probe contradicts.
+        if not saw_success:
+            raise RuntimeError("the download ended before Ollama confirmed it finished")
 
 
 JOB = ModelPullJob()

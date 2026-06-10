@@ -66,7 +66,12 @@ arm's-length 3.13 worker, mutual OpenSCAD↔CadQuery fallback, STEP export). **S
 sketch on-ramps) is DONE — merged to `main` and tagged `stage-9`** (sketch + photo reads on a
 dedicated working local vision model `qwen2.5vl:3b` — gemma4:e4b's vision measured broken on this
 stack; photo→3D reconstruction honestly descoped per the exit criterion; live walkthrough + 5-role
-audit-team gate remediated to 0/0/0/0/0). **Next = Stage 10 (direct-print UI + Bambu-native).**
+audit-team gate remediated to 0/0/0/0/0). **Stage 10 (direct-print UI + Bambu-native + wizard
+model downloads) is DONE - merged to `main` and tagged `stage-10`** (SendPanel direct print with
+the confirm-is-the-POST contract; the Bambu-native LAN connector mock-tested with fail-closed
+hardware-safety edges; in-app model downloads with progress; live walkthrough clean + 5-role
+audit-team gate, 36 findings remediated to 0/0/0/0/0). **Next = Stage 11 (Windows installer +
+beta gate, FINAL).**
 
 Still ahead before beta: direct-print UI + Bambu-native
 (Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
@@ -290,7 +295,7 @@ gemma4:e4b's vision broken on this stack; **photo→3D mesh reconstruction took 
 honestly-marked-not-viable branch** of this exit criterion for this hardware (measurements +
 verdict: `docs/benchmarks/stage-9-vision-onramps.md`; reproduce via `scripts/bench_vision.py`).
 
-## Stage 10 — Direct-print UI + Bambu-native + first-run wizard
+## Stage 10 — Direct-print UI + Bambu-native + first-run wizard ✅ DONE (tagged `stage-10`)
 **Goal:** the full direct-print experience in the SPA, plus the missing connector and onboarding.
 - **Direct-print UI** surfaced in the React app (printer select → confirm → send → live status),
   behind the same `confirm is True` gate.
@@ -300,6 +305,16 @@ verdict: `docs/benchmarks/stage-9-vision-onramps.md`; reproduce via `scripts/ben
   printer connection.
 **Exit:** Bambu-native send path works (mock-tested); the first-run wizard onboards a clean profile;
 direct-print UI is wired. **Needs:** target box + emulators. **Size:** ~2–3 weeks.
+**EXIT MET (2026-06-10):** all three exit items shipped and gate-verified - the SPA's SendPanel
+(picker → app-confirm → send → live status, every trust rule held under live abuse), the
+Bambu-native connector for P2S + A1 (LAN mode over the optional `bambulabs-api`; mock contract
+verified faithful to the real library, hardware edges fixed fail-closed; first real-hardware run
+is the Stage 11 beta), and the wizard's model step now DOWNLOADS both models in-app with progress
+(`/api/model-pull`; Ollama detection was already in). Dispositions recorded at the gate: Bambu
+CLOUD mode deliberately not built (LAN mode is simpler/more private/no account; revisit only if a
+beta user can't use LAN) - the 'remaining cloud paths as feasible' branch taken as not-feasible-
+worth-it this stage; the Stage-8.5-era G-code layer-viewer idea was never in this stage's scoped
+goals and is recorded as deferred-not-dropped in the CHANGELOG entry.
 
 ## Stage 11 — Windows installer + beta gate (FINAL pre-beta)
 **Goal:** double-click installer → working KimCad on a 32 GB/780M Windows box, no terminal, then the

@@ -25,6 +25,48 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 10 — Direct print from the app + Bambu-native + in-app model downloads — DONE
+  (merged to `main`, tagged `stage-10`).**
+  - **New: send a sliced part straight from the app.** Under a finished slice, a "Send to
+    printer" panel: connector picker with honest labels (the built-in `mock` is "test
+    connection — no real printer"; an unconfigured connection is disabled and, when
+    selected, names its exact missing piece), the app's own confirm dialog as THE explicit
+    start (the POST is the confirmation; the server re-checks the printability gate), a
+    simulated send narrated as a test (never a print), live printer status followed after a
+    real send (bounded polls that survive a transient miss), and every not-sent outcome a
+    soft, typed note with a next step — the download stays the fallback.
+  - **New: Bambu Lab native connector (P2S / A1, LAN mode)** over the OPTIONAL
+    `bambulabs-api` package (`pip install bambulabs-api`, or `pip install "kimcad[bambu]"`):
+    MQTT-over-TLS control + FTPS upload of the whole `.gcode.3mf` (Bambu's own format —
+    started by plate, single-plate enforced, the FTP transfer-complete code required as
+    proof). Hardware-safety edges fail CLOSED: only a state KNOWN free (IDLE/FINISH) may
+    print — UNKNOWN/FAILED refuse, and the state is re-checked after the upload; a rejected
+    access code maps to `auth` with the on-printer fix; sessions disconnect cleanly (the
+    library never sends MQTT DISCONNECT on its own). `bambu_p2s`/`bambu_a1` config templates
+    ship visible-but-unconfigured. *Validated wholly against a mock transport verified
+    faithful to the real library — the first real-hardware run is the Stage 11 beta.*
+  - **New: the setup wizard downloads the AI models in-app.** "Get the model" is a button:
+    `POST /api/model-pull` streams Ollama's pull for whichever of KimCad's two models is
+    missing (the list is fixed server-side — never a caller-supplied name; loopback-only;
+    demo mode refused; disk pre-checked on the OLLAMA_MODELS drive before gigabytes move),
+    with per-model progress, friendly failures (disk-full names the fix), the honest
+    intermediate state ("designing in words works now"), and a finished pull re-probed so
+    "Ready" stays measured. Settings' AI-model card gained the vision-model row, aware of a
+    running download.
+  - **Internal:** the Stage-9 DesignRegistry transitional aliases flattened on schedule
+    (handlers read `reg.<field>` under `reg.lock`; the `_locked` contract is now asserted at
+    runtime, making every test a lock-discipline detector); server `log_error` restored to
+    the terminal (a silenced override had eaten every 500's promised detail); truthful
+    per-path `Allow` headers; CLI `--send` validates the connector BUILDS before the
+    multi-minute design run, and CLI errors go to stderr.
+  - **Record-keeping:** the Stage 8.5 Slice-10 note "a true G-code toolpath/layer viewer is
+    scheduled for Stage 10's direct-print UI" (below) is resolved as **deferred, not
+    dropped** — Stage 10's scoped goals (ROADMAP) never included it and it did not ship;
+    it's a post-beta candidate if testers ask for layer preview.
+  - Stage gate: per-slice `audit-lite` ×4 remediated to 0/0/0/0/0 (a REAL deadlock and a
+    REAL vacuous test caught pre-merge); live `/walkthrough` clean (zero findings); 5-role
+    `audit-team` (36 findings: 0/0/10/21/5) fully remediated to 0/0/0/0/0 — package in
+    `docs/audits/stage-10/`.
 - **Stage 9 — Image & sketch on-ramps on a working local vision model — DONE (merged to `main`,
   tagged `stage-9`).**
   - **⚠ Setup-requirements change (upgrading from `stage-8.5`):** KimCad now needs a SECOND local

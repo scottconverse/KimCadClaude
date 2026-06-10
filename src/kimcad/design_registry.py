@@ -82,6 +82,13 @@ class DesignRegistry:
 
     # --- protocol 1+2: eviction in lockstep + cap enforcement ------------------------
 
+    def _require_lock(self) -> None:
+        """TEST-1005 (stage-10 gate): the ``_locked`` contract, ENFORCED — every test run
+        becomes a lock-discipline detector instead of trusting the suffix convention.
+        (``locked()`` can't prove WHICH thread holds it, but an unheld lock is always a
+        contract violation.)"""
+        assert self.lock.locked(), "a _locked method requires self.lock to be held"
+
     def evict_locked(self, rid: int) -> None:
         """QA-003: drop ``rid`` from EVERY registry/cache — ``meshes`` included (TEST-002,
         stage-9 gate: leaving the mesh behind while the gate verdict vanished was a
@@ -89,6 +96,7 @@ class DesignRegistry:
         AND remove its on-disk dir. Idempotent. REQUIRES ``self.lock`` held (runs inside
         the handlers' transactions; ``enforce_caps_locked`` pops the mesh first, which the
         ``pop(rid, None)`` here tolerates)."""
+        self._require_lock()
         self.meshes.pop(rid, None)
         self.gcode.pop(rid, None)
         self.step.pop(rid, None)
@@ -106,6 +114,7 @@ class DesignRegistry:
         (incl. on-disk cleanup) for everything that falls off. REQUIRES ``self.lock``.
         The cap is a parameter so the caller's module global stays the (test-patchable)
         source of truth."""
+        self._require_lock()
         while len(self.meshes) > max_registry:
             old_rid, _ = self.meshes.popitem(last=False)
             self.evict_locked(old_rid)
@@ -117,6 +126,7 @@ class DesignRegistry:
         AND the registered G-code of the old shape (safety: the old shape must never be
         downloadable or sendable after the part was re-shaped). REQUIRES ``self.lock``.
         Returns the new version."""
+        self._require_lock()
         v = self.geometry_version.get(rid, 0) + 1
         self.geometry_version[rid] = v
         self.gcode.pop(rid, None)
@@ -126,12 +136,14 @@ class DesignRegistry:
 
     def version_locked(self, rid: int) -> int:
         """The current geometry version (0 if never re-rendered). REQUIRES ``self.lock``."""
+        self._require_lock()
         return self.geometry_version.get(rid, 0)
 
     def register_gcode_locked(self, rid: int, gcode_path: Path, sliced_version: int) -> bool:
         """ENG-001: register finished G-code ONLY if the geometry version still matches the
         one captured when the slice started — a re-render landing mid-slice means this
         G-code is of the OLD shape. REQUIRES ``self.lock``. True when registered."""
+        self._require_lock()
         if self.geometry_version.get(rid, 0) != sliced_version:
             return False
         self.gcode[rid] = gcode_path
@@ -148,6 +160,7 @@ class DesignRegistry:
     ) -> bool:
         """Cache a slice result under the same version guard, enforcing the cache cap.
         REQUIRES ``self.lock``. True when cached (False = stale, dropped)."""
+        self._require_lock()
         if self.geometry_version.get(rid, 0) != sliced_version:
             return False
         self.slice_cache[key] = (info, gcode_path)

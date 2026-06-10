@@ -207,6 +207,30 @@ describe('FirstRunWizard', () => {
     expect(screen.getByText(/designing in words works without it/i)).toBeTruthy()
   })
 
+  it('unmounting before the pull POST resolves never installs the poll (TEST-1001/disposedRef)', async () => {
+    const api = await import('../api')
+    ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      model: 'gemma4:e4b', backend: 'local', running: true,
+      model_present: false, vision_model: 'qwen2.5vl:3b', vision_present: false,
+    })
+    let resolveStart!: (v: unknown) => void
+    ;(api.startModelPull as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise((r) => { resolveStart = r }),
+    )
+    const { unmount } = render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i)
+    fireEvent.click(await screen.findByRole('button', { name: /download now/i }))
+    unmount() // the wizard closes while the POST is in flight
+    vi.useFakeTimers()
+    try {
+      resolveStart({ status: 'ok', running: true, models: {} }) // the POST lands AFTER cleanup
+      await vi.advanceTimersByTimeAsync(3000) // 3 would-be poll ticks
+      expect(api.getModelPullProgress).not.toHaveBeenCalled() // no leaked interval
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a down Ollama at pull time is a typed message with try again — never a crash', async () => {
     const api = await import('../api')
     ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({

@@ -202,7 +202,7 @@ connectors:
   # mode, note the Access Code (Settings -> WLAN) and Serial (Settings -> Device). The access
   # code is a secret - it lives in the env var, never in this file. use_ams: false feeds from
   # the external spool instead of the AMS. These ship visible-but-unconfigured: the app's
-  # send picker lists them disabled with the reason until you fill them in.
+  # send picker lists them disabled ('not set up yet') and names the missing piece when selected.
   bambu_p2s:
     type: bambu
     base_url:                       # the printer's IP, e.g. 192.168.0.60

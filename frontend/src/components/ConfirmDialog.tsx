@@ -20,8 +20,14 @@ export default function ConfirmDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  // UX-1003 (stage-10 gate): remember what was focused when the dialog opened and put
+  // focus BACK there on close — without this, every confirm/cancel dumped keyboard and
+  // screen-reader users to the top of the document (verified live in the gate audit).
+  const openerRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
+    openerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     cancelRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -48,7 +54,13 @@ export default function ConfirmDialog({
       }
     }
     document.addEventListener('keydown', onKey, true)
-    return () => document.removeEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      // Restore focus on unmount (the dialog closes by unmounting on BOTH actions).
+      // isConnected guards the opener having been removed (e.g. a button that vanished
+      // with the action it triggered) — then focus is left for the caller's own flow.
+      if (openerRef.current?.isConnected) openerRef.current.focus()
+    }
   }, [onCancel])
 
   return (

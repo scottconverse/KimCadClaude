@@ -70,10 +70,10 @@ failure there is almost always one of three things:
 The wizard downloads only KimCad's own two models; you never need to pick one. You can
 always pull manually instead: `ollama pull gemma4:e4b` and `ollama pull qwen2.5vl:3b`.
 
-## A Bambu printer connection says "needs the optional bambulabs-api package"
+## A Bambu printer connection needs the optional bambulabs-api package
 
 Direct send to a Bambu printer uses an optional add-on. In a terminal, run
-`pip install bambulabs-api`, restart KimCad, and the connection will be available to set
+`pip install bambulabs-api` (or `pip install "kimcad[bambu]"`, which pins the tested version floor), restart KimCad, and the connection will be available to set
 up. Then fill in the printer's IP and serial in `config/default.yaml` (`bambu_p2s` /
 `bambu_a1`) and set the access-code environment variable the entry names — the printer
 shows both codes under **Settings → WLAN** (access code) and **Settings → Device**

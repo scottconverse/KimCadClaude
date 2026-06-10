@@ -56,11 +56,32 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | Stage | build | gate | tag | status |
 |---|---|---|---|---|
 | 8 (CadQuery backend) | ✅ 5 slices audit-lite | ✅ audit-team + 2 re-audit lanes 0/0/0/0/0 | ✅ `stage-8` | ✅ DONE |
-| 9 (image/sketch on-ramp) | ☐ | ☐ | ☐ `stage-9` | ☐ |
-| 10 (direct-print + layer preview) | ☐ | ☐ | ☐ `stage-10` | ☐ |
+| 9 (image/sketch on-ramp) | ✅ 3 slices audit-lite | ✅ walkthrough + audit-team 0/0/0/0/0 | ✅ `stage-9` | ✅ DONE |
+| 10 (direct-print + Bambu-native + wizard downloads; layer preview resolved deferred-not-dropped at the tag) | ✅ 4 slices audit-lite | ✅ walkthrough + audit-team 0/0/0/0/0 | ✅ `stage-10` | ✅ DONE |
 | 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
 
 ## Log
+- 2026-06-10 (Phase C / Stage 10 — direct-print UI + Bambu-native + wizard downloads): built in 4
+  slices (registry-alias flattening; SendPanel direct print; Bambu-native connector mock-tested;
+  in-app model downloads + Settings vision row), each through an independent audit-lite to
+  0/0/0/0/0 — the slice audits caught a REAL lock-reentrancy deadlock (model_pull) and a REAL
+  vacuous fake-timers test (SendPanel unmount). Live walkthrough clean (zero findings). The 5-role
+  audit-team gate rolled up 0B/0C/10Maj/21Min/5Nit — headline finds: the Bambu busy gate failing
+  OPEN on UNKNOWN-at-send (fail-closed now, TOCTOU re-check added), the library never sending MQTT
+  DISCONNECT (defensive disconnect added), server log_error silenced (restored to stderr), the
+  send-flow copy pointing at a Settings section that doesn't exist (venue-honest sweep + the
+  per-piece /api/connector-status diagnosis surfaced in the picker). ALL 36 remediated to
+  0/0/0/0/0. Tagged `stage-10`. Package: docs/audits/stage-10/audit-team-2026-06-10/.
+  **Next: Stage 11 (installer + beta gate, FINAL).**
+- 2026-06-10 (Phase C / Stage 9 — image & sketch on-ramps): built in 3 slices (sketch backend,
+  sketch UI, vision-model fix + benchmark), each audit-lite 0/0/0/0/0. The stage MEASURED the
+  inherited photo on-ramp against the real pinned model and found gemma4:e4b's vision BROKEN on
+  this stack (deterministic hallucination; the model itself says no image was provided) — every
+  Stage-8.5 photo impression had come from demo mode. Fixed with a dedicated local vision model
+  (qwen2.5vl:3b, 5/5 end-to-end), photo→3D reconstruction honestly descoped per the ROADMAP exit
+  branch, DesignRegistry extracted with its three locking protocols as methods. Live walkthrough
+  clean; audit-team 0B/0C/10Maj/18Min/5Nit → ALL 33 remediated to 0/0/0/0/0. Tagged `stage-9`.
+  Package: docs/audits/stage-9/audit-team-2026-06-10/.
 - 2026-06-06 (Phase C / Stage 8 — CadQuery parallel backend): built in 5 slices (worker+runner,
   interpreter discovery+config, pipeline mutual OpenSCAD↔CadQuery fallback, STEP export end-to-end,
   docs+bench), each through an independent `audit-lite` to 0/0/0/0/0 — the Slice-1 audit caught a

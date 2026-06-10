@@ -45,6 +45,10 @@ ollama pull gemma4:e4b
 ollama pull qwen2.5vl:3b
 ```
 
+> **Prefer buttons to terminals?** You can skip these two commands: once KimCad itself is
+> running (Step 5), its setup wizard offers a **Download now** button that fetches whichever
+> model is missing and shows the progress. Ollama just needs to be installed and running.
+
 **Check it worked:**
 
 ```

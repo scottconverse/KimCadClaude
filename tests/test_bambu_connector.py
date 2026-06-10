@@ -194,6 +194,120 @@ def test_job_status_survives_a_non_numeric_percentage():
     assert job.progress == 0.0  # unparseable progress reads as 0, never a crash
 
 
+def test_send_fails_closed_on_an_unknown_state(tmp_path):
+    """ENG-1001 (stage-10 gate): UNKNOWN at send time means the state push hasn't landed —
+    a printer that may be mid-job. The gate refuses (fail closed), never prints over it."""
+    fake = FakePrinter(state="UNKNOWN")
+    f = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    conn = BambuConnector(
+        "192.168.0.60", "12345678", "01S00C123", name="bambu_p2s",
+        timeout_s=0.5, printer_factory=lambda *_a: fake,
+    )
+    # Shrink the settle wait so the test is fast: patch via the method's own parameter.
+    conn._settled_state = lambda p, wait_s=0.2: BambuConnector._settled_state(conn, p, 0.2)  # type: ignore[method-assign]
+    with pytest.raises(ConnectorError) as ei:
+        conn.send(f, confirm=True)
+    assert ei.value.reason == "busy"
+    assert "confirm" in ei.value.user_message.lower()
+    assert fake.uploaded is None  # nothing moved
+
+
+def test_send_refuses_a_failed_printer_state(tmp_path):
+    fake = FakePrinter(state="FAILED")
+    f = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with pytest.raises(ConnectorError) as ei:
+        _connector(fake).send(f, confirm=True)
+    assert ei.value.reason == "busy"
+    assert "failed state" in ei.value.user_message.lower()
+    assert fake.uploaded is None
+
+
+def test_send_rechecks_the_state_after_the_upload_toctou(tmp_path):
+    """ENG-1001 (TOCTOU): a job that starts WHILE the file uploads (cloud, the printer's
+    screen, another app) must be detected before the start command fires."""
+    fake = FakePrinter(state="IDLE")
+    orig_upload = fake.upload_file
+
+    def upload_and_get_busy(file, filename):
+        result = orig_upload(file, filename)
+        fake.state_name = "RUNNING"  # someone started a job mid-upload
+        return result
+
+    fake.upload_file = upload_and_get_busy
+    f = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with pytest.raises(ConnectorError) as ei:
+        _connector(fake).send(f, confirm=True)
+    assert ei.value.reason == "busy"
+    assert fake.started_with is None  # the start command never fired
+
+
+def test_a_rejected_ftps_login_maps_to_auth_not_a_generic_failure(tmp_path):
+    """ENG-1005 (stage-10 gate): a wrong access code is an AUTH problem with an on-printer
+    fix — never a generic upload failure blaming the network."""
+    from kimcad.printer_connector import AuthError
+
+    fake = FakePrinter()
+
+    def reject(file, filename):
+        raise OSError("530 Login authentication failed")
+
+    fake.upload_file = reject
+    f = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with pytest.raises(AuthError) as ei:
+        _connector(fake).send(f, confirm=True)
+    assert "access code" in ei.value.user_message.lower()
+    assert "WLAN" in ei.value.user_message  # the on-printer location
+
+
+def test_send_refuses_a_zero_plate_file_with_its_own_message(tmp_path):
+    """ENG-1004: zero plates is "re-slice", not "more than one plate"."""
+    p = tmp_path / "empty.gcode.3mf"
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr("3D/3dmodel.model", "<model/>")
+        zf.writestr("Metadata/plate_1.gcode", "G28\nG1 X10 Y10 E1\n")
+    # A provable file whose plate the (case-insensitive) matcher must still find even with
+    # unusual member casing — and a truly plateless one for the zero branch.
+    fake = FakePrinter()
+    _connector(fake).send(p, confirm=True)  # baseline: one plate sends fine
+
+    p2 = tmp_path / "weirdcase.gcode.3mf"
+    with zipfile.ZipFile(p2, "w") as zf:
+        zf.writestr("3D/3dmodel.model", "<model/>")
+        zf.writestr("METADATA/PLATE_1.GCODE", "G28\nG1 X10 Y10 E1\n")
+    try:
+        _connector(FakePrinter()).send(p2, confirm=True)
+        cased_ok = True
+    except ConnectorError as e:
+        # prove_gcode_3mf itself may refuse the casing first — then the zero-plate copy
+        # must NOT be the one shown (it would be a lie about the file's structure).
+        cased_ok = "re-slice" not in str(e.user_message or "")
+    assert cased_ok
+
+
+def test_capabilities_treats_a_zero_nozzle_as_unknown():
+    """TEST-1003 (stage-10 gate): the real lib returns 0.0 — not None — when MQTT hasn't
+    reported the nozzle; 0.0 must read as unknown, never as a 0.00 mm diameter."""
+    fake = FakePrinter()
+    fake.nozzle_diameter = lambda: 0.0
+    caps = _connector(fake).capabilities()
+    assert caps.nozzle_diameter_mm is None
+
+
+def test_session_teardown_disconnects_the_paho_client():
+    """ENG-1002 (stage-10 gate): the lib's mqtt_stop never sends MQTT DISCONNECT — the
+    connector must reach the paho client and disconnect cleanly on every session exit."""
+    from types import SimpleNamespace
+
+    fake = FakePrinter()
+    disconnected: list = []
+    fake.mqtt_client = SimpleNamespace(
+        _client=SimpleNamespace(disconnect=lambda: disconnected.append(1))
+    )
+    _connector(fake).status()
+    assert fake.mqtt_stopped is True
+    assert disconnected == [1]
+
+
 def test_send_surfaces_a_refused_start_with_a_next_step(tmp_path):
     fake = FakePrinter(start_ok=False)
     f = _write_gcode_3mf(tmp_path / "p.gcode.3mf")

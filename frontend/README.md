@@ -20,10 +20,11 @@ there is no separately-served vendor copy.
 `src/kimcad/webapp.py` (a dependency-free stdlib `http.server`) serves the build output:
 the shell at `/` and the bundles at `/assets/<file>` (a path-traversal guard rejects anything but a
 plain filename). The SPA talks to a JSON API; the repo-root `ARCHITECTURE.md` is the authoritative endpoint
-list (it now spans Stage 5–8.5 additions — live re-render, settings, photo seed, saved designs —
-beyond the original `/api/design`, `/api/slice/<id>`, `/api/options`, `/api/mesh/<id>`,
-`/api/gcode/<id>` set). (`/api/send/<id>` is called by the SPA's SendPanel as of Stage 10 —
-confirm-gated direct print; the CLI and MCP drive the same endpoint.)
+list (it now spans the Stage 5–10 additions — live re-render, settings, photo/sketch seeds, saved
+designs, model-status/model-pull, connectors — beyond the original `/api/design`,
+`/api/slice/<id>`, `/api/options`, `/api/mesh/<id>`, `/api/gcode/<id>` set). (`/api/send/<id>` is
+called by the SPA's SendPanel as of Stage 10 — confirm-gated direct print; the CLI and MCP drive
+the same endpoint.)
 
 ## Develop
 

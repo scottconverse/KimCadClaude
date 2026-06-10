@@ -27,6 +27,9 @@ function modelLabel(m: ModelStatus): string {
   if (m.backend === 'cloud') return 'Cloud'
   if (!m.running) return 'Ollama isn’t running'
   if (!m.model_present) return 'Model not pulled yet'
+  // UX-1005 (stage-10 gate): a bare "Ready" beside a card offering the vision download
+  // claimed more than is true — designing works, the image on-ramps don't yet.
+  if (m.vision_present === false) return 'Ready — words only'
   return 'Ready'
 }
 function modelTone(m: ModelStatus): 'ok' | 'warn' {
@@ -527,8 +530,11 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     aria-pressed={directLater}
                   >
                     <span className="kc-wiz-direct-t">I’ll connect a printer later</span>
+                    {/* UX-1001 (stage-10 gate): venue-honest — connections live in the
+                        config file, not a Settings section (none exists yet). */}
                     <span className="kc-wiz-direct-d">
-                      Set up sending jobs from KimCad in Settings, when you’re ready.
+                      Connect one any time — KimCad’s config file has ready-made printer
+                      entries with instructions inside.
                     </span>
                   </button>
                 </div>
@@ -554,6 +560,21 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     ? 'KimCad is ready to design. Here’s your setup — change any of it later from Settings.'
                     : 'One thing still needs attention before KimCad can design — everything else is saved. You can change any of this later from Settings.'}
                 </p>
+                {/* UX-1002 (stage-10 gate): a download the USER started must not vanish from
+                    the recap — "all set" while the vision model is still coming down (or its
+                    download was never finished) overstates what works today. */}
+                {modelOk && pullActive && (
+                  <p className="kc-wiz-lede kc-wiz-recap-pull">
+                    The photo &amp; sketch reader is still downloading — it finishes in the
+                    background; designing in words already works.
+                  </p>
+                )}
+                {modelOk && !pullActive && model?.vision_present === false && (
+                  <p className="kc-wiz-lede kc-wiz-recap-pull">
+                    Photos and sketches still need their download — the model step has the
+                    button. Designing in words already works.
+                  </p>
+                )}
                 <dl className="kc-wiz-recap">
                   <div className="kc-wiz-recap-row">
                     <dt>Model</dt>

@@ -187,6 +187,15 @@ maps to a friendly try-again message. `/api/model-status` reports the vision mod
 alongside the design model's. Per-design server state moved into `DesignRegistry`
 (`design_registry.py`).
 
+**Stage 10 additions:** the direct-print UI surfaces the existing send path in the SPA
+(SendPanel under a finished slice — connector picker from `GET /api/connectors`, the app's
+confirm dialog as the explicit start, live status follow via `GET /api/connector-status/<name>`);
+`POST /api/model-pull` starts the in-app download of KimCad's OWN two models (the list is fixed
+server-side — never a caller-supplied name; loopback-only; demo mode refused; a down Ollama is a
+typed status) and `GET /api/model-pull/progress` is the per-model progress poll the wizard and
+Settings read (`model_pull.py`). The Bambu-native connector (`bambu_connector.py`) joins the
+send path behind the same `ensure_sendable` gate.
+
 **The browser UI is a React + TypeScript SPA** (Stage 4), compiled by Vite from `frontend/`
 into `src/kimcad/web/` (`index.html` + `assets/`). Node/Vite are **build-time only** — the
 committed build output is served verbatim by this same stdlib server (the SPA shell at `/`,

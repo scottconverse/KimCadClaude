@@ -1,5 +1,6 @@
 annotated-types==0.7.0
 anyio==4.13.0
+bambulabs-api==2.6.6
 certifi==2026.5.20
 colorama==0.4.6
 coverage==7.14.1
@@ -21,6 +22,8 @@ networkx==3.6.1
 numpy==2.2.6
 openai==2.41.0
 packaging==26.2
+paho-mqtt==2.1.0
+pillow==12.2.0
 pluggy==1.6.0
 pydantic_core==2.46.4
 pydantic==2.13.4

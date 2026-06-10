@@ -281,12 +281,25 @@ def _phase_printer():
 
 def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     # --send implies slicing (you can't send what wasn't sliced); validate the connector
-    # up front so a typo fails fast, not after a multi-minute run.
+    # up front so a typo fails fast, not after a multi-minute run. QA-1004 (stage-10 gate):
+    # name membership isn't enough — the shipped templates (bambu_p2s, octoprint-without-
+    # its-key) EXIST but can't send, and discovering that after a multi-minute design run
+    # is the worst possible moment. BUILD the connector now; a config gap fails in <1s
+    # with the connector's own actionable message.
     do_slice = args.do_slice or bool(args.send)
-    if args.send and args.send not in config.connectors():
-        known = ", ".join(config.connectors()) or "(none configured)"
-        print(f"Unknown connector '{args.send}'. Configured connectors: {known}")
-        return 2
+    if args.send:
+        if args.send not in config.connectors():
+            known = ", ".join(config.connectors()) or "(none configured)"
+            print(f"Unknown connector '{args.send}'. Configured connectors: {known}", file=sys.stderr)
+            return 2
+        from kimcad.connectors import build_connector
+        from kimcad.printer_connector import ConnectorError
+
+        try:
+            build_connector(config, args.send)
+        except ConnectorError as e:
+            print(e.user_message or str(e), file=sys.stderr)
+            return 2
 
     pipeline = _build_pipeline(config, args)
     if do_slice:
@@ -346,7 +359,8 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
         print(
             f"No benchmark prompts at {prompts_path}.\n"
             "Copy bench/prompts.example.yaml to bench/prompts.yaml and fill in the "
-            "Appendix B prompts."
+            "Appendix B prompts.",
+            file=sys.stderr,
         )
         return 2
 
@@ -376,13 +390,14 @@ def _cmd_bakeoff(config: Config, args: argparse.Namespace) -> int:
         print(
             f"No benchmark prompts at {prompts_path}.\n"
             "Copy bench/prompts.example.yaml to bench/prompts.yaml and fill in the "
-            "Appendix B prompts."
+            "Appendix B prompts.",
+            file=sys.stderr,
         )
         return 2
 
     backends = [b.strip() for b in args.backends.split(",") if b.strip()]
     if len(backends) < 2:
-        print("bakeoff needs at least two backends, e.g. --backends local_qwen,local")
+        print("bakeoff needs at least two backends, e.g. --backends local_qwen,local", file=sys.stderr)
         return 2
     # Validate every backend resolves before running — a bake-off is many minutes of CPU
     # per backend, so fail fast on a typo'd key rather than after the first batch.
@@ -390,7 +405,7 @@ def _cmd_bakeoff(config: Config, args: argparse.Namespace) -> int:
     for key in backends:
         if key not in known_backends:
             names = ", ".join(known_backends) or "(none configured)"
-            print(f"Unknown backend '{key}'. Configured backends: {names}")
+            print(f"Unknown backend '{key}'. Configured backends: {names}", file=sys.stderr)
             return 2
 
     printer = config.printer(args.printer)

@@ -60,6 +60,12 @@ class Material:
         return self.wall_multiplier * nozzle_diameter
 
 
+# ENG-1009 (stage-10 gate): THE fallback model names, defined once — the webapp's
+# model-status/model-pull handlers and the backend default below all read these.
+DEFAULT_CHAT_MODEL = "gemma4:e4b"
+DEFAULT_VISION_MODEL = "qwen2.5vl:3b"
+
+
 @dataclass(frozen=True)
 class LLMBackend:
     key: str
@@ -78,7 +84,7 @@ class LLMBackend:
     # broken on this stack (the model itself reports no image was provided), while
     # qwen2.5vl:3b reads dimensioned sketches 3/3 on-target. Same trust boundary — the
     # read still happens on local Ollama; nothing leaves the machine.
-    vision_model: str = "qwen2.5vl:3b"
+    vision_model: str = DEFAULT_VISION_MODEL
 
 
 @dataclass(frozen=True)

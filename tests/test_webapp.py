@@ -1123,7 +1123,9 @@ def test_unsupported_method_is_405(tmp_path):
             conn.request("PUT", "/api/design")
             resp = conn.getresponse()
             assert resp.status == 405
-            assert "GET" in (resp.getheader("Allow") or "")
+            # QA-1002 (stage-10 gate): the Allow header is TRUTHFUL per path -
+            # /api/design is POST-only, so it must NOT advertise GET.
+            assert (resp.getheader("Allow") or "") == "POST"
         finally:
             conn.close()
 
