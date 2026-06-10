@@ -34,6 +34,13 @@ echo "[ci] pytest..."
 # ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
 # KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a
 # dev box with the deps installed, a vitest failure OR a committed-build drift blocks the push.
+# The portable Node toolchain (repo-local tools/node22, or the machine CI copy) joins PATH so
+# the frontend gate runs even when no system Node is installed — Node stays build-time only.
+if [ -d tools/node22 ]; then
+    PATH="$(pwd)/tools/node22:$PATH"
+elif [ -d /c/kimcad-ci-tools/node22 ]; then
+    PATH="/c/kimcad-ci-tools/node22:$PATH"
+fi
 if [ -d frontend/node_modules ] && command -v npm >/dev/null 2>&1; then
     echo "[ci] frontend tests (vitest)..."
     npm --prefix frontend run test
