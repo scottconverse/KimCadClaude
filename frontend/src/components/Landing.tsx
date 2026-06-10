@@ -36,7 +36,7 @@ export default function Landing({
   }
 
   return (
-    <main className="kc-landing">
+    <main id="kimcad-main" className="kc-landing">
       <div className="kc-landing-inner">
         <span className="kc-badge">
           <span className="kc-badge-dot" aria-hidden="true" />

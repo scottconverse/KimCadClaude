@@ -18,6 +18,9 @@ venv/
 /output_test/
 .pytest_run_full.txt
 *.gcode
+# Audit/walkthrough run scratch: local web-server logs + the Playwright probe install
+.kimcad-web-*.log
+/.audit-tools/
 
 # Frontend (Node is build-time only; the built SPA lands in src/kimcad/web and IS committed)
 frontend/node_modules/

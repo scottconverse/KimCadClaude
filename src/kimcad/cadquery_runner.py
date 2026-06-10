@@ -319,10 +319,10 @@ def find_cadquery_interpreter(
         else:
             cmds.append([str(x) for x in c])
     if include_defaults:
-        local_worker = PROJECT_ROOT / ".venv-cq313" / "Scripts" / "python.exe"
         if sys.platform == "win32":
+            # The documented repo-local worker venv wins over the global launcher probes.
+            local_worker = PROJECT_ROOT / ".venv-cq313" / "Scripts" / "python.exe"
             cmds.append([str(local_worker)])
-        if sys.platform == "win32":
             cmds.extend([["py", f"-{v}"] for v in ("3.13", "3.12", "3.11")])
         cmds.extend([[n] for n in ("python3.13", "python3.12", "python3.11", "python3")])
 

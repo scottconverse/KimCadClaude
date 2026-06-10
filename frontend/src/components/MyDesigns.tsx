@@ -257,7 +257,7 @@ export default function MyDesigns({
   const hasAny = designs !== null && designs.length > 0
 
   return (
-    <main className="kc-mydesigns">
+    <main id="kimcad-main" className="kc-mydesigns">
       <div className="kc-mydesigns-head">
         <h1 className="kc-mydesigns-title">My Designs</h1>
         <div className="kc-mydesigns-headactions">

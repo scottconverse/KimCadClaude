@@ -23,6 +23,8 @@ def test_audit_run_outputs_are_ignored() -> None:
 
     assert "/output_test/" in gitignore
     assert ".pytest_run_full.txt" in gitignore
+    assert ".kimcad-web-*.log" in gitignore
+    assert "/.audit-tools/" in gitignore
 
 
 def test_security_policy_exists() -> None:

@@ -42,6 +42,14 @@ function props(result: DesignResponse | null) {
 
 const withMesh: DesignResponse = { status: 'completed', has_mesh: true, mesh_url: '/api/mesh/1' }
 
+describe('Workspace landmark (2026-06-09 audit UX-004)', () => {
+  it('renders as the main landmark with the skip-link target id', () => {
+    render(<Workspace {...props(withMesh)} />)
+    const main = screen.getByRole('main')
+    expect(main.id).toBe('kimcad-main')
+  })
+})
+
 describe('Workspace mobile CTA (UX-004 / RTEST-004)', () => {
   it('shows the "Check & download" CTA only once a part with a mesh exists', () => {
     const { rerender } = render(<Workspace {...props(null)} />)

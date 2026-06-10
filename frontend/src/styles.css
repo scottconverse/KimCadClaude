@@ -125,6 +125,28 @@ input {
   height: 100%;
 }
 
+.kc-skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 300;
+  transform: translateY(-160%);
+  padding: 9px 13px;
+  border-radius: var(--kc-r-btn);
+  background: var(--kc-ink);
+  color: var(--kc-bg);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--kc-shadow-hero);
+  transition: transform 0.12s ease;
+}
+
+.kc-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--kc-accent);
+  outline-offset: 2px;
+}
+
 /* ------------------------------------------------------------------ Topbar */
 
 .kc-topbar {
