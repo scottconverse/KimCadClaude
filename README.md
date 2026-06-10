@@ -87,6 +87,11 @@ steps above alone. Node (+ `npm`) is needed only to *rebuild* that UI after chan
 
 ## Setup
 
+> **Not a developer?** Follow **[docs/getting-started-windows.md](docs/getting-started-windows.md)**
+> instead — a step-by-step Windows walkthrough from nothing to a first printed-ready part,
+> with **[docs/troubleshooting.md](docs/troubleshooting.md)** as its safety net. The section
+> below is the developer-shaped version of the same steps.
+
 ```
 python -m venv .venv
 # Windows:  .venv\Scripts\activate

@@ -1,0 +1,102 @@
+# Troubleshooting
+
+Symptom → cause → fix, for every snag we know about. Most of these KimCad now detects
+itself and tells you in plain words; this page is the longer version with the exact
+commands.
+
+## "KimCad couldn't reach your local AI" / designs never start
+
+**Cause:** Ollama (the local AI runtime) isn't running, or was never installed.
+
+**Fix:** start Ollama from the Start menu (look for the llama icon in the system tray),
+then click **Check again** on the landing page — or just try your design again. If Ollama
+isn't installed yet, see [getting-started-windows.md](getting-started-windows.md), Step 2.
+`kimcad models` in a terminal shows exactly what KimCad can see.
+
+## "The model isn't available on your local AI server"
+
+**Cause:** Ollama is running but the model was never pulled (or was removed).
+
+**Fix:**
+
+```
+ollama pull gemma4:e4b
+```
+
+Then try again. `ollama list` should show `gemma4:e4b`.
+
+## The photo feature returns nothing / an empty description
+
+**Cause:** an outdated Ollama. Older builds ignore an option KimCad sets and the vision
+model silently returns an empty answer.
+
+**Fix:** update Ollama to the current release from <https://ollama.com/download>, then try
+the photo again. (Your model and settings survive the update.)
+
+## "OpenSCAD isn't installed at …" or "OrcaSlicer isn't installed at …"
+
+**Cause:** the CAD tools were never fetched (or the download was interrupted), so
+`tools\openscad\` / `tools\orcaslicer\` is empty.
+
+**Fix:** from the KimCad folder, with your venv active:
+
+```
+python scripts\fetch_tools.py
+```
+
+It's safe to re-run any time — it verifies checksums and skips what's already there. If
+you'd rather use your own installed copy, point `binaries.openscad` /
+`binaries.orcaslicer` at it in `config\local.yaml` — but read the next entry first.
+
+## Slicing crashes or fails instantly with your own OrcaSlicer
+
+**Cause:** OrcaSlicer **2.3.2** (the current "stable") has an upstream bug that crashes
+CLI slicing on machines without a discrete GPU — which is exactly the kind of machine
+KimCad targets.
+
+**Fix:** use the bundled copy (`python scripts\fetch_tools.py` fetches a pinned
+**2.4.0-alpha** that fixes the crash and still ships the right printer profiles). If you
+point KimCad at your own OrcaSlicer, make it 2.4.0-alpha or newer.
+
+## "Port 8765 is already in use"
+
+**Cause:** another KimCad (or something else) is already listening on that port — usually
+a KimCad you started earlier and forgot.
+
+**Fix:** close the other one, or start this one on a different port:
+
+```
+kimcad web --port 8766
+```
+
+## Parts download as .stl instead of .3mf
+
+**Cause:** an OpenSCAD build without 3MF support (lib3mf). KimCad notices and falls back
+to STL automatically — your part is still fine.
+
+**Fix (optional):** use the bundled OpenSCAD (`python scripts\fetch_tools.py`), which has
+3MF support.
+
+## Python isn't found
+
+**Cause:** Python was installed without "Add python.exe to PATH", or the Microsoft Store
+stub is intercepting the command.
+
+**Fix:** re-run the Python installer → "Modify" → tick **Add python.exe to PATH**. If a
+Store window opens when you type `python`: Windows Settings → Apps → Advanced app
+settings → **App execution aliases** → turn off the two `python.exe` aliases.
+
+## A design takes forever / looks frozen
+
+**What's normal:** the AI runs on your CPU — a real design takes a few minutes, and both
+the web page and the terminal show live progress phases the whole time ("Planning the
+shape…", "Rendering the part…"). If you see phases ticking, it's working.
+
+**What's not:** no progress at all for 10+ minutes. Press Cancel (or `Ctrl+C` in the
+terminal) and try again; if it repeats, restart Ollama. Your saved designs are unaffected.
+
+## Something else broke
+
+The terminal running `kimcad web` always has the detailed error (the browser deliberately
+shows only a short message). For anything security-related, see [SECURITY.md](../SECURITY.md);
+for everything else, an issue report with the terminal's last lines is gold.

@@ -3,6 +3,8 @@
 A map of what's current vs. historical, so the user-facing doc surface stays clean.
 
 ## Current (read these)
+- **`getting-started-windows.md`** — the non-developer Windows setup walkthrough (start here if you just want to use KimCad).
+- **`troubleshooting.md`** — symptom → cause → fix for every known setup/runtime snag.
 - **`design/`** — the controlling UI/UX design + the v3.0 product spec (`design/KimCad-Unified-Product-Spec-v3.0.md`). Build to this.
 - **`stage-8.5-usability-plan.md`** — the authoritative Stage 8.5 slice plan (11 slices).
 - **`guide-my-designs.md`** — user-facing guide for the "My Designs" library.
