@@ -18,11 +18,30 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import trimesh
 
-from kimcad.config import Material, Printer
-from kimcad.ir import DesignPlan
-from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
+# TEST-006 (stage-A gate): the geometry-backend probe below produces ONE clear line for a
+# degraded env — but pydantic/openai/trimesh import failures used to crash conftest IMPORT
+# itself (a raw ModuleNotFoundError cascade) before that probe could ever run. Probe the
+# import-time hard deps first, with the same one-clear-line contract.
+for _mod, _hint in (
+    ("pydantic", "pip install -e \".[dev]\" (pydantic/pydantic-core missing or broken)"),
+    ("openai", "pip install -e \".[dev]\" (openai SDK missing)"),
+    ("trimesh", "pip install -e \".[dev]\" (trimesh missing)"),
+    ("yaml", "pip install -e \".[dev]\" (pyyaml missing)"),
+):
+    try:
+        __import__(_mod)
+    except Exception as _exc:  # noqa: BLE001 - any import failure means the suite can't run
+        raise pytest.UsageError(
+            f"KimCad's test suite needs a complete install: import of {_mod!r} failed "
+            f"({type(_exc).__name__}). Fix: {_hint}"
+        ) from _exc
+
+import trimesh  # noqa: E402 - deliberately after the friendly import probe above
+
+from kimcad.config import Material, Printer  # noqa: E402
+from kimcad.ir import DesignPlan  # noqa: E402
+from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult  # noqa: E402
 
 
 # ENG-007 (stage-8.5 gate): turn a bare/partial env into ONE clear line, not ~30 misleading

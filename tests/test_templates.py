@@ -186,10 +186,13 @@ def test_emit_scad_reflects_changed_values_without_a_renderer():
 def test_drawer_divider_compartments_capped_to_length():
     # ENG-505: too many compartments for a short frame would overlap the (compartments-1) cross-walls
     # into a solid block; the count is capped to <= length/4 and stays a whole number.
+    # TEST-009: named expectations, not inline arithmetic — the cap rule is length/4.
+    frame_length_mm = 12
+    max_compartments_for_frame = frame_length_mm // 4  # == 3 bays
     fam = default_registry().family("drawer_divider")
-    v = clamp_values(fam, {"length": 12, "depth": 80, "height": 50, "compartments": 12})
+    v = clamp_values(fam, {"length": frame_length_mm, "depth": 80, "height": 50, "compartments": 12})
     assert v["compartments"] == int(v["compartments"])  # a whole count, never half a compartment
-    assert 1 <= v["compartments"] <= 0.25 * 12  # <= 3 bays for a 12 mm frame
+    assert 1 <= v["compartments"] <= max_compartments_for_frame
 
 
 def test_registry_rejects_a_family_with_an_empty_bbox_axis():
