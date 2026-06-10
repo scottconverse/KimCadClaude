@@ -147,11 +147,22 @@ def test_sanitize_preserves_geometry_when_blocking():
     assert "cube(10)" in result.code and "sphere(5)" in result.code
 
 
+def _stub_binary(tmp_path: Path) -> Path:
+    """render_scad now refuses a binary that isn't on disk (ToolMissingError, QA-003).
+    These tests mock the subprocess layer, so satisfy the guard with a real (empty) file."""
+    p = tmp_path / "openscad.exe"
+    if not p.exists():
+        p.write_bytes(b"")
+    return p
+
+
 def test_render_refuses_blocked_code(tmp_path):
+    # No stub binary on purpose: blocked code must be reported as BLOCKED even when the
+    # tool isn't installed — sanitization runs before the tool-presence guard.
     with pytest.raises(BlockedCodeError):
         render_scad(
             "minkowski(){cube(1);sphere(1);}",
-            binary=Path("openscad"),
+            binary=Path("openscad-not-installed"),
             out_dir=tmp_path,
         )
 
@@ -170,7 +181,7 @@ def test_render_happy_path(tmp_path, monkeypatch):
     monkeypatch.setattr(osr.subprocess, "run", _fake_run_writing())
     result = render_scad(
         "use <library/box.scad>;\nbox(10,10,10);",
-        binary=Path("openscad"),
+        binary=_stub_binary(tmp_path),
         out_dir=tmp_path,
         output_format="3mf",
     )
@@ -196,7 +207,7 @@ def test_render_falls_back_to_stl_when_no_lib3mf(tmp_path, monkeypatch):
     monkeypatch.setattr(osr.subprocess, "run", _run)
     result = render_scad(
         "cube(5);",
-        binary=Path("openscad"),
+        binary=_stub_binary(tmp_path),
         out_dir=tmp_path,
         output_format="3mf",
     )
@@ -213,7 +224,7 @@ def test_render_failed_on_real_error(tmp_path, monkeypatch):
         _fake_run_writing(returncode=1, stderr="ERROR: Parser error in line 3"),
     )
     with pytest.raises(RenderFailed) as exc:
-        render_scad("cube(;", binary=Path("openscad"), out_dir=tmp_path)
+        render_scad("cube(;", binary=_stub_binary(tmp_path), out_dir=tmp_path)
     assert "Parser error" in str(exc.value)
 
 
@@ -222,7 +233,7 @@ def test_render_oversize_guard(tmp_path, monkeypatch):
     with pytest.raises(OversizeOutput):
         render_scad(
             "cube(5);",
-            binary=Path("openscad"),
+            binary=_stub_binary(tmp_path),
             out_dir=tmp_path,
             max_output_bytes=100,
         )
@@ -244,7 +255,7 @@ def test_render_resolves_relative_out_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(osr.subprocess, "run", _run)
     result = render_scad(
         "cube(5);",
-        binary=Path("openscad"),
+        binary=_stub_binary(tmp_path),
         out_dir=Path("rel/out"),
         output_format="3mf",
     )
@@ -264,4 +275,4 @@ def test_render_timeout(tmp_path, monkeypatch):
 
     monkeypatch.setattr(osr.subprocess, "run", _run)
     with pytest.raises(RenderTimeout):
-        render_scad("cube(5);", binary=Path("openscad"), out_dir=tmp_path, timeout_s=1)
+        render_scad("cube(5);", binary=_stub_binary(tmp_path), out_dir=tmp_path, timeout_s=1)

@@ -1497,7 +1497,19 @@ def make_handler(
                     self._json(200, {"status": PipelineStatus.model_unavailable.value,
                                      "error": MODEL_UNAVAILABLE_MESSAGE, "has_mesh": False})
                     return
-                self._json(500, {"error": f"{type(e).__name__}: {e}"})
+                # QA-003: a never-fetched tool binary is a recoverable setup state, not a 500 —
+                # surface the typed error's own actionable message as a failed run.
+                from kimcad.errors import ToolMissingError
+
+                if isinstance(e, ToolMissingError):
+                    self._json(200, {"status": PipelineStatus.render_failed.value,
+                                     "error": str(e), "has_mesh": False})
+                    return
+                # QA-008: log the real exception server-side; the browser gets a generic line —
+                # an internal class name + OS error string is a low-grade leak and never actionable.
+                self.log_error("design run failed: %s: %s", type(e).__name__, e)
+                self._json(500, {"error": "Something went wrong on the server. "
+                                          "The terminal running `kimcad web` has the detail."})
                 return
             finally:
                 # The run is done (success, model-down, or error) — drop the progress slot. A poll
@@ -1855,7 +1867,19 @@ def make_handler(
                         self._json(400, {"error": f"Unknown printer or material: {e}"})
                         return
                     except Exception as e:  # never leak a traceback to the browser
-                        self._json(500, {"error": f"{type(e).__name__}: {e}"})
+                        # QA-003: OrcaSlicer never fetched is a setup state with a recovery
+                        # command, not a server error. QA-008: everything else logs server-side
+                        # and the browser gets a generic line (no internal class names).
+                        from kimcad.errors import ToolMissingError
+
+                        if isinstance(e, ToolMissingError):
+                            self._json(200, {"sliced": False, "reason": "tool_missing",
+                                             "note": str(e)})
+                            return
+                        self.log_error("slice failed: %s: %s", type(e).__name__, e)
+                        self._json(500, {"error": "Something went wrong while slicing. "
+                                                  "The terminal running `kimcad web` has the "
+                                                  "detail."})
                         return
                     with lock:
                         # ENG-001: a re-render that landed while we were slicing bumped the version
@@ -1983,7 +2007,15 @@ def serve(
     config = Config.load()
     pipeline = build_web_pipeline(demo=demo, backend=backend)
     web_root = out_root if out_root is not None else Path("output") / "web"
-    httpd = ThreadingHTTPServer((host, port), make_handler(pipeline, web_root, config=config))
+    try:
+        httpd = ThreadingHTTPServer((host, port), make_handler(pipeline, web_root, config=config))
+    except OSError as e:
+        # QA-006: a second `kimcad web` (or anything else on the port) must end in one
+        # actionable line, not a bind traceback.
+        raise RuntimeError(
+            f"Port {port} is already in use on {host} — is another KimCad still running? "
+            f"Close it, or pass a different port: `kimcad web --port {port + 1}`."
+        ) from e
     mode = " (demo mode — no LLM)" if demo else ""
     print(f"KimCad web UI on http://{host}:{port}{mode}")
     print("Press Ctrl+C to stop.")

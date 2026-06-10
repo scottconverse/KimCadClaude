@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from kimcad.config import Material, Printer
+from kimcad.errors import ToolMissingError
 
 # A real motion line: G0/G1 (linear) or G2/G3 (arc), case-insensitive, with a word
 # boundary so G10/G28/G92 etc. are not mistaken for moves.
@@ -195,9 +196,14 @@ def slice_model(
 ) -> SliceResult:
     """Slice ``input_mesh`` into a G-code-bearing 3MF in ``out_dir``.
 
-    Raises :class:`SliceTimeout` or :class:`SliceFailed`. The caller is responsible
-    for having obtained explicit printer confirmation before calling this.
+    Raises :class:`SliceTimeout`, :class:`SliceFailed`, or
+    :class:`~kimcad.errors.ToolMissingError` (binary not on disk — checked up front so a
+    skipped fetch_tools step never reaches subprocess as a raw FileNotFoundError, QA-003).
+    The caller is responsible for having obtained explicit printer confirmation before
+    calling this.
     """
+    if not Path(binary).is_file():
+        raise ToolMissingError("OrcaSlicer", Path(binary))
     out_dir.mkdir(parents=True, exist_ok=True)
     gcode_path = out_dir / f"{basename}.gcode.3mf"
 

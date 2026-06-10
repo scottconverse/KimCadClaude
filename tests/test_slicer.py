@@ -48,6 +48,15 @@ def _write_gcode_3mf(path: Path, gcode: str = _GCODE, member: str = "Metadata/pl
             zf.writestr(member, gcode)
 
 
+def _stub_binary(tmp_path: Path) -> Path:
+    """slice_model now refuses a binary that isn't on disk (ToolMissingError, QA-003).
+    These tests mock the subprocess layer, so satisfy the guard with a real (empty) file."""
+    p = tmp_path / "orca-slicer.exe"
+    if not p.exists():
+        p.write_bytes(b"")
+    return p
+
+
 def test_slice_builds_expected_command(tmp_path, monkeypatch):
     seen = {}
 
@@ -59,7 +68,7 @@ def test_slice_builds_expected_command(tmp_path, monkeypatch):
     monkeypatch.setattr(slicer_mod.subprocess, "run", _run)
     result = slice_model(
         tmp_path / "part.oriented.stl",
-        binary=Path("orca-slicer"),
+        binary=_stub_binary(tmp_path),
         out_dir=tmp_path,
         settings=SETTINGS,
         basename="part",
@@ -85,7 +94,7 @@ def test_slice_fails_when_3mf_has_no_gcode(tmp_path, monkeypatch):
     monkeypatch.setattr(slicer_mod.subprocess, "run", _run)
     with pytest.raises(SliceFailed, match="no .gcode toolpath member"):
         slice_model(
-            tmp_path / "x.stl", binary=Path("orca-slicer"), out_dir=tmp_path, settings=SETTINGS
+            tmp_path / "x.stl", binary=_stub_binary(tmp_path), out_dir=tmp_path, settings=SETTINGS
         )
 
 
@@ -97,7 +106,7 @@ def test_slice_failed_on_nonzero(tmp_path, monkeypatch):
     with pytest.raises(SliceFailed):
         slice_model(
             tmp_path / "x.stl",
-            binary=Path("orca-slicer"),
+            binary=_stub_binary(tmp_path),
             out_dir=tmp_path,
             settings=SETTINGS,
         )
@@ -119,7 +128,7 @@ def test_slice_failed_arrange_message_names_the_footprint(tmp_path, monkeypatch)
     monkeypatch.setattr(slicer_mod.subprocess, "run", _run)
     with pytest.raises(SliceFailed) as ei:
         slice_model(
-            tmp_path / "x.stl", binary=Path("orca-slicer"), out_dir=tmp_path, settings=SETTINGS
+            tmp_path / "x.stl", binary=_stub_binary(tmp_path), out_dir=tmp_path, settings=SETTINGS
         )
     msg = str(ei.value)
     assert "footprint" in msg.lower() and "reduce the width/depth" in msg
@@ -145,7 +154,7 @@ def test_slice_timeout(tmp_path, monkeypatch):
     with pytest.raises(SliceTimeout):
         slice_model(
             tmp_path / "x.stl",
-            binary=Path("orca-slicer"),
+            binary=_stub_binary(tmp_path),
             out_dir=tmp_path,
             settings=SETTINGS,
             timeout_s=1,

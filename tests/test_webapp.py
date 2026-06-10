@@ -963,8 +963,9 @@ def test_unknown_printer_key_is_400(tmp_path):
 
 
 def test_unexpected_pipeline_error_is_clean_500_no_traceback(tmp_path):
-    """TEST-008: an unexpected exception in the pipeline surfaces as a 500 with the error
-    class but no stack trace leaked to the browser."""
+    """TEST-008 + QA-008: an unexpected exception in the pipeline surfaces as a 500 with a
+    GENERIC message — no stack trace AND no internal class name leaked to the browser (the
+    detail goes to the server log instead)."""
     import json
     import urllib.error
     import urllib.request
@@ -985,8 +986,68 @@ def test_unexpected_pipeline_error_is_clean_500_no_traceback(tmp_path):
         except urllib.error.HTTPError as e:
             assert e.code == 500
             body = e.read()
-            assert b"RuntimeError: boom" in body
+            assert b"RuntimeError" not in body  # QA-008: class name stays server-side
+            assert b"boom" not in body  # and so does the exception text
+            assert b"Something went wrong" in body
             assert b"Traceback" not in body
+
+
+def test_design_tool_missing_is_typed_not_500(tmp_path):
+    """QA-003: a never-fetched OpenSCAD surfaces as a typed, recoverable failure with the
+    fetch_tools.py recovery hint — not a 500 with a leaked class name."""
+    import json
+    import urllib.request
+    from pathlib import Path
+
+    from kimcad.errors import ToolMissingError
+
+    class _NoTool:
+        def run(self, prompt, out_dir, **kw):
+            raise ToolMissingError("OpenSCAD", Path("C:/absent/openscad.exe"))
+
+    with _serve(_NoTool(), tmp_path) as (host, port):
+        req = urllib.request.Request(
+            f"http://{host}:{port}/api/design",
+            data=json.dumps({"prompt": "a box"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            assert resp.status == 200
+            body = json.loads(resp.read())
+    assert body["status"] == "render_failed"
+    assert "fetch_tools.py" in body["error"]
+    assert body["has_mesh"] is False
+
+
+def test_slice_tool_missing_is_typed_not_500(tmp_path, monkeypatch):
+    """QA-003 (slice side): a never-fetched OrcaSlicer returns a not-sliced note with the
+    recovery hint, mirroring the gate-failed response shape the SPA already renders."""
+    import json
+    import urllib.request
+    from pathlib import Path
+
+    import kimcad.webapp as webapp_mod
+    from kimcad.errors import ToolMissingError
+
+    def _no_tool(*args, **kwargs):
+        raise ToolMissingError("OrcaSlicer", Path("C:/absent/orca-slicer.exe"))
+
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", _no_tool)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        req = urllib.request.Request(
+            base + f"/api/slice/{rid}",
+            data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            assert resp.status == 200
+            body = json.loads(resp.read())
+    assert body["sliced"] is False
+    assert body["reason"] == "tool_missing"
+    assert "fetch_tools.py" in body["note"]
 
 
 def test_unsupported_method_is_405(tmp_path):
@@ -1250,7 +1311,10 @@ def test_slice_unexpected_error_is_clean_500(tmp_path, monkeypatch):
         except urllib.error.HTTPError as e:
             assert e.code == 500
             body = e.read()
-            assert b"RuntimeError: slice boom" in body
+            # QA-008: generic message to the browser; class name + detail stay server-side.
+            assert b"RuntimeError" not in body
+            assert b"slice boom" not in body
+            assert b"Something went wrong" in body
             assert b"Traceback" not in body
 
 

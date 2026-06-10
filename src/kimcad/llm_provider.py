@@ -200,7 +200,14 @@ class LLMProvider:
                 )
         if not key:
             key = "not-needed"
-        return OpenAI(base_url=backend.base_url, api_key=key, timeout=backend.timeout_s)
+        # QA-004: split connect vs read. A generation may legitimately take many minutes on the
+        # CPU target (the long read budget), but a TCP connect to a server that's up answers in
+        # well under 5 s — so a wedged/absent server fails an attempt in seconds, not in
+        # `timeout_s`. httpx ships with the openai client.
+        import httpx
+
+        timeout = httpx.Timeout(backend.timeout_s, connect=5.0)
+        return OpenAI(base_url=backend.base_url, api_key=key, timeout=timeout)
 
     def _complete(self, messages: list[dict[str, str]], *, json_mode: bool) -> str:
         kwargs: dict[str, Any] = {
@@ -221,9 +228,32 @@ class LLMProvider:
                 return resp.choices[0].message.content or ""
             except (APIConnectionError, APITimeoutError) as e:
                 last_err = e
+                # QA-002: the 6×30 s retry loop exists to bridge a MID-RUN server restart — a
+                # server that was up and dropped. A server that was NEVER up (the dominant
+                # non-developer first-run state: Ollama not started) must fail fast instead of
+                # sitting silent for ~4 minutes. A first-attempt connection error plus a failed
+                # 2 s TCP probe means "never up" → raise now; a probe that answers means the
+                # drop is transient → keep the full retry budget.
+                if attempt == 1 and not self._server_reachable():
+                    raise
                 if attempt < self.max_attempts:
                     time.sleep(self.retry_wait_s)
         raise last_err if last_err is not None else RuntimeError("LLM call failed")
+
+    def _server_reachable(self, timeout_s: float = 2.0) -> bool:
+        """A bare TCP connect to the backend host:port. Cheap, no HTTP — just 'is anything
+        listening?'. Used only to distinguish never-up from dropped-mid-run (QA-002)."""
+        import socket
+        from urllib.parse import urlparse
+
+        u = urlparse(self.backend.base_url)
+        host = u.hostname or "localhost"
+        port = u.port or (443 if u.scheme == "https" else 80)
+        try:
+            with socket.create_connection((host, port), timeout=timeout_s):
+                return True
+        except OSError:
+            return False
 
     def generate_design_plan(
         self,

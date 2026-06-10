@@ -31,6 +31,7 @@ from pathlib import Path
 import yaml
 
 from kimcad.config import PROJECT_ROOT
+from kimcad.errors import ToolMissingError
 
 LIBRARY_DIR = PROJECT_ROOT / "library"
 
@@ -269,8 +270,11 @@ def render_scad(
     """Sanitize and render OpenSCAD source to a mesh file in ``out_dir``.
 
     Raises :class:`BlockedCodeError`, :class:`RenderTimeout`, :class:`RenderFailed`,
-    or :class:`OversizeOutput`. On success returns a :class:`RenderResult` pointing
-    at the written mesh.
+    :class:`~kimcad.errors.ToolMissingError` (binary not on disk — checked before the
+    subprocess spawn so a skipped fetch_tools step never surfaces as a raw
+    FileNotFoundError, QA-003), or :class:`OversizeOutput`. On success returns a
+    :class:`RenderResult` pointing at the written mesh. Sanitization runs FIRST:
+    blocked code is blocked regardless of whether the tool is installed.
     """
     injected, added = inject_library_uses(code)
     injected, terminated = ensure_terminated(injected)
@@ -286,6 +290,8 @@ def render_scad(
     scad_path = out_dir / f"{basename}.scad"
     scad_path.write_text(sanitized.code, encoding="utf-8")
 
+    if not Path(binary).is_file():
+        raise ToolMissingError("OpenSCAD", Path(binary))
     fmt = output_format.lower()
     started = time.monotonic()
     proc, fmt, fell_back = _render_once(binary, scad_path, out_dir, basename, fmt, timeout_s)

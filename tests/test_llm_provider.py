@@ -194,8 +194,11 @@ def test_history_is_threaded_between_system_and_user():
     assert msgs[-1]["role"] == "user"
 
 
-def test_complete_retries_then_succeeds_on_connection_error():
+def test_complete_retries_then_succeeds_on_connection_error(monkeypatch):
     # A transient Ollama drop (APIConnectionError) should be retried, not fail the call.
+    # QA-002: the retry loop now probes reachability on a FIRST-attempt failure; pin the
+    # probe to True ("server is listening — this is a mid-run drop") so the test stays
+    # hermetic regardless of whether a real Ollama is running on the host.
     import httpx
     from openai import APIConnectionError
 
@@ -211,6 +214,7 @@ def test_complete_retries_then_succeeds_on_connection_error():
                 raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))])
 
+    monkeypatch.setattr(LLMProvider, "_server_reachable", lambda self, timeout_s=2.0: True)
     client = FlakyClient(fail_n=2)
     provider = LLMProvider(BACKEND, client=client, retry_wait_s=0)
     out = provider._complete([{"role": "user", "content": "x"}], json_mode=False)
@@ -218,7 +222,7 @@ def test_complete_retries_then_succeeds_on_connection_error():
     assert client.calls == 3  # failed twice, succeeded on the third
 
 
-def test_complete_raises_after_exhausting_retries():
+def test_complete_raises_after_exhausting_retries(monkeypatch):
     import httpx
     from openai import APIConnectionError
 
@@ -231,6 +235,9 @@ def test_complete_raises_after_exhausting_retries():
             self.calls += 1
             raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
 
+    # Probe pinned True: a listening-but-failing server burns the full retry budget (the
+    # never-up fast path is covered in test_first_run_errors.py).
+    monkeypatch.setattr(LLMProvider, "_server_reachable", lambda self, timeout_s=2.0: True)
     client = DeadClient()
     provider = LLMProvider(BACKEND, client=client, max_attempts=3, retry_wait_s=0)
     try:

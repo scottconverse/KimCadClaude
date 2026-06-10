@@ -239,6 +239,29 @@ def _send_print_job(config: Config, connector_name: str, gcode_path: str) -> Non
         print(f"  (couldn't read printer status: {e})")
 
 
+# QA-005: human labels for the pipeline's coarse phases (same vocabulary the web UI shows).
+_PHASE_LABELS = {
+    "planning": "Planning the shape…",
+    "generating": "Writing the CAD code…",
+    "rendering": "Rendering the part…",
+    "validating": "Checking it for printing…",
+}
+
+
+def _phase_printer():
+    """Progress sink for CLI runs — one line per phase to stderr (stdout stays the report).
+    Consecutive repeats are deduped: codegen retries re-emit 'generating' and shouldn't stutter."""
+    last: list[str | None] = [None]
+
+    def emit(phase: str) -> None:
+        if phase == last[0]:
+            return
+        last[0] = phase
+        print(f"  {_PHASE_LABELS.get(phase, phase)}", file=sys.stderr, flush=True)
+
+    return emit
+
+
 def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     # --send implies slicing (you can't send what wasn't sliced); validate the connector
     # up front so a typo fails fast, not after a multi-minute run.
@@ -256,6 +279,9 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
         Path(args.out),
         proceed_anyway=args.proceed_anyway,
         confirm_print=do_slice,
+        # QA-005: a real local generation takes minutes on the CPU target; a silent console
+        # reads as a freeze. Phases go to stderr so stdout stays clean for the report.
+        progress=_phase_printer(),
     )
 
     from kimcad.pipeline import PipelineStatus
@@ -462,9 +488,36 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "models":
             return _cmd_models(config, args)
     except RuntimeError as e:
-        # e.g. a configured backend whose API key env var is unset.
+        # ToolMissingError (a RuntimeError) lands here too: e.g. OpenSCAD/OrcaSlicer never
+        # fetched — the message already carries the fetch_tools.py recovery hint (QA-003).
+        # Plain RuntimeError: e.g. a configured backend whose API key env var is unset.
         print(f"Error: {e}", file=sys.stderr)
         return 2
+    except Exception as e:  # noqa: BLE001 — last-resort mapping, see below
+        # QA-001: the most likely first-run failures must end in one actionable line, not a
+        # traceback. Model-server down (Ollama not started) and model-not-pulled are matched
+        # by class NAME (duck-typed, mirroring pipeline._is_model_unreachable) so the CLI
+        # needn't import the OpenAI SDK; anything unrecognized re-raises — a real bug should
+        # still crash loudly, not hide behind a friendly message.
+        from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
+
+        if _is_model_unreachable(e):
+            print(f"Error: {MODEL_UNAVAILABLE_MESSAGE}", file=sys.stderr)
+            print(
+                "  Start Ollama, pull the model if you haven't (`ollama pull gemma4:e4b`), "
+                "then try again. `kimcad models` shows what's installed.",
+                file=sys.stderr,
+            )
+            return 2
+        if type(e).__name__ == "NotFoundError":
+            print(
+                "Error: the model isn't available on your local AI server. "
+                "Pull it first (`ollama pull gemma4:e4b`), then try again. "
+                "`kimcad models` shows what's installed.",
+                file=sys.stderr,
+            )
+            return 2
+        raise
     return 2
 
 
