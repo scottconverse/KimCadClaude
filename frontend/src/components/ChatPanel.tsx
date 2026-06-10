@@ -184,11 +184,16 @@ export default function ChatPanel({
             (no part on screen yet) the viewport's full overlay owns the progress — showing the same
             "Designing…" here too is a redundant duplicate. So only show this row for an in-thread
             REFINE (a part is already framed in the viewport), where it's the progress cue. */}
+        {/* UX-007 (2026-06-09 audit): the thinking row is INSIDE the polite log, so each busy
+            re-render would re-announce it on top of long assistant turns. aria-hidden takes it
+            out of the live stream; the overlay's role=status (Viewport) already announces the
+            run state once. Fuller live-region scoping is deferred until a real NVDA/VoiceOver
+            session can measure it — changing log semantics blind risks making SR worse. */}
         {busy && result !== null && (
-          <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+          <div className="kc-ai-row" aria-hidden="true">
+            <span className="kc-ava"><CubeGlyph /></span>
             <div className="kc-think">
-              <span className="kc-spin" aria-hidden="true" />
+              <span className="kc-spin" />
               <span>{restoring ? 'Reopening your design…' : 'Refining your part…'}</span>
             </div>
           </div>
@@ -249,8 +254,11 @@ export default function ChatPanel({
           {result?.status !== 'clarification_needed' && (
             <>
               <span className="kc-refine-hint">Refine by talking — tap a change or describe your own:</span>
+              {/* UX-013 (2026-06-09 audit): chips are UNIVERSAL edits — size and walls apply to
+                  every part family; the old "Add mounting holes" was a no-op for hole-less
+                  shapes (a flat clip) and is better typed when it genuinely applies. */}
               <div className="kc-refine-chips" role="group" aria-label="Quick refinements">
-                {['Make it wider', 'Make it taller', 'Thicker walls', 'Add mounting holes'].map(
+                {['Make it wider', 'Make it taller', 'Make it smaller', 'Thicker walls'].map(
                   (chip) => (
                     <button
                       key={chip}
@@ -288,6 +296,9 @@ export default function ChatPanel({
           >
             Send
           </button>
+          {/* UX-006 (2026-06-09 audit): the keyboard contract, stated — a multi-line author
+              shouldn't discover Enter-sends by accidentally firing a half-written request. */}
+          <span className="kc-key-hint">Enter to send · Shift+Enter for a new line</span>
           {/* Slice 7: start a fresh part from a photo (a rough local-vision seed). Secondary to the
               refine input; using it begins a new design from the seed. */}
           <PhotoOnramp onSeed={onPhotoSeed} disabled={busy} variant="workspace" />

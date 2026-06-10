@@ -7,7 +7,10 @@ name = "kimcad"
 version = "0.1.0"
 description = "AI-assisted parametric design for functional 3D prints"
 readme = "README.md"
-requires-python = ">=3.11"
+# Python 3.13 is THE supported line for this version (decided 2026-06-10): new enough for
+# every pinned wheel, old enough that CadQuery's OCCT backend runs on the SAME interpreter
+# line (3.14 is too new for it). The floor is what we test and ship on.
+requires-python = ">=3.13"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Scott Converse" }]
 dependencies = [

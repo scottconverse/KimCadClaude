@@ -2772,6 +2772,37 @@ input {
 .kc-statdot-warn {
   background: var(--kc-warn-accent);
 }
+/* Stage D (2026-06-09 audit UX-001/003/006/009/011): proceed-decision + polish styles. */
+.kc-draft-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.kc-card-rel {
+  margin: -4px 0 10px;
+  font-size: 12.5px;
+}
+.kc-readiness-proceed {
+  margin: 4px 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--kc-warn-text);
+}
+.kc-slice-caution {
+  color: var(--kc-warn-text);
+  font-weight: 600;
+}
+.kc-key-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--kc-muted);
+}
+.kc-wiz-model-slug {
+  font-size: 12px;
+  color: var(--kc-muted);
+  font-weight: 400;
+}
+
 /* UX-A-005: inside a warn surface the link must not be color-only — underline it. */
 .kc-link-btn-warn,
 .kc-model-pill .kc-link-btn,

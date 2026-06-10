@@ -172,6 +172,13 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
               prepare a print file.
             </p>
           )}
+          {/* UX-003 (2026-06-09 audit): a warn-gate part slices on purpose, but the enabled
+              button must not read as a clean bill — echo the caution right next to the action. */}
+          {result.report?.gate_status === 'warn' && (
+            <p className="kc-muted-note kc-slice-caution">
+              Slicing with cautions — review the risks in the Readiness card first.
+            </p>
+          )}
 
           {error !== null && <p className="kc-muted-note kc-export-error">{error}</p>}
           {slice && !slice.sliced && (

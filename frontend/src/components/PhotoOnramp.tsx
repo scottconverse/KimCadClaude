@@ -209,6 +209,11 @@ export default function PhotoOnramp({
               <p className="kc-photo-note">
                 A photo can’t tell us scale, so any sizes are estimates. Adjust anything, then continue.
               </p>
+              {/* UX-010 (2026-06-09 audit): close the privacy loop — read locally AND discarded.
+                  (The server reads the bytes for this one description and persists nothing.) */}
+              <p className="kc-photo-note">
+                The photo isn’t saved anywhere — only this description continues.
+              </p>
               {variant === 'workspace' && (
                 <p className="kc-photo-note">
                   This starts a new part from the photo — your current part is saved in My Designs.

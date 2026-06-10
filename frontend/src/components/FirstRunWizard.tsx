@@ -219,7 +219,11 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                 </p>
                 <div className="kc-wiz-modelcard">
                   <div className="kc-wiz-modelcard-top">
-                    <span className="kc-wiz-model-name kc-mono">{model?.model ?? 'gemma4:e4b'}</span>
+                    {/* UX-011: lead with the friendly name; the raw slug is a secondary detail. */}
+                    <span className="kc-wiz-model-name">
+                      KimCad local AI{' '}
+                      <span className="kc-mono kc-wiz-model-slug">{model?.model ?? 'gemma4:e4b'}</span>
+                    </span>
                     {modelState === 'checking' ? (
                       <span className="kc-wiz-model-stat" role="status">
                         <span className="kc-spin-sm" aria-hidden="true" /> Checking…

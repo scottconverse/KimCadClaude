@@ -114,8 +114,10 @@ describe('RightPanel', () => {
   it('renders the printability verdict, the size, and findings from the result', () => {
     stubFetch()
     renderPanel({ result: passResult })
-    // The gate badge is framed as the technical check ("Gate: Passed"), not the readiness headline.
-    expect(screen.getByText(/Gate: Passed/)).toBeTruthy()
+    // UX-008 (stage-D): the badge carries the plain verdict — the card title supplies the
+    // subject; no "Gate:" jargon in the trust moment.
+    expect(screen.getByText('Passed')).toBeTruthy()
+    expect(screen.queryByText(/Gate:/)).toBeNull()
     expect(screen.getByText('Dimensions match')).toBeTruthy()
     expect(screen.getByText(/80 × 60 × 40 mm/)).toBeTruthy()
   })

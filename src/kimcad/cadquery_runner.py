@@ -1,4 +1,4 @@
-"""CadQuery backend — the in-process (Python 3.14) side that drives the out-of-process
+"""CadQuery backend — the in-process (app venv) side that drives the out-of-process
 worker (spec §6.4/§12, Stage 8).
 
 CadQuery is the **parallel geometry backend** to OpenSCAD: the LLM can emit either, and a
@@ -6,8 +6,9 @@ prompt OpenSCAD codegen fails on may succeed under CadQuery (and vice versa), so
 lifts the done-gate. CadQuery also exports **STEP** — editable, parametric CAD geometry
 OpenSCAD cannot produce.
 
-CadQuery's OCCT backend has no Python-3.14 wheels, so it runs in a separate <=3.13
-interpreter via :mod:`kimcad.cadquery_worker`, shelled out exactly like OpenSCAD/OrcaSlicer.
+Generated CadQuery code runs in a SEPARATE interpreter via :mod:`kimcad.cadquery_worker`,
+shelled out exactly like OpenSCAD/OrcaSlicer — a security-isolation choice (KimCad and
+CadQuery both run on Python 3.13; the split keeps untrusted code at arm's length).
 This module:
 
 1. **Statically sanitizes** the untrusted generated script (the first of two security

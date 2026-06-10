@@ -24,11 +24,14 @@ function SendGlyph() {
 export default function Landing({
   onSubmit,
   busy,
+  initialValue = '',
 }: {
   onSubmit: (prompt: string) => void
   busy: boolean
+  /** UX-001: a preserved draft (e.g. after a cancelled first design) re-seeds the box. */
+  initialValue?: string
 }) {
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(initialValue)
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -52,6 +55,9 @@ export default function Landing({
         {/* UX-002: surface a down model BEFORE the user invests a prompt + a wait. */}
         <ModelHealthPill />
 
+        {initialValue && (
+          <p className="kc-muted-note kc-draft-note">Picked up where you left off.</p>
+        )}
         <form className="kc-input-card" onSubmit={submit}>
           <textarea
             className="kc-input"

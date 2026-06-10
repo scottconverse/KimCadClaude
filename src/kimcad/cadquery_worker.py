@@ -1,13 +1,14 @@
-"""CadQuery execution worker — runs OUT OF PROCESS on a Python <= 3.13 interpreter.
+"""CadQuery execution worker — runs OUT OF PROCESS in its own interpreter.
 
-KimCad's app/gate run on Python 3.14, but CadQuery (and its OCCT/OCP backend) ship no
-3.14 wheels, so the CadQuery backend executes here, in a separate interpreter, exactly
-the way OpenSCAD and OrcaSlicer are shelled out (arm's-length subprocess; spec §6.4/§12).
+KimCad targets Python 3.13 and CadQuery runs on 3.13 too — the out-of-process split is a
+SECURITY-ISOLATION choice (untrusted generated code stays in its own interpreter with
+restricted builtins), not a version constraint; CadQuery is shelled out exactly the way
+OpenSCAD and OrcaSlicer are (arm's-length subprocess; spec §6.4/§12).
 
 This file is deliberately **stdlib + cadquery only** — it must import cleanly under the
-foreign 3.13 interpreter, so it NEVER imports ``kimcad`` or anything from the 3.14 venv.
-The in-process side (:mod:`kimcad.cadquery_runner`, which DOES run on 3.14) writes the
-sanitized script to a temp file and invokes::
+worker interpreter (which has cadquery but not kimcad), so it NEVER imports ``kimcad``
+or anything from the app venv. The in-process side (:mod:`kimcad.cadquery_runner`)
+writes the sanitized script to a temp file and invokes::
 
     <py3.13> path/to/cadquery_worker.py   # request JSON on stdin, RESULT JSON to result_path
 

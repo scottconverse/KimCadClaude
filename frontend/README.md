@@ -19,7 +19,7 @@ there is no separately-served vendor copy.
 
 `src/kimcad/webapp.py` (a dependency-free stdlib `http.server`) serves the build output:
 the shell at `/` and the bundles at `/assets/<file>` (a path-traversal guard rejects anything but a
-plain filename). The SPA talks to a JSON API; `docs/ARCHITECTURE.md` is the authoritative endpoint
+plain filename). The SPA talks to a JSON API; the repo-root `ARCHITECTURE.md` is the authoritative endpoint
 list (it now spans Stage 5–8.5 additions — live re-render, settings, photo seed, saved designs —
 beyond the original `/api/design`, `/api/slice/<id>`, `/api/options`, `/api/mesh/<id>`,
 `/api/gcode/<id>` set). (`/api/send/<id>` exists server-side but the SPA does not call it yet —

@@ -109,6 +109,10 @@ export default function App() {
   // A top-level network/unexpected error (not a pipeline status failure — those surface as
   // assistant messages with error tone in the thread).
   const [error, setError] = useState<string | null>(null)
+  // UX-001 (2026-06-09 audit): the last submitted first-design prompt, preserved so a cancel
+  // (or hard failure) that lands the user back on the Landing re-seeds their words instead of
+  // erasing them. Cleared on a successful design.
+  const [landingDraft, setLandingDraft] = useState('')
   const [rerendering, setRerendering] = useState(false)
   const [rerenderError, setRerenderError] = useState<string | null>(null)
   const renderSeq = useRef(0)
@@ -357,11 +361,14 @@ export default function App() {
         return next
       })
       applyResult(r)
+      // UX-001: the words made it into a real design — the landing draft has done its job.
+      setLandingDraft('')
     } catch (err) {
       if (seq !== designSeqRef.current) return // superseded (incl. our own abort on replace) — ignore
       if (isAbortError(err)) {
         // The user cancelled — return quietly. Only worth a thread note if they stay in the
-        // workspace (a refine); a first-design cancel returns to the landing, where it'd be unseen.
+        // workspace (a refine); a first-design cancel returns to the landing, where the
+        // preserved draft (UX-001) speaks for itself.
         if (resultRef.current) {
           setMessages((prev) => [...prev, { role: 'assistant', content: 'Cancelled — back to you.' }])
         }
@@ -389,6 +396,9 @@ export default function App() {
 
   // --- design / refine / re-render ---------------------------------------
   async function handleSubmit(submitted: string) {
+    // UX-001: keep the user's words until a design genuinely lands — a first-design cancel
+    // or hard failure re-seeds them on the Landing instead of erasing them.
+    setLandingDraft(submitted)
     resetSaveIndicator()
     navigate('', { replace: true })
     setMessages([{ role: 'user', content: submitted }])
@@ -490,6 +500,15 @@ export default function App() {
   }
 
   function handleNewDesign() {
+    // UX-005 (2026-06-09 audit): only genuinely-unsaved in-flight work asks for a confirm —
+    // a first design still running (nothing saved yet), or a clarification thread that never
+    // produced a version. Saved work never nags (autosave makes restarts cheap).
+    const unsavedInFlight =
+      (busy && !restoring && !result?.saved_id) ||
+      (!busy && messages.length > 0 && versions.length === 0 && !result?.saved_id)
+    if (unsavedInFlight && !window.confirm('Start over? Your current description isn’t saved yet.')) {
+      return
+    }
     resetSaveIndicator()
     navigate('', { replace: true })
     setMessages([])
@@ -590,7 +609,7 @@ export default function App() {
       ) : route.name === 'settings' ? (
         <SettingsPanel />
       ) : !onWorkspace ? (
-        <Landing onSubmit={handleSubmit} busy={busy} />
+        <Landing onSubmit={handleSubmit} busy={busy} initialValue={landingDraft} />
       ) : (
         <Suspense fallback={<div className="kc-workspace-loading">Loading workspace…</div>}>
           <Workspace

@@ -66,7 +66,8 @@ on another machine — not a printable STL). A short walkthrough is in
 
 ## Requirements
 
-- Python 3.11+
+- **Python 3.13** — the supported line for this version (it's what the lockfile, the CI
+  gate, and the optional CadQuery backend are all built and proven on)
 - OpenSCAD 2021.01+ (`lib3mf` lets it emit 3MF as the *render* output, else STL; either
   way the slice path consumes an STL, so a `lib3mf`-less build does not block printing)
 - OrcaSlicer (CLI)
@@ -156,10 +157,13 @@ lift depends on the model and prompts — measure it live). A CadQuery-built par
 **editable `.STEP` (CAD) download** that OpenSCAD can't produce. It's entirely optional — with no CadQuery installed, KimCad behaves
 exactly as before.
 
-CadQuery's OCCT kernel ships no Python-3.14 wheels and KimCad runs on 3.14, so CadQuery runs in a
-separate **≤3.13** interpreter as an arm's-length worker (like OpenSCAD/OrcaSlicer). To enable it:
-install `cadquery` into a Python 3.13 environment; KimCad auto-discovers it (it probes
-`py -3.13/-3.12/-3.11` then `python3.x` on `PATH`). Pin or disable it with
+CadQuery runs in a separate interpreter as an **arm's-length worker** (like
+OpenSCAD/OrcaSlicer) — today that's a security-isolation choice, not a version constraint:
+KimCad and CadQuery both run on Python 3.13, but generated CadQuery code stays sandboxed in
+its own process regardless. To enable it: install `cadquery` into a Python 3.13 environment
+(the repo convention is a `.venv-cq313` next to `.venv`); KimCad auto-discovers it (the
+repo-local worker venv first, then `py -3.13/-3.12/-3.11`, then `python3.x` on `PATH`).
+Pin or disable it with
 `binaries.cadquery_python` in `config/local.yaml` (`null` = auto, `false` = off, or an explicit
 interpreter path). Full details, including the security model for executing generated CadQuery,
 are in [`docs/cadquery-backend.md`](docs/cadquery-backend.md).
@@ -348,7 +352,7 @@ as the gate of record until hosted CI is brought up to the same coverage.
 
 | | Windows | macOS | Linux |
 |---|---|---|---|
-| Python | 3.11+ | 3.11+ | 3.11+ |
+| Python | 3.13 | 3.13 | 3.13 |
 | OpenSCAD | portable `.zip` in `tools/` | `.app` payload | AppImage |
 | OrcaSlicer | portable `.zip` in `tools/` | `.app` payload | AppImage |
 

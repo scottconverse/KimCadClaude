@@ -18,35 +18,36 @@ as the optional PrintProof3D engine.
 
 ## Why it runs out of process
 
-CadQuery's geometry kernel is OCCT via the `OCP` wheels, which (as of this writing) support
-Python 3.9–3.13 and ship **no Python 3.14 wheels**. KimCad's app and test gate run on
-**Python 3.14**. So CadQuery cannot be imported in the main process. Instead it runs in a
-separate **≤3.13 interpreter** as an arm's-length subprocess — exactly how OpenSCAD and
-OrcaSlicer are already shelled out (spec §6.4/§12).
+**Security isolation.** Generated CadQuery code is untrusted model output; running it in a
+separate interpreter with restricted builtins (on top of the static sanitizer) keeps it at
+arm's length from the app — exactly how OpenSCAD and OrcaSlicer are already shelled out
+(spec §6.4/§12). KimCad targets **Python 3.13** and CadQuery's OCCT (`OCP`) wheels run on
+3.13 too, so this is no longer a version workaround — the process boundary stays because
+it's the second of the two security layers.
 
 ```
-main app (3.14)                              worker (≤3.13 + cadquery)
-─────────────────                            ─────────────────────────
+main app (3.13)                              worker (own 3.13 venv + cadquery)
+─────────────────                            ─────────────────────────────────
 cadquery_runner.render_cadquery(code)
   ├─ sanitize_cadquery(code)   ── static block-list (layer 1)
   ├─ write script to a temp dir
-  └─ subprocess: <py3.13> cadquery_worker.py ──►  exec(script) in a restricted
+  └─ subprocess: <python> cadquery_worker.py ──►  exec(script) in a restricted
         (request JSON on stdin)                    namespace (layer 2); export
         ◄── result JSON in a result file           STL (+ STEP); measure bbox
 ```
 
 ## Enabling it
 
-CadQuery has no Python-3.14 wheels (see *Why it runs out of process*, above), so it needs an
-interpreter at **Python ≤3.13**. If you already run KimCad on Python 3.11–3.13, you can install
-`cadquery` into **that same interpreter** — no second Python required. Only a 3.14 KimCad install
-needs a separate ≤3.13 interpreter for CadQuery.
-
-1. Install CadQuery on a ≤3.13 interpreter (its OCCT wheels are large): install `cadquery`
-   into a Python 3.11–3.13 environment.
+1. Install CadQuery into a Python 3.13 environment (its OCCT wheels are large). The repo
+   convention is a dedicated worker venv next to the app's:
+   `py -3.13 -m venv .venv-cq313` then `.venv-cq313\Scripts\pip install cadquery`.
+   (Installing `cadquery` into the app venv also works — the worker still runs it in a
+   separate process — but the dedicated venv keeps the heavy OCCT install out of the app's
+   dependency surface.)
 2. KimCad auto-discovers it. With `binaries.cadquery_python: null` (the default in
-   `config/default.yaml`), KimCad probes `py -3.13/-3.12/-3.11` (Windows) then
-   `python3.13/3.12/3.11` on `PATH`, and uses the first one whose `import cadquery` succeeds.
+   `config/default.yaml`), KimCad probes the repo-local `.venv-cq313` first, then
+   `py -3.13/-3.12/-3.11` (Windows), then `python3.13/3.12/3.11` on `PATH`, and uses the
+   first one whose `import cadquery` succeeds.
 
 Config knobs (`config/default.yaml`, override in `config/local.yaml`):
 

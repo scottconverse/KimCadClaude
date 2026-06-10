@@ -386,11 +386,13 @@ function ScoreGauge({ score }: { score: number }) {
 
 function ReadinessBody({
   readiness,
+  gateStatus,
   onFocusRisk,
   highlightsOn,
   onToggleHighlights,
 }: {
   readiness: ReadinessPayload
+  gateStatus?: string
   onFocusRisk?: (issueId: string) => void
   highlightsOn?: boolean
   onToggleHighlights?: () => void
@@ -403,6 +405,14 @@ function ReadinessBody({
     <div className={`kc-readiness kc-rtone-${tone}`}>
       <ScoreGauge score={readiness.score} />
       <p className="kc-readiness-verdict">{readiness.verdict}</p>
+      {/* UX-003 (2026-06-09 audit): the warn case is the one the user must adjudicate — say
+          plainly that proceeding is allowed, bridging the amber verdict to the live Slice
+          button below instead of leaving the decision implicit. */}
+      {gateStatus === 'warn' && (
+        <p className="kc-readiness-proceed">
+          This should print, but check the risks below first — you can still slice it.
+        </p>
+      )}
       {readiness.confidence && (
         <p className="kc-readiness-conf kc-tip-host">
           <span className="kc-conf-line">
@@ -513,6 +523,7 @@ function ReadinessCard({
       {readiness ? (
         <ReadinessBody
           readiness={readiness}
+          gateStatus={result?.report?.gate_status}
           onFocusRisk={onFocusRisk}
           highlightsOn={highlightsOn}
           onToggleHighlights={onToggleHighlights}
@@ -540,9 +551,14 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
       <h2 className="kc-card-title kc-tip-host">Printability<InfoTip term="printability" /></h2>
       {report ? (
         <>
+          {/* UX-009 (2026-06-09 audit): say the relationship out loud — this card is the
+              detail BEHIND the readiness score above it, not a second opinion to reconcile. */}
+          <p className="kc-muted-note kc-card-rel">The detail behind the readiness score above.</p>
           <div className="kc-gate-row kc-tip-host">
+            {/* UX-008: no "Gate:" jargon in the trust moment — the card title supplies the
+                subject; the badge carries the plain verdict ("Passed" / "Needs review"). */}
             <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
-              Gate: {gateLabel(report.gate_status)}
+              {gateLabel(report.gate_status)}
             </span>
             <InfoTip term="gate" />
             {/* UX-001: state which geometry engine built this part — a neutral provenance chip,

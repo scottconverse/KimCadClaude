@@ -21,7 +21,7 @@ Project-level current docs live at the repo root: `README.md`, `ARCHITECTURE.md`
 ## Historical (kept for provenance — NOT current instructions)
 Completed-stage directive / handoff snapshots are retained for the record but are superseded by the
 docs above. Treat them as history, not as build instructions, e.g.:
-- `stage-5-completion-directive-2026-06-02.md`, `stage-8.5-slice-5-onramps.md`, and any other
+- `stage-5-completion-directive-2026-06-02.md`, `design/stage-8.5-slice-5-onramps.md`, and any other
   `stage-*-directive` / `stage-*-completion` / dated slice-directive files.
 
 If you're resuming work, the source of truth is: HANDOFF.md (resume box) + `audits/RUN-LEDGER-2026-06-05.md`
