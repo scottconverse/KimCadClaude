@@ -79,6 +79,13 @@ jobs:
             .\.venv-cq313\Scripts\python.exe -m pip install --quiet cadquery
             if ($LASTEXITCODE -ne 0) { throw "cadquery install failed" }
           } else { "cq venv cached" }
+          # Warm the import BEFORE the gate probes it: a cold first `import cadquery` (fresh
+          # install + Defender scanning the OCP binaries) measured 41s on this runner — the
+          # discovery probe must never pay that cost mid-gate (2026-06-10 strict-gate failure).
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          .\.venv-cq313\Scripts\python.exe -c "import cadquery" 
+          if ($LASTEXITCODE -ne 0) { throw "cadquery import failed - the worker venv is broken" }
+          "cq import warm-up: $([math]::Round($sw.Elapsed.TotalSeconds,1))s"
 
       - name: Provision frontend deps
         shell: powershell

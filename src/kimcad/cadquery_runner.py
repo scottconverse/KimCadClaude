@@ -314,11 +314,14 @@ def find_cadquery_interpreter(
 
     for cmd in cmds:
         try:
-            # 20s is ample for an `import cadquery` probe (~3-4s warm) while bounding the
-            # worst case if a candidate hangs; the Config layer caches the discovered result.
+            # The probe is ~3-4s warm, but a COLD venv (fresh pip install, Defender scanning
+            # the new OCP binaries) measured 41s on the CI runner — 20s timed out and the
+            # strict gate read it as "no cadquery" (2026-06-10). 90s bounds a genuinely hung
+            # candidate while surviving a first-touch import; the Config layer caches the
+            # discovered result so the cost is paid once.
             # Scrub secrets from the probe env too (the probe needs none) — ENG-002.
             proc = subprocess.run(
-                [*cmd, "-c", _PROBE], capture_output=True, text=True, timeout=20,
+                [*cmd, "-c", _PROBE], capture_output=True, text=True, timeout=90,
                 env=_worker_env(),
             )
         except (OSError, subprocess.SubprocessError):
