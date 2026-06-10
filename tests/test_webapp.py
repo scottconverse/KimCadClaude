@@ -1195,9 +1195,9 @@ def test_evicted_design_dir_is_removed_from_disk(tmp_path, monkeypatch):
                     data=json.dumps({"prompt": "a box"}).encode(),
                     headers={"Content-Type": "application/json"},
                 ), timeout=30)
-        # TEST-003 (stage-9 gate): pin the lockstep eviction THROUGH the routes, so a
-        # silent rebinding of any transitional alias (step_registry, design_snapshot,
-        # rid_saved_id, …) fails a route test instead of leaking state quietly.
+        # TEST-003 (stage-9 gate): pin the lockstep eviction THROUGH the routes. Written
+        # against the (since-flattened) Stage-9 transitional aliases; kept because it still
+        # catches any handler holding stale per-design state instead of reading reg.<field>.
         import urllib.error
 
         for path in ("/api/mesh/1", "/api/step/1"):

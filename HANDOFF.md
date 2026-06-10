@@ -378,7 +378,7 @@ and MCP are the send paths today.
   (shared `auth_error_if_upload_rejected`); `decode_json` for a garbage HTTP-200; typed `reason` +
   `simulated` symmetric on `/api/connector-status` AND `/api/send`; **the WEB GATE GUARD** — the
   Blocker both prior audits missed: `/api/slice` + `/api/send` now refuse a gate-FAILED part
-  server-side (`gate_status_by_rid` in `webapp.py`), mirroring the CLI.
+  server-side (`reg.gate_status` in `webapp.py`), mirroring the CLI.
 - **Send-gate boundary (documented decision, 2026):** the "don't dispatch a gate-FAILED part"
   block lives in the DESIGN FLOWS that know the verdict — the web (`/api/slice` + `/api/send`,
   no override) and the CLI (`--send`, which refuses). `--proceed-anyway` slices a failed part for

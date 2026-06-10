@@ -14,8 +14,8 @@ protocols the 2026-06-09 audit flagged as "correct but enforced by comments":
 
 Methods suffixed ``_locked`` REQUIRE ``self.lock`` to be held (they run inside the
 handlers' existing multi-field transactions); the others take the lock themselves.
-The webapp still binds local names to these fields (``registry = reg.meshes`` …) — a
-transitional seam; the full name-flattening + router split is scheduled for Stage-10-start.
+The webapp's handlers access this state directly as ``reg.<field>`` under ``reg.lock``
+(the Stage-9 transitional aliases were flattened at Stage-10-start as scheduled).
 """
 
 from __future__ import annotations

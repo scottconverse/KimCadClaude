@@ -682,19 +682,10 @@ def make_handler(
     """
     # ENG-004 (Stage 9): the per-design server state + its load-bearing protocols
     # (eviction-in-lockstep, cap enforcement, the geometry-version guard) live in
-    # DesignRegistry — invariants are methods now, not comments. The local names below
-    # bind to the SAME underlying objects (a transitional seam; the full name-flattening
-    # + router split is scheduled for Stage-10-start).
+    # DesignRegistry — invariants are methods now, not comments. Handlers read/write the
+    # per-design state as reg.<field> under reg.lock (the Stage-9 transitional aliases were
+    # flattened at Stage-10-start as scheduled).
     reg = DesignRegistry(web_root)
-    registry = reg.meshes
-    gcode_registry = reg.gcode
-    step_registry = reg.step
-    gate_status_by_rid = reg.gate_status
-    slice_cache = reg.slice_cache
-    template_state = reg.template_state
-    design_snapshot = reg.snapshot
-    rid_saved_id = reg.saved_id
-    lock = reg.lock
     # ENG-003: serialize actual slices to protect the target box and stop two OrcaSlicer
     # runs racing on disk (a server-level concern, not per-design state).
     slice_lock = threading.Lock()
@@ -920,8 +911,8 @@ def make_handler(
                 self._json(404, {"error": "g-code not found"})
                 return
             # ENG-403: read the shared registry under the lock writers hold (consistent snapshot).
-            with lock:
-                gcode_path = gcode_registry.get(gid)
+            with reg.lock:
+                gcode_path = reg.gcode.get(gid)
             if gcode_path is None or not gcode_path.exists():
                 self._json(404, {"error": "g-code not found"})
                 return
@@ -936,8 +927,8 @@ def make_handler(
             except ValueError:
                 self._json(404, {"error": "STEP not found"})
                 return
-            with lock:
-                step_path = step_registry.get(sid)
+            with reg.lock:
+                step_path = reg.step.get(sid)
             if step_path is None or not step_path.exists():
                 self._json(404, {"error": "STEP not found"})
                 return
@@ -1006,8 +997,8 @@ def make_handler(
                 self._json(404, {"error": "mesh not found"})
                 return
             # ENG-403: read the shared registry under the lock writers hold (consistent snapshot).
-            with lock:
-                mesh_path = registry.get(mid)
+            with reg.lock:
+                mesh_path = reg.meshes.get(mid)
             if mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "mesh not found"})
                 return
@@ -1320,9 +1311,9 @@ def make_handler(
                 self._json(404, {"error": "Not found."})
                 return
             # ENG-402: read the shared registries together under the lock (consistent snapshot).
-            with lock:
-                gcode_path = gcode_registry.get(rid)
-                gate_failed = gate_status_by_rid.get(rid) == "fail"
+            with reg.lock:
+                gcode_path = reg.gcode.get(rid)
+                gate_failed = reg.gate_status.get(rid) == "fail"
             if gcode_path is None or not gcode_path.exists():
                 self._json(404, {"error": "Slice the part first, then send it to a printer."})
                 return
@@ -1557,18 +1548,18 @@ def make_handler(
                 # Stage 8 Slice 4: a CadQuery part also carries an editable-CAD (STEP) export.
                 step_src = getattr(result.report, "step_path", None) if result.report else None
                 step_ok = bool(step_src) and Path(step_src).exists()
-                with lock:
-                    registry[rid] = mesh_path
+                with reg.lock:
+                    reg.meshes[rid] = mesh_path
                     if step_ok:
-                        step_registry[rid] = Path(step_src)
+                        reg.step[rid] = Path(step_src)
                     # ENG-001: remember the gate verdict so slice/send can refuse a failed part
                     # (default to "fail" — fail closed — if a report is somehow absent).
                     rep = payload.get("report") or {}
-                    gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
+                    reg.gate_status[rid] = rep.get("gate_status") or "fail"
                     # Stage 5: register the re-render context for a template-backed part so the
                     # live-slider endpoint can rebuild it deterministically at new values.
                     if result.template is not None:
-                        template_state[rid] = (result.plan, result.template.family.name)
+                        reg.template_state[rid] = (result.plan, result.template.family.name)
                     # Stage 8.5: retain the saveable snapshot so "save to My Designs" needs only
                     # the design id + a name + a thumbnail from the client. QA-004: the original
                     # prompt (the first user turn of a refine lineage, else this prompt) names the
@@ -1578,7 +1569,7 @@ def make_handler(
                          if t.get("role") == "user" and t.get("content")),
                         prompt,
                     )
-                    design_snapshot[rid] = _design_snapshot(
+                    reg.snapshot[rid] = _design_snapshot(
                         payload, result, prompt, original_prompt=orig_prompt
                     )
                     # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
@@ -1627,9 +1618,9 @@ def make_handler(
             except (TypeError, ValueError):
                 self._json(400, {"error": "Design the part first, then save it."})
                 return
-            with lock:
-                snap = design_snapshot.get(rid)
-                mesh_path = registry.get(rid)
+            with reg.lock:
+                snap = reg.snapshot.get(rid)
+                mesh_path = reg.meshes.get(rid)
             if snap is None or mesh_path is None or not mesh_path.exists():
                 self._json(404, {"error": "That design is no longer available to save."})
                 return
@@ -1643,11 +1634,11 @@ def make_handler(
             existing = store.get(requested) if isinstance(requested, str) else None
             store_id = requested if existing is not None else None
             if store_id is None:
-                with lock:
-                    prior = rid_saved_id.get(rid)
+                with reg.lock:
+                    prior = reg.saved_id.get(rid)
                     if prior is None:
                         prior = uuid.uuid4().hex
-                        rid_saved_id[rid] = prior
+                        reg.saved_id[rid] = prior
                     store_id = prior
                 existing = store.get(store_id)  # None on this rid's very first save
             created_at = (
@@ -1709,20 +1700,20 @@ def make_handler(
             # value (don't false-fail a legitimate reopen when the geometry backends are absent).
             regated = _regate_mesh(get_config(), mesh_dest, d.plan)
             effective_gate = regated or d.gate_status or "fail"
-            with lock:
-                registry[rid] = mesh_dest
-                gate_status_by_rid[rid] = effective_gate
+            with reg.lock:
+                reg.meshes[rid] = mesh_dest
+                reg.gate_status[rid] = effective_gate
                 if d.template_family and d.plan is not None:
                     try:
                         from kimcad.ir import DesignPlan
 
-                        template_state[rid] = (
+                        reg.template_state[rid] = (
                             DesignPlan.model_validate(d.plan),
                             d.template_family,
                         )
                     except Exception:  # noqa: BLE001 - reopen stays view-only if the plan won't restore
                         pass
-                design_snapshot[rid] = {
+                reg.snapshot[rid] = {
                     "payload": d.payload,
                     "plan": d.plan,
                     "prompt": d.prompt,
@@ -1823,7 +1814,7 @@ def make_handler(
         ) -> None:
             out = dict(info)
             if gcode_path is not None and gcode_path.exists():
-                with lock:
+                with reg.lock:
                     # ENG-001 (DesignRegistry protocol 3): register ONLY if the geometry
                     # version still matches the one this slice captured.
                     if not reg.register_gcode_locked(rid, gcode_path, sliced_ver):
@@ -1854,9 +1845,9 @@ def make_handler(
                 self._json(404, {"error": "Not found."})
                 return
             # ENG-402: read the shared registries together under the lock (consistent snapshot).
-            with lock:
-                mesh_path = registry.get(rid)
-                gate_failed = gate_status_by_rid.get(rid) == "fail"
+            with reg.lock:
+                mesh_path = reg.meshes.get(rid)
+                gate_failed = reg.gate_status.get(rid) == "fail"
                 # ENG-001: remember which geometry version we're about to slice, so a re-render
                 # landing mid-slice can invalidate this result at register time.
                 sliced_ver = reg.version_locked(rid)
@@ -1874,14 +1865,14 @@ def make_handler(
             if data is None:
                 return
             key = (rid, data.get("printer") or None, data.get("material") or None)
-            with lock:
-                cached = slice_cache.get(key)
+            with reg.lock:
+                cached = reg.slice_cache.get(key)
             if cached is not None and cached[1] is not None and cached[1].exists():
                 self._respond_slice(rid, cached[0], cached[1], sliced_ver)
                 return
             with slice_lock:
-                with lock:  # re-check: another thread may have just sliced this key
-                    cached = slice_cache.get(key)
+                with reg.lock:  # re-check: another thread may have just sliced this key
+                    cached = reg.slice_cache.get(key)
                 if cached is not None and cached[1] is not None and cached[1].exists():
                     info, gcode_path = cached
                 else:
@@ -1910,7 +1901,7 @@ def make_handler(
                                                   "The terminal running `kimcad web` has the "
                                                   "detail."})
                         return
-                    with lock:
+                    with reg.lock:
                         # ENG-001 (DesignRegistry protocol 3): cache only if the version still
                         # matches; the cap is enforced inside the method.
                         reg.cache_slice_locked(rid, key, info, gcode_path, sliced_ver, MAX_SLICE_CACHE)
@@ -1926,9 +1917,9 @@ def make_handler(
             except ValueError:
                 self._json(404, {"error": "Not found."})
                 return
-            with lock:
-                state = template_state.get(rid)
-                known = rid in registry
+            with reg.lock:
+                state = reg.template_state.get(rid)
+                known = rid in reg.meshes
             if state is None:
                 # QA-002: distinguish a genuinely-unknown id from a known LLM-backed design that
                 # simply has no template parameters — so an API consumer isn't sent debugging the
@@ -1988,28 +1979,28 @@ def make_handler(
             if adjusted:
                 payload["adjusted_params"] = adjusted
             if result.mesh_path is not None and result.mesh_path.exists():
-                with lock:
-                    registry[rid] = result.mesh_path
-                    registry.move_to_end(rid)  # an actively re-rendered design stays LRU-fresh
+                with reg.lock:
+                    reg.meshes[rid] = result.mesh_path
+                    reg.meshes.move_to_end(rid)  # an actively re-rendered design stays LRU-fresh
                     rep = payload.get("report") or {}
-                    gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
+                    reg.gate_status[rid] = rep.get("gate_status") or "fail"
                     # ENG-001: one method bumps the geometry version AND drops the cached
                     # slice + registered G-code of the old shape (DesignRegistry protocol 3) —
                     # a slice still in flight is dropped at register time.
                     reg.bump_version_locked(rid)
                     if result.template is not None:  # refresh the (bbox-aligned) base plan
-                        template_state[rid] = (result.plan, result.template.family.name)
+                        reg.template_state[rid] = (result.plan, result.template.family.name)
                     # Stage 8.5: keep the saveable snapshot current so a save AFTER adjusting
                     # sliders persists the re-rendered parameters (not the original), matching the
                     # fresh mesh. Carry the prompt + original prompt (QA-004) from the prior snapshot.
-                    prior_snap = design_snapshot.get(rid) or {}
+                    prior_snap = reg.snapshot.get(rid) or {}
                     prior_prompt = prior_snap.get("prompt", "")
-                    design_snapshot[rid] = _design_snapshot(
+                    reg.snapshot[rid] = _design_snapshot(
                         payload, result, prior_prompt,
                         original_prompt=prior_snap.get("original_prompt") or prior_prompt,
                     )
                     # A unique suffix busts the browser's cache so the viewport fetches the new
-                    # mesh. Taken under `lock` for consistency with the other counter reads
+                    # mesh. Taken under `reg.lock` for consistency with the other counter reads
                     # (ENG-502) — uniqueness is all the cache-buster needs.
                     payload["mesh_url"] = f"/api/mesh/{rid}?v={reg.next_mesh_version()}"
             self._json(200, payload)
