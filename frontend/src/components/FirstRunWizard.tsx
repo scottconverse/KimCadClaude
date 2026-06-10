@@ -73,6 +73,12 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
 
   useEffect(() => checkModel(), [checkModel])
 
+  // UX-002 (2026-06-09 audit): re-probe when the recap step opens, so "you're all set" is a
+  // claim about NOW — the user may have started Ollama (or not) since step 1 checked.
+  useEffect(() => {
+    if (step === STEPS.length - 1) checkModel()
+  }, [step, checkModel])
+
   // Move focus into the dialog on mount so keyboard users start inside it; Escape skips setup; and
   // Tab is trapped inside the dialog so keyboard/SR users can't tab out onto the (still-present)
   // page behind the modal — `aria-modal` alone is only a hint, not a focus boundary.
@@ -141,6 +147,12 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
   const printers = settings?.printers ?? []
   const chosenPrinter = printers.find((p) => p.key === settings?.default_printer) ?? printers[0]
   const headingId = `kc-wiz-h-${step}`
+  // UX-002: "ready" means the model is actually usable (cloud backends manage themselves).
+  // Derived from the LAST KNOWN status — checkModel keeps `model` while a re-probe is in
+  // flight, so the recap headline never flashes pessimistic mid-check; the quiet re-probe
+  // updates it only if the truth changed. A never-probed model (null) reads as not-ready.
+  const modelOk =
+    model !== null && (model.backend === 'cloud' || (model.running && model.model_present))
 
   return (
     <div
@@ -371,14 +383,22 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
 
             {step === 4 && (
               <>
-                <div className="kc-wiz-done-badge" aria-hidden="true">
-                  ✓
-                </div>
+                {/* UX-002: the recap tells the truth about the model's CURRENT state. "You're
+                    all set" with a dead model is exactly the trust-breaking first impression a
+                    beta must avoid — so a not-ready model demotes the headline and the recap
+                    row carries the fix + a re-check, while "Start designing" stays available. */}
+                {modelOk ? (
+                  <div className="kc-wiz-done-badge" aria-hidden="true">
+                    ✓
+                  </div>
+                ) : null}
                 <h1 id={headingId} className="kc-wiz-h1">
-                  You’re all set
+                  {modelOk ? 'You’re all set' : 'Almost ready'}
                 </h1>
                 <p className="kc-wiz-lede">
-                  KimCad is ready to design. Here’s your setup — change any of it later from Settings.
+                  {modelOk
+                    ? 'KimCad is ready to design. Here’s your setup — change any of it later from Settings.'
+                    : 'One thing still needs attention before KimCad can design — everything else is saved. You can change any of this later from Settings.'}
                 </p>
                 <dl className="kc-wiz-recap">
                   <div className="kc-wiz-recap-row">
@@ -388,6 +408,18 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       {/* Only claim "+ OpenRouter" when it's actually usable — cloud routes only
                           with a key AND a model; a key alone is saved but stays inactive. */}
                       {cloudOn && keyDraft.trim() && cloudModelDraft.trim() ? ' + OpenRouter' : ''}
+                      {!modelOk && modelState !== 'checking' && (
+                        <span className="kc-wiz-model-warn kc-wiz-recap-warn" role="status">
+                          {' '}
+                          —{' '}
+                          {model && model.running && !model.model_present
+                            ? `not pulled yet — run “ollama pull ${model.model}”, then `
+                            : 'not reachable yet — start Ollama, then '}
+                          <button type="button" className="kc-link-btn" onClick={checkModel}>
+                            check again
+                          </button>
+                        </span>
+                      )}
                     </dd>
                   </div>
                   <div className="kc-wiz-recap-row">

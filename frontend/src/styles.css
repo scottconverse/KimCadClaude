@@ -2751,6 +2751,25 @@ input {
   font-size: 13px;
   color: var(--kc-ink);
 }
+/* UX-002 (2026-06-09 audit): the Landing model-health pill — shown only when the local AI
+   isn't ready, so a down model is visible before the user invests a prompt + a wait. */
+.kc-model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 7px 14px;
+  border: 1px solid var(--kc-warn-accent);
+  border-radius: 999px;
+  background: rgba(196, 138, 26, 0.08);
+  color: var(--kc-warn);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.kc-statdot-warn {
+  background: var(--kc-warn-accent);
+}
+
 .kc-link-btn {
   border: 0;
   background: none;

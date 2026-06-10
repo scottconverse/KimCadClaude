@@ -111,6 +111,54 @@ describe('FirstRunWizard', () => {
     expect(screen.getByText('gemma4:e4b')).toBeTruthy()
   })
 
+  it('recap says "You’re all set" only when the model is actually ready (UX-002)', async () => {
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i) // model
+    go(/continue/i) // printer
+    go(/continue/i) // direct
+    go(/continue/i) // ready
+    expect(await screen.findByText('You’re all set')).toBeTruthy()
+    expect(screen.queryByText('Almost ready')).toBeNull()
+  })
+
+  it('recap demotes to "Almost ready" with a fix + re-check when Ollama is down (UX-002)', async () => {
+    const api = await import('../api')
+    ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      model: 'gemma4:e4b',
+      backend: 'local',
+      running: false,
+      model_present: false,
+    })
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i) // model
+    go(/continue/i) // printer
+    go(/continue/i) // direct
+    go(/continue/i) // ready
+    expect(await screen.findByText('Almost ready')).toBeTruthy()
+    expect(screen.queryByText('You’re all set')).toBeNull()
+    // The recap row carries the cause + an in-place re-check; finishing stays possible.
+    expect(screen.getByText(/not reachable yet — start Ollama/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /start designing/i })).toBeTruthy()
+  })
+
+  it('recap names the pull command when Ollama runs but the model is absent (UX-002)', async () => {
+    const api = await import('../api')
+    ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      model: 'gemma4:e4b',
+      backend: 'local',
+      running: true,
+      model_present: false,
+    })
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i)
+    go(/continue/i)
+    go(/continue/i)
+    go(/continue/i)
+    expect(await screen.findByText('Almost ready')).toBeTruthy()
+    expect(screen.getByText(/ollama pull gemma4:e4b/)).toBeTruthy()
+  })
+
   it('Escape skips setup (calls onClose)', () => {
     const onClose = vi.fn()
     render(<FirstRunWizard onClose={onClose} />)

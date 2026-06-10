@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import ModelHealthPill from './ModelHealthPill'
 import PhotoOnramp from './PhotoOnramp'
 
 // The landing (empty) screen. Wired in Slice 3: the textarea + "Design it" submit a prompt,
@@ -47,6 +48,9 @@ export default function Landing({
           Describe a functional part in plain words — I&rsquo;ll design it, check that it&rsquo;s
           actually printable, and get it ready for your printer. Runs entirely on your machine.
         </p>
+
+        {/* UX-002: surface a down model BEFORE the user invests a prompt + a wait. */}
+        <ModelHealthPill />
 
         <form className="kc-input-card" onSubmit={submit}>
           <textarea
