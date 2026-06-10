@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import itertools
 import json
 import math
 import re
@@ -39,6 +38,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from kimcad.design_registry import DesignRegistry
 from kimcad.printability import dim_tolerance
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -680,38 +680,24 @@ def make_handler(
     mesh on confirmation; it is loaded lazily on first need when not supplied, so the
     design-only tests can keep calling ``make_handler(pipeline, root)``.
     """
-    web_root.mkdir(parents=True, exist_ok=True)
-    # QA-003: clear stale per-design dirs from a previous run. The in-memory registry + id
-    # counter reset on each start, so old output/web/<id> dirs (no longer referenced) would
-    # otherwise accumulate; `_evict` only reclaims within a session.
-    for child in web_root.iterdir():
-        if child.is_dir() and child.name.isdigit():
-            shutil.rmtree(child, ignore_errors=True)
-    # ENG-004: bounded LRU-by-insertion registries — oldest entries evicted past the cap.
-    registry: "OrderedDict[int, Path]" = OrderedDict()
-    gcode_registry: "OrderedDict[int, Path]" = OrderedDict()
-    # Stage 8 Slice 4: the editable-CAD (STEP) export per design id, for a CadQuery-built part.
-    # Served by GET /api/step/<id>; evicted in lockstep with `registry` via _evict.
-    step_registry: "OrderedDict[int, Path]" = OrderedDict()
-    # ENG-001 (gate safety): the printability verdict per design id, so the web slice/send
-    # endpoints can refuse a gate-FAILED part server-side. The CLI already refuses to send a
-    # gate-failed part; the web orchestrator must too, so a direct API client (not just the
-    # browser, which hides the controls) can't dispatch a part the gate rejected. Evicted in
-    # lockstep with `registry` via `_evict`.
-    gate_status_by_rid: dict[int, str] = {}
-    # ENG-001 (stage-8.5 gate remediation): a per-design geometry version, bumped on every
-    # re-render. A slice captures the version it sliced; the slice is only registered/cached if the
-    # version still matches at register time — so a re-render that lands WHILE a slice is in flight
-    # (the two use different locks) can't leave a stale-geometry G-code registered after it
-    # invalidated the cache. Closes the one same-rid slice/render race in the re-render-invalidates-
-    # slice invariant. Evicted via _evict.
-    geometry_version: dict[int, int] = {}
-    # ENG-003: cache slices by (rid, printer, material) so an identical re-confirm doesn't
-    # re-run the (multi-minute, CPU-bound) slicer; serialize actual slices to protect the
-    # target box and stop two OrcaSlicer runs racing on disk.
-    slice_cache: "OrderedDict[tuple[int, Any, Any], tuple[dict[str, Any], Path | None]]" = (
-        OrderedDict()
-    )
+    # ENG-004 (Stage 9): the per-design server state + its load-bearing protocols
+    # (eviction-in-lockstep, cap enforcement, the geometry-version guard) live in
+    # DesignRegistry — invariants are methods now, not comments. The local names below
+    # bind to the SAME underlying objects (a transitional seam; the full name-flattening
+    # + router split is scheduled for Stage-10-start).
+    reg = DesignRegistry(web_root)
+    registry = reg.meshes
+    gcode_registry = reg.gcode
+    step_registry = reg.step
+    gate_status_by_rid = reg.gate_status
+    geometry_version = reg.geometry_version
+    slice_cache = reg.slice_cache
+    template_state = reg.template_state
+    design_snapshot = reg.snapshot
+    rid_saved_id = reg.saved_id
+    lock = reg.lock
+    # ENG-003: serialize actual slices to protect the target box and stop two OrcaSlicer
+    # runs racing on disk (a server-level concern, not per-design state).
     slice_lock = threading.Lock()
     # Stage 5: serialize live-slider re-renders so two rapid drags can't interleave writes to the
     # same per-design output dir (mirrors slice_lock). Re-renders are sub-second; the latest wins.
@@ -719,23 +705,6 @@ def make_handler(
     # contention across different designs is nil; key it by rid only if a multi-client mode lands
     # (ENG-503).
     render_lock = threading.Lock()
-    # Stage 5: per-design re-render state for the live-slider endpoint — the base plan + the
-    # matched template family name, so /api/render/<id> can deterministically rebuild the
-    # part at new parameter values with no model call. Only template-backed designs are
-    # registered here (an LLM-backed part has no adjustable parameters). Evicted via _evict.
-    template_state: dict[int, tuple[Any, str]] = {}
-    # Stage 8.5 Slice 1: a per-design saveable snapshot (the API payload + serialized plan + the
-    # facts the "My Designs" library needs), so a save request — which carries only the design id,
-    # a name, and a thumbnail — can persist the design without the client re-sending everything.
-    # Evicted via _evict alongside the rest of the per-design state.
-    design_snapshot: dict[int, dict[str, Any]] = {}
-    # QA-002: a stable saved_id per live rid, so rapid auto-saves of the same design (fired before
-    # the client has learned the server-minted id) converge to ONE library entry instead of minting
-    # a duplicate each time. Evicted via _evict alongside the rest of the per-design state.
-    rid_saved_id: dict[int, str] = {}
-    counter = itertools.count(1)
-    version_counter = itertools.count(1)  # cache-busting suffix for re-rendered meshes
-    lock = threading.Lock()
     # MS-3: live design-phase slots keyed by a client-supplied job_id, so the SPA can poll
     # GET /api/design/progress/<job_id> WHILE a (multi-minute) design runs on another request
     # thread and show the current phase. Bounded + LRU-evicted; an entry is removed when its run
@@ -793,20 +762,9 @@ def make_handler(
         store = get_settings_store()
         return store.all() if store is not None else {}
 
-    def _evict(rid: int) -> None:
-        """QA-003: drop a design id from every registry/cache AND remove its on-disk
-        directory, so disk doesn't grow unbounded as the in-memory caps evict. Call under
-        ``lock``."""
-        gcode_registry.pop(rid, None)
-        step_registry.pop(rid, None)
-        gate_status_by_rid.pop(rid, None)
-        geometry_version.pop(rid, None)
-        template_state.pop(rid, None)
-        design_snapshot.pop(rid, None)
-        rid_saved_id.pop(rid, None)
-        for k in [k for k in slice_cache if k[0] == rid]:
-            slice_cache.pop(k, None)
-        shutil.rmtree(web_root / str(rid), ignore_errors=True)
+    # ENG-004 (Stage 9): the lockstep eviction lives on DesignRegistry — one method, can't
+    # be partially forgotten. Same call-under-lock contract as before.
+    _evict = reg.evict_locked
 
     class Handler(BaseHTTPRequestHandler):
         # QA-002: bound socket reads so a stalled/partial body (slowloris) can't pin a
@@ -1525,8 +1483,7 @@ def make_handler(
                     if job_id in design_progress:
                         design_progress[job_id] = phase
 
-            with lock:
-                rid = next(counter)
+            rid = reg.new_rid()
             try:
                 # Seed the progress slot INSIDE the try so the finally below ALWAYS clears it (no
                 # leak even if the run raises). The pipeline emits "planning" first, so the slot
@@ -1605,9 +1562,7 @@ def make_handler(
                         payload, result, prompt, original_prompt=orig_prompt
                     )
                     # ENG-004 / QA-003: cap the registry and clean up evicted dirs on disk.
-                    while len(registry) > MAX_REGISTRY:
-                        old_rid, _ = registry.popitem(last=False)
-                        _evict(old_rid)
+                    reg.enforce_caps_locked(MAX_REGISTRY)
                 payload["mesh_url"] = f"/api/mesh/{rid}"
                 if step_ok:
                     payload["step_url"] = f"/api/step/{rid}"
@@ -1720,8 +1675,7 @@ def make_handler(
             if d is None or mesh_src is None:
                 self._json(404, {"error": "That design couldn't be found."})
                 return
-            with lock:
-                rid = next(counter)
+            rid = reg.new_rid()
             dest_dir = web_root / str(rid)
             dest_dir.mkdir(parents=True, exist_ok=True)
             mesh_dest = dest_dir / "reopened.stl"
@@ -1760,9 +1714,7 @@ def make_handler(
                     "readiness_score": d.readiness_score,
                     "template_family": d.template_family,
                 }
-                while len(registry) > MAX_REGISTRY:
-                    old_rid, _ = registry.popitem(last=False)
-                    _evict(old_rid)
+                reg.enforce_caps_locked(MAX_REGISTRY)
             payload = dict(d.payload)
             payload["mesh_url"] = f"/api/mesh/{rid}"
             payload["prompt"] = d.prompt
@@ -1852,17 +1804,15 @@ def make_handler(
             out = dict(info)
             if gcode_path is not None and gcode_path.exists():
                 with lock:
-                    # ENG-001: register the G-code ONLY if the geometry hasn't changed since we
-                    # sliced. If a re-render landed mid-slice (version bumped), this slice is of the
-                    # old shape — refuse to register/serve it so a stale slice can't be sent.
-                    if geometry_version.get(rid, 0) != sliced_ver:
+                    # ENG-001 (DesignRegistry protocol 3): register ONLY if the geometry
+                    # version still matches the one this slice captured.
+                    if not reg.register_gcode_locked(rid, gcode_path, sliced_ver):
                         self._json(200, {
                             "sliced": False, "reason": "stale",
                             "note": "The part changed while it was slicing — adjust if needed and "
                             "slice again.",
                         })
                         return
-                    gcode_registry[rid] = gcode_path
                 out["gcode_url"] = f"/api/gcode/{rid}"
                 # The on-disk basename of the print file, so the UI can name it and the
                 # download lands as a recognizable .gcode.3mf (not an opaque id).
@@ -1941,12 +1891,9 @@ def make_handler(
                                                   "detail."})
                         return
                     with lock:
-                        # ENG-001: a re-render that landed while we were slicing bumped the version
-                        # and cleared the cache. Don't cache (or serve) a slice of the stale shape.
-                        if geometry_version.get(rid, 0) == sliced_ver:
-                            slice_cache[key] = (info, gcode_path)
-                            while len(slice_cache) > MAX_SLICE_CACHE:
-                                slice_cache.popitem(last=False)
+                        # ENG-001 (DesignRegistry protocol 3): cache only if the version still
+                        # matches; the cap is enforced inside the method.
+                        reg.cache_slice_locked(rid, key, info, gcode_path, sliced_ver, MAX_SLICE_CACHE)
             self._respond_slice(rid, info, gcode_path, sliced_ver)
 
         def _handle_render(self, raw_id: str) -> None:
@@ -2026,15 +1973,10 @@ def make_handler(
                     registry.move_to_end(rid)  # an actively re-rendered design stays LRU-fresh
                     rep = payload.get("report") or {}
                     gate_status_by_rid[rid] = rep.get("gate_status") or "fail"
-                    # ENG-001: bump the geometry version so any slice still in flight for this id
-                    # (sliced from the OLD shape) is dropped at register time instead of overwriting
-                    # the cache we're about to clear.
-                    geometry_version[rid] = geometry_version.get(rid, 0) + 1
-                    # Geometry changed: drop any cached slice + G-code for this id so the old
-                    # shape can't be downloaded or sent after the part was re-shaped (safety).
-                    gcode_registry.pop(rid, None)
-                    for k in [k for k in slice_cache if k[0] == rid]:
-                        slice_cache.pop(k, None)
+                    # ENG-001: one method bumps the geometry version AND drops the cached
+                    # slice + registered G-code of the old shape (DesignRegistry protocol 3) —
+                    # a slice still in flight is dropped at register time.
+                    reg.bump_version_locked(rid)
                     if result.template is not None:  # refresh the (bbox-aligned) base plan
                         template_state[rid] = (result.plan, result.template.family.name)
                     # Stage 8.5: keep the saveable snapshot current so a save AFTER adjusting
@@ -2049,7 +1991,7 @@ def make_handler(
                     # A unique suffix busts the browser's cache so the viewport fetches the new
                     # mesh. Taken under `lock` for consistency with the other counter reads
                     # (ENG-502) — uniqueness is all the cache-buster needs.
-                    payload["mesh_url"] = f"/api/mesh/{rid}?v={next(version_counter)}"
+                    payload["mesh_url"] = f"/api/mesh/{rid}?v={reg.next_mesh_version()}"
             self._json(200, payload)
 
     return Handler
