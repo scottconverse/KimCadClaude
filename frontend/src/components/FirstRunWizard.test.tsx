@@ -41,14 +41,18 @@ describe('FirstRunWizard', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('shows gemma4:e4b as THE model with its health — never qwen', async () => {
+  it('shows gemma4:e4b as THE design model with its health — no alternative chat model offered', async () => {
     const { container } = render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i) // → Your AI model
     expect(await screen.findByText('gemma4:e4b')).toBeTruthy()
     // The model health is "Ready" (running + present) — scoped to the status element so it doesn't
     // collide with the rail's step-5 label, also named "Ready".
     expect(container.querySelector('.kc-wiz-model-stat')?.textContent).toMatch(/Ready/)
-    expect(screen.queryByText(/qwen/i)).toBeNull()
+    // Trust rule 1: the wizard never offers an ALTERNATIVE chat model (the Stage-6-rejected
+    // qwen2.5-coder, or any menu of choices). The Stage 9 vision model (qwen2.5vl:3b) is a
+    // companion for reading images, not an alternative — its mention is allowed.
+    expect(screen.queryByText(/qwen2\.5-coder/i)).toBeNull()
+    expect(container.querySelectorAll('.kc-wiz-modelcard').length).toBe(1) // ONE model card
   })
 
   it('persists the chosen printer via the settings endpoint', async () => {
