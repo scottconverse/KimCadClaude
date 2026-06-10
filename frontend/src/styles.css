@@ -2809,6 +2809,43 @@ input {
   margin-top: 2px;
 }
 
+/* Stage 10 — the direct-print SendPanel under a finished slice. */
+.kc-send-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--kc-hair);
+}
+.kc-send-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.kc-send-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.kc-send-field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.kc-send-result {
+  margin-top: 8px;
+}
+.kc-send-ok {
+  margin: 0;
+  font-size: 13px;
+}
+.kc-send-live {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--kc-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* UX-101 (stage-BCD gate): the app's own confirm dialog (replaces window.confirm). */
 .kc-confirm-overlay {
   position: fixed;

@@ -21,6 +21,7 @@ import {
   renameDesign,
   reopenDesign,
   saveDesign,
+  sendDesign,
   uploadPhoto,
   uploadSketch,
 } from './api'
@@ -439,6 +440,43 @@ describe('settings + status GET wrappers (TEST-403)', () => {
     }))
     const r = await getConnectors()
     expect(r.connectors[0]).toMatchObject({ simulated: false, configured: false })
+  })
+
+  // Stage 10: the direct-print send. The endpoint, body shape, and soft-outcome passthrough.
+  it('sendDesign POSTs the connector choice to /api/send/<id> and returns the outcome', async () => {
+    const f = mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ sent: true, connector: 'mock', simulated: true, job_id: 'j1', state: 'queued' }),
+    }))
+    const r = await sendDesign(4, 'mock')
+    expect(r.sent).toBe(true)
+    expect(r.simulated).toBe(true)
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/send/4')
+    const init = call[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({ connector: 'mock' })
+  })
+
+  it('sendDesign passes a soft not-sent outcome through (no throw on sent:false)', async () => {
+    mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ sent: false, simulated: false, reason: 'offline', note: 'No answer.' }),
+    }))
+    const r = await sendDesign(4, 'octoprint')
+    expect(r.sent).toBe(false)
+    expect(r.reason).toBe('offline')
+  })
+
+  it('sendDesign throws the backend error message on a non-2xx', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'Slice the part first, then send it to a printer.' }),
+    }))
+    await expect(sendDesign(99, 'mock')).rejects.toThrow(/slice the part first/i)
   })
 
   it('getConnectorStatus url-encodes the connector name', async () => {

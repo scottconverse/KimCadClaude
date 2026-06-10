@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { getConnectors, getConnectorStatus, type ConnectorStatusResponse } from '../api'
 import { connectorLabel, connectorTone } from '../connectorStatus'
 
-// Read-only readiness of the default printer connection. The full direct-print/send UI is a
-// later stage; here we just show whether the connection is ready, busy, offline, or simulated.
+// Read-only readiness of the default printer connection, shown at the top of Export & print.
+// The direct-print send UI itself is SendPanel (Stage 10), offered under a finished slice;
+// here we just show whether the connection is ready, busy, offline, or simulated.
 export default function ConnectorStatus() {
   const [name, setName] = useState<string | null>(null)
   const [status, setStatus] = useState<ConnectorStatusResponse | null>(null)

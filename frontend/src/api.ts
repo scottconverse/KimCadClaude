@@ -436,6 +436,37 @@ export function getConnectors(): Promise<ConnectorsResponse> {
   return getJson<ConnectorsResponse>('/api/connectors')
 }
 
+// Stage 10 — direct print from the app. POSTs the chosen connector to the EXISTING send
+// endpoint. The POST itself IS the user's confirmation (the server treats it as confirmed and
+// re-checks the gate verdict server-side), so this function must only ever be called from an
+// explicit confirm action — KimCad never auto-starts a print. A not-sent outcome is SOFT
+// (HTTP 200, `sent:false` + typed `reason` + user-facing `note`) — the download always
+// remains the fallback.
+export interface SendResponse {
+  sent: boolean
+  connector?: string
+  // mirrors the status contract: a loopback/no-hardware connection is labeled simulated, so a
+  // mock send is never narrated as a real print (UX-001).
+  simulated: boolean
+  job_id?: string
+  state?: string
+  printer_state?: string
+  printer_detail?: string
+  reason?: string
+  note?: string
+}
+
+export async function sendDesign(designId: number, connector: string): Promise<SendResponse> {
+  const res = await fetch(`/api/send/${designId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ connector }),
+  })
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  return data as SendResponse
+}
+
 export function getConnectorStatus(name: string): Promise<ConnectorStatusResponse> {
   return getJson<ConnectorStatusResponse>(`/api/connector-status/${encodeURIComponent(name)}`)
 }

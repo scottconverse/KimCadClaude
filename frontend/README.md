@@ -22,8 +22,8 @@ the shell at `/` and the bundles at `/assets/<file>` (a path-traversal guard rej
 plain filename). The SPA talks to a JSON API; the repo-root `ARCHITECTURE.md` is the authoritative endpoint
 list (it now spans Stage 5–8.5 additions — live re-render, settings, photo seed, saved designs —
 beyond the original `/api/design`, `/api/slice/<id>`, `/api/options`, `/api/mesh/<id>`,
-`/api/gcode/<id>` set). (`/api/send/<id>` exists server-side but the SPA does not call it yet —
-browser send is a later stage; the CLI and MCP send today.)
+`/api/gcode/<id>` set). (`/api/send/<id>` is called by the SPA's SendPanel as of Stage 10 —
+confirm-gated direct print; the CLI and MCP drive the same endpoint.)
 
 ## Develop
 

@@ -157,9 +157,10 @@ exposes `GET /api/step/<id>` — the editable STEP/BREP CAD download (the design
 `step_url`. The page also shows a **read-only
 ready/not-ready connection badge** (`GET /api/connectors` + `GET /api/connector-status/<name>`,
 each flagged `simulated` so a no-hardware connection is labelled honestly rather than narrated
-as a real print). **Sending to a printer from the browser is a later stage**; the
-`POST /api/send/<id>` endpoint exists and is driven today by the CLI (`--send`) and the MCP
-server, behind an explicit confirm step that refuses anything but a proven, gate-passed slice.
+as a real print). **Stage 10: the browser sends too** — the SPA's SendPanel (under a finished slice) drives
+`POST /api/send/<id>` through the app's own confirm dialog (the POST is the user's
+confirmation; the server re-checks the gate verdict and refuses anything but a proven,
+gate-passed slice). The CLI (`--send`) and the MCP server drive the same endpoint.
 A send failure (offline/unreachable, bad key, misconfig) is a soft result, not an error — it
 carries a typed `reason` and a user-facing `note` (never the raw developer detail), and the
 download stays as the fallback, as does the validated model itself.

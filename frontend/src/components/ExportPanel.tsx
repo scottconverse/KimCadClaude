@@ -10,11 +10,12 @@ import {
 } from '../api'
 import { buildEstimateRows } from '../printEstimate'
 import ConnectorStatus from './ConnectorStatus'
+import SendPanel from './SendPanel'
 
 // Export & print (Stage 4, Slice 5): pick a printer + material, slice the already-validated,
 // oriented mesh on confirmation, and download the proven G-code (or the model). Gate-aware — a
 // part that failed the printability gate can't be sliced (the server refuses too), but the model
-// stays downloadable to inspect. The full direct-print/send UI is Stage 10.
+// stays downloadable to inspect. Stage 10 adds the direct-print SendPanel under a finished slice.
 export default function ExportPanel({ result }: { result: DesignResponse | null }) {
   const [options, setOptions] = useState<OptionsResponse | null>(null)
   const [printer, setPrinter] = useState('')
@@ -186,7 +187,14 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
               {slice.note || 'KimCad couldn’t slice this part.'}
             </p>
           )}
-          {slice && slice.sliced && <PrintSummary slice={slice} />}
+          {slice && slice.sliced && (
+            <>
+              <PrintSummary slice={slice} />
+              {/* Stage 10: direct print — only offered once a proven print file exists; the
+                  server re-checks the gate verdict on /api/send regardless. */}
+              <SendPanel designId={designId} />
+            </>
+          )}
         </>
       )}
 
