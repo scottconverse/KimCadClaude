@@ -2846,6 +2846,32 @@ input {
   gap: 6px;
 }
 
+/* Slice 10.4 — the Settings AI-model card's vision-model row (its own breath of space). */
+.kc-set-vision-row {
+  margin-top: 6px;
+}
+
+/* Slice 10.4 — the wizard's in-app model download (progress rows under the model card). */
+.kc-wiz-pull {
+  margin-top: 10px;
+}
+.kc-wiz-pull-btn {
+  font-size: 13px;
+  padding: 6px 12px;
+}
+.kc-wiz-pull-rows {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+}
+.kc-wiz-pull-row {
+  color: var(--kc-muted);
+}
+
 /* UX-101 (stage-BCD gate): the app's own confirm dialog (replaces window.confirm). */
 .kc-confirm-overlay {
   position: fixed;

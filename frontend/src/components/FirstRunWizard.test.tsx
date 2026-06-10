@@ -21,6 +21,9 @@ vi.mock('../api', () => ({
     model_present: true,
   }),
   postSettings: vi.fn().mockResolvedValue({ saved: true }),
+  // Slice 10.4 — the in-app model download.
+  startModelPull: vi.fn().mockResolvedValue({ status: 'ok', running: false, models: {} }),
+  getModelPullProgress: vi.fn().mockResolvedValue({ running: false, models: {} }),
 }))
 
 afterEach(() => {
@@ -161,6 +164,65 @@ describe('FirstRunWizard', () => {
     go(/continue/i)
     expect(await screen.findByText('Almost ready')).toBeTruthy()
     expect(screen.getByText(/ollama pull gemma4:e4b/)).toBeTruthy()
+  })
+
+  // --- Slice 10.4: the in-app model download -------------------------------------------
+
+  it('offers Download now when the design model is missing, starts the pull, and shows progress', async () => {
+    const api = await import('../api')
+    ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      model: 'gemma4:e4b', backend: 'local', running: true,
+      model_present: false, vision_model: 'qwen2.5vl:3b', vision_present: false,
+    })
+    ;(api.startModelPull as ReturnType<typeof vi.fn>).mockResolvedValue({
+      status: 'ok', running: true,
+      models: { 'gemma4:e4b': { status: 'pulling', completed: 500, total: 1000, error: '' } },
+    })
+    ;(api.getModelPullProgress as ReturnType<typeof vi.fn>).mockResolvedValue({
+      running: false,
+      models: { 'gemma4:e4b': { status: 'done', completed: 1000, total: 1000, error: '' } },
+    })
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i) // → Your AI model
+    const btn = await screen.findByRole('button', { name: /download now/i })
+    expect(btn.textContent).toMatch(/13 GB/) // both models missing — the honest total
+    fireEvent.click(btn)
+    expect(await screen.findByText(/downloading…/)).toBeTruthy()
+    expect(screen.getByText(/50%/)).toBeTruthy()
+    // The poll lands "done" and the wizard re-probes the model status (Ready is measured).
+    await waitFor(() => expect(screen.getByText(/✓ done/)).toBeTruthy(), { timeout: 3000 })
+    await waitFor(() => expect(api.getModelStatus).toHaveBeenCalledTimes(2), { timeout: 3000 })
+  })
+
+  it('a vision-only gap gets the smaller download and the works-in-words framing', async () => {
+    const api = await import('../api')
+    ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      model: 'gemma4:e4b', backend: 'local', running: true,
+      model_present: true, vision_model: 'qwen2.5vl:3b', vision_present: false,
+    })
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i)
+    const btn = await screen.findByRole('button', { name: /download now/i })
+    expect(btn.textContent).toMatch(/3 GB/)
+    expect(screen.getByText(/designing in words works without it/i)).toBeTruthy()
+  })
+
+  it('a down Ollama at pull time is a typed message with try again — never a crash', async () => {
+    const api = await import('../api')
+    ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
+      model: 'gemma4:e4b', backend: 'local', running: true,
+      model_present: false, vision_model: 'qwen2.5vl:3b', vision_present: true,
+    })
+    ;(api.startModelPull as ReturnType<typeof vi.fn>).mockResolvedValue({
+      status: 'ollama_down', running: false,
+      error: "Your local AI (Ollama) isn't running — start it, then try again.",
+    })
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i)
+    fireEvent.click(await screen.findByRole('button', { name: /download now/i }))
+    // The message lands twice by design: the visible action line AND the sr-only live region.
+    expect((await screen.findAllByText(/isn't running/)).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
   })
 
   it('Escape skips setup (calls onClose)', () => {

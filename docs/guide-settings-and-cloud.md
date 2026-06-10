@@ -19,7 +19,8 @@ A health readout, not a menu: KimCad runs two tested local models, both via Olla
 and the design model is pulled, with a re-check button — the same status the start page
 and setup wizard show. `kimcad models` in a terminal (or the setup wizard) confirms both
 models at once; if photos and sketches fail while everything else works, the vision model
-is the one to check (`ollama pull qwen2.5vl:3b`).
+is the one to check — Settings shows its own row for it (downloaded / not downloaded), and
+either the setup wizard's **Download now** or `ollama pull qwen2.5vl:3b` fetches it.
 
 ## Cloud acceleration (optional — off by default)
 

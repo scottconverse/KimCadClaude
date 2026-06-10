@@ -56,6 +56,30 @@ low-contrast image.
 **Fix:** update Ollama to the current release from <https://ollama.com/download>, then try
 again with a clear, well-lit image. (Your models and settings survive the update.)
 
+## The in-app model download fails or stalls
+
+The setup wizard's **Download now** asks your local Ollama to fetch KimCad's models, so a
+failure there is almost always one of three things:
+
+- **"Not enough disk space"** — the two models need about 13 GB together (KimCad checks
+  before downloading). Free up space, then press **try again**.
+- **"Your local AI (Ollama) isn't running"** — start Ollama, then **try again**.
+- **The download stopped partway** — usually the internet connection. Ollama resumes a
+  partial download, so pressing **try again** continues rather than starting over.
+
+The wizard downloads only KimCad's own two models; you never need to pick one. You can
+always pull manually instead: `ollama pull gemma4:e4b` and `ollama pull qwen2.5vl:3b`.
+
+## A Bambu printer connection says "needs the optional bambulabs-api package"
+
+Direct send to a Bambu printer uses an optional add-on. In a terminal, run
+`pip install bambulabs-api`, restart KimCad, and the connection will be available to set
+up. Then fill in the printer's IP and serial in `config/default.yaml` (`bambu_p2s` /
+`bambu_a1`) and set the access-code environment variable the entry names — the printer
+shows both codes under **Settings → WLAN** (access code) and **Settings → Device**
+(serial), with LAN mode enabled. Without all four pieces the connection stays listed as
+"not set up yet" and tells you which piece is missing.
+
 ## "OpenSCAD isn't installed at …" or "OrcaSlicer isn't installed at …"
 
 **Cause:** the CAD tools were never fetched (or the download was interrupted), so

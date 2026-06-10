@@ -341,6 +341,33 @@ export function getModelStatus(): Promise<ModelStatus> {
   return getJson<ModelStatus>('/api/model-status')
 }
 
+// Stage 10 Slice 10.4 — in-app model downloads. POST starts pulling whatever of KimCad's
+// two models is missing (the list is fixed SERVER-side — no model is ever named from the
+// client); idempotent while a pull runs. `not_local` / `ollama_down` are typed statuses.
+export interface ModelPullState {
+  status: 'queued' | 'pulling' | 'done' | 'error'
+  completed: number
+  total: number
+  error: string
+}
+export interface ModelPullSnapshot {
+  status?: 'ok' | 'ollama_down' | 'not_local'
+  error?: string
+  running?: boolean
+  models?: Record<string, ModelPullState>
+}
+
+export async function startModelPull(): Promise<ModelPullSnapshot> {
+  const res = await fetch('/api/model-pull', { method: 'POST' })
+  const data = await readJson(res)
+  if (!res.ok && (data as ModelPullSnapshot).status !== 'not_local') throwIfNotOk(res, data)
+  return data as ModelPullSnapshot
+}
+
+export function getModelPullProgress(): Promise<ModelPullSnapshot> {
+  return getJson<ModelPullSnapshot>('/api/model-pull/progress')
+}
+
 // Stage 8.5 Slice 6 MS-5 — tool + app health for the Settings screen: whether the bundled OpenSCAD
 // and OrcaSlicer binaries are present, plus the app version.
 export interface HealthStatus {

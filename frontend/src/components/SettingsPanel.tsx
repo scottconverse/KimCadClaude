@@ -262,6 +262,34 @@ export default function SettingsPanel() {
                 Runs on your machine, on your CPU. No internet required; nothing leaves your computer.
               </p>
             )}
+            {/* Slice 10.4 (Stage 9 watchlist #3): the SECOND local model — the photo & sketch
+                reader — gets its own row, so a user diagnosing an image failure finds the
+                answer here, not just in the moment the upload fails. Absent vision fields
+                (e.g. a cloud chat backend can't probe it) mean unknown — say nothing. */}
+            {model?.backend === 'local' && model.vision_present !== undefined && (
+              <p className="kc-set-sub kc-set-vision-row">
+                Photo &amp; sketch reader (<code className="kc-mono">{model.vision_model}</code>):{' '}
+                {model.vision_present ? (
+                  'downloaded.'
+                ) : (
+                  <>
+                    not downloaded — photos and sketches won’t work yet. Run{' '}
+                    <code className="kc-mono">ollama pull {model.vision_model}</code> (or use the
+                    setup wizard’s download), then{' '}
+                    <button
+                      type="button"
+                      className="kc-link-btn"
+                      aria-disabled={modelState === 'checking' || undefined}
+                      onClick={() => {
+                        if (modelState !== 'checking') checkModel()
+                      }}
+                    >
+                      {modelState === 'checking' ? 'checking…' : 'check again'}
+                    </button>.
+                  </>
+                )}
+              </p>
+            )}
             {/* A concrete next action whenever it isn't simply running (no dead-end). */}
             {modelState === 'ready' && model?.backend === 'local' && !model.running && (
               <p className="kc-model-action">

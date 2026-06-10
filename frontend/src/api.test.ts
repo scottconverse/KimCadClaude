@@ -22,6 +22,7 @@ import {
   reopenDesign,
   saveDesign,
   sendDesign,
+  startModelPull,
   uploadPhoto,
   uploadSketch,
 } from './api'
@@ -191,6 +192,39 @@ describe('uploadPhoto (Slice 7)', () => {
     }))
     const file = new File([new Uint8Array([1, 2, 3])], 'p.png', { type: 'image/png' })
     await expect(uploadPhoto(file)).rejects.toThrow(/unreadable/i)
+  })
+})
+
+// Slice 10.4 — startModelPull's one transport quirk: a 400 with status "not_local" is a TYPED
+// outcome the UI renders, not a thrown error (the only non-throwing-400 wrapper in this file).
+describe('startModelPull (Slice 10.4)', () => {
+  it('returns a not_local 400 as a typed snapshot instead of throwing', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ status: 'not_local', error: 'In-app downloads manage the local AI on this computer only.' }),
+    }))
+    const snap = await startModelPull()
+    expect(snap.status).toBe('not_local')
+    expect(snap.error).toMatch(/this computer only/)
+  })
+
+  it('throws on any other non-2xx (a 500 is still an error)', async () => {
+    mockFetch(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'boom' }),
+    }))
+    await expect(startModelPull()).rejects.toThrow()
+  })
+
+  it('POSTs with no body — the pull list is fixed server-side', async () => {
+    const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ status: 'ok', running: false, models: {} }) }))
+    await startModelPull()
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/model-pull')
+    expect(init.method).toBe('POST')
+    expect(init.body ?? null).toBeNull()
   })
 })
 

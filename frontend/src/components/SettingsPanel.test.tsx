@@ -240,6 +240,34 @@ describe('SettingsPanel', () => {
     expect(postSettings).not.toHaveBeenCalled()
   })
 
+  // --- Slice 10.4: the vision-model row (Stage 9 watchlist #3) -------------------------
+
+  it('shows the vision row as downloaded when the second model is present', async () => {
+    getModelStatus.mockResolvedValue({
+      ...RUNNING, vision_model: 'qwen2.5vl:3b', vision_present: true,
+    })
+    render(<SettingsPanel />)
+    expect(await screen.findByText(/Photo & sketch reader/)).toBeTruthy()
+    expect(screen.getByText(/downloaded\./)).toBeTruthy()
+  })
+
+  it('a missing vision model gets the pull command + wizard pointer, not silence', async () => {
+    getModelStatus.mockResolvedValue({
+      ...RUNNING, vision_model: 'qwen2.5vl:3b', vision_present: false,
+    })
+    render(<SettingsPanel />)
+    expect(await screen.findByText(/photos and sketches won’t work yet/i)).toBeTruthy()
+    expect(screen.getByText(/ollama pull qwen2\.5vl:3b/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy()
+  })
+
+  it('says NOTHING about vision when the fields are absent (unknown ≠ missing)', async () => {
+    getModelStatus.mockResolvedValue(RUNNING) // no vision fields (e.g. unknowable in-band)
+    render(<SettingsPanel />)
+    await screen.findByText(/KimCad’s local AI/)
+    expect(screen.queryByText(/Photo & sketch reader/)).toBeNull()
+  })
+
   it('Reset asks to confirm, then clears settings + units to defaults', async () => {
     localStorage.setItem('kc-units', 'in')
     render(<SettingsPanel />)

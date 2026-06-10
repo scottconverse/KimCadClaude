@@ -832,6 +832,11 @@ def make_handler(
             if self.path == "/api/model-status":
                 self._handle_model_status()
                 return
+            if self.path == "/api/model-pull/progress":
+                from kimcad.model_pull import JOB
+
+                self._json(200, JOB.snapshot())
+                return
             if self.path == "/api/health":
                 self._handle_health()
                 return
@@ -1051,6 +1056,9 @@ def make_handler(
             if self.path == "/api/settings":
                 self._handle_settings_post()
                 return
+            if self.path == "/api/model-pull":
+                self._handle_model_pull()
+                return
             if self.path == "/api/photo-seed":
                 self._handle_photo_seed()
                 return
@@ -1120,6 +1128,63 @@ def make_handler(
                 "openscad": _present("openscad"),
                 "orcaslicer": _present("orcaslicer"),
             })
+
+        def _handle_model_pull(self) -> None:
+            """Stage 10 Slice 10.4 — start (or report) the in-app download of KimCad's OWN
+            models. The pull list is fixed server-side to the configured chat + vision
+            models — never a caller-supplied name (the no-model-menu rule holds here too) —
+            and only against a LOCAL loopback Ollama: this surface manages the on-device
+            install, nothing else. Idempotent: POST while a pull runs returns the running
+            snapshot. A down Ollama or non-local backend is a typed STATUS, never a 500."""
+            from kimcad.model_pull import JOB, is_loopback_url, ollama_native_root
+
+            # ENG-004 (slice-10.4 audit): demo mode must never start a real multi-GB
+            # download — the demo provider exists precisely so UI checks touch no real AI.
+            if isinstance(getattr(pipeline, "provider", None), DemoProvider):
+                self._json(400, {
+                    "status": "not_local",
+                    "error": "Demo mode doesn't download models — run KimCad without "
+                    "--demo to set up the local AI.",
+                })
+                return
+            cfg = get_config()
+            try:
+                backend = cfg.llm_backend()
+            except Exception:  # noqa: BLE001 - a config gap shouldn't 500 the action
+                backend = None
+            base_url = (backend.base_url if backend else "") or ""
+            is_local = backend is not None and (
+                backend.provider == "ollama" or "11434" in base_url
+            )
+            if not is_local or not is_loopback_url(base_url):
+                self._json(400, {
+                    "status": "not_local",
+                    "error": "In-app downloads manage the local AI on this computer only.",
+                })
+                return
+            from kimcad.model_advisor import probe_ollama
+
+            running, installed = probe_ollama(base_url)
+            if not running:
+                self._json(200, {
+                    "status": "ollama_down",
+                    "error": "Your local AI (Ollama) isn't running — start it, then try again.",
+                })
+                return
+            names = {m.name for m in installed}
+
+            def _present(tag: str) -> bool:
+                return any(n == tag or n.startswith(tag + "-") for n in names)
+
+            missing: list[tuple[str, str]] = []
+            chat = backend.model_name or "gemma4:e4b"
+            vision = backend.vision_model or "qwen2.5vl:3b"
+            if not _present(chat):
+                missing.append((chat, "chat"))
+            if not _present(vision):
+                missing.append((vision, "vision"))
+            snap = JOB.start(ollama_native_root(base_url), missing)
+            self._json(200, {"status": "ok", **snap})
 
         def _handle_model_status(self) -> None:
             """The AI model's health for the Settings screen (Slice 6 MS-2). For the local (Ollama)

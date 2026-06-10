@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  getModelPullProgress,
   getModelStatus,
   getSettings,
   postSettings,
+  startModelPull,
+  type ModelPullSnapshot,
   type ModelStatus,
   type SettingsResponse,
 } from '../api'
@@ -72,6 +75,79 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
   }, [])
 
   useEffect(() => checkModel(), [checkModel])
+
+  // Slice 10.4 — the in-app model download. POST starts whatever's missing (the model list
+  // is fixed server-side); we poll progress once a second until the job ends, then re-probe
+  // the model status so "Ready" is a measured claim. The poll dies with the wizard.
+  const [pull, setPull] = useState<ModelPullSnapshot | null>(null)
+  const pullTimer = useRef<number | null>(null)
+  // ENG-001 (slice-10.4 audit): if the wizard unmounts between the Download click and the
+  // POST resolving, the .then would otherwise install the interval AFTER cleanup ran —
+  // a poll that never dies. The disposed flag closes that window.
+  const disposedRef = useRef(false)
+  const stopPolling = useCallback(() => {
+    if (pullTimer.current !== null) {
+      window.clearInterval(pullTimer.current)
+      pullTimer.current = null
+    }
+  }, [])
+  useEffect(
+    () => () => {
+      disposedRef.current = true
+      stopPolling()
+    },
+    [stopPolling],
+  )
+
+  const beginPull = useCallback(() => {
+    setPull({ running: true, models: {} })
+    startModelPull()
+      .then((snap) => {
+        if (disposedRef.current) return
+        setPull(snap)
+        if (snap.status !== 'ok' || !snap.running) return // typed refusal or nothing missing
+        stopPolling()
+        pullTimer.current = window.setInterval(() => {
+          getModelPullProgress()
+            .then((p) => {
+              setPull((prev) => ({ ...prev, ...p }))
+              if (!p.running) {
+                stopPolling()
+                checkModel() // re-probe: "Ready" must be measured, not assumed
+              }
+            })
+            .catch(() => {
+              /* one missed poll isn't a failure; the next tick retries */
+            })
+        }, 1000)
+      })
+      .catch(() => {
+        if (disposedRef.current) return
+        setPull({ status: 'ok', running: false, error: 'Couldn’t start the download — check that Ollama is running, then try again.' })
+      })
+  }, [checkModel, stopPolling])
+
+  const pullActive = pull?.running === true
+  // A11Y-001 (slice-10.4 audit): the live announcement is COARSE — per-model status words
+  // only, never the percent — so its text changes a handful of times across a multi-GB
+  // download instead of every second. The visible rows carry the percent, un-live.
+  const pullAnnouncement = (() => {
+    if (!pull) return ''
+    if (pull.error) return pull.error
+    const entries = Object.entries(pull.models ?? {})
+    if (entries.length === 0) return pullActive ? 'Starting the download…' : ''
+    return entries
+      .map(([n, s]) =>
+        s.status === 'done'
+          ? `${n} downloaded`
+          : s.status === 'error'
+            ? `${n} failed`
+            : s.status === 'pulling'
+              ? `downloading ${n}`
+              : `${n} waiting`,
+      )
+      .join('; ')
+  })()
 
   // UX-002 (2026-06-09 audit): re-probe when the recap step opens, so "you're all set" is a
   // claim about NOW — the user may have started Ollama (or not) since step 1 checked.
@@ -250,26 +326,11 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     default for designing parts. A second small download lets KimCad read photos and
                     sketches (<code className="kc-mono">{model?.vision_model ?? 'qwen2.5vl:3b'}</code>).
                   </p>
-                  {/* UX-902 (stage-9 gate): check the SECOND model too — without this, a user
-                      finishes setup "all set" and only discovers the gap when their image fails.
-                      Designing in words works without it, so it's an action line, not a blocker. */}
-                  {model?.backend === 'local' && model.running && model.vision_present === false && (
-                    <p className="kc-wiz-model-action">
-                      Photos and sketches need that download — run{' '}
-                      <code className="kc-mono">ollama pull {model.vision_model}</code>, then{' '}
-                      <button
-                        type="button"
-                        className="kc-link-btn"
-                        aria-disabled={modelState === 'checking' || undefined}
-                        onClick={() => {
-                          if (modelState !== 'checking') checkModel()
-                        }}
-                      >
-                        {modelState === 'checking' ? 'checking…' : 'check again'}
-                      </button>
-                      . Designing in words works without it.
-                    </p>
-                  )}
+                  {/* UX-902 (stage-9 gate) + Slice 10.4: the SECOND model is checked too, and
+                      "get the model" is now an in-app DOWNLOAD with progress — the server
+                      decides what's missing (chat and/or vision); the button just says go.
+                      Designing in words works without the vision model, so a vision-only gap
+                      is an action line, never a blocker. */}
                   {/* UX-A-001 (stage-A gate): the action line + its button stay MOUNTED while a
                       re-check is in flight (last-known state drives visibility), so keyboard
                       focus never drops and the wizard's Tab trap can't be escaped mid-check. */}
@@ -289,22 +350,67 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       . You can finish setup either way.
                     </p>
                   )}
-                  {model?.backend === 'local' && model.running && !model.model_present && (
-                    <p className="kc-wiz-model-action">
-                      The model isn’t pulled yet. Pull{' '}
-                      <code className="kc-mono">{model.model}</code> in Ollama, then{' '}
-                      <button
-                        type="button"
-                        className="kc-link-btn"
-                        aria-disabled={modelState === 'checking' || undefined}
-                        onClick={() => {
-                          if (modelState !== 'checking') checkModel()
-                        }}
-                      >
-                        {modelState === 'checking' ? 'checking…' : 'check again'}
-                      </button>
-                      .
-                    </p>
+                  {/* The live region stays MOUNTED (UX-A-001 pattern) and carries only the
+                      coarse announcement — see pullAnnouncement above. */}
+                  <p className="kc-sr-only" role="status">{pullAnnouncement}</p>
+                  {model?.backend === 'local' && model.running &&
+                    (!model.model_present || model.vision_present === false) && (
+                    <div className="kc-wiz-pull">
+                      {!pull && (
+                        <p className="kc-wiz-model-action">
+                          {!model.model_present
+                            ? 'The design model isn’t downloaded yet.'
+                            : 'Photos and sketches need one more download — designing in words works without it.'}{' '}
+                          <button type="button" className="kc-btn kc-btn-accent kc-wiz-pull-btn" onClick={beginPull}>
+                            {!model.model_present
+                              ? `Download now (~${model.vision_present === false ? 13 : 10} GB)`
+                              : 'Download now (~3 GB)'}
+                          </button>
+                        </p>
+                      )}
+                      {pull?.error && (
+                        <p className="kc-wiz-model-action kc-wiz-model-warn">
+                          {pull.error}{' '}
+                          {!pullActive && (
+                            <button type="button" className="kc-link-btn" onClick={beginPull}>try again</button>
+                          )}
+                        </p>
+                      )}
+                      {pull && !pull.error && (
+                        <ul className="kc-wiz-pull-rows">
+                          {Object.entries(pull.models ?? {}).map(([name, st]) => (
+                            <li key={name} className="kc-wiz-pull-row">
+                              <code className="kc-mono">{name}</code>{' '}
+                              {st.status === 'queued' && <span>waiting…</span>}
+                              {st.status === 'pulling' && (
+                                <span>
+                                  downloading…{' '}
+                                  {st.total > 0 ? `${Math.min(100, Math.round((st.completed / st.total) * 100))}%` : ''}
+                                </span>
+                              )}
+                              {st.status === 'done' && <span>✓ done</span>}
+                              {st.status === 'error' && (
+                                <span className="kc-wiz-model-warn">
+                                  {st.error}{' '}
+                                  {!pullActive && (
+                                    <button type="button" className="kc-link-btn" onClick={beginPull}>try again</button>
+                                  )}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {/* The honest intermediate state: the design model is usable while the
+                          vision model is still coming down. */}
+                      {pullActive &&
+                        (model.model_present || pull?.models?.[model.model]?.status === 'done') &&
+                        model.vision_present === false && (
+                        <p className="kc-wiz-model-action">
+                          Designing in words works now — the photo &amp; sketch reader is still downloading.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -462,9 +568,14 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                         <span className="kc-wiz-model-warn kc-wiz-recap-warn" role="status">
                           {' '}
                           <span className="kc-statdot kc-statdot-warn" aria-hidden="true" />{' '}
-                          {model && model.running && !model.model_present
-                            ? `not pulled yet — run “ollama pull ${model.model}”, then `
-                            : 'not reachable yet — start Ollama, then '}
+                          {/* UX-001 (slice-10.4 audit): mid-download, the recap must not
+                              tell the user to pull manually — that contradicts the
+                              download THEY started on the model step. */}
+                          {pullActive
+                            ? 'downloading now — it continues in the background; when it finishes, '
+                            : model && model.running && !model.model_present
+                              ? `not downloaded yet — use Download on the model step (or run “ollama pull ${model.model}”), then `
+                              : 'not reachable yet — start Ollama, then '}
                           <button
                             type="button"
                             className="kc-link-btn"
