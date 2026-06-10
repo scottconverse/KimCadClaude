@@ -109,6 +109,16 @@ def test_fallback_on_cadquery_delegates_to_alt():
     assert fp.generate_cadquery(MagicMock(), MagicMock(), MagicMock()) == "cq_alt"
 
 
+def test_describe_sketch_delegates_through_the_chain():
+    # Stage 9: describe_sketch delegates via the same _call machinery (success-skips-alt).
+    primary = _mock_provider(return_val="x")
+    primary.describe_sketch.return_value = "sketch_seed"
+    alt = _mock_provider(return_val="x")
+    fp = FallbackProvider(primary, alt)
+    assert fp.describe_sketch(b"img", MagicMock(), MagicMock()) == "sketch_seed"
+    alt.describe_sketch.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Routing: primary failure -> alt
 # ---------------------------------------------------------------------------

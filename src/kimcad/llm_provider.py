@@ -110,6 +110,15 @@ class Provider(Protocol):
         material: Material,
     ) -> str: ...
 
+    # Stage 9: the sketch on-ramp's local-vision entry point — read a dimensioned sketch into an
+    # editable seed. Declared on the Protocol so the contract stays total + type-checked.
+    def describe_sketch(
+        self,
+        image_bytes: bytes,
+        printer: Printer,
+        material: Material,
+    ) -> str: ...
+
 
 def _load_prompt(name: str) -> str:
     return (PROMPT_DIR / name).read_text(encoding="utf-8")
@@ -281,26 +290,32 @@ class LLMProvider:
         )
         return _strip_fences(self._complete(messages, json_mode=False))
 
-    def describe_photo(
-        self, image_bytes: bytes, printer: Printer, material: Material
+    def _describe_image(
+        self,
+        image_bytes: bytes,
+        printer: Printer,
+        material: Material,
+        *,
+        prompt_name: str,
+        user_msg: str,
     ) -> str:
-        """Read a photo into a ROUGH text seed for the text->DesignPlan path (Stage 8.5 Slice 7).
+        """Shared LOCAL-vision read of an image into a text seed (the photo + sketch on-ramps).
 
-        LOCAL-first by design: the photo is sent to the local Ollama vision model via the **native**
-        ``/api/chat`` endpoint (derived from the backend base_url) with ``think`` disabled. The
-        OpenAI-compatible ``/v1`` path leaves vision output EMPTY because gemma4:e4b's 'thinking' mode
-        spends the whole token budget before producing content; the native endpoint with
-        ``think: false`` returns the description. The seed is a plain description + ROUGH proportions
-        (a photo carries no scale) that the user confirms/edits — it never becomes the delivered
-        geometry. Untrusted input into the validated DesignPlan, the same trust boundary as typed text.
-        """
+        The image is sent to the local Ollama vision model via the **native** ``/api/chat`` endpoint
+        (derived from the backend base_url) with ``think`` disabled. The OpenAI-compatible ``/v1``
+        path leaves vision output EMPTY because gemma4:e4b's 'thinking' mode spends the whole token
+        budget before producing content; the native endpoint with ``think: false`` returns the
+        description. The seed is a plain description the user confirms/edits — it never becomes the
+        delivered geometry. Untrusted input into the validated DesignPlan, the same trust boundary
+        as typed text. ``prompt_name`` selects the system prompt (photo: rough proportions; sketch:
+        read the labeled dimensions)."""
         parts = urlsplit(self.backend.base_url)
         chat_url = (
             urlunsplit((parts.scheme, parts.netloc, "/api/chat", "", ""))
             if parts.scheme and parts.netloc
             else self.backend.base_url.rstrip("/").removesuffix("/v1") + "/api/chat"
         )
-        system = _load_prompt("system_photo_seed.md").replace(
+        system = _load_prompt(prompt_name).replace(
             "{constraints}", build_constraints_block(printer, material)
         )
         body = json.dumps({
@@ -309,16 +324,16 @@ class LLMProvider:
                 {"role": "system", "content": system},
                 {
                     "role": "user",
-                    "content": "Describe the object in this photo as a part to 3D-print.",
+                    "content": user_msg,
                     "images": [base64.b64encode(image_bytes).decode()],
                 },
             ],
             "stream": False,
             # ``think: false`` is what keeps gemma4:e4b's thinking mode from spending the whole
-            # budget on an empty reply. NOTE (ENG-002): older Ollama builds that predate the
-            # ``think`` field silently ignore it, so vision can come back empty on a stale Ollama —
-            # which then looks identical to an unreadable photo. We log a one-line hint below so the
-            # cause is debuggable; the user still gets the graceful "couldn't read that photo" 422.
+            # budget on an empty reply. NOTE: older Ollama builds that predate the ``think`` field
+            # silently ignore it, so vision can come back empty on a stale Ollama — which then looks
+            # identical to an unreadable image. We log a one-line hint below so the cause is
+            # debuggable; the user still gets the graceful "couldn't read that image" 422.
             "think": False,
             "options": {"temperature": 0, "num_predict": 400},
         }).encode()
@@ -329,14 +344,31 @@ class LLMProvider:
             data = json.load(r)
         seed = _strip_fences(((data.get("message") or {}).get("content") or "").strip())
         if not seed:
-            # An empty vision response is usually an unreadable photo, but a too-old Ollama (no
-            # ``think`` support) presents identically — leave a breadcrumb for support/debugging.
             print(
-                "[kimcad] vision returned an empty description; if this recurs on a clear photo, "
+                "[kimcad] vision returned an empty description; if this recurs on a clear image, "
                 "update Ollama (older builds ignore think:false and gemma4 vision returns empty).",
                 file=sys.stderr,
             )
         return seed
+
+    def describe_photo(self, image_bytes: bytes, printer: Printer, material: Material) -> str:
+        """Read a PHOTO into a rough, editable text seed (Stage 8.5 Slice 7). A photo carries no
+        scale, so the seed gives rough proportions the user resizes."""
+        return self._describe_image(
+            image_bytes, printer, material,
+            prompt_name="system_photo_seed.md",
+            user_msg="Describe the object in this photo as a part to 3D-print.",
+        )
+
+    def describe_sketch(self, image_bytes: bytes, printer: Printer, material: Material) -> str:
+        """Read a dimensioned SKETCH into an editable text seed (Stage 9). Unlike a photo, a sketch
+        often LABELS sizes, so the seed captures those exact numbers (the maker's intent) for the
+        user to confirm. Same local-vision plumbing + trust boundary as the photo on-ramp."""
+        return self._describe_image(
+            image_bytes, printer, material,
+            prompt_name="system_sketch_seed.md",
+            user_msg="Read this sketch of a part to 3D-print: its shape and any labeled dimensions.",
+        )
 
 
 class FallbackProvider:
@@ -429,3 +461,8 @@ class FallbackProvider:
         # as the other calls. (The web photo path routes vision to a dedicated LOCAL provider per the
         # trust rule and doesn't reach this; this makes the contract total + type-checked regardless.)
         return self._call("describe_photo", image_bytes, printer, material)
+
+    def describe_sketch(self, image_bytes: bytes, printer: Printer, material: Material) -> str:
+        # Stage 9: complete the contract for the sketch on-ramp (same local-vision trust rule as
+        # describe_photo — the web layer routes it to a dedicated LOCAL provider).
+        return self._call("describe_sketch", image_bytes, printer, material)
