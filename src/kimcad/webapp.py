@@ -1357,11 +1357,13 @@ def make_handler(
                 self._json(200, {"sent": False, "reason": e.reason,
                                  "simulated": simulated, "note": e.user_message})
                 return
-            except Exception as e:  # never leak a traceback — the class + message only, no stack
-                # QA-003 (re-audit): this last-resort 500 is for a truly UNEXPECTED error (the
-                # connectors raise typed ConnectorErrors for the expected cases). Showing the
-                # exception class + message (never the stack) is the deliberate, tested contract.
-                self._json(500, {"error": f"{type(e).__name__}: {e}"})
+            except Exception as e:  # never leak a traceback to the browser
+                # QA-008: this last-resort 500 is for a truly UNEXPECTED error (the connectors
+                # raise typed ConnectorErrors for the expected cases). The class + detail go to
+                # the server log; the browser gets a generic, non-leaking line.
+                self.log_error("send failed: %s: %s", type(e).__name__, e)
+                self._json(500, {"error": "Something went wrong on the server. "
+                                          "The terminal running `kimcad web` has the detail."})
                 return
             info: dict[str, Any] = {
                 "sent": True,
@@ -1927,7 +1929,10 @@ def make_handler(
                 with render_lock:
                     result = pipeline.rerender(base_plan, family_name, values, web_root / str(rid))
             except Exception as e:  # never leak a traceback to the browser
-                self._json(500, {"error": f"{type(e).__name__}: {e}"})
+                # QA-008: generic line to the browser; class + detail to the server log.
+                self.log_error("re-render failed: %s: %s", type(e).__name__, e)
+                self._json(500, {"error": "Something went wrong on the server. "
+                                          "The terminal running `kimcad web` has the detail."})
                 return
             payload = _result_to_payload(result)
             # QA-001: signal when requested values were clamped/coerced. The SPA sliders are

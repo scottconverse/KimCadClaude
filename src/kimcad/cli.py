@@ -509,7 +509,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        if type(e).__name__ == "NotFoundError":
+        if type(e).__name__ == "NotFoundError" and type(e).__module__.startswith("openai"):
             print(
                 "Error: the model isn't available on your local AI server. "
                 "Pull it first (`ollama pull gemma4:e4b`), then try again. "

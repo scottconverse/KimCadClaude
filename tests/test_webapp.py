@@ -670,7 +670,8 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
         ), timeout=30))
         assert ok["sent"] is True and ok.get("printer_state") is None
 
-        # an unexpected (non-ConnectorError) failure -> clean 500, no traceback leaked
+        # an unexpected (non-ConnectorError) failure -> clean GENERIC 500 (QA-008): no
+        # traceback AND no internal class name leaked; detail goes to the server log.
         def _boom(c, n):
             raise RuntimeError("kaboom")
 
@@ -685,7 +686,8 @@ def test_live_web_design_then_slice_then_download(tmp_path, monkeypatch):
         except urllib.error.HTTPError as e:
             assert e.code == 500
             body = e.read()
-            assert b"RuntimeError: kaboom" in body and b"Traceback" not in body
+            assert b"RuntimeError" not in body and b"kaboom" not in body
+            assert b"Something went wrong" in body and b"Traceback" not in body
 
 
 # --- Stage 2 Slice 4b: send-to-printer web endpoints --------------------------
