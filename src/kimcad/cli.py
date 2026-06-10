@@ -29,7 +29,7 @@ from typing import Any
 
 from kimcad.config import Config
 
-_SUBCOMMANDS = {"design", "bench", "web", "models", "bakeoff"}
+_SUBCOMMANDS = {"design", "bench", "web", "shell", "models", "bakeoff"}
 
 
 def _force_utf8_output(stream: Any) -> None:
@@ -97,6 +97,19 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--port", type=int, default=8765, help="Bind port (default: 8765).")
     w.add_argument("--backend", default=None, help="LLM backend key (default from config).")
     w.add_argument(
+        "--demo",
+        action="store_true",
+        help="Serve a fixed sample part with no LLM call (fast UI demo).",
+    )
+
+    sh = sub.add_parser(
+        "shell",
+        help="Launch KimCad as a windowed app (WebView2) — what the installer's shortcut runs. "
+        "Same app as `kimcad web`, in its own window on a private ephemeral port; closing the "
+        "window exits cleanly.",
+    )
+    sh.add_argument("--backend", default=None, help="LLM backend key (default from config).")
+    sh.add_argument(
         "--demo",
         action="store_true",
         help="Serve a fixed sample part with no LLM call (fast UI demo).",
@@ -546,6 +559,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "web":
             return _cmd_web(args)
+        if args.command == "shell":
+            from kimcad.shell import build_shell
+
+            build_shell(demo=args.demo, backend=args.backend, start_gui=True)
+            return 0
         # design / bench need config; loading it inside the try means a malformed
         # config.yaml fails with a clean message instead of a raw traceback.
         config = Config.load()

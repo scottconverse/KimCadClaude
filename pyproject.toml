@@ -33,6 +33,10 @@ dependencies = [
     # Manager) at rest. settings_store degrades to the disclosed file fallback if the
     # backend is unusable, so this stays a soft runtime requirement in behavior.
     "keyring>=25.0",
+    # Stage 11: the windowed app shell (`kimcad shell`) over WebView2. Windows-only by
+    # marker; shell.py degrades to the `kimcad web` browser path when absent, so a
+    # non-Windows from-source install loses only the window, never the app.
+    'pywebview>=6.2; sys_platform == "win32"',
 ]
 
 [project.optional-dependencies]
