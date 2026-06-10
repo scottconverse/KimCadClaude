@@ -25,6 +25,7 @@ import re
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Protocol
@@ -45,6 +46,19 @@ _FENCE = re.compile(r"^\s*```(?:\w+)?\s*|\s*```\s*$", re.MULTILINE)
 # (JSONDecodeError < ValueError), schema-invalid JSON (pydantic ValidationError), or a
 # non-dict body (TypeError/AttributeError/KeyError during normalize).
 _PLAN_PARSE_ERRORS = (ValueError, TypeError, KeyError, AttributeError, ValidationError)
+
+
+class VisionModelMissing(Exception):
+    """The dedicated local vision model isn't pulled (Ollama answered 404 for it).
+
+    Stage 9: a setup state with an exact recovery command — the web layer maps it to a
+    typed response so the UI never blames the user's image for a missing model."""
+
+    def __init__(self, model: str):
+        self.model = model
+        super().__init__(
+            f"KimCad's vision model isn't pulled yet. Run `ollama pull {model}`, then try again."
+        )
 
 
 class PlanParseError(Exception):
@@ -364,7 +378,13 @@ class LLMProvider:
             "{constraints}", build_constraints_block(printer, material)
         )
         body = json.dumps({
-            "model": self.backend.model_name,
+            # Stage 9: a DEDICATED vision model — measured on the target box, the chat
+            # model's (gemma4:e4b) vision is broken on this stack: with thinking enabled it
+            # reports "no visible image was provided", and with think:false it deterministically
+            # hallucinates the same description for ANY image. qwen2.5vl:3b read dimensioned
+            # sketches 3/3 on-target (docs/benchmarks/stage-9-vision-onramps.md). Still local
+            # Ollama; the image never leaves the machine.
+            "model": self.backend.vision_model,
             "messages": [
                 {"role": "system", "content": system},
                 {
@@ -374,24 +394,25 @@ class LLMProvider:
                 },
             ],
             "stream": False,
-            # ``think: false`` is what keeps gemma4:e4b's thinking mode from spending the whole
-            # budget on an empty reply. NOTE: older Ollama builds that predate the ``think`` field
-            # silently ignore it, so vision can come back empty on a stale Ollama — which then looks
-            # identical to an unreadable image. We log a one-line hint below so the cause is
-            # debuggable; the user still gets the graceful "couldn't read that image" 422.
-            "think": False,
             "options": {"temperature": 0, "num_predict": 400},
         }).encode()
         req = urllib.request.Request(
             chat_url, data=body, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
-            data = json.load(r)
+        try:
+            with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
+                data = json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                # The vision model isn't pulled — a setup state with an exact recovery
+                # command, never "your image was unreadable".
+                raise VisionModelMissing(self.backend.vision_model) from e
+            raise
         seed = _strip_fences(((data.get("message") or {}).get("content") or "").strip())
         if not seed:
             print(
-                "[kimcad] vision returned an empty description; if this recurs on a clear image, "
-                "update Ollama (older builds ignore think:false and gemma4 vision returns empty).",
+                f"[kimcad] vision ({self.backend.vision_model}) returned an empty description; "
+                "if this recurs on a clear image, update Ollama and re-pull the vision model.",
                 file=sys.stderr,
             )
         return seed

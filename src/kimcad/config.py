@@ -73,6 +73,12 @@ class LLMBackend:
     # Per-request timeout. A local CPU model can take many minutes for one generation,
     # well past the OpenAI client's 10-minute default, so this defaults generously.
     timeout_s: float = 1200.0
+    # Stage 9: the DEDICATED local vision model for the photo/sketch on-ramps. Measured on
+    # the target box (docs/benchmarks/stage-9-vision-onramps.md): gemma4:e4b's vision is
+    # broken on this stack (the model itself reports no image was provided), while
+    # qwen2.5vl:3b reads dimensioned sketches 3/3 on-target. Same trust boundary — the
+    # read still happens on local Ollama; nothing leaves the machine.
+    vision_model: str = "qwen2.5vl:3b"
 
 
 @dataclass(frozen=True)
@@ -297,6 +303,7 @@ class Config:
             max_tokens=int(b.get("max_tokens", 8192)),
             supports_structured_output=bool(b.get("supports_structured_output", False)),
             timeout_s=float(b.get("timeout_s", 1200.0)),
+            vision_model=str(b.get("vision_model", "qwen2.5vl:3b")),
         )
 
     def llm_alt_backend(self) -> LLMBackend | None:

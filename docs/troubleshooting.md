@@ -35,13 +35,26 @@ ollama pull gemma4:e4b
 
 Then try again. `ollama list` should show `gemma4:e4b`.
 
-## The photo feature returns nothing / an empty description
+## "KimCad's vision model isn't pulled yet"
 
-**Cause:** an outdated Ollama. Older builds ignore an option KimCad sets and the vision
-model silently returns an empty answer.
+**Cause:** the photo and sketch features use a dedicated small vision model that wasn't
+downloaded (it's a separate pull from the main design model).
+
+**Fix:**
+
+```
+ollama pull qwen2.5vl:3b
+```
+
+Then try the photo or sketch again. `kimcad models` shows both models' status.
+
+## The photo or sketch feature returns nothing / an empty description
+
+**Cause:** usually an outdated Ollama (older builds mishandle vision requests), or a very
+low-contrast image.
 
 **Fix:** update Ollama to the current release from <https://ollama.com/download>, then try
-the photo again. (Your model and settings survive the update.)
+again with a clear, well-lit image. (Your models and settings survive the update.)
 
 ## "OpenSCAD isn't installed at …" or "OrcaSlicer isn't installed at …"
 

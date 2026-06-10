@@ -504,6 +504,15 @@ def _cmd_models(config: Config, args: argparse.Namespace) -> int:
         alt = rec.non_china_alternative
         state = "installed" if rec.non_china_installed else f"not installed -- ollama pull {alt.name}"
         print(f"  Non-China local option: {alt.label}  [{alt.name}]  ({state})")
+    # Stage 9: the photo/sketch on-ramps use a DEDICATED local vision model — surface its
+    # state here too, so `kimcad models` is the one-stop setup check.
+    try:
+        vision = config.llm_backend("local").vision_model
+    except Exception:  # noqa: BLE001 - advisory only
+        vision = "qwen2.5vl:3b"
+    have_vision = any(m.name == vision for m in installed)
+    vstate = "installed" if have_vision else f"NOT installed -- ollama pull {vision}"
+    print(f"  Vision model (photo/sketch on-ramps): {vision}  ({vstate})")
     print()
     print("The model is never hardwired. To choose one: set `llm.active` (or a backend's")
     print("`model_name`) in config/local.yaml, or pass `--backend <key>` to design/web/bench.")

@@ -37,10 +37,12 @@ see [troubleshooting](troubleshooting.md#python-isnt-found) ("Python isn't found
 1. Go to <https://ollama.com/download> and download **Ollama for Windows**.
 2. Run the installer. When it finishes, Ollama runs quietly in the background (you'll see
    a llama icon in the system tray).
-3. In your terminal, pull KimCad's AI model (~5–10 GB — this is the big download):
+3. In your terminal, pull KimCad's two AI models — the designer (~5–10 GB, the big
+   download) and the small vision model that reads photos and sketches (~3 GB):
 
 ```
 ollama pull gemma4:e4b
+ollama pull qwen2.5vl:3b
 ```
 
 **Check it worked:**
@@ -49,7 +51,8 @@ ollama pull gemma4:e4b
 ollama list
 ```
 
-You should see `gemma4:e4b` in the list.
+You should see both `gemma4:e4b` and `qwen2.5vl:3b` in the list. (`kimcad models` will
+also confirm both once KimCad is installed.)
 
 ## Step 3 — Get KimCad
 

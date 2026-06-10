@@ -243,7 +243,9 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   </div>
                   <p className="kc-wiz-model-desc">
                     KimCad’s local AI — runs on your CPU, no internet required. It’s the tested
-                    default and handles everything, including reading a photo.
+                    default for designing parts; a separate small local vision model reads photos
+                    and sketches (<code className="kc-mono">qwen2.5vl:3b</code> — pulled the same
+                    way).
                   </p>
                   {/* UX-A-001 (stage-A gate): the action line + its button stay MOUNTED while a
                       re-check is in flight (last-known state drives visibility), so keyboard

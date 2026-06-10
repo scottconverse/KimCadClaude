@@ -273,3 +273,51 @@ def test_structured_output_suppressed_when_backend_lacks_support():
     provider.generate_design_plan("a cube", BAMBU, PLA)
 
     assert "response_format" not in client.calls[0]
+
+
+def test_describe_image_targets_the_dedicated_vision_model(monkeypatch):
+    """Stage 9: the photo/sketch reads go to the DEDICATED vision model (gemma4:e4b's
+    vision is broken on this stack — see docs/benchmarks/stage-9-vision-onramps.md), and
+    the image rides along base64-encoded on the user message."""
+    import io
+    import json as _json
+
+    import kimcad.llm_provider as lp
+
+    seen = {}
+
+    def _fake_urlopen(req, timeout=None):
+        seen["body"] = _json.loads(req.data)
+        resp = io.BytesIO(_json.dumps({"message": {"content": "a part"}}).encode())
+        resp.__enter__ = lambda *a: resp
+        resp.__exit__ = lambda *a: False
+        return resp
+
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _fake_urlopen)
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"))
+    out = provider.describe_sketch(b"png-bytes", BAMBU, PLA)
+    assert out == "a part"
+    assert seen["body"]["model"] == BACKEND.vision_model  # NOT the chat model
+    assert seen["body"]["model"] != BACKEND.model_name
+    assert seen["body"]["messages"][1]["images"]  # the image is attached
+
+
+def test_missing_vision_model_raises_typed_with_pull_command(monkeypatch):
+    """Stage 9: Ollama 404 for the vision model = a setup state with the exact recovery
+    command — never a generic transport error that ends up blaming the user's image."""
+    import urllib.error
+
+    import kimcad.llm_provider as lp
+    from kimcad.llm_provider import VisionModelMissing
+
+    def _404(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 404, "model not found", {}, None)
+
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _404)
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"))
+    try:
+        provider.describe_photo(b"png-bytes", BAMBU, PLA)
+        raise AssertionError("expected VisionModelMissing")
+    except VisionModelMissing as e:
+        assert "ollama pull" in str(e)
+        assert BACKEND.vision_model in str(e)

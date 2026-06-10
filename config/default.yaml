@@ -63,6 +63,13 @@ llm:
       temperature: 0.2
       max_tokens: 8192
       supports_structured_output: false     # Ollama: rely on JSON-instructed prompt
+      vision_model: qwen2.5vl:3b            # Stage 9: the DEDICATED local vision model for the
+                                            # photo/sketch on-ramps (ollama pull qwen2.5vl:3b).
+                                            # Measured on-target: gemma4:e4b's vision is broken
+                                            # on this stack (reports "no image provided"), while
+                                            # qwen2.5vl:3b reads dimensioned sketches 3/3 — see
+                                            # docs/benchmarks/stage-9-vision-onramps.md. The image
+                                            # never leaves the machine either way.
 
     local_qwen:
       provider: openai_compatible

@@ -127,9 +127,15 @@ fast and stable there:
 
 ```
 ollama pull gemma4:e4b
+ollama pull qwen2.5vl:3b
 ```
 
-That is all the LLM setup required — no API key, no network. To enable a cloud fallback the
+The second pull is the **dedicated local vision model** for the photo/sketch on-ramps
+(Stage 9): measured on the target box, `gemma4:e4b`'s vision is broken on this stack (the
+model itself reports no image was provided), while `qwen2.5vl:3b` reads dimensioned
+sketches 3/3 — see `docs/benchmarks/stage-9-vision-onramps.md`. Both run in the same
+local Ollama; images never leave the machine. That is all the LLM setup required — no API
+key, no network. To enable a cloud fallback the
 easy way, use the in-app **Settings → Cloud acceleration** opt-in (OpenRouter; you pick the
 model; the key is kept in the OS credential store — Windows Credential Manager — and shown
 only masked; if no credential store is usable, KimCad falls back to its local settings file

@@ -1429,8 +1429,14 @@ def make_handler(
             except Exception as e:  # noqa: BLE001 - never leak a traceback; vision is best-effort
                 # QA-A-003 (stage-A gate): a DOWN model server is not a bad photo — blaming
                 # the user's shot for a dead Ollama is the trust-breaking wrong message.
+                # Stage 9: same for a MISSING vision model — a setup state with an exact
+                # recovery command, never "try a clearer shot".
+                from kimcad.llm_provider import VisionModelMissing
                 from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
 
+                if isinstance(e, VisionModelMissing):
+                    self._json(200, {"status": "model_unavailable", "error": str(e)})
+                    return
                 if _is_model_unreachable(e):
                     self._json(200, {"status": "model_unavailable",
                                      "error": MODEL_UNAVAILABLE_MESSAGE})
@@ -1459,9 +1465,14 @@ def make_handler(
                 cfg = get_config()
                 seed = pipeline.provider.describe_sketch(image, cfg.printer(None), cfg.material(None))
             except Exception as e:  # noqa: BLE001 - never leak a traceback; vision is best-effort
-                # QA-A-003: same as the photo path — a down model is not a bad sketch.
+                # QA-A-003: same as the photo path — a down model is not a bad sketch, and a
+                # missing vision model (Stage 9) gets the exact pull command.
+                from kimcad.llm_provider import VisionModelMissing
                 from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE, _is_model_unreachable
 
+                if isinstance(e, VisionModelMissing):
+                    self._json(200, {"status": "model_unavailable", "error": str(e)})
+                    return
                 if _is_model_unreachable(e):
                     self._json(200, {"status": "model_unavailable",
                                      "error": MODEL_UNAVAILABLE_MESSAGE})

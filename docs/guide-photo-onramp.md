@@ -6,11 +6,11 @@ shape named — that you can edit before KimCad designs anything.
 
 ## The promise first
 
-**Your photo never leaves your computer.** It's read by the same local AI that designs
-your parts, on your machine, even if you've turned on cloud acceleration in Settings —
-the photo path always stays local, by design. The photo isn't saved anywhere either:
-once it's been read (or you cancel), it's gone. Only the *text* description you approve
-goes on to the design step.
+**Your photo never leaves your computer.** It's read by a small local vision model
+(`qwen2.5vl:3b`, running in the same Ollama as the design model), on your machine, even
+if you've turned on cloud acceleration in Settings — the photo path always stays local,
+by design. The photo isn't saved anywhere either: once it's been read (or you cancel),
+it's gone. Only the *text* description you approve goes on to the design step.
 
 ## How to use it
 

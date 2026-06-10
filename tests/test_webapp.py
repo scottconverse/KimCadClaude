@@ -2851,9 +2851,10 @@ def test_sketch_seed_empty_seed_is_422(tmp_path):
         assert st == 422
 
 
-def test_llm_describe_photo_uses_native_chat_with_think_false(monkeypatch):
-    """The local vision call hits Ollama's NATIVE /api/chat (not /v1) with the image attached and
-    think disabled — the wiring the live probe proved is required for a non-empty vision response."""
+def test_llm_describe_photo_uses_native_chat_with_the_vision_model(monkeypatch):
+    """The local vision call hits Ollama's NATIVE /api/chat (not /v1) with the image attached,
+    targeting the DEDICATED vision model (Stage 9: gemma4:e4b's vision is broken on this stack —
+    docs/benchmarks/stage-9-vision-onramps.md; the old think:false dance went with it)."""
     import io
     import json as _j
 
@@ -2863,7 +2864,7 @@ def test_llm_describe_photo_uses_native_chat_with_think_false(monkeypatch):
     backend = LLMBackend(
         key="local", provider="openai_compatible", base_url="http://localhost:11434/v1",
         model_name="gemma4:e4b", api_key_env=None, temperature=0.0, max_tokens=400,
-        supports_structured_output=False,
+        supports_structured_output=False, vision_model="qwen2.5vl:3b",
     )
     captured: dict = {}
 
@@ -2883,7 +2884,7 @@ def test_llm_describe_photo_uses_native_chat_with_think_false(monkeypatch):
     seed = lp.LLMProvider(backend).describe_photo(b"imgbytes", BAMBU, PLA)
     assert seed == "a rough box, ~80mm"
     assert captured["url"].endswith("/api/chat")  # NATIVE endpoint, not /v1
-    assert captured["body"]["think"] is False
+    assert captured["body"]["model"] == "qwen2.5vl:3b"  # the vision model, not the chat model
     assert captured["body"]["messages"][1]["images"]  # the image was attached
 
 
@@ -3150,3 +3151,38 @@ def test_settings_api_refuses_the_reserved_sentinel_as_a_key(tmp_path, monkeypat
         st, body = _jreq(host, port, "POST", "/api/settings", {"openrouter_api_key": "@keyring"})
         assert st == 400
         assert "Invalid API key" in body["error"]
+
+
+def test_photo_and_sketch_seed_map_missing_vision_model_to_typed_pull_hint(tmp_path):
+    """Stage 9: a missing VISION model is a setup state — both image on-ramps return the
+    typed model_unavailable with the exact `ollama pull` command, never 'clearer shot'."""
+    import json
+    import urllib.request
+
+    from kimcad.llm_provider import VisionModelMissing
+
+    class _NoVisionModel:
+        def run(self, prompt, out_dir, **kw):  # pragma: no cover - not reached
+            raise AssertionError
+
+        def describe_photo(self, image_bytes, printer, material):
+            raise VisionModelMissing("qwen2.5vl:3b")
+
+        def describe_sketch(self, image_bytes, printer, material):
+            raise VisionModelMissing("qwen2.5vl:3b")
+
+    pipe = _NoVisionModel()
+    pipe.provider = pipe
+    with _serve(pipe, tmp_path) as (host, port):
+        for path in ("/api/photo-seed", "/api/sketch-seed"):
+            req = urllib.request.Request(
+                f"http://{host}:{port}{path}",
+                data=b"\x89PNG fakebytes",
+                headers={"Content-Type": "image/png"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                assert resp.status == 200
+                body = json.loads(resp.read())
+            assert body["status"] == "model_unavailable"
+            assert "ollama pull qwen2.5vl:3b" in body["error"]
+            assert "clearer" not in body["error"]
