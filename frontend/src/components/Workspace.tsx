@@ -70,7 +70,7 @@ export default function Workspace({
   }
 
   return (
-    <div className="kc-workspace-wrap">
+    <main id="kimcad-main" className="kc-workspace-wrap">
       <VersionRail
         versions={versions}
         versionIdx={versionIdx}
@@ -127,6 +127,6 @@ export default function Workspace({
           ↓ Check &amp; download
         </button>
       )}
-    </div>
+    </main>
   )
 }

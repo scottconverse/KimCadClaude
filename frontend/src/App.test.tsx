@@ -480,6 +480,20 @@ describe('App first-run wizard (MS-4)', () => {
   })
 })
 
+describe('App skip link (2026-06-09 audit UX-004)', () => {
+  it('renders a skip-to-content link as the first focusable, targeting the main landmark', () => {
+    localStorage.setItem('kc-first-run-done', '1')
+    render(<App />)
+    const skip = screen.getByRole('link', { name: /skip to main content/i })
+    expect(skip.getAttribute('href')).toBe('#kimcad-main')
+    // The link must come before everything else in the shell so it's the first Tab stop.
+    expect(skip.parentElement?.firstElementChild).toBe(skip)
+    // And the landing exposes the matching target as its main landmark.
+    const main = document.querySelector('main#kimcad-main')
+    expect(main).not.toBeNull()
+  })
+})
+
 describe('App live design phase (MS-3)', () => {
   it('polls the run phase while busy and surfaces it, then resets when the run finishes', async () => {
     const api = await import('./api')

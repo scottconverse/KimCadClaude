@@ -128,7 +128,7 @@ export default function SettingsPanel() {
   }
 
   return (
-    <main className="kc-settings">
+    <main id="kimcad-main" className="kc-settings">
       <div className="kc-settings-head">
         <h1 className="kc-settings-title">Settings</h1>
         {saveNote === 'saving' && (

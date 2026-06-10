@@ -94,6 +94,10 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
+For a reproducible Python 3.13 beta environment, install from the committed
+lockfile first (`pip install -r requirements.lock`), then install KimCad editable
+with `pip install -e ".[dev]"`.
+
 Then fetch the CAD/slicer binaries into `tools/` (standard library only — no extra
 dependency):
 

@@ -569,6 +569,9 @@ export default function App() {
 
   return (
     <div className="kc-shell">
+      <a className="kc-skip-link" href="#kimcad-main">
+        Skip to main content
+      </a>
       {showWizard && <FirstRunWizard onClose={dismissWizard} />}
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       <Topbar

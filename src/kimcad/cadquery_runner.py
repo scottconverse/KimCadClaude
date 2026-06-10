@@ -74,6 +74,7 @@ def _worker_env() -> dict[str, str]:
 # The worker script, run by the foreign <=3.13 interpreter BY ABSOLUTE PATH (not `-m`,
 # since the kimcad package isn't installed in the 3.13 environment). It's a sibling file.
 WORKER_PATH = Path(__file__).with_name("cadquery_worker.py")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Imports the generated script may make. Everything else is blocked. (The worker also
 # pre-injects ``cq``/``cadquery``/``math``, so a well-formed script needs no import at all.)
@@ -319,6 +320,9 @@ def find_cadquery_interpreter(
             cmds.append([str(x) for x in c])
     if include_defaults:
         if sys.platform == "win32":
+            # The documented repo-local worker venv wins over the global launcher probes.
+            local_worker = PROJECT_ROOT / ".venv-cq313" / "Scripts" / "python.exe"
+            cmds.append([str(local_worker)])
             cmds.extend([["py", f"-{v}"] for v in ("3.13", "3.12", "3.11")])
         cmds.extend([[n] for n in ("python3.13", "python3.12", "python3.11", "python3")])
 

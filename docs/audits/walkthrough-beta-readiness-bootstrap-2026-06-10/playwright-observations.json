@@ -1,0 +1,167 @@
+{
+  "initial": {
+    "title": "KimCad",
+    "h1": "Welcome to KimCad",
+    "buttons": [
+      {
+        "text": "Skip setup",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "Back",
+        "disabled": true,
+        "aria": null
+      },
+      {
+        "text": "Continue",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "KimCad",
+        "disabled": false,
+        "aria": "KimCad — home"
+      },
+      {
+        "text": "My Designs",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "Settings",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "?",
+        "disabled": false,
+        "aria": "Keyboard shortcuts"
+      },
+      {
+        "text": "Design it",
+        "disabled": true,
+        "aria": null
+      },
+      {
+        "text": "Describe with a photo",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "a wall-mounted holder for a 1 kg filament spool",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "a 40 mm desk cable clip",
+        "disabled": false,
+        "aria": null
+      },
+      {
+        "text": "a hexagonal pen and tool organizer",
+        "disabled": false,
+        "aria": null
+      }
+    ],
+    "links": [],
+    "bodySample": "KimCad\n1\nWelcome\n2\nYour AI model\n3\nYour printer\n4\nDirect printing\n5\nReady\n\nMost first prints are ready in under 15 minutes.\n\nSkip setup\nWelcome to KimCad\n\nDescribe a part in plain words — or photograph one — and get a print-ready file in minutes. It runs on your computer; nothing leaves your machine unless you choose to. Let’s get you set up.\n\nPick the AI model that turns your words into a design.\nChoose the printer your parts are checked against.\nDecide how you want to get your files.\nContinue\nKimCad\nBambu Lab P2S\n256×256×256 mm\nMy Designs\nSettings\n?\nReady to print in ~15 minutes · no CAD skills\nWhat do you want to make today?\n\nDescribe a functional part in plain words — I’ll design it, check that it’s actually printable, and get it ready for your printer. Runs entirely on your machine.\n\nDesign it\nDescribe with a photo\nTRY\na wall-mounted holder for a 1 kg filament spool\na 40 mm desk cable clip\na hexagonal pen and tool organizer\n\n1. Describe\n2. Preview & refine\n3. Check & download"
+  },
+  "wizardTexts": [
+    "KimCad\n1\nWelcome\n2\nYour AI model\n3\nYour printer\n4\nDirect printing\n5\nReady\n\nMost first prints are ready in under 15 minutes.\n\nSkip setup\nWelcome to KimCad\n\nDescribe a part in plain words — or photograph one — and get a print-ready file in minutes. It runs on your computer; nothing leaves your machine unless you choose to. Let’s get you set up.\n\nPick the AI model that turns your words into a design.\nChoose the printer your parts are checked against.\nDecide how you want to get your files.\nContinue"
+  ],
+  "promptFlow": {
+    "attempted": true,
+    "submitVisible": true,
+    "afterText": "KimCad\nBambu Lab P2S\n256×256×256 mm\nMy Designs\nSettings\n?\nMy Designs\nImport\nNew design\n\nNothing saved yet.\n\nDescribe a part and it’s kept here automatically — come back to it anytime.\n\nDesign your first part"
+  },
+  "apiResults": {
+    "/api/options": {
+      "status": 200,
+      "body": "{\"printers\": [{\"key\": \"bambu_p2s\", \"name\": \"Bambu Lab P2S\", \"build_volume\": [256.0, 256.0, 256.0], \"sliceable\": true, \"materials\": [\"pla\", \"petg\", \"tpu\", \"abs\"], \"generic_materials\": [\"petg\"]}, {\"key\": \"bambu_a1\", \"name\": \"Bambu Lab A1\", \"build_volume\": [256.0, 256.0, 256.0], \"sliceable\": true, \"materials\": [\"pla\", \"petg\", \"tpu\", \"abs\"], \"generic_materials\": []}, {\"key\": \"elegoo_neptune_4_max\", \"name\": \"Elegoo Neptune 4 Max\", \"build_volume\": [420.0, 420.0, 480.0], \"sliceable\": true, \"materials\": [\"pla\", \"petg\", \"abs\"], \"generic_materials\": [\"pla\", \"petg\", \"abs\"]}], \"materials\": [{\"key\": \"pla\", \"name\": \"PLA\"}, {\"key\": \"petg\", \"name\": \"PETG\"}, {\"key\": \"tpu\", \"name\": \"TPU\"}, {\"key\": \"abs\", \"name\": \"ABS/ASA\"}], \"default_printer\": \"bambu_p2s\", \"default_material\": \"pla\"}"
+    },
+    "/api/model-status": {
+      "status": 200,
+      "body": "{\"model\": \"gemma4:e4b\", \"backend\": \"local\", \"running\": true, \"model_present\": true}"
+    },
+    "/api/health": {
+      "status": 200,
+      "body": "{\"version\": \"0.1.0\", \"openscad\": true, \"orcaslicer\": true}"
+    }
+  },
+  "landmarks": [
+    {
+      "tag": "HEADER",
+      "role": null,
+      "text": "KimCadBambu Lab P2S256×256×256 mmMy DesignsSettings?"
+    },
+    {
+      "tag": "MAIN",
+      "role": null,
+      "text": "My DesignsImportNew designNothing saved yet.Describe a part and it’s kept here automatically — come back to it anytime.Design your first part"
+    }
+  ],
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "KimCad",
+      "type": "button",
+      "aria": "KimCad — home",
+      "disabled": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "My Designs",
+      "type": "button",
+      "aria": null,
+      "disabled": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Settings",
+      "type": "button",
+      "aria": null,
+      "disabled": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "?",
+      "type": "button",
+      "aria": "Keyboard shortcuts",
+      "disabled": null
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "type": "file",
+      "aria": null,
+      "disabled": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Import",
+      "type": "button",
+      "aria": null,
+      "disabled": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "New design",
+      "type": "button",
+      "aria": null,
+      "disabled": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Design your first part",
+      "type": "button",
+      "aria": null,
+      "disabled": null
+    }
+  ],
+  "mainCount": 1,
+  "skipLinks": [],
+  "logs": [],
+  "mobileText": "KimCad\nMy Designs\nSettings\n?\nReady to print in ~15 minutes · no CAD skills\nWhat do you want to make today?\n\nDescribe a functional part in plain words — I’ll design it, check that it’s actually printable, and get it ready for your printer. Runs entirely on your machine.\n\nDesign it\nDescribe with a photo\nTRY\na wall-mounted holder for a 1 kg filament spool\na 40 mm desk cable clip\na hexagonal pen and tool organizer\n\n1. Describe\n2. Preview & refine\n3. Check & download",
+  "mobileLogs": []
+}
