@@ -11,6 +11,7 @@ import {
   type SettingsResponse,
 } from '../api'
 import { openExternal } from '../openExternal'
+import { useTheme } from '../useTheme'
 import { useUnits } from '../useUnits'
 import ConnectionsCard from './ConnectionsCard'
 
@@ -43,6 +44,7 @@ export default function SettingsPanel() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveNote, setSaveNote] = useState<SaveNote>('idle')
   const { unit, setUnit } = useUnits()
+  const { pref: themePref, setTheme } = useTheme()
 
   // The model status loads independently of the printer/material settings: the Ollama probe can
   // take a moment, so it shouldn't hold up the rest of the screen.
@@ -224,10 +226,27 @@ export default function SettingsPanel() {
               missing: send-flow copy finally has a real Settings section to point at). */}
           <ConnectionsCard />
 
-          {/* Units — the shared display preference (mm / inch). */}
+          {/* Units & appearance — the shared display preferences. */}
           <section className="kc-set-card">
-            <h2 className="kc-set-h">Units</h2>
-            <p className="kc-set-sub">How dimensions are shown everywhere — the sliders, the size, the printability table.</p>
+            <h2 className="kc-set-h">Display</h2>
+            <p className="kc-set-sub">How dimensions are shown everywhere — the sliders, the size, the printability table — and the app&rsquo;s appearance.</p>
+            {/* KC-18 (#23): the light/dark theme — token inversion, instant, persisted. */}
+            <div className="kc-set-row">
+              <span id="set-theme-label">Appearance</span>
+              <div className="kc-unit-toggle" role="group" aria-labelledby="set-theme-label">
+                {(['light', 'dark', 'system'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`kc-unit-btn${themePref === t ? ' kc-unit-btn-active' : ''}`}
+                    onClick={() => setTheme(t)}
+                    aria-pressed={themePref === t}
+                  >
+                    {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="kc-set-row">
               <span id="set-units-label">Display units</span>
               <div className="kc-unit-toggle" role="group" aria-labelledby="set-units-label">

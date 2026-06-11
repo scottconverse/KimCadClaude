@@ -90,6 +90,47 @@
 
   /* Chrome */
   --kc-topbar-h: 58px;
+
+  /* The "lighten toward" pole for color-mix tints (accent glows, active wizard numbers).
+   * A token, not a literal #fff, so dark theme flips it toward the dark surface — the
+   * UI-v2 harvest's --control-surface lesson: every mixed/control fill must be themable. */
+  --kc-mix-light: #ffffff;
+}
+
+/* KC-18 / UI-v2 slice 1 (#23): the dark theme — light/dark by token inversion only (no
+ * duplicated component CSS). Values adapted from the redesign-v2 package with our richer
+ * fill-vs-text AA splits preserved: on dark surfaces the ACCENT lightens (so fills pop) and
+ * its text-bearing variants lighten further; status text flips from dark-on-tint to
+ * light-on-tint; `--kc-on-accent` flips to dark ink because the dark theme's accent fill is
+ * itself light. The 3D viewport stays a dark card in BOTH themes (the signature contrast),
+ * just deeper here. Applied as a class on <html> by frontend/src/useTheme.ts. */
+:root.kc-theme-dark {
+  color-scheme: dark;
+  --kc-bg: #181715;
+  --kc-surface: #211f1b;
+  --kc-surface-2: #2a2722;
+  --kc-ink: #f5efe5;
+  --kc-muted: #b3a896;
+  --kc-hair: rgba(245, 239, 229, 0.12);
+  --kc-hair-strong: rgba(245, 239, 229, 0.2);
+  --kc-viewport-bg: #0e1116;
+
+  --kc-accent: #ff8a4b;
+  --kc-accent-strong: #ff9d66;
+  --kc-accent-deep: #e0732f;
+  --kc-on-accent: #2a1407; /* dark ink on the light dark-theme accent fill (≈8:1) */
+
+  --kc-pass: #75d89c;
+  --kc-pass-text: #8fe5b0;
+  --kc-warn: #c9962f;
+  --kc-warn-text: #ecc27a;
+  --kc-warn-accent: #e6b35c;
+  --kc-fail: #ff8a66;
+
+  --kc-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --kc-shadow-hero: 0 18px 50px -22px rgba(0, 0, 0, 0.8);
+
+  --kc-mix-light: #15130f; /* "lighten" mixes deepen instead — tints stay subtle on dark */
 }
 
 * {
@@ -276,7 +317,7 @@ input {
 }
 
 .kc-btn-dark:hover {
-  background: #3a3326;
+  background: color-mix(in srgb, var(--kc-ink) 90%, var(--kc-bg));
 }
 
 .kc-icon-btn {
@@ -328,7 +369,10 @@ input {
 .kc-landing {
   flex: 1 1 auto;
   display: flex;
-  align-items: center;
+  /* `safe` (UI-v2 slice 1, found in the dark walkthrough): plain `center` on a scroll
+   * container makes overflowing TOP content unreachable — on short viewports the status
+   * badge slid under the top bar. `safe center` degrades to start when content overflows. */
+  align-items: safe center;
   justify-content: center;
   padding: 32px 24px;
   min-height: 0;
@@ -704,7 +748,7 @@ input {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: color-mix(in srgb, var(--kc-accent) 28%, #fff);
+  color: color-mix(in srgb, var(--kc-accent) 28%, var(--kc-mix-light));
 }
 .kc-busy-steps {
   display: flex;
@@ -721,7 +765,7 @@ input {
   transition: background 0.2s ease, transform 0.2s ease;
 }
 .kc-busy-step-done {
-  background: color-mix(in srgb, var(--kc-accent) 70%, #fff);
+  background: color-mix(in srgb, var(--kc-accent) 70%, var(--kc-mix-light));
 }
 .kc-busy-step-active {
   background: var(--kc-accent);
@@ -1091,7 +1135,7 @@ input {
 .kc-unit-btn-active {
   /* UX-001: `-strong` for AA contrast on the white "mm"/"in" label (raw accent is 3.99:1). */
   background: var(--kc-accent-strong);
-  color: #fff;
+  color: var(--kc-on-accent);
 }
 .kc-unit-btn:focus-visible {
   outline: 2px solid var(--kc-accent);
@@ -2524,7 +2568,7 @@ input {
   /* UX-001: `-strong` for AA contrast on the white "v2" label (raw accent is 3.99:1). */
   background: var(--kc-accent-strong);
   border-color: var(--kc-accent-strong);
-  color: #fff;
+  color: var(--kc-on-accent);
 }
 .kc-version-pill:focus-visible,
 .kc-version-step:focus-visible {
@@ -2619,7 +2663,7 @@ input {
   width: fit-content;
 }
 .kc-gate-pass { background: color-mix(in srgb, var(--kc-pass) 14%, transparent); color: var(--kc-pass); }
-.kc-gate-warn { background: color-mix(in srgb, var(--kc-warn) 14%, transparent); color: var(--kc-warn-dark, #a05a00); }
+.kc-gate-warn { background: color-mix(in srgb, var(--kc-warn) 14%, transparent); color: var(--kc-warn-text); }
 .kc-gate-fail { background: color-mix(in srgb, var(--kc-fail) 14%, transparent); color: var(--kc-fail); }
 .kc-gate-neutral { background: var(--kc-surface-2); color: var(--kc-muted); }
 .kc-compare-score {
@@ -3165,7 +3209,7 @@ input {
 .kc-btn-accent-sm {
   background: var(--kc-accent-strong);
   border-color: var(--kc-accent-strong);
-  color: #fff;
+  color: var(--kc-on-accent);
 }
 .kc-btn-sm:disabled {
   opacity: 0.45;
@@ -3187,14 +3231,14 @@ input {
 .kc-set-badge-exp {
   /* UX-005: the small (11px) "Experimental · Untrusted" label sat right at the 4.5:1 AA floor on
      the tinted background; a slightly darker amber gives comfortable margin. */
-  color: #6e500c;
+  color: var(--kc-warn-text);
   border-color: color-mix(in srgb, var(--kc-warn-accent) 45%, transparent);
   background: color-mix(in srgb, var(--kc-warn-accent) 14%, transparent);
 }
 .kc-set-callout-warn {
   background: color-mix(in srgb, var(--kc-warn-accent) 14%, var(--kc-surface));
   border: 1px solid color-mix(in srgb, var(--kc-warn-accent) 40%, transparent);
-  color: #5d4708;
+  color: var(--kc-warn-text);
 }
 .kc-exp-offer {
   margin-right: 22px;
@@ -3237,7 +3281,7 @@ input {
 .kc-btn-danger-sm {
   background: var(--kc-fail);
   border-color: var(--kc-fail);
-  color: #fff;
+  color: var(--kc-on-accent);
 }
 
 /* UX-101/102/103: the Slice 6 controls (toggle switches, small Save/Replace/Reset buttons) and the
@@ -3537,7 +3581,7 @@ input {
   background: color-mix(in srgb, var(--kc-accent) 10%, var(--kc-surface));
 }
 .kc-infotip-btn[aria-expanded='true'] {
-  color: #fff;
+  color: var(--kc-on-accent);
   background: var(--kc-accent);
   border-color: var(--kc-accent);
 }
@@ -3594,7 +3638,7 @@ input {
   border-radius: var(--kc-r-chip);
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--kc-text-muted, #6f6857);
+  color: var(--kc-muted);
   background: var(--kc-surface-2, rgba(0, 0, 0, 0.03));
   white-space: nowrap;
 }
@@ -3683,10 +3727,10 @@ input {
 .kc-wiz-step.on .kc-wiz-num {
   background: var(--kc-accent);
   border-color: var(--kc-accent);
-  color: #fff;
+  color: var(--kc-on-accent);
 }
 .kc-wiz-step.done .kc-wiz-num {
-  background: color-mix(in srgb, var(--kc-accent) 70%, #fff);
+  background: color-mix(in srgb, var(--kc-accent) 70%, var(--kc-mix-light));
   border-color: transparent;
   color: var(--kc-ink);
 }

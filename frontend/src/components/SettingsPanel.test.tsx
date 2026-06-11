@@ -201,6 +201,18 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
   })
 
+  // --- KC-18 (#23): the appearance (theme) toggle ---
+  it('the Appearance toggle switches the theme class and persists the choice', async () => {
+    render(<SettingsPanel />)
+    await screen.findByLabelText(/Default printer/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Dark' }))
+    expect(document.documentElement.classList.contains('kc-theme-dark')).toBe(true)
+    expect(localStorage.getItem('kc-theme')).toBe('dark')
+    fireEvent.click(screen.getByRole('button', { name: 'Light' }))
+    expect(document.documentElement.classList.contains('kc-theme-dark')).toBe(false)
+    expect(localStorage.getItem('kc-theme')).toBe('light')
+  })
+
   // --- KC-2 (#8): the editable-CAD export card (Option F: guided manual install) ---
   const cadCard = async () => {
     const heading = await screen.findByText('Editable CAD export (.STEP)')

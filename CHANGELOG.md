@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Dark mode (UI-v2 slice 1, #23).** Settings → Display → Appearance: Light / Dark /
+  System (follows the OS live), persisted, applied before first paint (no light flash).
+  Implemented as pure token inversion — the entire UI flips from one override block, with
+  the accent lightening on dark (and its on-accent text flipping to dark ink) so every
+  control keeps WCAG-AA contrast; the 3D viewport stays the signature dark card in both
+  themes. Also fixes the landing's status badge sliding under the top bar on short windows.
 - **Editable CAD (`.STEP`) export for every standard part (KC-2, #8).** Template-built parts
   now offer a `.STEP` download whenever the optional CadQuery engine is installed — built from
   KimCad's **own trusted CadQuery twin** of each template family (never AI-written code),
