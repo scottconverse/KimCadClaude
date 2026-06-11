@@ -201,6 +201,21 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
   })
 
+  it('KC-1: Replace is reversible — Cancel restores the masked key without losing it', async () => {
+    getSettings.mockResolvedValue({
+      ...SETTINGS, cloud_enabled: true, has_cloud_key: true, cloud_key_masked: '••••••••••••••••wQ9f2',
+    })
+    render(<SettingsPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace' }))
+    // Now in replace mode: an empty key field is shown, plus a Cancel.
+    expect(screen.getByLabelText('OpenRouter API key')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    // Back to the masked view — the stored key was never touched (no POST fired).
+    expect(await screen.findByDisplayValue('••••••••••••••••wQ9f2')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
+    expect(postSettings).not.toHaveBeenCalled()
+  })
+
   it('saving the model field posts cloud_model on blur', async () => {
     getSettings.mockResolvedValue({ ...SETTINGS, cloud_enabled: true, cloud_model: '' })
     render(<SettingsPanel />)

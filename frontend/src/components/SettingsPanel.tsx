@@ -132,6 +132,14 @@ export default function SettingsPanel() {
     setKeyDraft('')
   }
 
+  // KC-1 (#7): "Replace" must be reversible. Without this, clicking Replace swaps the saved
+  // (masked) key for an empty field with no way back but a reload — which reads as "my key
+  // vanished." Cancel returns to the masked view; the stored key is untouched.
+  function cancelReplace() {
+    setReplacingKey(false)
+    setKeyDraft('')
+  }
+
   function saveModel() {
     const m = modelDraft.trim()
     if (m === (settings?.cloud_model ?? '')) return // no change — don't fire a redundant save
@@ -452,6 +460,13 @@ export default function SettingsPanel() {
                       >
                         Save
                       </button>
+                      {/* KC-1 (#7): a way back from Replace to the saved (masked) key. Only
+                          shown when there's a stored key to return to. */}
+                      {settings.has_cloud_key && replacingKey && (
+                        <button type="button" className="kc-btn-sm" onClick={cancelReplace}>
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   )}
                   <a

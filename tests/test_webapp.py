@@ -2509,6 +2509,49 @@ def test_settings_reset_clears_everything_to_pristine(tmp_path, monkeypatch):
         assert _j.loads(settings_file.read_text(encoding="utf-8")) == {}
 
 
+def test_cloud_key_saves_masked_persists_and_never_leaks(tmp_path, monkeypatch, _fake_keyring):
+    """KC-1 (#7): a full live round-trip of the OpenRouter cloud key through the running server.
+
+    The reported "password save bug" did not reproduce in the store, the handler, the real OS
+    keyring, or the frontend — but the suite never proved the END-TO-END web round-trip, which
+    is the surface a user actually exercises. This pins it: POST a key -> the response (and a
+    fresh GET, and the on-disk file) carry it ONLY masked, never the raw secret; the credential
+    store holds the real key under the sentinel; and a fresh server reads it back (it persists)."""
+    import json as _j
+
+    from kimcad import config as config_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    secret = "sk-or-v1-deadbeefcafe12345"
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, resp = _jreq(host, port, "POST", "/api/settings",
+                         {"cloud_enabled": True, "openrouter_api_key": secret})
+        assert st == 200 and resp["saved"] is True
+        assert resp["has_cloud_key"] is True
+        assert resp["cloud_enabled"] is True
+        # Returned ONLY masked — the raw secret never appears in any field of the response.
+        assert resp["cloud_key_masked"].endswith(secret[-5:])
+        assert secret not in _j.dumps(resp)
+        assert resp["key_storage"] == "keyring"
+        # On disk: the sentinel, never the secret (it lives in the credential store).
+        on_disk = settings_file.read_text(encoding="utf-8")
+        assert secret not in on_disk
+        assert _j.loads(on_disk)["openrouter_api_key"] == "@keyring"
+        assert _fake_keyring.passwords[("KimCad", "openrouter_api_key")] == secret
+        # A fresh GET (same server) still shows it saved + masked.
+        st, g = _jreq(host, port, "GET", "/api/settings")
+        assert g["has_cloud_key"] is True and g["cloud_key_masked"].endswith(secret[-5:])
+    # Persistence across a server RESTART: a brand-new server on the same files reads it back.
+    with _serve(pipe, tmp_path) as (host, port):
+        st, g2 = _jreq(host, port, "GET", "/api/settings")
+        assert st == 200
+        assert g2["has_cloud_key"] is True
+        assert g2["cloud_key_masked"].endswith(secret[-5:])
+        assert g2["key_storage"] == "keyring"
+
+
 # --- Stage 8.5 Slice 6 MS-5: tools health + version ----------------------------
 
 
