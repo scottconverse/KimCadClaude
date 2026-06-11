@@ -498,6 +498,40 @@ export function getConnectorStatus(name: string): Promise<ConnectorStatusRespons
   return getJson<ConnectorStatusResponse>(`/api/connector-status/${encodeURIComponent(name)}`)
 }
 
+// Stage 11 Slice 11.2 — the in-app Connections card. The secret (access code / API key)
+// never crosses this surface in either direction: `api_key_env` is the env VAR'S NAME and
+// `env_set` whether it's set. Saving accepts only the non-secret fields.
+export interface ConnectionInfo {
+  name: string
+  type: string
+  simulated: boolean
+  configured: boolean
+  note: string
+  base_url: string
+  serial: string
+  use_ams: boolean
+  api_key_env: string
+  env_set: boolean
+}
+
+export function getConnections(): Promise<{ connections: ConnectionInfo[] }> {
+  return getJson<{ connections: ConnectionInfo[] }>('/api/connections')
+}
+
+export async function saveConnection(
+  name: string,
+  updates: { base_url?: string; serial?: string; use_ams?: boolean },
+): Promise<{ saved: boolean }> {
+  const res = await fetch('/api/connections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, ...updates }),
+  })
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  return data as { saved: boolean }
+}
+
 export function postSlice(
   designId: number,
   printer: string,

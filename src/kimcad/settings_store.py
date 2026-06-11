@@ -43,6 +43,10 @@ _ALLOWED_KEYS = frozenset(
         "cloud_model",
         # Slice 6 MS-4 — the experimental raw-codegen generator (OFF by default).
         "experimental_enabled",
+        # Stage 11 Slice 11.2 — the in-app Connections card's per-connector overlay
+        # (addresses + toggles ONLY; secrets stay in env vars/keyring — the webapp handler
+        # validates the shape before it ever reaches here).
+        "connectors",
     }
 )
 
@@ -180,6 +184,26 @@ class SettingsStore:
                 _atomic_write_json(self._path, {})
             return True
         except Exception:  # noqa: BLE001 - best-effort
+            return False
+
+    def update_connector(self, name: str, fields: dict[str, Any]) -> bool:
+        """Merge ``fields`` into the ``connectors`` blob's entry for ``name`` — the WHOLE
+        read-merge-write under ``_WRITE_LOCK`` (M-2, slice-11.2 audit: doing the merge in
+        the webapp handler re-created the ENG-101 lost-update race one level up). The
+        webapp validates the field shape before calling. Never raises."""
+        try:
+            with _WRITE_LOCK:
+                current = self._read_raw()
+                blob = current.get("connectors")
+                blob = dict(blob) if isinstance(blob, dict) else {}
+                mine = dict(blob.get(name) or {})
+                mine.update(fields)
+                blob[name] = mine
+                current["connectors"] = blob
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                _atomic_write_json(self._path, current)
+                return True
+        except Exception:  # noqa: BLE001 - a failed save is a no-op, reported False
             return False
 
     def update(self, updates: dict[str, Any]) -> bool:

@@ -2846,6 +2846,30 @@ input {
   gap: 6px;
 }
 
+/* Slice 11.2 — the Settings Printer-connections card. */
+.kc-conn-row {
+  padding: 12px 0 10px;
+  border-top: 1px solid var(--kc-hair);
+}
+.kc-conn-row:first-of-type {
+  border-top: 0;
+}
+.kc-conn-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.kc-conn-name {
+  font-weight: 700;
+}
+.kc-conn-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
 /* Slice 10.4 — the Settings AI-model card's vision-model row (its own breath of space). */
 .kc-set-vision-row {
   margin-top: 6px;

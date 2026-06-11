@@ -143,13 +143,12 @@ export default function SendPanel({ designId }: { designId: number | null }) {
     }
   }
 
-  // UX-1001/DOC-1001 (stage-10 gate): venue-honest hints — connections are set up in
-  // KimCad's config file + an environment variable, not in the app's Settings screen
-  // (no such section exists yet; an in-app surface is a Stage 11 item).
+  // UX-1001 (stage-10 gate) closed for real at Slice 11.2: the venue these hints name —
+  // Settings → Printer connections — EXISTS now (ConnectionsCard).
   const reasonHint: Record<string, string> = {
     offline: 'Check the printer is powered on and reachable on your network, then try again.',
-    auth: 'The printer rejected the key or access code — re-check it on the printer and update the environment variable named in KimCad’s config file (config\\default.yaml).',
-    config: 'This connection isn’t fully set up — its entry in KimCad’s config file (config\\default.yaml) explains each field.',
+    auth: 'The printer rejected the key or access code — re-check it on the printer; Settings → Printer connections names the environment variable to update.',
+    config: 'Finish setting this connection up in Settings → Printer connections.',
     busy: 'The printer is busy with another job — try again when it’s free.',
     gate_failed: '', // the server’s note already says everything
   }
@@ -182,26 +181,23 @@ export default function SendPanel({ designId }: { designId: number | null }) {
       {entry?.simulated && (
         <p className="kc-muted-note">
           This is a built-in test connection — it proves the send path without driving any
-          hardware. To print directly, fill in a real printer’s entry in KimCad’s config
-          file (<code className="kc-mono">config\default.yaml</code> — instructions inside).
+          hardware. To print directly, set up a real printer in Settings → Printer
+          connections.
         </p>
       )}
       {/* UX-1001: the chosen-but-unconfigured connection's EXACT missing piece, straight
           from the server (the per-piece diagnosis was previously CLI/API-only). */}
       {needsNote && setupNote && (
         <p className="kc-muted-note">
-          {setupNote} Connections are set up in KimCad’s config file
-          (<code className="kc-mono">config\default.yaml</code> — instructions inside);
-          restart KimCad to pick up changes.
+          {setupNote} Set it up in Settings → Printer connections.
         </p>
       )}
       {/* Every connection unconfigured: the disabled button needs its "why" visible, not
           hidden inside the closed dropdown. */}
       {!conns.connectors.some((c) => c.configured) && (
         <p className="kc-muted-note">
-          None of these printer connections is set up yet — they’re configured in KimCad’s
-          config file (<code className="kc-mono">config\default.yaml</code>). Downloading
-          the print file above always works.
+          None of these printer connections is set up yet — Settings → Printer connections
+          is where they’re filled in. Downloading the print file above always works.
         </p>
       )}
 

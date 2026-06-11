@@ -861,6 +861,9 @@ def make_handler(
             if self.path == "/api/model-pull/progress":
                 self._json(200, pull_job.snapshot())
                 return
+            if self.path == "/api/connections":
+                self._handle_connections_get()
+                return
             if self.path == "/api/health":
                 self._handle_health()
                 return
@@ -1097,6 +1100,9 @@ def make_handler(
             if self.path == "/api/model-pull":
                 self._handle_model_pull()
                 return
+            if self.path == "/api/connections":
+                self._handle_connections_post()
+                return
             if self.path == "/api/photo-seed":
                 self._handle_photo_seed()
                 return
@@ -1171,6 +1177,92 @@ def make_handler(
                 "openscad": _present("openscad"),
                 "orcaslicer": _present("orcaslicer"),
             })
+
+        # Stage 11 Slice 11.2 — the in-app Connections card. GET lists every configured
+        # connection with its EFFECTIVE (yaml + saved-overlay) non-secret fields; POST
+        # saves the overlay for ONE named connection. The secret (access code / API key)
+        # never passes through this surface in either direction — the card only NAMES the
+        # env var and reports whether it's set.
+        def _handle_connections_get(self) -> None:
+            import os as _os
+
+            from kimcad.connectors import (
+                build_connector,
+                connector_is_simulated,
+                apply_saved_connector_overrides,
+                _saved_connector_overrides,
+            )
+            from kimcad.printer_connector import ConnectorError
+
+            cfg = get_config()
+            saved = _saved_connector_overrides(cfg)
+            out = []
+            for name in cfg.connectors():
+                cc = apply_saved_connector_overrides(cfg.connector_config(name), saved)
+                note = ""
+                configured = True
+                try:
+                    build_connector(cfg, name)
+                except ConnectorError as e:
+                    configured = False
+                    note = e.user_message or ""
+                except Exception:  # noqa: BLE001 — a broken entry reads unconfigured, never 500s
+                    configured = False
+                out.append({
+                    "name": name,
+                    "type": cc.type,
+                    "simulated": connector_is_simulated(cc),
+                    "configured": configured,
+                    "note": note,
+                    "base_url": cc.base_url or "",
+                    "serial": cc.serial or "",
+                    "use_ams": bool(cc.use_ams),
+                    "api_key_env": cc.api_key_env or "",
+                    # Whether the secret env var is SET — never its value.
+                    "env_set": bool(cc.api_key_env and _os.environ.get(cc.api_key_env)),
+                })
+            self._json(200, {"connections": out})
+
+        def _handle_connections_post(self) -> None:
+            from kimcad.connectors import USER_CONNECTOR_FIELDS
+
+            data = self._read_json_body()
+            if data is None:
+                return
+            cfg = get_config()
+            name = data.get("name")
+            if not isinstance(name, str) or name not in cfg.connectors():
+                self._json(404, {"error": "There's no printer connection by that name."})
+                return
+            updates: dict[str, Any] = {}
+            for field in USER_CONNECTOR_FIELDS:
+                if field not in data:
+                    continue
+                value = data[field]
+                if field == "use_ams":
+                    if not isinstance(value, bool):
+                        self._json(400, {"error": "use_ams must be true or false."})
+                        return
+                    updates[field] = value
+                else:
+                    if not isinstance(value, str) or len(value) > 200:
+                        self._json(400, {"error": f"{field} must be a short text value."})
+                        return
+                    updates[field] = value.strip()
+            unknown = set(data) - USER_CONNECTOR_FIELDS - {"name"}
+            if unknown:
+                # The settings file is config — only the whitelisted fields may be written,
+                # and a typo'd field is an error, not a silent drop.
+                self._json(400, {"error": f"Unknown connection field(s): {', '.join(sorted(unknown))}."})
+                return
+            store = get_settings_store()
+            if store is None:
+                self._json(500, {"error": "Your settings couldn't be saved just now."})
+                return
+            # M-2 (slice-11.2 audit): the read-merge-write happens INSIDE the store's
+            # write lock — merging here would re-create the ENG-101 lost-update race.
+            saved_ok = store.update_connector(name, updates)
+            self._json(200 if saved_ok else 500, {"saved": bool(saved_ok)})
 
         def _handle_model_pull(self) -> None:
             """Stage 10 Slice 10.4 — start (or report) the in-app download of KimCad's OWN

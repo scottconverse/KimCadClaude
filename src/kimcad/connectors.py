@@ -58,8 +58,59 @@ def connector_is_configured(config: Any, name: str) -> bool:
         return False
 
 
+# Stage 11 Slice 11.2 — the fields the in-app Connections card may save per connector.
+# Secrets are NOT in this set on purpose: the access code / API key stays in its env var
+# (the card only NAMES the variable); this overlay carries addresses and toggles only.
+USER_CONNECTOR_FIELDS = frozenset({"base_url", "serial", "use_ams"})
+
+
+def apply_saved_connector_overrides(cc: ConnectorConfig, saved: dict[str, Any] | None) -> ConnectorConfig:
+    """Overlay the user's saved per-connector settings (the in-app Connections card,
+    persisted in the settings store) onto the yaml template. Only the whitelisted
+    non-secret fields apply; anything else in the blob is ignored — the settings file is
+    user-writable, so it gets input-validation treatment, not trust."""
+    import dataclasses
+
+    if not isinstance(saved, dict):
+        return cc
+    mine = saved.get(cc.name)
+    if not isinstance(mine, dict):
+        return cc
+    updates: dict[str, Any] = {}
+    for field in USER_CONNECTOR_FIELDS:
+        if field not in mine:
+            continue
+        value = mine[field]
+        if field == "use_ams":
+            if isinstance(value, bool):
+                updates[field] = value
+        elif isinstance(value, str) and value.strip() and len(value) <= 200:
+            # N-1: the same 200-char cap the POST enforces — the file is hand-editable.
+            updates[field] = value.strip()
+    return dataclasses.replace(cc, **updates) if updates else cc
+
+
+def _saved_connector_overrides(config: Any) -> dict[str, Any] | None:
+    """The user's saved connector overlay (the settings store's ``connectors`` blob),
+    best-effort — a broken settings store must never take the send path down (the yaml
+    template still works). Reads the JSON file DIRECTLY (M-3, slice-11.2 audit: going
+    through ``SettingsStore.all()`` resolved the OpenRouter secret from the OS credential
+    store on every ``build_connector`` — a measured 9.3 ms keyring tax plus needless
+    secret materialization on a path that wants three address fields)."""
+    try:
+        import json
+
+        raw = json.loads(config.settings_path().read_text(encoding="utf-8-sig"))
+        blob = raw.get("connectors")
+        return blob if isinstance(blob, dict) else None
+    except Exception:  # noqa: BLE001 — settings are an overlay, never a dependency
+        return None
+
+
 def build_connector(config: Any, name: str) -> PrinterConnector:
-    """Construct the connector named ``name`` from ``config``'s ``connectors:`` section.
+    """Construct the connector named ``name`` from ``config``'s ``connectors:`` section,
+    with the user's saved Connections-card values overlaid (Slice 11.2) — so the card,
+    the SPA's send path, the CLI's ``--send``, and MCP all see the same effective config.
 
     Raises :class:`ConnectorError` for an unknown name, an unknown type, or a missing
     required setting (e.g. an OctoPrint connector whose API-key env var is unset) — with a
@@ -72,7 +123,9 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
             reason="unknown",
             user_message=f"There's no printer connection named '{name}'.",
         )
-    cc = config.connector_config(name)
+    cc = apply_saved_connector_overrides(
+        config.connector_config(name), _saved_connector_overrides(config)
+    )
 
     if cc.type == "loopback":
         return LoopbackConnector(name=name)

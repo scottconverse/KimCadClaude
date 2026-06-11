@@ -11,6 +11,7 @@ import {
   type SettingsResponse,
 } from '../api'
 import { useUnits } from '../useUnits'
+import ConnectionsCard from './ConnectionsCard'
 
 // Stage 8.5 Slice 6 — the in-app Settings screen.
 // MS-1 ships the screen shell + the Printer & Material defaults and the Units toggle. Later
@@ -204,6 +205,10 @@ export default function SettingsPanel() {
               </select>
             </div>
           </section>
+
+          {/* Stage 11 Slice 11.2 — printer connections (the venue the Stage-10 gate found
+              missing: send-flow copy finally has a real Settings section to point at). */}
+          <ConnectionsCard />
 
           {/* Units — the shared display preference (mm / inch). */}
           <section className="kc-set-card">
@@ -524,7 +529,12 @@ export default function SettingsPanel() {
               </span>
             </div>
             <div className="kc-set-row">
-              <span>Reset all settings to defaults</span>
+              {/* N-3 (slice-11.2 audit): the reset's blast radius is DISCLOSED — it wipes
+                  the printer-connection addresses too, not just the dropdown defaults. */}
+              <span>
+                Reset all settings to defaults
+                <span className="kc-opt"> (incl. printer connections + the saved cloud key)</span>
+              </span>
               {confirmingReset ? (
                 <span className="kc-reset-confirm">
                   <button type="button" className="kc-btn-sm kc-btn-danger-sm" onClick={resetAll}>

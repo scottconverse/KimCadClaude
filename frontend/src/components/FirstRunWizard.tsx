@@ -530,11 +530,9 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     aria-pressed={directLater}
                   >
                     <span className="kc-wiz-direct-t">I’ll connect a printer later</span>
-                    {/* UX-1001 (stage-10 gate): venue-honest — connections live in the
-                        config file, not a Settings section (none exists yet). */}
+                    {/* UX-1001 closed at Slice 11.2: the Settings venue exists now. */}
                     <span className="kc-wiz-direct-d">
-                      Connect one any time — KimCad’s config file has ready-made printer
-                      entries with instructions inside.
+                      Connect one any time in Settings → Printer connections.
                     </span>
                   </button>
                 </div>

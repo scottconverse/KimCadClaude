@@ -84,8 +84,8 @@ describe('SendPanel', () => {
     render(<SendPanel designId={1} />)
     // The exact missing piece, from /api/connector-status — not a generic pointer.
     expect(await screen.findByText(/no printer address \(IP\) configured/i)).toBeTruthy()
-    // And the venue is the config file (no Settings section exists for connections).
-    expect(screen.getAllByText(/config\\default\.yaml/i).length).toBeGreaterThanOrEqual(1)
+    // And the venue is the REAL Settings section (ConnectionsCard, Slice 11.2).
+    expect(screen.getAllByText(/Settings → Printer connections/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('sends ONLY after the confirm dialog is confirmed — cancel sends nothing', async () => {

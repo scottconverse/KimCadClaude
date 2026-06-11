@@ -3,14 +3,19 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoist-safe mock of the api module (the factory runs before module-body consts exist).
-const { getSettings, postSettings, getModelStatus, getHealth, getModelPullProgress } = vi.hoisted(() => ({
+const { getSettings, postSettings, getModelStatus, getHealth, getModelPullProgress, getConnections, saveConnection } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   postSettings: vi.fn(),
   getModelStatus: vi.fn(),
   getHealth: vi.fn(),
   getModelPullProgress: vi.fn(),
+  getConnections: vi.fn(),
+  saveConnection: vi.fn(),
 }))
-vi.mock('../api', () => ({ getSettings, postSettings, getModelStatus, getHealth, getModelPullProgress }))
+vi.mock('../api', () => ({
+  getSettings, postSettings, getModelStatus, getHealth, getModelPullProgress,
+  getConnections, saveConnection,
+}))
 
 import SettingsPanel from './SettingsPanel'
 
@@ -42,6 +47,8 @@ beforeEach(() => {
   getHealth.mockResolvedValue({ version: '0.1.0', openscad: true, orcaslicer: true })
   getModelPullProgress.mockReset()
   getModelPullProgress.mockResolvedValue({ running: false, models: {} })
+  getConnections.mockReset()
+  getConnections.mockResolvedValue({ connections: [] })
 })
 
 afterEach(() => {
@@ -272,6 +279,19 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
     await screen.findByText(/KimCad’s local AI/)
     expect(screen.queryByText(/Photo & sketch reader/)).toBeNull()
+  })
+
+  it('mounts the Printer-connections card inside Settings (Slice 11.2)', async () => {
+    getConnections.mockResolvedValue({
+      connections: [{
+        name: 'bambu_p2s', type: 'bambu', simulated: false, configured: false,
+        note: 'No IP configured.', base_url: '', serial: '', use_ams: true,
+        api_key_env: 'BAMBU_P2S_ACCESS_CODE', env_set: false,
+      }],
+    })
+    render(<SettingsPanel />)
+    expect(await screen.findByText('Printer connections')).toBeTruthy()
+    expect(screen.getByText('Bambu P2S')).toBeTruthy()
   })
 
   it('an in-flight in-app download shows as downloading — never a competing manual pull (UX-1002)', async () => {
