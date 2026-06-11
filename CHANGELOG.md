@@ -25,6 +25,11 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **The part-library browser (UI-v2 slice 3, #23).** "Browse the part library →" on the
+  landing opens a searchable grid of every template family (name, plain summary, adjustable-
+  dimension count, aliases), read live from the new `GET /api/templates` — so the catalog
+  expansion lands here automatically. Picking a part submits its (article-correct) seed
+  prompt through the normal design flow; search misses point honestly back at the design box.
 - **The tabbed Inspector (UI-v2 slice 2, #23).** The right panel's four stacked cards are now
   three tabs — **Parameters · Quality · Export** — under an always-visible verdict strip
   (gate verdict + readiness score; click to open Quality), so the part's status never hides

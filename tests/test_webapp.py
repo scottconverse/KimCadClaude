@@ -1574,6 +1574,32 @@ def test_template_step_without_interpreter_offers_settings(tmp_path, monkeypatch
         assert st == 404
 
 
+def test_templates_endpoint_lists_the_library(tmp_path):
+    """UI-v2 slice 3 (#23): GET /api/templates — the library browser's data. Every shipped
+    family appears with its display fields; the registry is the single source (the modal
+    scales automatically as #19 broadens the catalog)."""
+    from kimcad.templates import default_registry
+
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, body = _req_json(host, port, "GET", "/api/templates")
+        assert st == 200
+        fams = body["families"]
+        assert len(fams) == len(default_registry().families())
+        by_name = {f["name"]: f for f in fams}
+        tube = by_name["tube"]
+        assert tube["summary"]
+        assert "spacer" in tube["examples"]
+        # The seed prompt is what the modal submits — article-correct ("an open box", not
+        # "a open box") and routed through the NORMAL design flow.
+        assert tube["seed"] == "a tube"
+        assert by_name["box"]["seed"] == "an open box"
+        st2, d = _req_json(host, port, "POST", "/api/design", {"prompt": tube["seed"]})
+        # The FakeProvider plans a box regardless of prompt; the claim here is that a seed
+        # prompt drives the standard design flow end to end (template resolution included).
+        assert st2 == 200 and d.get("template") == "snap_box"
+
+
 def test_design_payload_exposes_template_parameters(tmp_path):
     # A template-covered object_type (a "box") returns the typed slider snapshot the UI binds to.
     pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))

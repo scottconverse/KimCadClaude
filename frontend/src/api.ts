@@ -383,6 +383,21 @@ export interface HealthStatus {
   cadquery?: boolean
 }
 
+// UI-v2 slice 3 (#23): the library browser's data — the shipped template families.
+export interface TemplateFamilyInfo {
+  name: string
+  summary: string
+  examples: string[]
+  // The article-correct prompt the modal submits ("a tube", "an open box") — it routes
+  // through the NORMAL design flow; the library has no separate seeding machinery.
+  seed: string
+  param_count: number
+}
+
+export function getTemplates(): Promise<{ families: TemplateFamilyInfo[] }> {
+  return getJson<{ families: TemplateFamilyInfo[] }>('/api/templates')
+}
+
 export function getHealth(recheck = false): Promise<HealthStatus> {
   // KC-2 (#8): recheck drops the server's cached CadQuery probe first — the Settings card's
   // explicit "check again" after the user installs the engine mid-session.

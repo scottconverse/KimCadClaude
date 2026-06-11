@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import LibraryModal from './LibraryModal'
 import ModelHealthPill from './ModelHealthPill'
 import PhotoOnramp from './PhotoOnramp'
 
@@ -82,6 +83,8 @@ export default function Landing({
   // UX-108 (stage-BCD gate): the "picked up" note describes the SEEDED text — hide it the
   // moment the user edits (especially after clearing the box, where it read as a lie).
   const [edited, setEdited] = useState(false)
+  // UI-v2 slice 3 (#23): the part-library browser.
+  const [libraryOpen, setLibraryOpen] = useState(false)
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -164,7 +167,19 @@ export default function Landing({
               {example}
             </button>
           ))}
+          {/* UI-v2 slice 3: the full catalog, browsable — not just three examples. */}
+          <button
+            type="button"
+            className="kc-chip kc-chip-library"
+            disabled={busy}
+            onClick={() => setLibraryOpen(true)}
+          >
+            Browse the part library →
+          </button>
         </div>
+        {libraryOpen && (
+          <LibraryModal onPick={(seed) => onSubmit(seed)} onClose={() => setLibraryOpen(false)} />
+        )}
 
         <p className="kc-steps">
           <span>1. Describe</span>

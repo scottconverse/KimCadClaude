@@ -859,6 +859,28 @@ def make_handler(
             if self.path == "/api/connections":
                 self._handle_connections_get()
                 return
+            if self.path == "/api/templates":
+                # UI-v2 slice 3 (#23): the library browser's data — every shipped template
+                # family with its display fields and a seed prompt that routes through the
+                # NORMAL design flow (no separate seeding machinery; the registry stays the
+                # single source, so the modal scales automatically as the catalog grows).
+                from kimcad.templates import default_registry
+
+                def _article(noun: str) -> str:
+                    return "an" if noun[:1].lower() in "aeiou" else "a"
+
+                fams = [
+                    {
+                        "name": f.name,
+                        "summary": f.summary,
+                        "examples": list(f.object_types[:4]),
+                        "seed": f"{_article(f.object_types[0])} {f.object_types[0]}",
+                        "param_count": len(f.params),
+                    }
+                    for f in default_registry().families()
+                ]
+                self._json(200, {"families": fams})
+                return
             if self.path == "/api/health":
                 self._handle_health()
                 return
