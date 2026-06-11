@@ -409,15 +409,17 @@ push only reaches CI if it already passed locally.
 | Read this | If you want to |
 |---|---|
 | **[User manual](docs/USER-MANUAL.md)** | the complete guide — everyday use, the CLI/power-user surface, and the architecture |
+| [FAQ](docs/FAQ.md) | quick answers — SmartScreen, the 9 GB download, printers, privacy, recovery |
 | [Install guide](docs/install-guide.md) | install the Windows beta (double-click, no terminal) |
 | [Troubleshooting](docs/troubleshooting.md) | fix a setup or runtime snag, symptom-first |
 | [Supported printers](docs/supported-printers.md) | the printer + connection matrix |
+| [API reference](docs/api.md) | integrate against the local HTTP API |
 | [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) · [CHANGELOG.md](CHANGELOG.md) | go deep on the design, the plan, and the history |
 
 Task-specific guides live in [`docs/`](docs/README.md): the
 [photo/sketch on-ramp](docs/guide-photo-onramp.md), [sliders & units](docs/guide-sliders-and-units.md),
 [My Designs](docs/guide-my-designs.md), [Settings & cloud](docs/guide-settings-and-cloud.md),
-and the [CadQuery backend](docs/cadquery-backend.md).
+and the [CadQuery engine](docs/cadquery-backend.md).
 
 ## Community & contributing
 

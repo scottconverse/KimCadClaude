@@ -4,6 +4,8 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 
 ## Current (read these)
 - **`USER-MANUAL.md`** — the complete guide in three tiers (everyday use · the technical/CLI surface · architecture). **The single best starting point.**
+- **`FAQ.md`** — quick answers to the questions beta users actually ask (SmartScreen, the model download, printers, privacy, recovery).
+- **`api.md`** — the local HTTP API, endpoint by endpoint, for integrators.
 - **`install-guide.md`** — the double-click Windows installer: SmartScreen, checksums, what goes where, first run.
 - **`supported-printers.md`** — the printer/connection matrix, API-validated vs metal-validated kept honest.
 - **`beta/first-hardware-contact.md`** — the scripted checklist for the first real-printer session (at Kim's).
@@ -15,7 +17,7 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 - **`guide-photo-onramp.md`** — user-facing guide for starting a design from a photo or a dimensioned sketch (and the local-only promise).
 - **`guide-settings-and-cloud.md`** — user-facing guide for Settings, incl. exactly what the cloud opt-in sends and where the key is stored.
 - **`printproof3d-integration.md`** — how the PrintProof3D validation engine plugs in (arm's-length; bundled at Stage 11).
-- **`cadquery-backend.md`** — the optional CadQuery parallel geometry backend (Stage 8): setup, the worker sandbox, STEP export.
+- **`cadquery-backend.md`** — the optional CadQuery engine: the editable-.STEP export, the trusted template twins, setup, the worker sandbox.
 - **`benchmarks/`** — model + template benchmark notes (how to re-run them).
 - **`audits/`** — the audit trail: per-slice `audit-lite`, per-stage `audit-team` + `wiring-audit` packages, and `RUN-LEDGER-2026-06-05.md` (the live finish-the-product tracker).
 
