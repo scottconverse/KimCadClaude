@@ -88,6 +88,7 @@ def _openscad_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _openscad_present(), reason="OpenSCAD binary not fetched")
 def test_real_openscad_render_through_pipeline_matches_fake_contract(tmp_path):
     """TEST-004 (2026-06-09 audit): the pipeline's integration tests run on a fake renderer

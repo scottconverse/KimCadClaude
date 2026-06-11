@@ -37,6 +37,26 @@ git config core.hooksPath .githooks
 
 Every `git push` then runs the gate and blocks the push if anything fails.
 
+### Test markers (running off the Windows target box)
+
+The authoritative gate runs on the Windows target with the fetched binaries, so it runs
+**everything**. If you develop on another OS or without the binaries, env-dependent tests
+**skip cleanly** (they never hard-fail off their environment). Markers (declared in
+`pyproject.toml`, auto-skipped by `tests/conftest.py`):
+
+| Marker | Skipped when | Select a fast subset |
+|---|---|---|
+| `live` | — (run with the OrcaSlicer binary) | `pytest -m "not live"` |
+| `real_tool` | the OpenSCAD/OrcaSlicer binary isn't fetched | `pytest -m "not real_tool"` |
+| `windows_only` | not on Windows (e.g. exclusive socket bind) | `pytest -m "not windows_only"` |
+| `needs_manifold` | `manifold3d` isn't installed | `pytest -m "not needs_manifold"` |
+| `needs_cadquery` | no CadQuery interpreter is discoverable | `pytest -m "not needs_cadquery"` |
+
+A fast cross-platform inner loop:
+`pytest -m "not live and not real_tool and not windows_only"`. The gate on the target box
+still asserts the live-tool contract executed with **zero skips** — markers give contributors
+a clean signal, they do not weaken the gate.
+
 ## Setup for development
 
 From-source setup is in the [README's Setup section](README.md#setup): a Python **3.13**

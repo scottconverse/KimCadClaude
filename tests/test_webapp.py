@@ -1601,6 +1601,7 @@ def _openscad_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _openscad_present(), reason="OpenSCAD binary not fetched")
 def test_render_endpoint_reshapes_a_template_part_without_the_model(tmp_path):
     # End-to-end over a socket with the REAL renderer: design a box, then drag it bigger via
@@ -1625,6 +1626,7 @@ def test_render_endpoint_reshapes_a_template_part_without_the_model(tmp_path):
     assert prov.openscad_calls == 0  # the deterministic path never called the model
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _openscad_present(), reason="OpenSCAD binary not fetched")
 def test_rerender_invalidates_a_cached_slice(tmp_path, monkeypatch):
     # Safety: after a part is re-shaped, a previously cached slice for it is dropped so the OLD

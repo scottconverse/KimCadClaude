@@ -39,6 +39,53 @@ for _mod, _hint in (
 
 import trimesh  # noqa: E402 - deliberately after the friendly import probe above
 
+
+# --- KC-16 (#21): pytest marker discipline -------------------------------------------------
+# Env-dependent tests must SKIP cleanly off their environment, never FAIL there. A contributor
+# on Linux/macOS used to hit a hard AttributeError on the Windows-only socket tests; now they
+# skip. The taxonomy is declared in pyproject's [tool.pytest.ini_options].markers and documented
+# in CONTRIBUTING. The gate's "no green by skip" assertion still holds on the TARGET box: there,
+# Windows + the fetched binaries are present, so nothing below skips and the live contract runs.
+_MARKER_CACHE: dict[str, bool] = {}
+
+
+def _cached(key: str, probe) -> bool:  # noqa: ANN001
+    if key not in _MARKER_CACHE:
+        try:
+            _MARKER_CACHE[key] = bool(probe())
+        except Exception:  # noqa: BLE001 - a broken probe means "not available" -> skip, never error
+            _MARKER_CACHE[key] = False
+    return _MARKER_CACHE[key]
+
+
+def _openscad_available() -> bool:
+    from kimcad.config import Config
+
+    return _cached("openscad", lambda: Config.load().binary_path("openscad").exists())
+
+
+def _manifold_available() -> bool:
+    return _cached("manifold", lambda: __import__("manifold3d") is not None)
+
+
+def _cadquery_available() -> bool:
+    from kimcad.cadquery_runner import find_cadquery_interpreter
+
+    return _cached("cadquery", lambda: find_cadquery_interpreter() is not None)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Skip env-dependent tests off their environment (KC-16). Keyed by marker so the WHY of a
+    skip is explicit and selectable (e.g. ``pytest -m "not real_tool"`` for a fast inner loop)."""
+    if item.get_closest_marker("windows_only") and sys.platform != "win32":
+        pytest.skip("windows_only: Windows-specific behavior (e.g. exclusive socket bind)")
+    if item.get_closest_marker("real_tool") and not _openscad_available():
+        pytest.skip("real_tool: needs a fetched OpenSCAD/OrcaSlicer binary")
+    if item.get_closest_marker("needs_manifold") and not _manifold_available():
+        pytest.skip("needs_manifold: manifold3d not installed")
+    if item.get_closest_marker("needs_cadquery") and not _cadquery_available():
+        pytest.skip("needs_cadquery: no CadQuery interpreter discoverable")
+
 from kimcad.config import Material, Printer  # noqa: E402
 from kimcad.ir import DesignPlan  # noqa: E402
 from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult  # noqa: E402

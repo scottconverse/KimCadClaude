@@ -224,6 +224,7 @@ def test_qa001_disjoint_solids_are_stray_and_warn():
     assert any(f.code == "shells.multiple" for f in res.findings)
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 def test_qa001_hollow_box_is_watertight_single_solid():
     """The rendered demo snap_box is one closed watertight solid with two surface
@@ -234,6 +235,7 @@ def test_qa001_hollow_box_is_watertight_single_solid():
     assert report.n_bodies == 2  # outer skin + inner cavity skin
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 def test_qa001_hollow_box_does_not_warn_on_shells():
     """The exact QA-001 scenario: a plain hollow container must report stray_bodies == 0

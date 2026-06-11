@@ -76,6 +76,7 @@ def _binary_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 @pytest.mark.parametrize("name", list(NEW_MODULES))
 def test_module_renders_watertight_with_documented_bbox(name):

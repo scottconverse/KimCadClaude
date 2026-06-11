@@ -228,6 +228,7 @@ def test_backend_succeeded_accepts_a_warn_primary_without_fallback():
 
 
 @pytest.mark.live
+@pytest.mark.needs_cadquery
 @pytest.mark.skipif(_CQ is None, reason="no cadquery interpreter")
 def test_live_cadquery_fallback_builds_a_real_part(tmp_path):
     # OpenSCAD "fails"; the REAL CadQuery worker builds the box from the FakeProvider's script.

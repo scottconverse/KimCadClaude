@@ -170,6 +170,7 @@ def test_cadquery_timeout_default_and_override():
 
 
 @pytest.mark.live
+@pytest.mark.needs_cadquery
 @pytest.mark.skipif(find_cadquery_interpreter() is None, reason="no cadquery interpreter")
 def test_real_cadquery_interpreter_is_discovered():
     p = Config.load().cadquery_interpreter()

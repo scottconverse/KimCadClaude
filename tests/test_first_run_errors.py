@@ -294,6 +294,7 @@ def test_phase_printer_dedupes_consecutive_repeats(capsys):
 # --- web server bind (QA-006) -------------------------------------------------------------
 
 
+@pytest.mark.windows_only  # SO_EXCLUSIVEADDRUSE is a Windows-only socket option (KC-16 #21)
 def test_serve_port_in_use_raises_friendly_runtime_error(tmp_path):
     from kimcad.webapp import serve
 
@@ -312,6 +313,7 @@ def test_serve_port_in_use_raises_friendly_runtime_error(tmp_path):
         blocker.close()
 
 
+@pytest.mark.windows_only  # exclusive-bind semantics are Windows-specific (KC-16 #21)
 def test_second_kimcad_server_cannot_silently_share_the_port():
     """TEST-001 / WALK-A-001 / ENG-001: the walkthrough proved a second `kimcad web` bound
     the SAME port silently on Windows (socketserver's SO_REUSEADDR). The server class now

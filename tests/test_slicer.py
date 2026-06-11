@@ -288,6 +288,7 @@ def _profiles_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _profiles_present(), reason="OrcaSlicer profiles not fetched")
 def test_every_configured_material_resolves_to_a_real_filament():
     # Each printer's configured per-material filament name resolves to a real shipped JSON —
@@ -319,6 +320,7 @@ def test_every_configured_material_resolves_to_a_real_filament():
             )
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _profiles_present(), reason="OrcaSlicer profiles not fetched")
 def test_resolve_real_p2s_pla_profiles():
     """The configured Bambu P2S + PLA resolves to three real shipped JSON files."""
@@ -331,6 +333,7 @@ def test_resolve_real_p2s_pla_profiles():
     assert settings.filament.exists()
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _profiles_present(), reason="OrcaSlicer profiles not fetched")
 def test_resolve_real_all_three_printers_resolve():
     """All three of Kim's printers (P2S, A1, Elegoo Neptune 4 Max) resolve to three real

@@ -338,6 +338,7 @@ def _binary_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 @pytest.mark.parametrize("name", [f.name for f in default_registry().families()])
 def test_family_renders_watertight_with_its_declared_bbox(name):
@@ -368,6 +369,7 @@ def test_family_renders_watertight_with_its_declared_bbox(name):
         assert abs(got - exp) <= 0.01, f"{name} {axis}: got {got:.4f}, declared {exp:.4f}"
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 def test_wall_hook_bbox_is_exact_at_the_plate_height_minimum():
     """ENG-501: at the plate_h slider minimum the module's arm floor used to lift the true Z top

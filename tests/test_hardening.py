@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover
     _HAS_MANIFOLD = False
 
 
+@pytest.mark.needs_manifold
 @pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
 def test_harden_clean_box_is_manifold_and_preserved():
     box = trimesh.creation.box(extents=[20, 20, 10])
@@ -28,6 +29,7 @@ def test_harden_clean_box_is_manifold_and_preserved():
     assert np.allclose(sorted(out.extents), sorted(box.extents), atol=1e-3)
 
 
+@pytest.mark.needs_manifold
 @pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
 def test_harden_hollow_box_keeps_genus_zero_solid():
     # A box with a smaller box subtracted would be genus 0; a true torus is genus 1.
@@ -39,6 +41,7 @@ def test_harden_hollow_box_keeps_genus_zero_solid():
     assert out.is_watertight
 
 
+@pytest.mark.needs_manifold
 @pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
 def test_harden_torus_reports_genus_one():
     # NEW-3: a real genus-1 solid (a torus) exercises the non-zero-genus path that the
@@ -50,6 +53,7 @@ def test_harden_torus_reports_genus_one():
     assert out.is_watertight
 
 
+@pytest.mark.needs_manifold
 @pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
 def test_harden_rejects_real_nonmanifold_mesh_keeps_original():
     # TEST-003: drive the real rejection branch — an open (non-manifold) mesh that
@@ -64,6 +68,7 @@ def test_harden_rejects_real_nonmanifold_mesh_keeps_original():
     assert out is open_mesh  # the validated mesh is returned unchanged
 
 
+@pytest.mark.needs_manifold
 @pytest.mark.skipif(not _HAS_MANIFOLD, reason="manifold3d not installed")
 def test_harden_exception_path_keeps_validated_mesh(monkeypatch):
     # TEST-003: if the Manifold round-trip raises, hardening must swallow it and return

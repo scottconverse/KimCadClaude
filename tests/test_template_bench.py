@@ -142,6 +142,7 @@ def _binary_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 def test_every_family_re_renders_deterministically_under_budget():
     """The headline Stage 5 proof: every built-in family re-renders through the real

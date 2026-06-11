@@ -76,7 +76,16 @@ markers = [
     # Tests that invoke the real OrcaSlicer binary (live assembly). Run the fast inner loop
     # with `pytest -m "not live"`; the full suite (CI) runs everything.
     "live: exercises a real external tool (OrcaSlicer) — slower, needs the binary/profiles",
+    # KC-16 (#21): env-dependent markers. conftest's pytest_runtest_setup auto-SKIPS each off
+    # its environment (so a wrong-OS / no-binary dev gets clean red/green, never a hard error),
+    # while the target box (Windows + fetched binaries) runs them all. See CONTRIBUTING.
+    "windows_only: Windows-specific behavior (e.g. exclusive socket bind); skipped elsewhere",
+    "real_tool: needs a fetched OpenSCAD/OrcaSlicer binary; skipped when absent",
+    "needs_manifold: needs manifold3d installed; skipped when absent",
+    "needs_cadquery: needs a discoverable CadQuery interpreter; skipped when absent",
 ]
+# KC-16: surface accidental unmarked-marker typos as errors, not silent no-ops.
+filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]
 
 [tool.ruff]
 line-length = 100

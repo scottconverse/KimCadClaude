@@ -165,6 +165,7 @@ def _binary_present() -> bool:
         return False
 
 
+@pytest.mark.real_tool
 @pytest.mark.skipif(not _binary_present(), reason="OpenSCAD binary not fetched")
 def test_template_path_end_to_end_with_real_openscad(tmp_path):
     """The full deterministic path against the real OpenSCAD binary: a 'box' request builds

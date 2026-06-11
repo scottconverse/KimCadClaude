@@ -20,6 +20,7 @@ def test_bench_cases_are_defined():
 
 
 @pytest.mark.live
+@pytest.mark.needs_cadquery
 @pytest.mark.skipif(_CQ is None, reason="no cadquery interpreter")
 def test_every_cadquery_bench_case_renders_watertight_at_its_envelope():
     results = run_cadquery_bench(_CQ)
