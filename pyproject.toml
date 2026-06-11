@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kimcad"
-version = "0.1.0"
+# Stage 11 Slice 11.3: THE version — every surface (CLI --version, /api/health, the
+# Settings About line, the installer's filename + wizard) reads it from package metadata;
+# no other file may carry a literal copy (pinned by tests/test_version_single_source.py).
+version = "0.9.0b1"
 description = "AI-assisted parametric design for functional 3D prints"
 readme = "README.md"
 # Python 3.13 is THE supported line for this version (decided 2026-06-10): new enough for

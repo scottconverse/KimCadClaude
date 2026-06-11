@@ -1,7 +1,7 @@
 {
   "name": "kimcad-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.9.0-beta.1",
   "type": "module",
   "description": "KimCad SPA (React + TypeScript + Vite). Build-time only — the compiled static files are served by KimCad's local Python server; Node never ships at runtime.",
   "scripts": {

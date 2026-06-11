@@ -1,0 +1,71 @@
+"""Stage 11 Slice 11.3 — the version is single-sourced from pyproject's metadata.
+
+The tripwire: no source file other than ``pyproject.toml`` (and this test) may carry the
+declared version — or the pre-Stage-11 literal ``0.1.0`` — as a string. Every surface
+reads ``kimcad.__version__``."""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _declared() -> str:
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(r'^version = "([^"]+)"', text, re.MULTILINE)
+    assert m, "pyproject.toml must declare the version"
+    return m.group(1)
+
+
+def test_package_metadata_matches_pyproject():
+    import kimcad
+
+    assert kimcad.__version__ == _declared(), (
+        "installed metadata is stale — re-run `pip install -e . --no-deps`"
+    )
+
+
+def test_no_source_file_carries_a_version_literal():
+    declared = _declared()
+    offenders: list[str] = []
+    for tree, pattern in ((ROOT / "src" / "kimcad", "*.py"), (ROOT / "frontend" / "src", "*.ts*")):
+        for p in tree.rglob(pattern):
+            text = p.read_text(encoding="utf-8", errors="replace")
+            if f'"{declared}"' in text or "'" + declared + "'" in text or '"0.1.0"' in text:
+                offenders.append(str(p.relative_to(ROOT)))
+    assert offenders == [], f"version literals outside pyproject: {offenders}"
+
+
+def test_cli_version_flag_prints_the_single_source():
+    out = subprocess.run(
+        [sys.executable, "-m", "kimcad.cli", "--version"],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert out.returncode == 0
+    assert out.stdout.strip() == f"kimcad {_declared()}"
+
+
+def test_health_endpoint_reports_the_single_source(tmp_path):
+    import http.client
+    import json
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    import kimcad
+    from kimcad.webapp import make_handler
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(object(), tmp_path / "web"))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", httpd.server_address[1], timeout=10)
+        conn.request("GET", "/api/health")
+        body = json.loads(conn.getresponse().read())
+        conn.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+    assert body["version"] == kimcad.__version__

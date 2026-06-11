@@ -54,6 +54,10 @@ def build_parser() -> argparse.ArgumentParser:
         prog="kimcad",
         description="Turn a plain-English description into a printable 3D part.",
     )
+    # Slice 11.3: the single-sourced version on the CLI surface (`kimcad --version`).
+    from kimcad import __version__
+
+    parser.add_argument("--version", action="version", version=f"kimcad {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     d = sub.add_parser("design", help="Generate a printable part from a prompt.")

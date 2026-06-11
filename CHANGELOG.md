@@ -5,7 +5,7 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
-> The project stays at `0.1.0` while pre-release; each stage is tagged as it lands.
+> The project versions toward the `0.9.0b1` Windows beta (Stage 11); each stage is tagged as it lands.
 > **Stages 0–7 are tagged (`stage-0` … `stage-7`).** Stage 5 (deterministic template engine +
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
@@ -19,7 +19,7 @@ All notable changes to KimCad are documented here. Format follows
 > numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
 > in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the
 > "describe with a photo" on-ramp). Slices passed their gates progressively; the stage closed at
-> the full audit-team gate. These sections accumulate toward the `0.1.0` release.
+> the full audit-team gate. These sections accumulate toward the `0.9.0b1` beta release.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).

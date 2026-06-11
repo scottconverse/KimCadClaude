@@ -44,7 +44,7 @@ beforeEach(() => {
   getSettings.mockResolvedValue(SETTINGS)
   postSettings.mockResolvedValue({ ...SETTINGS, default_printer: 'elegoo', saved: true })
   getModelStatus.mockResolvedValue(RUNNING)
-  getHealth.mockResolvedValue({ version: '0.1.0', openscad: true, orcaslicer: true })
+  getHealth.mockResolvedValue({ version: '9.9.9-test', openscad: true, orcaslicer: true })
   getModelPullProgress.mockReset()
   getModelPullProgress.mockResolvedValue({ running: false, models: {} })
   getConnections.mockReset()
@@ -228,11 +228,11 @@ describe('SettingsPanel', () => {
     expect(await screen.findByText('OpenSCAD')).toBeTruthy()
     expect(screen.getByText('OrcaSlicer')).toBeTruthy()
     expect(screen.getAllByText('Installed').length).toBe(2)
-    expect(screen.getByText(/v0\.1\.0/)).toBeTruthy()
+    expect(screen.getByText(/v9\.9\.9-test/)).toBeTruthy()
   })
 
   it('flags a missing tool as Not found', async () => {
-    getHealth.mockResolvedValue({ version: '0.1.0', openscad: true, orcaslicer: false })
+    getHealth.mockResolvedValue({ version: '9.9.9-test', openscad: true, orcaslicer: false })
     render(<SettingsPanel />)
     expect(await screen.findByText('Not found')).toBeTruthy()
   })

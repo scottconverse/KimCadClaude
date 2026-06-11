@@ -28,6 +28,14 @@ from kimcad.printer_connector import ConnectorError
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "kimcad-printer"
 
+
+def _app_version() -> str:
+    """The single-sourced app version (Slice 11.3) — lazy so a broken metadata install
+    degrades at call time, not import time."""
+    from kimcad import __version__
+
+    return __version__
+
 _TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_connectors",
@@ -132,7 +140,7 @@ class PrinterMCPServer:
                 {
                     "protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": SERVER_NAME, "version": "0.1.0"},
+                    "serverInfo": {"name": SERVER_NAME, "version": _app_version()},
                 },
             )
         if method == "notifications/initialized":

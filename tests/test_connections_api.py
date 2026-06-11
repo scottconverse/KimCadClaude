@@ -174,9 +174,12 @@ def test_concurrent_saves_to_different_connectors_never_lose_one(tmp_path, monke
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             futures = [ex.submit(save, "bambu_p2s", f"10.0.0.{i}") for i in range(4)]
             futures += [ex.submit(save, "mock", "")]  # a second key in the same blob
-            for f in futures:
-                status, body = f.result()
-                assert status == 200 and body["saved"] is True
+            results = [f.result() for f in futures]
+        # Diagnostic-rich assert: a one-off failure under full-suite load must say WHICH
+        # request failed and HOW (observed flaky once on 2026-06-10; passed 7/7 reruns —
+        # if this fires again, the body below is the lead).
+        bad = [(s, b) for s, b in results if not (s == 200 and b.get("saved") is True)]
+        assert bad == [], f"concurrent saves failed: {bad}"
         _, listing = _jreq(host, port, "GET", "/api/connections")
     bambu = next(c for c in listing["connections"] if c["name"] == "bambu_p2s")
     assert bambu["base_url"].startswith("10.0.0.")  # one of the racers won; none corrupted
