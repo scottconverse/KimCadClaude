@@ -25,6 +25,31 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Editable CAD (`.STEP`) export for every standard part (KC-2, #8).** Template-built parts
+  now offer a `.STEP` download whenever the optional CadQuery engine is installed — built from
+  KimCad's **own trusted CadQuery twin** of each template family (never AI-written code),
+  lazily on first download, cached, and invalidated by any re-shape so it always matches the
+  live sliders. New *Settings → Editable CAD export* card shows the engine's status and walks
+  through the one-time install (`py -3.13 -m pip install cadquery` + *check again* — discovery
+  is automatic). Without the engine, the Export panel points at Settings instead of dangling a
+  dead promise (KC-11, #15).
+
+### Removed
+- **The LLM-CadQuery fallback generator (KC-4, #6 / KC-3, #9).** Its realized pass-rate lift
+  **measured 0** on the shipping model (`docs/benchmarks/stage-8-cadquery-backend.md`), so the
+  path — and with it the only place AI-written Python was ever executed — is gone. LLM codegen
+  is OpenSCAD-only; CadQuery now runs exclusively KimCad's own template twins.
+
+### Fixed
+- **Cloud-key "Replace" is reversible (KC-1, #7).** Replacing the saved OpenRouter key now has
+  a Cancel that returns to the masked view without touching the stored key; the full save
+  round-trip (masked echo, keyring at rest, restart persistence) is pinned by an end-to-end
+  test — no data-loss bug existed.
+- **Printer build volumes pinned to truth (KC-7, #12).** Every configured printer's
+  `build_volume` is now cross-checked in tests against the printable area of the shipped
+  OrcaSlicer machine profile it slices with (inheritance-resolved) — the numbers can never
+  silently drift.
+
 - **Stage 11 — the Windows installer + the beta (`0.9.0b1`) — DONE (merged to `main`,
   tagged `stage-11` AND `beta`).** KimCad is now a double-click Windows app.
   - **New: `KimCad-Setup-0.9.0b1.exe`** — a single unsigned installer (SmartScreen

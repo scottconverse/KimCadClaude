@@ -60,6 +60,11 @@ class DesignRegistry:
         self.slice_cache: "OrderedDict[tuple[int, Any, Any], tuple[dict[str, Any], Path | None]]" = OrderedDict()
         # Stage 5: per-design template re-render state (base plan + family name).
         self.template_state: dict[int, tuple[Any, str]] = {}
+        # KC-2 (#8): the lazy-STEP source per template design — (family name, CURRENT clamped
+        # values). The /api/step handler builds the editable CAD on first request from this
+        # (a ~4 s CadQuery worker spawn never lands on the hot render/slider path); the
+        # rerender handler refreshes it so a download always matches the live geometry.
+        self.step_source: dict[int, tuple[str, dict[str, float]]] = {}
         # Stage 8.5 Slice 1: the saveable snapshot per design id.
         self.snapshot: dict[int, dict[str, Any]] = {}
         # QA-002: a stable saved_id per live rid (auto-save convergence).
@@ -103,6 +108,7 @@ class DesignRegistry:
         self.gate_status.pop(rid, None)
         self.geometry_version.pop(rid, None)
         self.template_state.pop(rid, None)
+        self.step_source.pop(rid, None)
         self.snapshot.pop(rid, None)
         self.saved_id.pop(rid, None)
         for k in [k for k in self.slice_cache if k[0] == rid]:
@@ -130,6 +136,9 @@ class DesignRegistry:
         v = self.geometry_version.get(rid, 0) + 1
         self.geometry_version[rid] = v
         self.gcode.pop(rid, None)
+        # KC-2 (#8): a built STEP is the OLD shape too — drop it; the lazy /api/step
+        # handler rebuilds from the refreshed step_source on the next request.
+        self.step.pop(rid, None)
         for k in [k for k in self.slice_cache if k[0] == rid]:
             self.slice_cache.pop(k, None)
         return v

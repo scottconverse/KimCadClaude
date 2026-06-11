@@ -81,9 +81,13 @@ export interface DesignResponse {
   error?: string
   has_mesh: boolean
   mesh_url?: string
-  // Stage 8 Slice 4: a CadQuery-built part also exposes an editable-CAD (STEP) download here.
-  // Absent for OpenSCAD parts (OpenSCAD can't emit a BREP/STEP).
+  // The editable-CAD (.STEP) download. KC-2 (#8): template-built parts get this from their
+  // TRUSTED CadQuery twin (built lazily on first download) whenever a CadQuery engine is
+  // present; absent for LLM-OpenSCAD parts (OpenSCAD can't emit a BREP/STEP).
   step_url?: string
+  // KC-11 (#15): a template part that COULD export .STEP but has no CadQuery engine installed —
+  // the UI points at Settings (the guided install card) instead of dangling a dead promise.
+  step_offer?: string
   // Template-backed (deterministic) designs carry their family name + the live-slider params.
   // LLM-backed parts have neither — there are no parametric sliders to drive.
   template?: string
@@ -374,10 +378,15 @@ export interface HealthStatus {
   version: string
   openscad: boolean
   orcaslicer: boolean
+  // KC-2 (#8): whether the optional CAD export engine (CadQuery) is installed — drives the
+  // Settings card's status line. Optional so an older server payload still type-checks.
+  cadquery?: boolean
 }
 
-export function getHealth(): Promise<HealthStatus> {
-  return getJson<HealthStatus>('/api/health')
+export function getHealth(recheck = false): Promise<HealthStatus> {
+  // KC-2 (#8): recheck drops the server's cached CadQuery probe first — the Settings card's
+  // explicit "check again" after the user installs the engine mid-session.
+  return getJson<HealthStatus>(recheck ? '/api/health?recheck=1' : '/api/health')
 }
 
 // Stage 8.5 Slice 7 — the photo on-ramp. A photo is read by the LOCAL vision model into a ROUGH

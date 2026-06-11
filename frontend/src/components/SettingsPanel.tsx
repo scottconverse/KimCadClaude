@@ -90,13 +90,18 @@ export default function SettingsPanel() {
 
   useEffect(() => { checkModel() }, [checkModel])
 
-  useEffect(() => {
-    let cancelled = false
-    getHealth()
-      .then((h) => { if (!cancelled) setHealth(h) })
-      .catch(() => { if (!cancelled) setHealthError(true) })
-    return () => { cancelled = true }
+  // KC-2 (#8): re-checkable — the CAD-export card's "check again" passes recheck=true so the
+  // server re-probes for a just-installed engine (no restart needed); passive loads stay cached.
+  const [healthChecking, setHealthChecking] = useState(false)
+  const checkHealth = useCallback((recheck = false) => {
+    setHealthChecking(true)
+    getHealth(recheck)
+      .then((h) => { setHealth(h); setHealthError(false) })
+      .catch(() => setHealthError(true))
+      .finally(() => setHealthChecking(false))
   }, [])
+
+  useEffect(() => { checkHealth() }, [checkHealth])
 
   async function change(updates: Parameters<typeof postSettings>[0]) {
     setSaveNote('saving')
@@ -541,6 +546,76 @@ export default function SettingsPanel() {
                 ? 'On — a part with no template generates directly (it still has to pass the check).'
                 : 'Off — a part with no template offers the generator rather than running it.'}
             </div>
+          </section>
+
+          {/* KC-2 (#8) — the editable-CAD export engine (Option F: guided manual install).
+              KimCad is already wired for CadQuery; this card explains what it gives, shows
+              whether it's installed, and walks a power user through the one-time setup. */}
+          <section className="kc-set-card">
+            <div className="kc-set-cardhead">
+              <h2 className="kc-set-h">Editable CAD export (.STEP)</h2>
+              <span className="kc-set-grow" />
+              <span
+                className={`kc-tool-stat kc-tool-stat-${
+                  health ? (health.cadquery ? 'ok' : 'missing') : healthError ? 'missing' : 'unknown'
+                }`}
+                role="status"
+              >
+                {health
+                  ? health.cadquery ? 'Installed' : 'Not installed'
+                  : healthError ? 'Couldn’t check' : 'Checking…'}
+              </span>
+            </div>
+            <p className="kc-set-sub">
+              Every part downloads as a print-ready <code className="kc-mono">.STL</code>. With
+              the CAD export engine installed, KimCad&rsquo;s standard parts also offer an
+              editable <code className="kc-mono">.STEP</code> — the precision CAD model, which
+              opens in Fusion&nbsp;360, FreeCAD, SolidWorks and the like so you can keep
+              modeling. KimCad is already wired for it; the engine is the one optional piece.
+            </p>
+            {health?.cadquery ? (
+              <p className="kc-muted-note">
+                Installed and working — standard parts now show a{' '}
+                <strong>Download editable CAD (.STEP)</strong> button on the Export panel.
+              </p>
+            ) : (
+              <>
+                <p className="kc-set-sub">
+                  One-time setup (for tinkerers — a terminal is involved):
+                </p>
+                <ol className="kc-set-steps">
+                  <li>
+                    Install{' '}
+                    <button
+                      type="button"
+                      className="kc-link-btn"
+                      onClick={() => openExternal('https://www.python.org/downloads/')}
+                    >
+                      Python 3.13
+                    </button>{' '}
+                    if you don&rsquo;t have it (tick &ldquo;Add python.exe to PATH&rdquo;).
+                  </li>
+                  <li>
+                    In a terminal, run:{' '}
+                    <code className="kc-mono">py -3.13 -m pip install cadquery</code>
+                    {' '}(a few minutes — it&rsquo;s a full CAD kernel).
+                  </li>
+                  <li>
+                    Come back and{' '}
+                    <button
+                      type="button"
+                      className="kc-link-btn"
+                      aria-label="Check for the CAD export engine"
+                      aria-disabled={healthChecking || undefined}
+                      onClick={() => { if (!healthChecking) checkHealth(true) }}
+                    >
+                      {healthChecking ? 'checking…' : 'check again'}
+                    </button>
+                    {' '}— KimCad finds it automatically (a restart works too).
+                  </li>
+                </ol>
+              </>
+            )}
           </section>
 
           {/* Tools health (MS-5) — the bundled engines. */}

@@ -37,11 +37,9 @@ def _mock_provider(return_val: object = "ok", error: Exception | None = None) ->
     if error is not None:
         p.generate_design_plan.side_effect = error
         p.generate_openscad.side_effect = error
-        p.generate_cadquery.side_effect = error
     else:
         p.generate_design_plan.return_value = return_val
         p.generate_openscad.return_value = return_val
-        p.generate_cadquery.return_value = return_val
     return p
 
 
@@ -89,24 +87,6 @@ def test_primary_success_openscad_alt_never_called():
     result = fp.generate_openscad(MagicMock(), MagicMock(), MagicMock())
     assert result == "scad_code"
     alt.generate_openscad.assert_not_called()
-
-
-def test_primary_success_cadquery_alt_never_called():
-    # TEST-003: generate_cadquery (Stage 8) delegates through the same machinery as the others.
-    primary = _mock_provider(return_val="cq_code")
-    alt = _mock_provider(return_val="cq_alt")
-    fp = FallbackProvider(primary, alt)
-    result = fp.generate_cadquery(MagicMock(), MagicMock(), MagicMock())
-    assert result == "cq_code"
-    alt.generate_cadquery.assert_not_called()
-
-
-def test_fallback_on_cadquery_delegates_to_alt():
-    # TEST-003: a primary connection error on the CadQuery codegen falls back to the alt backend.
-    primary = _mock_provider(error=_conn_err())
-    alt = _mock_provider(return_val="cq_alt")
-    fp = FallbackProvider(primary, alt)
-    assert fp.generate_cadquery(MagicMock(), MagicMock(), MagicMock()) == "cq_alt"
 
 
 def test_describe_sketch_delegates_through_the_chain():

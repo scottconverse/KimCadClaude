@@ -203,6 +203,14 @@ class Config:
             self._cadquery_interpreter = result
             return result
 
+    def recheck_cadquery_interpreter(self) -> Path | None:
+        """Drop the cached probe and discover again — the Settings card's explicit
+        "check again" after the user installs CadQuery mid-session (KC-2, #8). The
+        passive paths keep the cache; only this deliberate action pays a fresh probe."""
+        with self._cadquery_lock:
+            self._cadquery_interpreter = _UNSET
+        return self.cadquery_interpreter()
+
     def cadquery_timeout_s(self) -> int:
         """Wall-clock limit for the out-of-process CadQuery worker (default 120s)."""
         return int(self._d.get("limits", {}).get("cadquery_timeout_s", 120))

@@ -214,18 +214,31 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
           {result.step_url ? (
             <p className="kc-muted-note kc-formats-note">
               The <strong>.STL</strong> opens in other slicers and CAD tools. The{' '}
-              <strong>.STEP</strong> is the editable, precision CAD model (CadQuery) — open it in
-              any CAD program to keep modeling; it&rsquo;s the as-designed shape, so print
-              orientation is applied only to the printable mesh. Once you slice, you&rsquo;ll also
-              get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
+              <strong>.STEP</strong> is the editable, precision CAD model — open it in any CAD
+              program to keep modeling; it&rsquo;s the as-designed shape, so print orientation is
+              applied only to the printable mesh. The first download takes a few seconds while
+              KimCad prepares it. Once you slice, you&rsquo;ll also get a printer-agnostic{' '}
+              <strong>.3mf</strong> that&rsquo;s safe to share.
+            </p>
+          ) : result.step_offer === 'settings' ? (
+            // KC-11 (#15): this part CAN export editable CAD — the engine just isn't
+            // installed. Say exactly where to turn it on instead of dangling a dead promise.
+            <p className="kc-muted-note kc-formats-note">
+              The <strong>.STL</strong> opens in other slicers and CAD tools, and once you slice
+              you&rsquo;ll get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
+              Want an editable, precision CAD file (<strong>.STEP</strong>) of this part too?{' '}
+              <a className="kc-link-btn" href="#settings">
+                Enable the CAD export engine in Settings
+              </a>{' '}
+              — a one-time setup.
             </p>
           ) : (
             <p className="kc-muted-note kc-formats-note">
               The <strong>.STL</strong> opens in other slicers and CAD tools, and once you slice
               you&rsquo;ll get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
-              KimCad picks the geometry engine to fit each part (shown on the printability check
-              above); parts built with the precision CAD engine (CadQuery) also offer an editable{' '}
-              <strong>.STEP</strong> export.
+              KimCad&rsquo;s standard parts can also export an editable <strong>.STEP</strong>{' '}
+              when the CAD export engine is enabled (see Settings); this part was built by the
+              experimental generator, which exports .STL only.
             </p>
           )}
         </div>

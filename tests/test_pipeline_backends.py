@@ -1,20 +1,19 @@
-"""Stage 8 Slice 3 — the parallel CadQuery backend + mutual fallback in the pipeline.
+"""The LLM codegen path — OpenSCAD as the ONLY generative backend (KC-2/KC-4, #8/#6).
 
-OpenSCAD stays the primary geometry backend. When it can't produce a part that renders AND
-passes the printability gate, the pipeline falls back to the CadQuery backend (when one is
-available) and keeps whichever result is better. These tests inject fake renderers so the
-fallback logic is exercised deterministically with no model, no OpenSCAD, and no CadQuery
-interpreter — plus one live test that drives the REAL CadQuery worker as the fallback.
+Stage 8 shipped a parallel LLM-CadQuery fallback here; KC-4 measured its realized lift at 0
+on the shipping model, so it was removed — with its entire LLM-written-Python execution
+surface (#9). These tests pin the single-backend behavior: a primary failure is REPORTED
+(render_failed / gate_failed), never silently rescued, and the safety properties hold on the
+one remaining path. CadQuery geometry now comes only from the trusted template twins
+(``kimcad.cadquery_templates`` — tested in test_cadquery_templates.py / test_webapp.py).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import trimesh
 
-from kimcad.cadquery_runner import find_cadquery_interpreter
 from kimcad.config import Config
 from kimcad.openscad_runner import RenderFailed, RenderResult, SanitizeResult
 from kimcad.pipeline import Pipeline, PipelineStatus
@@ -22,25 +21,17 @@ from kimcad.templates import TemplateRegistry
 
 from conftest import BAMBU, PLA, FakeProvider, make_plan
 
-_CQ = find_cadquery_interpreter()
 
-
-def _renderer(extents, *, backend="openscad", raises=False, step=False):
-    """A fake renderer that writes a trimesh box of the given extents (or always raises),
-    tagging the RenderResult with ``backend``. With ``step=True`` it also writes a STEP file and
-    sets ``step_path`` (mimicking the CadQuery backend's editable-CAD export)."""
+def _renderer(extents, *, raises=False):
+    """A fake renderer that writes a trimesh box of the given extents (or always raises)."""
     state = {"n": 0}
 
     def render(code, out_dir: Path, basename: str) -> RenderResult:
         state["n"] += 1
         if raises:
-            raise RenderFailed(1, "synthetic render failure", engine=backend)
+            raise RenderFailed(1, "synthetic render failure", engine="openscad")
         path = out_dir / f"{basename}.stl"
         trimesh.creation.box(extents=extents).export(str(path))
-        step_path = None
-        if step:
-            step_path = out_dir / f"{basename}.step"
-            step_path.write_text("ISO-10303-21;\n", encoding="utf-8")
         return RenderResult(
             output_path=path,
             output_format="stl",
@@ -48,145 +39,112 @@ def _renderer(extents, *, backend="openscad", raises=False, step=False):
             stderr="",
             duration_s=0.01,
             sanitize=SanitizeResult(code=code, removed=[]),
-            backend=backend,
-            step_path=step_path,
+            backend="openscad",
         )
 
     return render, state
 
 
-def _pipeline(provider, renderer, cadquery_renderer=None, **kw) -> Pipeline:
-    # Empty registry => force the LLM codegen path (no deterministic template) so the
-    # backend-fallback logic is what's under test. retries=0 keeps it to one try per backend.
+def _pipeline(provider, renderer, **kw) -> Pipeline:
+    # Empty registry => force the LLM codegen path (no deterministic template).
+    # retries=0 keeps it to one try.
     return Pipeline(
         Config.load(), BAMBU, PLA, provider,
-        renderer=renderer, cadquery_renderer=cadquery_renderer,
-        registry=TemplateRegistry(()), max_render_retries=0, **kw,
+        renderer=renderer, registry=TemplateRegistry(()), max_render_retries=0, **kw,
     )
 
 
-def test_openscad_success_does_not_reach_cadquery(tmp_path):
+def test_openscad_success_completes(tmp_path):
     provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, os_state = _renderer((20, 20, 20))  # passes the gate
-    cq, cq_state = _renderer((20, 20, 20), backend="cadquery")
-    result = _pipeline(provider, osc, cq).run("a block", tmp_path)
+    osc, state = _renderer((20, 20, 20))  # passes the gate
+    result = _pipeline(provider, osc).run("a block", tmp_path)
 
     assert result.status is PipelineStatus.completed
     assert result.backend == "openscad"
     assert result.report.backend == "openscad"
-    assert provider.cadquery_calls == 0  # fallback never reached
-    assert cq_state["n"] == 0
+    assert state["n"] == 1
 
 
-def test_fallback_to_cadquery_when_openscad_fails_to_render(tmp_path):
-    provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((20, 20, 20), raises=True)  # never renders
-    cq, cq_state = _renderer((20, 20, 20), backend="cadquery")  # builds the part
-    result = _pipeline(provider, osc, cq).run("a block", tmp_path)
-
-    assert result.status is PipelineStatus.completed
-    assert result.backend == "cadquery"
-    assert result.report.backend == "cadquery"
-    assert provider.openscad_calls == 1
-    assert provider.cadquery_calls == 1
-    assert cq_state["n"] == 1
-
-
-def test_fallback_to_cadquery_when_openscad_fails_the_gate(tmp_path):
-    # OpenSCAD renders the wrong size (dim.mismatch FAIL); CadQuery renders the right size.
-    provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((40, 40, 40))  # wrong size -> gate FAIL
-    cq, _ = _renderer((20, 20, 20), backend="cadquery")  # correct -> gate PASS
-    result = _pipeline(provider, osc, cq).run("a block", tmp_path)
-
-    assert result.status is PipelineStatus.completed
-    assert result.backend == "cadquery"
-    assert result.gate.status.value != "fail"
-
-
-def test_no_fallback_when_cadquery_unavailable(tmp_path):
+def test_render_failure_is_reported_not_rescued(tmp_path):
+    # KC-4: no fallback exists — a primary that can't render is an honest render_failed.
     provider = FakeProvider(make_plan((20, 20, 20)))
     osc, _ = _renderer((20, 20, 20), raises=True)
-    pipe = Pipeline(
-        Config.load(), BAMBU, PLA, provider,
-        renderer=osc, registry=TemplateRegistry(()), max_render_retries=0,
-    )
-    # Belt-and-suspenders, INDEPENDENT of the autouse hermeticity fixture: poke the cache directly
-    # so this test holds even if that fixture regressed (TEST-007). The other fallback tests rely
-    # on the fixture for determinism; this one does not.
-    pipe.config._cadquery_interpreter = None
-    result = pipe.run("a block", tmp_path)
+    result = _pipeline(provider, osc).run("a block", tmp_path)
 
     assert result.status is PipelineStatus.render_failed
-    assert provider.cadquery_calls == 0  # fallback correctly skipped
+    assert provider.openscad_calls == 1
 
 
-def test_both_backends_fail_keeps_the_primary_result(tmp_path):
-    # Neither backend matches the plan size: both gate-FAIL. The primary (OpenSCAD) result is
-    # kept (ties favour the primary), so the user sees the OpenSCAD report, not the CadQuery one.
+def test_gate_failure_is_reported_not_rescued(tmp_path):
     provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((40, 40, 40))
-    cq, _ = _renderer((50, 50, 50), backend="cadquery")
-    result = _pipeline(provider, osc, cq).run("a block", tmp_path)
+    osc, _ = _renderer((40, 40, 40))  # wrong size -> dim.mismatch gate FAIL
+    result = _pipeline(provider, osc).run("a block", tmp_path)
 
     assert result.status is PipelineStatus.gate_failed
-    assert result.backend == "openscad"  # tie -> primary
-    assert provider.cadquery_calls == 1  # but the fallback WAS attempted
+    assert result.backend == "openscad"
 
 
-def test_gate_failed_part_is_not_sliced_on_the_multi_backend_path(tmp_path):
-    # The core safety property, on the MULTI-backend path: when BOTH backends gate-FAIL and the
-    # user confirmed a print, the part is still never sliced (audit FINDING-002 — the single-
-    # backend safety test couldn't cover this because the hermeticity fixture forces CadQuery off).
+def test_gate_failed_part_is_never_sliced(tmp_path):
+    # The core safety property on the codegen path: a gate-FAILed part is never sliced,
+    # even with the print confirmed.
     provider = FakeProvider(make_plan((20, 20, 20)))
     osc, _ = _renderer((40, 40, 40))  # gate FAIL
-    cq, _ = _renderer((50, 50, 50), backend="cadquery")  # gate FAIL too
 
     def slicer(mesh_path, out_dir, basename):  # noqa: ANN001
         raise AssertionError("a gate-failed part must never be sliced")
 
     pipe = Pipeline(
-        Config.load(), BAMBU, PLA, provider, renderer=osc, cadquery_renderer=cq,
+        Config.load(), BAMBU, PLA, provider, renderer=osc,
         registry=TemplateRegistry(()), max_render_retries=0, slicer=slicer,
     )
     result = pipe.run("a block", tmp_path, confirm_print=True)
     assert result.status is PipelineStatus.gate_failed  # slicer never raised -> never called
 
 
-def test_cadquery_part_carries_a_step_path(tmp_path):
-    # Stage 8 Slice 4: a CadQuery-built part exposes its editable STEP via report.step_path.
+def test_codegen_part_has_no_step_path(tmp_path):
+    # The editable-CAD export belongs to TEMPLATE parts (their trusted CadQuery twins, built
+    # lazily by the web layer) — an LLM-OpenSCAD part has none.
     provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((20, 20, 20), raises=True)  # OpenSCAD fails -> fall back to CadQuery
-    cq, _ = _renderer((20, 20, 20), backend="cadquery", step=True)
-    result = _pipeline(provider, osc, cq).run("a block", tmp_path)
-
-    assert result.backend == "cadquery"
-    assert result.report.step_path is not None
-    assert Path(result.report.step_path).exists()
-
-
-def test_openscad_part_has_no_step_path(tmp_path):
-    provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((20, 20, 20))  # OpenSCAD succeeds -> no fallback, no STEP
+    osc, _ = _renderer((20, 20, 20))
     result = _pipeline(provider, osc).run("a block", tmp_path)
 
     assert result.backend == "openscad"
     assert result.report.step_path is None
 
 
+def test_proceed_anyway_accepts_a_gate_failed_part(tmp_path):
+    # TEST-004: proceed_anyway ("inspect this failed part") accepts the gate-FAILed render
+    # as-is — the user asked to see it, not to have it silently replaced.
+    provider = FakeProvider(make_plan((20, 20, 20)))
+    osc, _ = _renderer((40, 40, 40))  # gate FAIL
+    result = _pipeline(provider, osc).run("a block", tmp_path, proceed_anyway=True)
+
+    assert result.backend == "openscad"
+    assert result.status is PipelineStatus.completed
+
+
+def test_llm_cadquery_codegen_is_fully_retired():
+    # KC-4 (#6) / KC-3 (#9): no provider may write CadQuery anymore — the method is gone
+    # from the Provider contract and every concrete provider. A reintroduction (and with it
+    # the LLM-written-Python execution surface) fails this test.
+    from kimcad.llm_provider import FallbackProvider, LLMProvider
+    from kimcad.webapp import DemoProvider, _SettingsAwareProvider
+
+    for cls in (LLMProvider, FallbackProvider, DemoProvider, _SettingsAwareProvider):
+        assert not hasattr(cls, "generate_cadquery"), f"{cls.__name__} regrew generate_cadquery"
+
+
 def test_all_real_providers_implement_the_full_contract():
-    # audit FINDING-003 + TEST-005: Provider is a structural Protocol (not runtime-enforced), so a
-    # concrete provider can silently miss a method (how generate_cadquery was missing from the web
-    # providers) OR carry an incompatible signature. Assert every provider wired as a REAL Provider
-    # both DEFINES each method AND its signature accepts the contract argument shape — a presence
-    # check alone wouldn't catch a wrong-arity stub. (_NoModelProvider is a deliberate partial stub
-    # for the no-model template path and is intentionally excluded.)
+    # audit FINDING-003 + TEST-005: Provider is a structural Protocol (not runtime-enforced), so
+    # a concrete provider can silently miss a method OR carry an incompatible signature. Assert
+    # every provider wired as a REAL Provider both DEFINES each method AND its signature accepts
+    # the contract argument shape — a presence check alone wouldn't catch a wrong-arity stub.
     import inspect
 
     from kimcad.llm_provider import FallbackProvider, LLMProvider
     from kimcad.webapp import DemoProvider, _SettingsAwareProvider
 
-    codegen = ("generate_design_plan", "generate_openscad", "generate_cadquery")
+    codegen = ("generate_design_plan", "generate_openscad")
     image = ("describe_photo", "describe_sketch")
     for cls in (LLMProvider, FallbackProvider, DemoProvider, _SettingsAwareProvider, FakeProvider):
         for method in (*codegen, *image):
@@ -200,46 +158,3 @@ def test_all_real_providers_implement_the_full_contract():
                     sig.bind(None, object(), object(), object(), history=None)
             except TypeError as e:
                 raise AssertionError(f"{cls.__name__}.{method} can't accept the contract args: {e}")
-
-
-def test_proceed_anyway_accepts_a_gate_failed_primary_without_fallback(tmp_path):
-    # TEST-004: proceed_anyway ("inspect this failed part") must short-circuit the fallback — an
-    # OpenSCAD render that gate-FAILs is accepted as-is, CadQuery is never invoked.
-    provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((40, 40, 40))  # gate FAIL
-    cq, cq_state = _renderer((20, 20, 20), backend="cadquery")
-    result = _pipeline(provider, osc, cq).run("a block", tmp_path, proceed_anyway=True)
-
-    assert result.backend == "openscad"
-    assert provider.cadquery_calls == 0  # no fallback spent
-    assert cq_state["n"] == 0
-
-
-def test_backend_succeeded_accepts_a_warn_primary_without_fallback():
-    # TEST-004: a WARN (not FAIL) gate is acceptable — _backend_succeeded returns True, so a WARN
-    # primary short-circuits the fallback (a WARN primary never reaches _better_result).
-    from kimcad.printability import Finding, GateResult, Level
-
-    warn_gate = GateResult(findings=[Finding(Level.WARN, "wall.thin", "a wall is thin")])
-    rendered = (object(), "scad", object(), object(), warn_gate, 1, None)
-    assert Pipeline._backend_succeeded(rendered, gate_retry=True) is True
-    not_rendered = (None, None, None, None, None, 1, "err")
-    assert Pipeline._backend_succeeded(not_rendered, gate_retry=True) is False
-
-
-@pytest.mark.live
-@pytest.mark.needs_cadquery
-@pytest.mark.skipif(_CQ is None, reason="no cadquery interpreter")
-def test_live_cadquery_fallback_builds_a_real_part(tmp_path):
-    # OpenSCAD "fails"; the REAL CadQuery worker builds the box from the FakeProvider's script.
-    provider = FakeProvider(make_plan((20, 20, 20)))
-    osc, _ = _renderer((20, 20, 20), raises=True)
-    pipe = Pipeline(
-        Config.load(), BAMBU, PLA, provider,
-        renderer=osc, registry=TemplateRegistry(()), max_render_retries=0,
-    )  # no injected cadquery_renderer -> uses the real interpreter
-    result = pipe.run("a block", tmp_path)
-
-    assert result.status is PipelineStatus.completed
-    assert result.backend == "cadquery"
-    assert result.mesh_path is not None and result.mesh_path.exists()

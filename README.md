@@ -9,9 +9,8 @@ LLM writes the OpenSCAD for anything a template doesn't cover. OpenSCAD renders 
 geometry, a validation-and-printability pipeline checks it against your printer and
 material, and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output.
 No CAD skills required, and the core path runs CPU-only — no discrete GPU. An optional
-[CadQuery](https://cadquery.readthedocs.io/) backend (Stage 8) runs alongside OpenSCAD as a
-fallback (a second generator that can clear prompts OpenSCAD can't) and adds **editable STEP/BREP
-CAD export** — see *Optional: the CadQuery backend*, below.
+[CadQuery](https://cadquery.readthedocs.io/) engine adds an **editable `.STEP` CAD export**
+for template-built parts — see *Optional: the CadQuery engine*, below.
 
 > **Status: Windows beta — `0.9.0b1`.** All eleven build stages are complete and gate-passed at
 > 0/0/0/0/0; `KimCad-Setup-0.9.0b1.exe` installs a complete KimCad — app window, AI wiring, CAD
@@ -180,26 +179,27 @@ CPU, a discrete GPU if present) and which models Ollama has pulled, then recomme
 candidate was evaluated with the `kimcad bakeoff` comparison and rejected — it can't
 produce a design plan on this pipeline — so gemma stays.)
 
-### Optional: the CadQuery backend (STEP export + a fallback generator)
+### Optional: the CadQuery engine (editable `.STEP` CAD export)
 
-KimCad can use [CadQuery](https://cadquery.readthedocs.io/) as a **parallel** geometry backend.
-It runs alongside OpenSCAD: when the OpenSCAD path can't make a part that passes the printability
-gate, KimCad re-generates it in CadQuery and keeps the better result. Because the fallback only
-fires on an OpenSCAD failure, enabling it can only *raise* the pass rate, never lower it (the exact
-lift depends on the model and prompts — measure it live). A CadQuery-built part also offers an
-**editable `.STEP` (CAD) download** that OpenSCAD can't produce. It's entirely optional — with no CadQuery installed, KimCad behaves
-exactly as before.
+With [CadQuery](https://cadquery.readthedocs.io/) installed, every **template-built part**
+also offers an **editable `.STEP` (CAD) download** — the precision model, built by KimCad's
+own trusted CadQuery twin of the template (never AI-written code) and exported lazily on
+first download. Open it in Fusion 360, FreeCAD, SolidWorks and the like to keep modeling.
+It's entirely optional — without CadQuery, KimCad behaves exactly as before and the app's
+Settings card explains the one-time setup.
+
+> History: Stage 8 also shipped an LLM-CadQuery *fallback generator*. Its realized lift
+> measured **0** on the shipping model (`docs/benchmarks/stage-8-cadquery-backend.md`), so it
+> was removed — and with it the only path that ever executed AI-written Python.
 
 CadQuery runs in a separate interpreter as an **arm's-length worker** (like
-OpenSCAD/OrcaSlicer) — today that's a security-isolation choice, not a version constraint:
-KimCad and CadQuery both run on Python 3.13, but generated CadQuery code stays sandboxed in
-its own process regardless. To enable it: install `cadquery` into a Python 3.13 environment
-(the repo convention is a `.venv-cq313` next to `.venv`); KimCad auto-discovers it (the
-repo-local worker venv first, then `py -3.13/-3.12/-3.11`, then `python3.x` on `PATH`).
-Pin or disable it with
-`binaries.cadquery_python` in `config/local.yaml` (`null` = auto, `false` = off, or an explicit
-interpreter path). Full details, including the security model for executing generated CadQuery,
-are in [`docs/cadquery-backend.md`](docs/cadquery-backend.md).
+OpenSCAD/OrcaSlicer). To enable it: install `cadquery` into a Python 3.13 environment —
+in-app: **Settings → Editable CAD export** walks through it (`py -3.13 -m pip install
+cadquery`); repo convention is a `.venv-cq313` next to `.venv`. KimCad auto-discovers it
+(the repo-local worker venv first, then `py -3.13/-3.12/-3.11`, then `python3.x` on `PATH`).
+Pin or disable it with `binaries.cadquery_python` in `config/local.yaml` (`null` = auto,
+`false` = off, or an explicit interpreter path). Details in
+[`docs/cadquery-backend.md`](docs/cadquery-backend.md).
 
 ## Usage
 

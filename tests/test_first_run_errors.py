@@ -180,9 +180,6 @@ class _ModelDownProvider:
     def generate_openscad(self, *a, **kw):  # pragma: no cover - never reached
         raise AssertionError
 
-    def generate_cadquery(self, *a, **kw):  # pragma: no cover
-        raise AssertionError
-
     def describe_photo(self, *a, **kw):  # pragma: no cover
         raise AssertionError
 

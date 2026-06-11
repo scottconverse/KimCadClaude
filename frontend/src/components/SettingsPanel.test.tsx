@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoist-safe mock of the api module (the factory runs before module-body consts exist).
@@ -199,6 +199,38 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
     expect(await screen.findByDisplayValue('••••••••••••••••wQ9f2')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
+  })
+
+  // --- KC-2 (#8): the editable-CAD export card (Option F: guided manual install) ---
+  const cadCard = async () => {
+    const heading = await screen.findByText('Editable CAD export (.STEP)')
+    return within(heading.closest('.kc-set-card') as HTMLElement)
+  }
+
+  it('the CAD export card guides the one-time install when the engine is absent', async () => {
+    // default health mock carries no `cadquery` -> Not installed
+    render(<SettingsPanel />)
+    const card = await cadCard()
+    expect(await card.findByText('Not installed')).toBeTruthy()
+    expect(card.getByText(/py -3\.13 -m pip install cadquery/)).toBeTruthy()
+    // "check again" re-probes WITH recheck=true (the server drops its cached probe).
+    getHealth.mockResolvedValue({
+      version: '9.9.9-test', openscad: true, orcaslicer: true, cadquery: true,
+    })
+    fireEvent.click(card.getByRole('button', { name: 'Check for the CAD export engine' }))
+    await waitFor(() => expect(getHealth).toHaveBeenLastCalledWith(true))
+    expect(await card.findByText('Installed')).toBeTruthy()
+  })
+
+  it('the CAD export card reads Installed (with the STEP note) when the engine is present', async () => {
+    getHealth.mockResolvedValue({
+      version: '9.9.9-test', openscad: true, orcaslicer: true, cadquery: true,
+    })
+    render(<SettingsPanel />)
+    const card = await cadCard()
+    expect(await card.findByText('Installed')).toBeTruthy()
+    expect(card.getByText(/Installed and working/)).toBeTruthy()
+    expect(card.queryByText(/pip install cadquery/)).toBeNull()
   })
 
   it('KC-1: Replace is reversible — Cancel restores the masked key without losing it', async () => {

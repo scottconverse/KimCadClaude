@@ -61,27 +61,38 @@ describe('ExportPanel gate-awareness', () => {
     expect(screen.getByText(/once a part is designed/i)).toBeTruthy()
   })
 
-  it('surfaces the model download and notes STEP comes with the precision CAD engine', () => {
+  it('an experimental-generator part explains STEP honestly (no dangling promise)', () => {
     stubFetch()
     render(<ExportPanel result={base('pass')} />)
     expect(screen.getByText(/download 3d model \(\.stl\)/i)).toBeTruthy()
-    // An OpenSCAD part has no STEP — no STEP download link, but the copy explains how to get one.
+    // No STEP and no offer — the copy says WHY (.STL only) instead of dangling a promise.
     expect(screen.queryByText(/download editable cad/i)).toBeNull()
-    expect(screen.getByText(/precision CAD engine \(CadQuery\)/i)).toBeTruthy()
+    expect(screen.getByText(/exports \.STL only/i)).toBeTruthy()
   })
 
-  it('offers an editable STEP download for a CadQuery-built part (Stage 8 Slice 4)', () => {
+  it('offers an editable STEP download when the part carries step_url (KC-2 #8)', () => {
     stubFetch()
     const r: DesignResponse = {
       ...base('pass'),
       step_url: '/api/step/1',
-      report: { gate_status: 'pass', headline: '', backend: 'cadquery', dims: [], findings: [] },
+      report: { gate_status: 'pass', headline: '', backend: 'openscad', dims: [], findings: [] },
     }
     render(<ExportPanel result={r} />)
     const link = screen.getByText(/download editable cad \(\.step\)/i) as HTMLAnchorElement
     expect(link).toBeTruthy()
     expect(link.getAttribute('href')).toBe('/api/step/1')
-    expect(screen.getByText(/editable, precision CAD model \(CadQuery\)/i)).toBeTruthy()
+    expect(screen.getByText(/editable, precision CAD model/i)).toBeTruthy()
+    // The lazy build is disclosed — the first download takes a moment.
+    expect(screen.getByText(/first download takes a few seconds/i)).toBeTruthy()
+  })
+
+  it('a template part WITHOUT the engine points at Settings (KC-11 #15)', () => {
+    stubFetch()
+    const r: DesignResponse = { ...base('pass'), step_offer: 'settings' }
+    render(<ExportPanel result={r} />)
+    expect(screen.queryByText(/download editable cad/i)).toBeNull()
+    const enable = screen.getByText(/enable the CAD export engine in Settings/i) as HTMLAnchorElement
+    expect(enable.getAttribute('href')).toBe('#settings')
   })
 
   it('lets the user cancel an in-flight slice and return to the button — never stuck (escape)', async () => {

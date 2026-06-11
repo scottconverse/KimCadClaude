@@ -149,14 +149,11 @@ def pytest_collection_modifyitems(config, items):  # noqa: ARG001
 
 @pytest.fixture(autouse=True)
 def _default_cadquery_backend_off(request, monkeypatch):
-    """Hermeticity for the Stage-8 parallel backend: by DEFAULT the CadQuery fallback is OFF in
-    tests, so the pipeline's behaviour doesn't depend on whether the machine running the suite
-    happens to have a `cadquery` interpreter installed. Without this, a single-backend test that
-    expects render_failed / gate_failed would pass on a box without CadQuery but get rescued by
-    the real CadQuery worker on a box that has it (exactly the 4 failures this fixture fixes).
-
-    Tests that WANT the fallback opt back in: inject a fake ``cadquery_renderer`` (which wins over
-    discovery), or mark the test ``live`` (which keeps real interpreter discovery).
+    """Hermeticity for CadQuery interpreter DISCOVERY: by DEFAULT it finds nothing in tests, so
+    behaviour that keys off "is CadQuery installed?" (KC-2's lazy template-STEP offer, config
+    plumbing) doesn't depend on the machine running the suite. Tests that want an interpreter
+    monkeypatch ``Config.cadquery_interpreter`` (or this discovery fn) themselves, or mark the
+    test ``live`` (which keeps real discovery).
 
     NOTE: this stubs the DISCOVERY function, not ``Config.cadquery_interpreter`` itself — so the
     real config method still runs (the config-plumbing tests exercise it), and a test that
@@ -242,14 +239,11 @@ class FakeProvider:
         self,
         plan: DesignPlan,
         scad: str = "use <library/box.scad>;\nbox(20,20,20);",
-        cadquery: str = 'result = cq.Workplane("XY").box(20, 20, 20)',
     ):
         self._plan = plan
         self._scad = scad
-        self._cadquery = cadquery
         self.design_calls = 0
         self.openscad_calls = 0
-        self.cadquery_calls = 0
 
     def generate_design_plan(self, prompt, printer, material, history=None):  # noqa: ANN001
         self.design_calls += 1
@@ -258,12 +252,6 @@ class FakeProvider:
     def generate_openscad(self, plan, printer, material, history=None):  # noqa: ANN001
         self.openscad_calls += 1
         return self._scad
-
-    def generate_cadquery(self, plan, printer, material, history=None):  # noqa: ANN001
-        # Stage 8: the parallel-backend codegen. Counted so a test can assert whether the
-        # CadQuery fallback was reached (or correctly skipped when OpenSCAD already succeeded).
-        self.cadquery_calls += 1
-        return self._cadquery
 
     def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
         # Slice 7: a canned vision seed; count via photo_calls so a test can assert it ran.

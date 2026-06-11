@@ -333,14 +333,6 @@ class DemoProvider:
             return "cube([300, 300, 300]);"
         return "use <library/containers.scad>;\nsnap_box(width=80, depth=60, height=40, wall=2);"
 
-    def generate_cadquery(self, plan, printer, material, history=None):  # noqa: ANN001
-        # Stage 8: if the OpenSCAD demo path gate-fails (the demo:gatefail scenario), the pipeline
-        # falls back to CadQuery — so this must KEEP the oversized part oversized, else the fallback
-        # would rescue it and the "gate-failed" demo would stop demoing a gate failure.
-        if getattr(plan, "object_type", "") == "oversized_block":
-            return 'result = cq.Workplane("XY").box(300, 300, 300)'
-        return 'result = cq.Workplane("XY").box(80, 60, 40)'
-
     def describe_photo(self, image_bytes, printer, material):  # noqa: ANN001
         # Slice 7: a canned vision seed so the photo on-ramp is exercisable in demo/UI checks
         # without the real (CPU-bound) vision model. The image is ignored; the fixed seed stands in.
@@ -446,12 +438,6 @@ class _SettingsAwareProvider:
 
     def generate_openscad(self, *args: Any, **kwargs: Any) -> Any:
         return self._active().generate_openscad(*args, **kwargs)
-
-    def generate_cadquery(self, *args: Any, **kwargs: Any) -> Any:
-        # Stage 8: the CadQuery fallback routes through the same active (local/cloud) provider as
-        # the OpenSCAD codegen. Without this the fallback would AttributeError in production exactly
-        # when it's meant to rescue a failing OpenSCAD part (audit FINDING-001).
-        return self._active().generate_cadquery(*args, **kwargs)
 
     def describe_photo(self, image_bytes: bytes, printer: Any, material: Any) -> str:
         """Vision is ALWAYS local — the photo never auto-sends, even when cloud TEXT is enabled
@@ -746,6 +732,10 @@ def make_handler(
     # (the store's one-time migration takes a lock) while thread B read the still-None
     # store and 500'd. The init now runs under its own lock.
     settings_box: dict[str, Any] = {"store": None, "tried": False, "lock": threading.Lock()}
+    # KC-2 (#8): serialize lazy STEP builds — concurrent downloads of the same design must
+    # not race two workers onto the same output file. Builds are rare and ~4 s; one lock
+    # for all of them is plenty.
+    step_build_lock = threading.Lock()
 
     def get_settings_store() -> Any:
         with settings_box["lock"]:
@@ -872,6 +862,16 @@ def make_handler(
             if self.path == "/api/health":
                 self._handle_health()
                 return
+            if self.path == "/api/health?recheck=1":
+                # KC-2 (#8): the Settings card's explicit "check again" — drop the cached
+                # CadQuery probe and discover fresh (the user may have just installed it).
+                # Only this deliberate query pays the re-probe; plain /api/health stays cached.
+                try:
+                    get_config().recheck_cadquery_interpreter()
+                except Exception:  # noqa: BLE001 - a broken probe reads "not present"
+                    pass
+                self._handle_health()
+                return
             if self.path == "/api/connectors":
                 from kimcad.connectors import connector_is_configured, connector_is_simulated
 
@@ -971,8 +971,10 @@ def make_handler(
             self._send_download(gcode_path.read_bytes(), ctype, gcode_path.name)
 
         def _serve_step(self, raw_id: str) -> None:
-            # Stage 8 Slice 4: the editable-CAD (STEP/BREP) export, produced only for a
-            # CadQuery-built part. 404 when the id is unknown or the part is OpenSCAD (no STEP).
+            # Stage 8 Slice 4: the editable-CAD (STEP) export. KC-2 (#8): template-built
+            # parts get theirs LAZILY — built here on first request from the design's
+            # trusted CadQuery twin (kimcad.cadquery_templates), then cached. 404 when the
+            # id is unknown or the part has no STEP path (an LLM-OpenSCAD part).
             try:
                 sid = int(raw_id)
             except ValueError:
@@ -981,12 +983,69 @@ def make_handler(
             with reg.lock:
                 step_path = reg.step.get(sid)
             if step_path is None or not step_path.exists():
+                step_path = self._build_template_step(sid)
+            if step_path is None:
                 self._json(404, {"error": "STEP not found"})
                 return
             # A safe, per-design filename: `sid` is the int-parsed id (no caller string -> no
             # Content-Disposition header-injection), so each download is uniquely named rather
             # than every STEP saving as the same "part.step".
             self._send_download(step_path.read_bytes(), "application/step", f"kimcad-part-{sid}.step")
+
+        def _build_template_step(self, sid: int) -> Path | None:
+            """Build + cache the editable CAD for a template design from its trusted
+            CadQuery twin. Returns the cached/built path, or None when the design has no
+            twin source or no interpreter (-> the caller 404s). The build runs OUTSIDE
+            ``reg.lock`` (a worker spawn is seconds) under a geometry-version guard: a
+            slider re-render mid-build means the file no longer matches the live shape,
+            so it is rebuilt once from the refreshed source rather than served stale."""
+            from kimcad.cadquery_runner import render_cadquery
+            from kimcad.cadquery_templates import emit_cadquery
+            from kimcad.templates import default_registry
+
+            interpreter = get_config().cadquery_interpreter()
+            if interpreter is None:
+                return None
+            for _attempt in range(2):
+                with reg.lock:
+                    cached = reg.step.get(sid)
+                    if cached is not None and cached.exists():
+                        return cached  # another request built it while we waited
+                    source = reg.step_source.get(sid)
+                    version = reg.version_locked(sid)
+                if source is None:
+                    return None
+                family_name, values = source
+                family = next(
+                    (f for f in default_registry().families() if f.name == family_name), None
+                )
+                if family is None:
+                    return None
+                code = emit_cadquery(family, values)
+                if code is None:
+                    return None
+                try:
+                    with step_build_lock:
+                        render = render_cadquery(
+                            code,
+                            interpreter=interpreter,
+                            out_dir=web_root / str(sid),
+                            basename=f"part-v{version}",
+                            emit_step=True,
+                            timeout_s=get_config().cadquery_timeout_s(),
+                        )
+                except Exception as e:  # noqa: BLE001 - a failed export is a 404, never a 500
+                    self.log_error("lazy STEP build failed: %s: %s", type(e).__name__, e)
+                    return None
+                built = Path(render.step_path) if render.step_path else None
+                if built is None or not built.exists():
+                    return None
+                with reg.lock:
+                    if reg.version_locked(sid) == version and sid in reg.step_source:
+                        reg.step[sid] = built
+                        return built
+                # Geometry changed mid-build: loop once more against the fresh source.
+            return None
 
         def _serve_static(self, path: Path, content_type: str) -> None:
             # QA-002: serve a read-only static file with an ETag for cheap revalidation. The
@@ -1177,10 +1236,18 @@ def make_handler(
                 except Exception:  # noqa: BLE001 - a missing config key is "not present", not a 500
                     return False
 
+            # KC-2 (#8): whether a CadQuery engine is discoverable — the Settings card's
+            # status line. The probe result is cached on the Config (and warmed at server
+            # start), so this read is instant.
+            try:
+                cadquery_present = get_config().cadquery_interpreter() is not None
+            except Exception:  # noqa: BLE001 - a broken probe reads "not present", never a 500
+                cadquery_present = False
             self._json(200, {
                 "version": __version__,
                 "openscad": _present("openscad"),
                 "orcaslicer": _present("orcaslicer"),
+                "cadquery": cadquery_present,
             })
 
         # Stage 11 Slice 11.2 — the in-app Connections card. GET lists every configured
@@ -1782,6 +1849,14 @@ def make_handler(
                     # live-slider endpoint can rebuild it deterministically at new values.
                     if result.template is not None:
                         reg.template_state[rid] = (result.plan, result.template.family.name)
+                        # KC-2 (#8): the lazy-STEP source — family + CURRENT values. The
+                        # editable CAD builds on first download, never on the render path.
+                        from kimcad.cadquery_templates import step_supported
+
+                        if step_supported(result.template.family.name):
+                            reg.step_source[rid] = (
+                                result.template.family.name, dict(result.template.values)
+                            )
                     # Stage 8.5: retain the saveable snapshot so "save to My Designs" needs only
                     # the design id + a name + a thumbnail from the client. QA-004: the original
                     # prompt (the first user turn of a refine lineage, else this prompt) names the
@@ -1799,6 +1874,18 @@ def make_handler(
                 payload["mesh_url"] = f"/api/mesh/{rid}"
                 if step_ok:
                     payload["step_url"] = f"/api/step/{rid}"
+                elif result.template is not None:
+                    # KC-2 (#8) / KC-11 (#15): a template part can export editable CAD via
+                    # its trusted CadQuery twin. With an interpreter present the URL is
+                    # offered (built lazily on first download); without one the payload
+                    # says WHERE to enable it — the UI never dangles a dead promise.
+                    from kimcad.cadquery_templates import step_supported
+
+                    if step_supported(result.template.family.name):
+                        if get_config().cadquery_interpreter() is not None:
+                            payload["step_url"] = f"/api/step/{rid}"
+                        else:
+                            payload["step_offer"] = "settings"
             self._json(200, payload)
 
         # --- Stage 8.5: saved designs ("My Designs") --------------------------------------
@@ -2212,6 +2299,15 @@ def make_handler(
                     reg.bump_version_locked(rid)
                     if result.template is not None:  # refresh the (bbox-aligned) base plan
                         reg.template_state[rid] = (result.plan, result.template.family.name)
+                        # KC-2 (#8): refresh the lazy-STEP source to the NEW values — the
+                        # bump above dropped any built STEP of the old shape, so the next
+                        # download rebuilds to match the live geometry.
+                        from kimcad.cadquery_templates import step_supported
+
+                        if step_supported(result.template.family.name):
+                            reg.step_source[rid] = (
+                                result.template.family.name, dict(result.template.values)
+                            )
                     # Stage 8.5: keep the saveable snapshot current so a save AFTER adjusting
                     # sliders persists the re-rendered parameters (not the original), matching the
                     # fresh mesh. Carry the prompt + original prompt (QA-004) from the prior snapshot.
@@ -2259,6 +2355,14 @@ class _ExclusiveBindServer(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+def _swallow(fn: Callable[[], Any]) -> None:
+    """Run ``fn`` discarding any outcome — for best-effort background warm-ups."""
+    try:
+        fn()
+    except Exception:  # noqa: BLE001 - a warm-up failure just means the first request pays
+        pass
+
+
 def serve(
     *,
     host: str = "127.0.0.1",
@@ -2288,6 +2392,13 @@ def serve(
             f"Port {port} is already in use on {host} - is another KimCad still running? "
             f"Close it, or pass a different port: `kimcad web --port {port + 1}`."
         ) from e
+    # KC-2 (#8): warm the CadQuery-interpreter probe off the request path. The first probe
+    # can take seconds (cold venv import; Defender scanning), and it gates /api/health and
+    # the design payload's STEP offer — pay it here, once, in the background. Best-effort.
+    threading.Thread(
+        target=lambda: _swallow(config.cadquery_interpreter), daemon=True,
+        name="cadquery-probe-warmup",
+    ).start()
     mode = " (demo mode — no LLM)" if demo else ""
     print(f"KimCad web UI on http://{host}:{port}{mode}")
     print("Press Ctrl+C to stop.")

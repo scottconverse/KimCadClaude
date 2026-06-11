@@ -1497,6 +1497,83 @@ def _req_json(host, port, method, path, obj=None):
         return e.code, _json.load(e)
 
 
+def _fake_step_renderer(monkeypatch):
+    """Stub the CadQuery worker for lazy-STEP tests: writes a real .step file where the
+    handler expects it and records every emitted script. Patched at the SOURCE module —
+    the handler imports render_cadquery locally per call."""
+    import types
+    from pathlib import Path
+
+    from kimcad import cadquery_runner as cqr_mod
+
+    calls: list[str] = []
+
+    def _fake_render(code, *, interpreter, out_dir, basename="part", emit_step=False, **kw):
+        calls.append(code)
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        step = out_dir / f"{basename}.step"
+        step.write_bytes(b"ISO-10303-21; FAKE-TEMPLATE-STEP " + str(len(calls)).encode())
+        return types.SimpleNamespace(step_path=str(step), output_path=str(step))
+
+    monkeypatch.setattr(cqr_mod, "render_cadquery", _fake_render)
+    return calls
+
+
+def test_template_step_is_offered_and_built_lazily(tmp_path, monkeypatch):
+    """KC-2 (#8): a template design offers step_url with a CadQuery interpreter present;
+    the STEP itself builds on FIRST download (never on the render path), is cached for the
+    second, and a slider re-render invalidates it so the next download matches the new
+    geometry (the rebuild's script carries the new values)."""
+    from pathlib import Path
+
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(
+        config_mod.Config, "cadquery_interpreter", lambda self: Path("fake-cq-python")
+    )
+    calls = _fake_step_renderer(monkeypatch)
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()))  # real renderer
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        assert d.get("step_url"), "template part + interpreter must offer the STEP url"
+        assert "step_offer" not in d
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        assert calls == [], "the render path must never pay the CadQuery worker spawn"
+        with urllib.request.urlopen(base + d["step_url"], timeout=20) as r:
+            assert r.status == 200
+            assert r.headers.get("Content-Type") == "application/step"
+            assert b"FAKE-TEMPLATE-STEP" in r.read()
+        assert len(calls) == 1
+        with urllib.request.urlopen(base + d["step_url"], timeout=20) as r:
+            assert r.status == 200
+        assert len(calls) == 1, "second download must serve the cached build"
+        # Re-shape via the live sliders -> the cached STEP is stale and must rebuild.
+        _s, _r = _req_json(host, port, "POST", f"/api/render/{rid}",
+                           {"values": {"width": 100, "depth": 70, "height": 50, "wall": 2}})
+        with urllib.request.urlopen(base + d["step_url"], timeout=20) as r:
+            assert r.status == 200
+        assert len(calls) == 2, "a re-rendered shape must rebuild the STEP"
+        assert "100" in calls[1], "the rebuild must use the NEW slider values"
+
+
+def test_template_step_without_interpreter_offers_settings(tmp_path, monkeypatch):
+    """KC-11 (#15): no CadQuery interpreter -> no dead step_url; the payload points the UI
+    at Settings instead, and the download endpoint stays a clean 404."""
+    from kimcad import config as config_mod
+
+    monkeypatch.setattr(config_mod.Config, "cadquery_interpreter", lambda self: None)
+    pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(_box_plan()))
+    with _serve(pipe, tmp_path) as (host, port):
+        _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+        assert "step_url" not in d
+        assert d.get("step_offer") == "settings"
+        rid = int(d["mesh_url"].rsplit("/", 1)[-1])
+        st, _b = _req_json(host, port, "GET", f"/api/step/{rid}")
+        assert st == 404
+
+
 def test_design_payload_exposes_template_parameters(tmp_path):
     # A template-covered object_type (a "box") returns the typed slider snapshot the UI binds to.
     pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))

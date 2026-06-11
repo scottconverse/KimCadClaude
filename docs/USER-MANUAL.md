@@ -9,7 +9,7 @@ This manual has three parts, each for a different reader. Start wherever you fit
 | Part | For | Covers |
 |---|---|---|
 | **[1 · Everyday use](#part-1--everyday-use)** | anyone who wants to make a part | install, the three ways to start, refining, checking, printing |
-| **[2 · The technical surface](#part-2--the-technical-surface)** | CLI users, tinkerers, integrators | commands, config, connectors, the MCP server, the CadQuery backend |
+| **[2 · The technical surface](#part-2--the-technical-surface)** | CLI users, tinkerers, integrators | commands, config, connectors, the MCP server, the CadQuery engine |
 | **[3 · Architecture](#part-3--architecture)** | developers and the curious | the pipeline, the modules, the trust boundaries, how it's built |
 
 > **Version:** this manual tracks the `0.9.0b1` Windows beta. KimCad's version shows in
@@ -136,8 +136,9 @@ When a part passes the gate, you can:
 
 - **Download the print file.** Pick your printer and material, confirm, and KimCad slices the
   validated mesh into a printer-ready `.gcode.3mf` with a plain-English estimate (time,
-  layers, filament length + weight). The model itself (`.STL`, and `.STEP` for CadQuery-built
-  parts) is always downloadable too.
+  layers, filament length + weight). The model itself is always downloadable too: `.STL` for
+  every part, plus an editable `.STEP` for standard (template-built) parts when the optional
+  CAD export engine is installed (Settings → Editable CAD export).
 - **Send it straight to a printer.** If you've set up a printer connection (Settings →
   Printer connections), send the sliced job directly: pick the connection, confirm in
   KimCad's own dialog (it never auto-starts a print), and watch the live status. A built-in
@@ -263,22 +264,24 @@ exposes the printer as MCP tools — list connections, status, capabilities, and
 confirmation-gated `send_print` — so an agent can drive KimCad. The same confirm-and-prove
 rules apply: nothing prints without explicit confirmation and a real slice.
 
-## The CadQuery backend (STEP export + a fallback generator)
+## The CadQuery engine (editable `.STEP` CAD export)
 
-KimCad can use [CadQuery](https://cadquery.readthedocs.io/) as a **parallel** geometry
-backend alongside OpenSCAD. When OpenSCAD can't make a part that passes the gate, KimCad
-re-generates it in CadQuery and keeps the better result — so enabling it can only *raise* the
-pass rate. A CadQuery-built part also offers an **editable `.STEP`** download OpenSCAD can't
-produce.
+With [CadQuery](https://cadquery.readthedocs.io/) installed, every **template-built part**
+also offers an **editable `.STEP`** download — the precision CAD model, which opens in
+Fusion 360, FreeCAD, SolidWorks and the like so you can keep modeling. KimCad builds it from
+its **own trusted CadQuery twin** of the template (never AI-written code), lazily on the
+first download, always matching the live slider values.
 
-It's entirely optional. Generated CadQuery code runs in a separate, sandboxed interpreter
-(an arm's-length worker). Install `cadquery` into a Python 3.13 environment (the convention
-is `.venv-cq313` next to `.venv`); KimCad auto-discovers it. Pin or disable it via
-`binaries.cadquery_python` in `config/local.yaml`. Full setup and the security model:
+It's entirely optional, and the app walks you through it: **Settings → Editable CAD
+export** shows whether the engine is installed and the one-time setup
+(`py -3.13 -m pip install cadquery`, then *check again* — KimCad finds it automatically).
+The worker runs in a separate interpreter (arm's-length, like OpenSCAD/OrcaSlicer). Pin or
+disable it via `binaries.cadquery_python` in `config/local.yaml`. Details:
 **[cadquery-backend.md](cadquery-backend.md)**.
 
-> The installed beta does **not** bundle CadQuery — OpenSCAD covers every template family and
-> the experimental path. CadQuery is a from-source opt-in.
+> The installed beta does **not** bundle CadQuery — the engine is the one opt-in piece, and
+> nothing else changes without it. (Stage 8's LLM-CadQuery *fallback generator* was removed
+> after its measured lift came in at 0 — no AI-written Python ever runs anymore.)
 
 ## The benchmark (the done-gate)
 

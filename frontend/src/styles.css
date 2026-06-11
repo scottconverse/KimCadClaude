@@ -2709,6 +2709,17 @@ input {
   font-size: 13px;
   line-height: 1.5;
 }
+/* KC-2 (#8): the CAD-export card's one-time setup steps. */
+.kc-set-steps {
+  margin: 0 0 6px;
+  padding-left: 22px;
+  color: var(--kc-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.kc-set-steps li {
+  margin-bottom: 6px;
+}
 .kc-set-row {
   display: flex;
   align-items: center;
