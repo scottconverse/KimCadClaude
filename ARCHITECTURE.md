@@ -108,8 +108,9 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | `design_store.py` (Stage 8.5) | The **saved-designs store** ("My Designs"). Local-first, best-effort persistence of each built design under `~/.kimcad/designs/<id>/` (`meta.json` + `mesh.stl` + `thumb.png`) — never the repo, nothing leaves the machine. `save` / `list` / `get` / `rename` / `delete` / `duplicate` / `export_bytes` / `import_bytes`, all guarded by an ASCII-only `_safe_id` (no path escape) and serialized by a write lock with atomic `os.replace` meta writes (retried on the Windows open-handle race). Import is **zip-slip safe** — only the three known files are read by exact name (never the archive's paths) and a bounded inflated-read rejects a decompression bomb. Every method swallows failures (degrade, never raise), so a persistence miss never breaks a build. |
 | `design_registry.py` (Stage 9) | `DesignRegistry` — the web layer's per-design state, extracted from the webapp closure. One object owns every per-design registry/cache (mesh, G-code, STEP, gate verdict, geometry version, slice cache, template state, snapshot, saved-id) plus the lock and the three load-bearing protocols: lockstep eviction (incl. on-disk cleanup), LRU cap enforcement, and the geometry-version guard that drops a slice landing after a mid-flight re-render. `_locked`-suffixed methods require the caller to hold `reg.lock`. |
 | `model_pull.py` (Stage 10) | The in-app model download: one app-wide job (`JOB`) that streams Ollama's native `/api/pull` for KimCad's OWN two models (the list is fixed server-side — the no-model-menu rule), with per-model progress for the UI to poll. Loopback-only (it manages the on-device install), disk pre-checked before gigabytes move, per-model friendly failures (disk-full maps to the fix), and idempotent start (a wizard re-mount can't fork a second download). |
-| `webapp.py` | The local web layer (see below). |
-`config.py` loads `config/default.yaml` overlaid with an optional, gitignored
+| `paths.py` (Stage 11) | THE dev/installed path seam: `KIMCAD_INSTALL_ROOT` (set by the installed launcher before Python starts) switches reads to the install root and writes to `%LOCALAPPDATA%\KimCad`; dev behavior is repo-rooted and unchanged. `config.PROJECT_ROOT` routes through it; the user config overlay (`local.yaml`) is per-user when installed. |
+| `shell.py` (Stage 11) | The windowed app (`kimcad shell`): a pywebview/WebView2 window over the same server `kimcad web` runs, on a STABLE loopback port (8766+, never ephemeral — the origin holds the SPA's localStorage); window close stops the server; the one JS bridge is `open_external` (http/s only, system browser); pywebview absent or the WebView2/.NET runtime missing degrades to one friendly line naming `kimcad web`. |
+| `webapp.py` | The local web layer (see below). |`config.py` loads `config/default.yaml` overlaid with an optional, gitignored
 `config/local.yaml`, exposing typed `Printer` / `Material` / `LLMBackend` / `Connector`
 accessors. A `Printer`'s build volume and nozzle may be left blank, to be auto-filled by
 capability reconciliation against a connected printer.
@@ -186,6 +187,15 @@ returns `{"status": "model_unavailable"}` with the exact pull command, and a non
 maps to a friendly try-again message. `/api/model-status` reports the vision model's presence
 alongside the design model's. Per-design server state moved into `DesignRegistry`
 (`design_registry.py`).
+
+**Stage 11 additions:** the app ships as a double-click installer (`scripts/build_installer.py`
+stages embeddable CPython + site-packages + tools + the SPA; pinned Inno Setup compiles it;
+`scripts/verify_install.py` proves an install end-to-end incl. the SPA actually serving) with
+a read/write split at runtime: the install dir is read-only (config templates, tools, code) and
+all writes go to `%LOCALAPPDATA%\KimCad` via `paths.py`; `GET/POST /api/connections` backs the
+Settings Printer-connections card (the saved overlay feeds `build_connector` for every caller).
+
+
 
 **Stage 10 additions:** the direct-print UI surfaces the existing send path in the SPA
 (SendPanel under a finished slice — connector picker from `GET /api/connectors`, the app's

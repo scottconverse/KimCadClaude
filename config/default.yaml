@@ -183,20 +183,19 @@ connectors:
     type: octoprint
     base_url: http://127.0.0.1:5000   # your OctoPrint instance
     api_key_env: OCTOPRINT_API_KEY    # set this env var to your OctoPrint API key
-  # Klipper printers (via Moonraker): Creality w/ Klipper, Voron, RatRig, Mainsail/Fluidd.
-  # Uncomment + point base_url at your printer. The API key is OPTIONAL (Moonraker often runs
-  # unauthenticated on a trusted LAN); set api_key_env only if your [authorization] requires it.
-  # moonraker:
-  #   type: moonraker
-  #   base_url: http://127.0.0.1:7125
-  #   api_key_env: MOONRAKER_API_KEY
-  # Prusa printers (via PrusaLink): MK4 / MK3.9 / MINI / XL. The API key is in the printer's
-  # PrusaLink settings; set it in the named env var. base_url is the printer's IP.
-  # prusalink:
-  #   type: prusalink
-  #   base_url: http://192.168.0.50
-  #   api_key_env: PRUSALINK_API_KEY
-  #   storage: usb        # target storage; "usb" (MK4/XL default) or "local" (e.g. MINI/SD)
+  # Klipper (Moonraker) + Prusa (PrusaLink) ship visible-but-unconfigured like the Bambu
+  # templates below (beta-gate BG-U007): fill in the address in Settings -> Printer
+  # connections. Moonraker's API key is OPTIONAL (often unauthenticated on a trusted LAN);
+  # set its env var only if your [authorization] requires it.
+  moonraker:
+    type: moonraker
+    base_url:                       # e.g. http://192.168.0.40 (Mainsail/Fluidd box)
+    api_key_env: MOONRAKER_API_KEY
+  prusalink:
+    type: prusalink
+    base_url:                       # the printer's IP, e.g. http://192.168.0.50
+    api_key_env: PRUSALINK_API_KEY
+    storage: usb        # target storage; "usb" (MK4/XL default) or "local" (e.g. MINI/SD)
   # Bambu Lab printers (P2S / A1 family), native LAN mode (Stage 10). Needs the OPTIONAL
   # bambulabs-api package (pip install bambulabs-api). On the printer: enable LAN/Developer
   # mode, note the Access Code (Settings -> WLAN) and Serial (Settings -> Device). The access

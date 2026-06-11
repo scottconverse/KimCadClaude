@@ -58,9 +58,23 @@ stage gate). **Resume rule:** read this file + `HANDOFF.md`, find the first row 
 | 8 (CadQuery backend) | ✅ 5 slices audit-lite | ✅ audit-team + 2 re-audit lanes 0/0/0/0/0 | ✅ `stage-8` | ✅ DONE |
 | 9 (image/sketch on-ramp) | ✅ 3 slices audit-lite | ✅ walkthrough + audit-team 0/0/0/0/0 | ✅ `stage-9` | ✅ DONE |
 | 10 (direct-print + Bambu-native + wizard downloads; layer preview resolved deferred-not-dropped at the tag) | ✅ 4 slices audit-lite | ✅ walkthrough + audit-team 0/0/0/0/0 | ✅ `stage-10` | ✅ DONE |
-| 11 (installer + beta gate, FINAL) | ☐ | ☐ | ☐ `stage-11` | ☐ |
+| 11 (installer + beta gate, FINAL) | ✅ 7 slices (audit-lites 11.1-11.5; 11.6/11.7 covered at the gate) | ✅ two-lane audit-team on the diff + the INSTALLED artifact, 0/0/0/0/0 (a REAL Blocker caught: no SPA in the wheel) | ✅ `stage-11` + `beta` | ✅ DONE - THE BETA IS BUILT |
 
 ## Log
+- 2026-06-10 (Phase C / Stage 11 — the installer + beta gate, FINAL): built in 7 slices (the
+  WebView2 shell with a stable-origin port; the Settings Printer-connections card closing the
+  Stage-10 root UX finding; 0.9.0b1 single-sourced; the dev/installed paths seam; the build
+  pipeline + Inno installer — built, silent-installed, verified, uninstalled on this box;
+  Ollama detect-and-guide; dispositions + user docs incl. PrintProof3D v0.5.0 BUNDLED on its
+  stable release). Slice audit-lites caught real ones (ephemeral-origin localStorage wipe; two
+  seam-bypassed PROJECT_ROOT copies; a cosmetic release strip). THE GATE CAUGHT A GENUINE
+  BLOCKER: the wheel shipped no SPA and no prompts (editable installs had masked missing
+  package-data for the project's entire history; every install proof had exercised the API,
+  never '/') — packaging fixed, verify_install now fetches the SPA shell + an asset, the
+  installer-staging smoke added to CI, and the full install/verify cycle re-proven incl.
+  spaced paths and the installed window showing the real app. ALL gate findings remediated to
+  0/0/0/0/0. Tagged stage-11 + beta; KimCad-Setup-0.9.0b1.exe + SHA-256 attached to the
+  GitHub release. **Phase C complete. The beta is built — next: Kim's printers.**
 - 2026-06-10 (Phase C / Stage 10 — direct-print UI + Bambu-native + wizard downloads): built in 4
   slices (registry-alias flattening; SendPanel direct print; Bambu-native connector mock-tested;
   in-app model downloads + Settings vision row), each through an independent audit-lite to

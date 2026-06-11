@@ -10,6 +10,7 @@ import {
   type ModelStatus,
   type SettingsResponse,
 } from '../api'
+import { openExternal } from '../openExternal'
 import { useUnits } from '../useUnits'
 import ConnectionsCard from './ConnectionsCard'
 
@@ -331,10 +332,39 @@ export default function SettingsPanel() {
             {/* A concrete next action whenever it isn't simply running (no dead-end). */}
             {modelState === 'ready' && model?.backend === 'local' && !model.running && (
               <p className="kc-model-action">
-                Ollama isn’t running. Start it, then{' '}
+                {/* BG-U002 (beta gate): Settings must serve the clean-box skipper too —
+                    Get Ollama (it may not be installed at all), not just "start it". */}
+                KimCad’s AI runs on Ollama (free). Don’t have it?{' '}
+                <button
+                  type="button"
+                  className="kc-link-btn"
+                  onClick={() => openExternal('https://ollama.com/download')}
+                >
+                  Get Ollama
+                </button>
+                {' '}— or if it’s installed, start it. Then{' '}
                 <button type="button" className="kc-link-btn" onClick={checkModel}>check again</button>.
               </p>
             )}
+            {/* BG-U002: the one-shot wizard gets a re-entry — the skipper's path back to
+                the guided setup (and its model Download button). */}
+            <p className="kc-set-sub">
+              <button
+                type="button"
+                className="kc-link-btn"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('kc-first-run-done')
+                  } catch {
+                    /* storage unavailable — the event alone still opens it this session */
+                  }
+                  window.dispatchEvent(new Event('kimcad-rerun-setup'))
+                }}
+              >
+                Run the setup walkthrough again
+              </button>{' '}
+              (the guided model download lives there).
+            </p>
             {modelState === 'ready' && model?.backend === 'local' && model.running && !model.model_present && (
               <p className="kc-model-action">
                 The model isn’t downloaded yet — the setup wizard’s Download button fetches it

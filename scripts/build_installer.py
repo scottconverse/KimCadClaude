@@ -46,14 +46,26 @@ STAGING = DIST / "staging"
 PY_EMBED_URL = "https://www.python.org/ftp/python/3.13.13/python-3.13.13-embed-amd64.zip"
 PY_EMBED_SHA256 = "8766a8775746235e23cf5aee5027ab1060bb981d93110577adcf3508aa0cbd55"
 
-# 11.5-audit FINDING-001: the RELEASE strip — dirs/files in site-packages that are dev/
-# build toolchain, not runtime. Includes the underscore twins and the exe-stub bin dir;
-# enforced by an assertion after the strip, and the full verify_install exercises the
-# remaining tree (trimesh/scipy/manifold/slicing) so an over-strip fails loudly.
-RELEASE_STRIP = (
-    "pytest", "_pytest", "py.test", "pluggy", "iniconfig", "coverage", "ruff",
-    "pygments", "pip", "wheel", "pip_audit", "bin",
-)
+# 11.5-audit FINDING-001 + beta-gate BG-E002/E003: the RELEASE strip — EXACT top-level
+# names (matched on the entry's stem, so "py" can never swallow "pydantic"), the dev/build
+# toolchain that rides in via requirements.lock but has no business in a release. Blanket:
+# every *.pth and *.whl goes too (the launcher owns sys.path; nothing shipped needs a pth
+# hook). Enforced by assertion, and verify_install exercises the survivors (trimesh/scipy/
+# manifold/slicing) so an over-strip fails loudly.
+RELEASE_STRIP_NAMES = frozenset({
+    "pytest", "_pytest", "py", "pluggy", "iniconfig", "coverage", "ruff", "pygments",
+    "pip", "wheel", "pip_audit", "bin", "setuptools", "_distutils_hack", "pkg_resources",
+})
+
+
+def _strip_stem(entry_name: str) -> str:
+    """The package stem of a site-packages entry: 'ruff-0.5.0.dist-info' -> 'ruff',
+    'py.py' -> 'py', 'Pygments-2.18.dist-info' -> 'pygments'."""
+    base = entry_name.lower()
+    for suffix in (".dist-info", ".py", ".exe"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+    return base.split("-")[0]
 
 # The pinned Inno Setup compiler (installed once on the build box; jrsoftware.org's
 # installer for 6.7.3, sha256 4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0).
@@ -114,18 +126,19 @@ def stage_site_packages(skip_pip: bool) -> None:
         check=True,
     )
     # The installed app is a RELEASE: the dev/test toolchain has no business in it.
-    for unwanted in RELEASE_STRIP:
-        for p in list(target.glob(f"{unwanted}*")) + list(target.glob(f"{unwanted.capitalize()}*")):
+    for p in list(target.iterdir()):
+        name = p.name.lower()
+        if _strip_stem(p.name) in RELEASE_STRIP_NAMES or name.endswith((".pth", ".whl")):
             if p.is_dir():
                 shutil.rmtree(p, ignore_errors=True)
             else:
                 p.unlink(missing_ok=True)
-    # Stray artifacts pip --target leaves behind.
-    for p in list(target.glob("*.whl")) + list(target.glob("*coverage*.pth")):
-        p.unlink(missing_ok=True)
-    # ENFORCED, not promised (the 11.5 audit caught a cosmetic strip): nothing from the
-    # strip list may remain.
-    leftovers = [p.name for n in RELEASE_STRIP for p in target.glob(f"{n}*")]
+    # ENFORCED, not promised (the 11.5 audit caught a cosmetic strip; the beta gate caught
+    # its blind spots): nothing strippable may remain at the top level.
+    leftovers = [
+        p.name for p in target.iterdir()
+        if _strip_stem(p.name) in RELEASE_STRIP_NAMES or p.name.lower().endswith((".pth", ".whl"))
+    ]
     assert not leftovers, f"release strip incomplete: {leftovers}"
 
 

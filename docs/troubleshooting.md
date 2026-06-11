@@ -56,6 +56,28 @@ low-contrast image.
 **Fix:** update Ollama to the current release from <https://ollama.com/download>, then try
 again with a clear, well-lit image. (Your models and settings survive the update.)
 
+## (Installed app) The KimCad window won't open, or opens blank
+
+The windowed app needs two Microsoft components that ship with Windows 11 (and most
+updated Windows 10): the **WebView2 Runtime** and **.NET Framework 4.7.2+**. If the
+window won't start, KimCad prints one line naming them — install "WebView2 Runtime" from
+Microsoft and try again. The browser always works meanwhile: run KimCad's `kimcad web`
+from the install folder, or just reinstall after updating Windows.
+
+If the window opens but shows nothing, the install may be damaged — re-run the installer
+(your designs and settings are not touched by reinstalls).
+
+## (Installed app) "Windows protected your PC" when running the installer
+
+That's SmartScreen reacting to an unsigned open-source installer — expected for the beta.
+**More info → Run anyway.** To verify the download first, check its SHA-256 against the
+release page: see [install-guide.md](install-guide.md).
+
+## (Installed app) Where is my stuff?
+
+Saved designs + settings: the `.kimcad` folder in your user profile (never removed by the
+uninstaller). The app's working output: `%LOCALAPPDATA%\KimCad`. The app itself: the
+folder you chose at install time.
 ## The in-app model download fails or stalls
 
 The setup wizard's **Download now** asks your local Ollama to fetch KimCad's models, so a

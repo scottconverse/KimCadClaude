@@ -26,8 +26,12 @@ engine" (`None`) and Smart Mesh proceeds on the gate alone. `validate_model` **n
 
 ## Enabling it
 
-The engine is **off by default** — the path is configured but the binary isn't fetched, so KimCad
-resolves it to "not present" and degrades.
+**The Stage-11 installer bundles the engine (stable v0.5.0, pinned by SHA-256) — an
+installed KimCad has it ON by default** at `tools/printproof3d/printproof3d.exe`, the
+path the config names. The graceful degradation below remains the safety net.
+
+**From a source checkout** the binary isn't fetched, so KimCad resolves it to "not
+present" and degrades to gate-only; to enable it:
 
 1. **Build the engine** from its repository (Rust toolchain required):
    ```

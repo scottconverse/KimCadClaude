@@ -87,6 +87,28 @@ def main(argv: list[str] | None = None) -> int:
             return fail(f"bundled tools not seen by the app: {health}")
         print("ok: bundled OpenSCAD + OrcaSlicer present")
 
+        # BG-U001 (the beta-gate Blocker this check answers forever): the SPA must
+        # actually SERVE — the shell, and a real asset it references. Every earlier gate
+        # passed on a hollow artifact because nothing fetched '/'.
+        with urllib.request.urlopen(f"{base}/", timeout=10) as r:
+            shell_html = r.read().decode("utf-8", errors="replace")
+        if r.status != 200 or "kimcad" not in shell_html.lower():
+            return fail("the SPA shell did not serve (the installed app would be a blank window)")
+        import re as _re
+
+        asset = _re.search(r'/assets/[^"\']+\.js', shell_html)
+        if not asset:
+            return fail("the SPA shell references no JS asset")
+        with urllib.request.urlopen(base + asset.group(0), timeout=10) as r:
+            if r.status != 200 or len(r.read()) < 10_000:
+                return fail(f"the SPA asset {asset.group(0)} did not serve")
+        print("ok: the SPA shell + its JS asset serve (the window has a real app in it)")
+        # And the prompt templates (the REAL design path needs them; demo doesn't).
+        prompts = app / "site-packages" / "kimcad" / "prompts"
+        if not prompts.exists() or not any(prompts.iterdir()):
+            return fail("kimcad/prompts is missing from the install - real designs would fail")
+        print("ok: prompt templates shipped")
+
         req = urllib.request.Request(
             f"{base}/api/design", data=json.dumps({"prompt": "a 40 mm desk cable clip"}).encode(),
             headers={"Content-Type": "application/json"},

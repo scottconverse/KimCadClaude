@@ -25,6 +25,49 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stage 11 — the Windows installer + the beta (`0.9.0b1`) — DONE (merged to `main`,
+  tagged `stage-11` AND `beta`).** KimCad is now a double-click Windows app.
+  - **New: `KimCad-Setup-0.9.0b1.exe`** — a single unsigned installer (SmartScreen
+    walkthrough + SHA-256 verification in `docs/install-guide.md`) carrying an embedded
+    CPython 3.13.13, the app + pinned dependencies, the built SPA, OpenSCAD, OrcaSlicer,
+    and the **PrintProof3D validation engine (stable v0.5.0 — bundled and ON by default**,
+    resolving the ROADMAP's gated-on-stable branch in favor). Start-Menu/Desktop shortcuts
+    open **`kimcad shell`** — the app in its own WebView2 window on a stable local port;
+    closing the window exits cleanly. Installs are proven by `scripts/verify_install.py`:
+    version, server, bundled tools, **the SPA actually serving**, prompt templates, a demo
+    design, and a full-tree diff showing the install dir is never written to (per-user
+    data goes to `%LOCALAPPDATA%\KimCad`; saved designs stay in `~/.kimcad`, untouched by
+    the uninstaller). Spaced install paths (`Program Files (x86)`-style) verified.
+  - **New: Settings → Printer connections** — printers are set up inside the app now
+    (address + serial + the AMS toggle; the access code/API key stays in a NAMED env var
+    and never crosses the UI); the saved values feed the real send path for the SPA, CLI,
+    and MCP alike. Moonraker + PrusaLink join the Bambu templates as shipped
+    fill-in-able connections.
+  - **New: first run on a clean box** — the wizard detects a missing/stopped Ollama and
+    offers **Get Ollama** (system browser via the shell's one JS bridge); Settings gained
+    the same guidance plus **"Run the setup walkthrough again"**, so skipping setup is
+    never a dead end. The Stage-10 in-app model downloads cover the rest.
+  - **Versioning:** `0.9.0b1` single-sourced from package metadata on every surface
+    (CLI `--version`, `/api/health`, Settings About, the MCP serverInfo, the installer's
+    name + VersionInfo) — tripwire-tested so no literal can drift.
+  - **Fixed at the beta gate (Blocker): the wheel shipped no SPA and no prompt
+    templates** — the editable dev install had masked missing package-data for the
+    project's whole history; every earlier install proof exercised the API, never `/`.
+    Packaging fixed, and `verify_install` now fetches the SPA shell + a real asset so it
+    can never silently regress. The gate also drove the installer-staging smoke into CI
+    (every push now stages the real install tree and verifies it), made the release strip
+    real (no ruff/pytest/setuptools in the shipped payload, asserted), and hardened the
+    launcher-contract tests.
+  - **Dispositions** (docs/audits/stage-11/dispositions-2026-06-10.md): hosted CI stays
+    off (owner decision — the self-hosted strict gate is the release gate); the Stage-8
+    CadQuery-confinement deferral re-accepted with a stronger rationale (the beta
+    installer ships without the CadQuery backend entirely); the per-user-install
+    tradeoff disclosed.
+  - **Docs:** `docs/install-guide.md` (SmartScreen, checksums, what-goes-where),
+    `docs/supported-printers.md` (API-validated vs metal-validated kept honest — nothing
+    is metal-validated until the beta runs at Kim's), `docs/beta/first-hardware-contact.md`
+    (the scripted first-printer-contact checklist), getting-started rewritten around the
+    installer with from-source as the developer path.
 - **Stage 10 — Direct print from the app + Bambu-native + in-app model downloads — DONE
   (merged to `main`, tagged `stage-10`).**
   - **New: send a sliced part straight from the app.** Under a finished slice, a "Send to

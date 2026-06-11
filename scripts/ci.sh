@@ -1,10 +1,11 @@
 #!/bin/sh
-# Local CI gate — the AUTHORITATIVE pre-push gate (run on Windows). It is a SUPERSET of
-# hosted CI: ruff + the full pytest suite (incl. the live OrcaSlicer slice) + frontend
-# vitest + SPA build-reproducibility + release-mode live-tool proof. Hosted GitHub Actions
-# (.github/workflows/ci.yml) is an intentionally PARTIAL smoke check (Python lint + pytest
-# only, Linux) and is not equivalent. Used by the pre-push hook (.githooks/pre-push) and
-# runnable by hand.
+# Local CI gate — the AUTHORITATIVE pre-push gate (run on Windows): ruff + the full pytest
+# suite (incl. the live OrcaSlicer slice) + frontend vitest + SPA build-reproducibility +
+# release-mode live-tool proof. The SAME script is what the SELF-HOSTED GitHub Actions
+# runner executes (.github/workflows/ci.yml — the full gate on this box since Stage A,
+# plus the installer staging smoke; hosted runners are not used — owner decision, see
+# docs/audits/stage-11/dispositions-2026-06-10.md). Used by the pre-push hook
+# (.githooks/pre-push) and runnable by hand.
 set -e
 cd "$(git rev-parse --show-toplevel)"
 

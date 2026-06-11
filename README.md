@@ -13,7 +13,7 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU. An 
 fallback (a second generator that can clear prompts OpenSCAD can't) and adds **editable STEP/BREP
 CAD export** — see *Optional: the CadQuery backend*, below.
 
-> Status: **early development.** The deterministic pipeline, the gated G-code export
+> Status: **beta built (`0.9.0b1`)** — awaiting real-hardware validation. The deterministic pipeline, the gated G-code export
 > (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
 > Bambu A1, Elegoo Neptune 4 Max — software/profile validation, not yet a real print), and
 > Manifold3D mesh hardening are in (through Stage 7, tagged `stage-7`). **Stage 8.5 (Usability) is
@@ -32,9 +32,13 @@ CAD export** — see *Optional: the CadQuery backend*, below.
 > to `main` and tagged `stage-10`:** send a sliced part straight from the app (connector picker →
 > in-app confirm → live status; a built-in test connection proves the path with no hardware), a
 > **Bambu-native LAN connector** for the P2S/A1 (mock-validated — see *Send to a printer*, below),
-> and the setup wizard now **downloads the AI models in-app** with progress. Next up: the Windows
-> installer + beta gate (Stage 11, final). Real-hardware print validation on Kim's printers is the
-> final step — see ROADMAP.
+> and the setup wizard now **downloads the AI models in-app** with progress. **Stage 11 — the
+> Windows installer + beta gate — is done, and the BETA IS BUILT (`0.9.0b1`, tagged `beta`):**
+> `KimCad-Setup-0.9.0b1.exe` installs a complete KimCad — app window, AI wiring, CAD tools,
+> the PrintProof3D validation engine — with zero terminal use
+> ([docs/install-guide.md](docs/install-guide.md)). Real-hardware print validation on Kim's
+> printers is the beta's own job — see ROADMAP and
+> [docs/beta/first-hardware-contact.md](docs/beta/first-hardware-contact.md).
 
 ## What it does
 
@@ -54,7 +58,8 @@ switch between mm and inches — see [`docs/guide-sliders-and-units.md`](docs/gu
 
 Every built part gets a **Smart Mesh readiness** report card — a 0–100 score, a plain
 verdict, the risks, and concrete recommendations — synthesized from the Printability Gate
-plus, when it's configured, the optional arm's-length **PrintProof3D** validation engine, and
+plus the arm's-length **PrintProof3D** validation engine (bundled + on by default in the
+installed beta; optional from source), and
 — once you've designed a few parts — an honest "compared to your past parts" line from a
 local-first history. The card also shows a **confidence** — **High** when the PrintProof3D engine
 ran and returned a usable report, **Medium** on the gate alone, and **Low** when the engine ran but
@@ -96,10 +101,11 @@ steps above alone. Node (+ `npm`) is needed only to *rebuild* that UI after chan
 
 ## Setup
 
-> **Not a developer?** Follow **[docs/getting-started-windows.md](docs/getting-started-windows.md)**
-> instead — a step-by-step Windows walkthrough from nothing to a first printed-ready part,
-> with **[docs/troubleshooting.md](docs/troubleshooting.md)** as its safety net. The section
-> below is the developer-shaped version of the same steps.
+> **Not a developer?** Use the **double-click installer**: download
+> `KimCad-Setup-<version>.exe` from the releases page and follow
+> **[docs/install-guide.md](docs/install-guide.md)** — no terminal at any point, with
+> **[docs/troubleshooting.md](docs/troubleshooting.md)** as the safety net. The section
+> below is the from-source developer path.
 
 ```
 python -m venv .venv

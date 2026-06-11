@@ -120,7 +120,20 @@ jobs:
           if ($out -match '(\d+) skipped') { throw "$($Matches[1]) live test(s) SKIPPED - contracts unproven (missing binary/profiles/interpreter?)" }
           "live contracts proven: $passed executed, 0 skipped"
 
+      - name: Installer staging smoke (BG-E001 - the proof chain runs on every push)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Stage the EXACT install tree (embeddable python cached under dist/cache) and
+          # run the full verify contract against it - no Inno needed. Catches lock-vs-
+          # pyproject drift, strip over/under-reach, launcher contract breaks, pin rot.
+          .\.venv\Scripts\python.exe scripts\build_installer.py --stage-only
+          if ($LASTEXITCODE -ne 0) { throw "installer staging failed" }
+          .\.venv\Scripts\python.exe scripts\verify_install.py dist\staging --port 8748
+          if ($LASTEXITCODE -ne 0) { throw "verify_install failed on the staged tree" }
+
       - name: pip-audit (dependency CVE scan on the pinned lockfile)
+
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'

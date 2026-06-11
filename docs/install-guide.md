@@ -45,8 +45,8 @@ machine unless you explicitly turn on the cloud option in Settings.
 
 ## Requirements
 
-Windows 11 (or Windows 10 with the WebView2 Runtime, which Microsoft ships automatically
-via Edge), about **20 GB free disk space** (mostly the AI models), 16 GB+ RAM
+Windows 11 (or Windows 10 with the WebView2 Runtime — Microsoft ships it automatically
+via Edge — and .NET Framework 4.7.2+, in-box since Windows 10 1803), about **20 GB free disk space** (mostly the AI models), 16 GB+ RAM
 recommended. No graphics card needed.
 
 ## If something goes wrong

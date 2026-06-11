@@ -130,11 +130,14 @@ describe('SettingsPanel', () => {
     expect(container.textContent).not.toMatch(/sent to the cloud/i)
   })
 
-  it('tells the user to start Ollama when it isn’t running', async () => {
+  it('guides an unreachable Ollama: get it or start it (BG-U002 copy)', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
     render(<SettingsPanel />)
     expect(await screen.findByText('Not running')).toBeTruthy()
-    expect(screen.getByText(/Ollama isn.t running/i)).toBeTruthy()
+    // The clean-box case is served: not just "start it" — Get Ollama is a real button.
+    const action = screen.getByText(/runs on Ollama \(free\)/i)
+    expect(action.textContent).toMatch(/start it/i)
+    expect(screen.getByRole('button', { name: /get ollama/i })).toBeTruthy()
   })
 
   it('tells the user to get the model when Ollama is up but it isn’t installed', async () => {
@@ -306,6 +309,19 @@ describe('SettingsPanel', () => {
     expect(await screen.findByText(/downloading now \(80%\)/i)).toBeTruthy()
     // The competing-manual-pull suggestion must NOT show while the download runs.
     expect(screen.queryByText(/ollama pull qwen2\.5vl:3b/)).toBeNull()
+  })
+
+  it('offers Get-Ollama when the AI is unreachable and a setup re-entry (BG-U002)', async () => {
+    getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
+    render(<SettingsPanel />)
+    expect(await screen.findByRole('button', { name: /get ollama/i })).toBeTruthy()
+    // The wizard re-entry: clears the first-run flag and fires the reopen event.
+    localStorage.setItem('kc-first-run-done', '1')
+    const fired: Event[] = []
+    window.addEventListener('kimcad-rerun-setup', (e) => fired.push(e))
+    fireEvent.click(screen.getByRole('button', { name: /run the setup walkthrough again/i }))
+    expect(localStorage.getItem('kc-first-run-done')).toBeNull()
+    expect(fired.length).toBe(1)
   })
 
   it('Reset asks to confirm, then clears settings + units to defaults', async () => {

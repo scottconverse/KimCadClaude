@@ -60,21 +60,26 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\kimcad_launcher.py"""
 Type: filesandordirs; Name: "{app}\site-packages"
 Type: filesandordirs; Name: "{app}\python"
 
+; (BG-U011: SmartScreen guidance lives in docs/install-guide.md, BEFORE the user runs
+; this installer - by the time this wizard shows, SmartScreen is already behind them.)
 [Code]
 var
   DataPage: TOutputMsgWizardPage;
 
 procedure InitializeWizard;
 begin
-  { The honest final word: what still downloads, where the user's work lives, and the
-    SmartScreen reality for an unsigned open-source installer. }
+  { The honest final word: what still downloads and where the user's work lives.
+    (BG-U006: the data-retention claims are exact - saved designs are NEVER removed by
+    the uninstaller; only the app's working data is, and only if asked.) }
   DataPage := CreateOutputMsgPage(wpInfoAfter,
     'Before you start', 'Two things worth knowing',
     'AI models: KimCad''s design AI runs locally via Ollama (free). On first run, ' +
     'KimCad checks for Ollama and offers to download its two models (about 13 GB total) ' +
     'with a progress bar - nothing is sent to the cloud.' + #13#10#13#10 +
-    'Your work: designs and settings live in your user folder (Documents-level, not ' +
-    'Program Files), and uninstalling KimCad leaves them unless you say otherwise.');
+    'Your work: saved designs and settings live in your user profile (the .kimcad ' +
+    'folder) and are NEVER removed by the uninstaller. The app''s working data ' +
+    '(design output, the window''s browser profile) is separate, and the uninstaller ' +
+    'asks before removing it.');
 end;
 
 function InitializeUninstall(): Boolean;

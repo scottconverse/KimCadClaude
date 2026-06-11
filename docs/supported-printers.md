@@ -25,8 +25,8 @@ Honesty key — two different claims, kept separate on purpose:
 |---|---|---|
 | `bambu` (native LAN) | P2S, A1 | **API-validated against a verified mock** of the printer's MQTT/FTPS protocols; metal pending |
 | `octoprint` | any OctoPrint box | API-validated against a real OctoPrint REST mock |
-| `moonraker` | Klipper (Voron, Creality-Klipper, …) | API-validated (conformance mock) |
-| `prusalink` | MK4 / MK3.9 / MINI / XL | API-validated (conformance mock) |
+| `moonraker` | Klipper (Voron, Creality-Klipper, …) | API-validated (conformance mock); ships as a fill-in template in Settings → Printer connections |
+| `prusalink` | MK4 / MK3.9 / MINI / XL | API-validated (conformance mock); ships as a fill-in template in Settings → Printer connections |
 | `mock` | none (built-in test connection) | proves the send path, drives nothing |
 
 The Elegoo Neptune 4 Max has **no direct-send connection** — its path is download the

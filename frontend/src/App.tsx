@@ -90,6 +90,14 @@ export default function App() {
       return false
     }
   })
+  // BG-U002 (beta gate): Settings can reopen the one-shot wizard — the skipper's path
+  // back to the guided setup and its model Download button.
+  useEffect(() => {
+    const reopen = () => setShowWizard(true)
+    window.addEventListener('kimcad-rerun-setup', reopen)
+    return () => window.removeEventListener('kimcad-rerun-setup', reopen)
+  }, [])
+
   const dismissWizard = useCallback(() => {
     try {
       localStorage.setItem('kc-first-run-done', '1')

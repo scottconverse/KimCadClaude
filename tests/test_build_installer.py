@@ -42,28 +42,50 @@ def test_iss_requires_the_version_and_staging_as_defines():
 
 
 def test_launcher_sets_the_seam_before_any_kimcad_import():
-    """The launcher contract paths.py states: KIMCAD_INSTALL_ROOT is set (and
-    site-packages pathed) BEFORE any `import kimcad` runs — verified structurally on the
-    module AST, so a refactor that moves the import above the env write fails here."""
+    """The launcher contract paths.py states: KIMCAD_INSTALL_ROOT is set AND
+    site-packages is pathed BEFORE any `import kimcad` runs — verified structurally on
+    the module AST (min line numbers, BG-E005), so a refactor that reorders any of the
+    three fails here."""
     src = (ROOT / "installer" / "kimcad_launcher.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
-    env_set_line = None
-    first_kimcad_import_line = None
+    env_lines: list[int] = []
+    syspath_lines: list[int] = []
+    kimcad_import_lines: list[int] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
-            seg = ast.get_source_segment(src, node) or ""
-            if "KIMCAD_INSTALL_ROOT" in seg and env_set_line is None:
-                env_set_line = node.lineno
+        seg = ast.get_source_segment(src, node) or ""
+        if isinstance(node, ast.Subscript) and "KIMCAD_INSTALL_ROOT" in seg:
+            env_lines.append(node.lineno)
+        if isinstance(node, ast.Call) and "sys.path.insert" in seg.split("(")[0]:
+            syspath_lines.append(node.lineno)
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module or ""]
             if any(n.startswith("kimcad") for n in names):
-                if first_kimcad_import_line is None or node.lineno < first_kimcad_import_line:
-                    first_kimcad_import_line = node.lineno
-    assert env_set_line is not None, "the launcher must set KIMCAD_INSTALL_ROOT"
-    assert first_kimcad_import_line is not None, "the launcher must import kimcad"
-    assert env_set_line < first_kimcad_import_line, (
-        "KIMCAD_INSTALL_ROOT must be set BEFORE the first kimcad import"
-    )
+                kimcad_import_lines.append(node.lineno)
+    assert env_lines, "the launcher must set KIMCAD_INSTALL_ROOT"
+    assert syspath_lines, "the launcher must path site-packages"
+    assert kimcad_import_lines, "the launcher must import kimcad"
+    assert min(env_lines) < min(kimcad_import_lines), "env must precede the kimcad import"
+    assert min(syspath_lines) < min(kimcad_import_lines), "sys.path must precede the kimcad import"
+
+
+def test_every_runtime_dep_is_in_the_lock():
+    """BG-E007: a pyproject runtime dep missing from requirements.lock ships a BROKEN
+    artifact (the staging installs the lock + kimcad --no-deps) — caught here, on every
+    run, not at the next manual build."""
+    import tomllib
+
+    py = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lock_names = {
+        line.split("==")[0].strip().lower().replace("_", "-")
+        for line in (ROOT / "requirements.lock").read_text(encoding="utf-8").splitlines()
+        if "==" in line
+    }
+    missing = []
+    for dep in py["project"]["dependencies"]:
+        name = re.split(r"[><=!;\[ ]", dep.strip(), maxsplit=1)[0].lower().replace("_", "-")
+        if name and name not in lock_names:
+            missing.append(name)
+    assert missing == [], f"pyproject runtime deps missing from requirements.lock: {missing}"
 
 
 def test_verify_install_covers_the_five_contracts():

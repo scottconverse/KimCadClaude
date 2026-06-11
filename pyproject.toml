@@ -58,6 +58,14 @@ kimcad = "kimcad.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Beta-gate BG-U001 (Blocker): the package's DATA — the built SPA and the prompt
+# templates — must ship in the wheel. The editable dev install masked their absence for
+# the whole project history (a wheel install had never been runtime-proven before the
+# Stage-11 installer); verify_install now fetches the SPA shell so this can never
+# silently regress.
+[tool.setuptools.package-data]
+kimcad = ["web/*", "web/assets/*", "prompts/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

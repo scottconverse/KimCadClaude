@@ -70,8 +70,12 @@ audit-team gate remediated to 0/0/0/0/0). **Stage 10 (direct-print UI + Bambu-na
 model downloads) is DONE - merged to `main` and tagged `stage-10`** (SendPanel direct print with
 the confirm-is-the-POST contract; the Bambu-native LAN connector mock-tested with fail-closed
 hardware-safety edges; in-app model downloads with progress; live walkthrough clean + 5-role
-audit-team gate, 36 findings remediated to 0/0/0/0/0). **Next = Stage 11 (Windows installer +
-beta gate, FINAL).**
+audit-team gate, 36 findings remediated to 0/0/0/0/0). **Stage 11 (the Windows installer +
+beta gate, FINAL) is DONE - merged to `main` and tagged `stage-11` AND `beta`:**
+KimCad-Setup-0.9.0b1.exe installs a fully working app with zero terminal use (proven by
+verify_install on the real installed tree + the installed WebView2 window live); the beta
+gate caught and fixed a REAL Blocker (the wheel shipped no SPA - every prior proof ran the
+API, never '/'). **THE BETA IS BUILT. Next: Kim runs it on her real printers.**
 
 Still ahead before beta: direct-print UI + Bambu-native
 (Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
@@ -316,7 +320,7 @@ beta user can't use LAN) - the 'remaining cloud paths as feasible' branch taken 
 worth-it this stage; the Stage-8.5-era G-code layer-viewer idea was never in this stage's scoped
 goals and is recorded as deferred-not-dropped in the CHANGELOG entry.
 
-## Stage 11 — Windows installer + beta gate (FINAL pre-beta)
+## Stage 11 — Windows installer + beta gate (FINAL pre-beta) ✅ DONE (tagged `stage-11` + `beta`)
 **Goal:** double-click installer → working KimCad on a 32 GB/780M Windows box, no terminal, then the
 beta gate.
 - **Windows shell via WebView2** (controlled render engine); package the built SPA + Python core +
@@ -335,6 +339,15 @@ beta gate.
 - User docs: install guide, usage, supported-printer matrix (API-only until verified on metal).
 **Exit:** clean install → working app from the installer, zero command line; beta gate passed; a
 tagged beta release. **Needs:** target box + a clean test profile. **Size:** ~1.5–2.5 weeks.
+**EXIT MET (2026-06-10):** the installer (incl. PrintProof3D v0.5.0 bundled - the
+gated-on-stable branch resolved in favor) silent-installs and verify_install proves the
+REAL installed tree end-to-end (server, tools, THE SPA SERVING, prompts, a demo design,
+write isolation by full-tree diff, spaced paths); the installed WebView2 window opened the
+real app live. Beta gate: per-slice audit-lites + a two-lane audit-team on the diff AND
+the artifact - the gate caught a genuine Blocker (no SPA in the wheel; packaging fixed,
+permanently pinned by verify_install fetching '/') - remediated to 0/0/0/0/0. Hosted CI
+disposition recorded (self-hosted stays, owner decision). Real-hardware validation is the
+beta's own job at Kim's (docs/beta/first-hardware-contact.md).
 
 ---
 
