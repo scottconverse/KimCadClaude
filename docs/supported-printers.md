@@ -1,14 +1,25 @@
 # Supported printers (beta)
 
-Honesty key — two different claims, kept separate on purpose:
+**The short version:** KimCad ships the **full OrcaSlicer profile library — roughly 65
+printer brands and 1,400+ machine profiles** (Bambu Lab, Creality, Prusa, Anycubic, Elegoo,
+Voron, Sovol, Qidi, Artillery, and dozens more) inside the installer. On top of that library,
+three **reference printers** are wired end-to-end today — design checks, build-volume gate,
+and a slice **proven in CI** on every push. Surfacing the rest of the library in the printer
+picker is in progress ([#22](../../issues/22)); the profiles are already on your disk.
 
-- **API-validated:** the connection protocol works against the printer's own software
-  interface (real or conformance-mock), proven by tests. **No physical print has run.**
+Honesty key — three different claims, kept separate on purpose:
+
+- **Profile-shipped:** the machine's slicer profile is bundled (the ~1,400). The slicer
+  knows the machine; KimCad doesn't yet offer it in the picker.
+- **API-validated (reference tier):** KimCad checks designs against the machine's build
+  volume and slices with its real profile, proven by tests on every push — and the
+  connection protocol works against the printer's own software interface (real or
+  conformance-mock). **No physical print has run.**
 - **Metal-validated:** a real part printed on the real machine. *Nothing is
   metal-validated yet* — that's the beta's own job (see
   `docs/beta/first-hardware-contact.md`).
 
-## Design + slice profiles (what KimCad checks and slices against)
+## Reference printers (design checks + slice proven in CI)
 
 | Printer | Design checks | Slice profile | Notes |
 |---|---|---|---|

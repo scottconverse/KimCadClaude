@@ -15,11 +15,13 @@ CAD export** — see *Optional: the CadQuery backend*, below.
 
 > **Status: Windows beta — `0.9.0b1`.** All eleven build stages are complete and gate-passed at
 > 0/0/0/0/0; `KimCad-Setup-0.9.0b1.exe` installs a complete KimCad — app window, AI wiring, CAD
-> tools, and the PrintProof3D validation engine — with **zero terminal use**. The deterministic
-> pipeline slices end-to-end for all three reference printers (Bambu P2S, Bambu A1, Elegoo Neptune
-> 4 Max — software/profile validation). The one thing left is **real-hardware print validation** —
-> that is the beta's own job (see the [ROADMAP](ROADMAP.md) and
-> [first-hardware-contact](docs/beta/first-hardware-contact.md)).
+> tools, and the PrintProof3D validation engine — with **zero terminal use**. The installer
+> bundles the **full OrcaSlicer profile library — ~65 printer brands, 1,400+ machine profiles**;
+> three reference printers (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max) are wired end-to-end
+> with the slice **proven in CI on every push**, and the rest of the library is being surfaced
+> in the picker ([supported printers](docs/supported-printers.md)). The one thing left is
+> **real-hardware print validation** — that is the beta's own job (see the [ROADMAP](ROADMAP.md)
+> and [first-hardware-contact](docs/beta/first-hardware-contact.md)).
 >
 > **▶ [Download the installer](../../releases/latest)** &nbsp;·&nbsp; [Install guide](docs/install-guide.md)
 > &nbsp;·&nbsp; [User manual](docs/USER-MANUAL.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
