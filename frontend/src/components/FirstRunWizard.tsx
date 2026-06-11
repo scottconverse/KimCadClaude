@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { openExternal } from '../openExternal'
 import {
   getModelPullProgress,
   getModelStatus,
@@ -337,9 +338,20 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   {/* UX-A-001 (stage-A gate): the action line + its button stay MOUNTED while a
                       re-check is in flight (last-known state drives visibility), so keyboard
                       focus never drops and the wizard's Tab trap can't be escaped mid-check. */}
+                  {/* Slice 11.6: a CLEAN box can't tell "not installed" from "not
+                      running" — the guidance covers both, with the download a real
+                      button (the shell opens it in the system browser). */}
                   {model?.backend === 'local' && !model.running && (
                     <p className="kc-wiz-model-action">
-                      Start Ollama, then{' '}
+                      KimCad’s AI runs on Ollama (free). Don’t have it yet?{' '}
+                      <button
+                        type="button"
+                        className="kc-link-btn"
+                        onClick={() => openExternal('https://ollama.com/download')}
+                      >
+                        Get Ollama
+                      </button>
+                      {' '}— install it, let it start, then{' '}
                       <button
                         type="button"
                         className="kc-link-btn"
@@ -350,7 +362,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       >
                         {modelState === 'checking' ? 'checking…' : 'check again'}
                       </button>
-                      . You can finish setup either way.
+                      . Already installed? Just start it. You can finish setup either way.
                     </p>
                   )}
                   {/* The live region stays MOUNTED (UX-A-001 pattern) and carries only the
