@@ -741,17 +741,22 @@ def make_handler(
 
     # Stage 8.5 Slice 6: the user settings store, built lazily from config. Best-effort — if it
     # can't be created, /api/settings degrades to the shipped config defaults (read) / no-ops (write).
-    settings_box: dict[str, Any] = {"store": None, "tried": False}
+    # Beta-gate flake root-caused (the M-2 concurrency test caught it on the runner): the
+    # check-then-act lazy init raced — thread A set "tried" then spent time constructing
+    # (the store's one-time migration takes a lock) while thread B read the still-None
+    # store and 500'd. The init now runs under its own lock.
+    settings_box: dict[str, Any] = {"store": None, "tried": False, "lock": threading.Lock()}
 
     def get_settings_store() -> Any:
-        if not settings_box["tried"]:
-            settings_box["tried"] = True
-            try:
-                from kimcad.settings_store import SettingsStore
+        with settings_box["lock"]:
+            if not settings_box["tried"]:
+                settings_box["tried"] = True
+                try:
+                    from kimcad.settings_store import SettingsStore
 
-                settings_box["store"] = SettingsStore(get_config().settings_path())
-            except Exception:  # noqa: BLE001
-                settings_box["store"] = None
+                    settings_box["store"] = SettingsStore(get_config().settings_path())
+                except Exception:  # noqa: BLE001
+                    settings_box["store"] = None
         return settings_box["store"]
 
     def saved_settings() -> dict[str, Any]:
