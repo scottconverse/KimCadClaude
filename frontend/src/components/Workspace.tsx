@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CompareMessage, DesignResponse, DesignVersion, Message } from '../api'
 import type { HighlightRisk } from '../viewport/KCViewport'
 import ChatPanel from './ChatPanel'
-import RightPanel from './RightPanel'
+import RightPanel, { type InspectorTab } from './RightPanel'
 import VersionRail from './VersionRail'
 import Viewport from './Viewport'
 
@@ -69,6 +69,23 @@ export default function Workspace({
     setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
   }
 
+  // UI-v2 slice 2 (#23): the Inspector's active tab, lifted here so the mobile CTA (and the
+  // viewport's risk-focus) can drive it. Smart default per GEOMETRY OUTCOME: a part that
+  // fails the gate opens on Quality (you need to see why — including a slider drag that
+  // newly fails); a passing part opens on Parameters (the sliders are the hero).
+  const [tab, setTab] = useState<InspectorTab>('parameters')
+  const gateKey = result?.report ? `${result.mesh_url ?? ''}:${result.report.gate_status}` : null
+  useEffect(() => {
+    if (!gateKey) return
+    setTab(gateKey.endsWith(':fail') ? 'quality' : 'parameters')
+  }, [gateKey])
+  // Clicking a readiness risk must land the user back on Quality when they return from the
+  // viewport — keep the tab and the focus action together.
+  const focusRiskOnQuality = (id: string) => {
+    setTab('quality')
+    focusRisk(id)
+  }
+
   return (
     <main id="kimcad-main" className="kc-workspace-wrap">
       <VersionRail
@@ -107,22 +124,29 @@ export default function Workspace({
           rerendering={rerendering}
           rerenderError={rerenderError}
           onRerender={onRerender}
-          onFocusRisk={focusRisk}
+          onFocusRisk={focusRiskOnQuality}
           highlightsOn={highlightsOn}
           onToggleHighlights={() => setHighlightsOn((v) => !v)}
+          tab={tab}
+          onTab={setTab}
         />
       </div>
       {/* UX-004: on a phone the readiness verdict + Slice/Download sit below a tall viewport, off the
-          fold. A mobile-only sticky bar jumps straight to those print actions. Hidden on desktop. */}
+          fold. A mobile-only sticky bar jumps straight to those print actions — switching the
+          Inspector to the Export tab first (slice 2), else the target card is hidden. */}
       {result?.has_mesh && (
         <button
           type="button"
           className="kc-mobile-cta"
-          onClick={() =>
-            document
-              .getElementById('kc-export-card')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
+          onClick={() => {
+            setTab('export')
+            // Scroll after the tabpanel un-hides (next frame).
+            requestAnimationFrame(() =>
+              document
+                .getElementById('kc-export-card')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+            )
+          }}
         >
           ↓ Check &amp; download
         </button>

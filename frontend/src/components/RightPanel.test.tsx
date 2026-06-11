@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import type { ComponentProps } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesignResponse, ParamSpec } from '../api'
-import RightPanel from './RightPanel'
+import RightPanel, { type InspectorTab } from './RightPanel'
 
 afterEach(() => {
   cleanup()
@@ -39,8 +39,21 @@ function stubFetch() {
   )
 }
 
+// UI-v2 slice 2: a stateful harness — RightPanel's tab is lifted (Workspace owns it in the
+// app), so the tests drive a local tab state. `initialTab` puts a test straight on the tab
+// whose content it asserts ('quality' for the readiness/printability tests).
+function Harness({
+  initialTab = 'parameters',
+  ...props
+}: Omit<ComponentProps<typeof RightPanel>, 'tab' | 'onTab'> & { initialTab?: InspectorTab }) {
+  const [tab, setTab] = useState<InspectorTab>(initialTab)
+  return <RightPanel {...props} tab={tab} onTab={setTab} />
+}
+
 // Default the Stage 5 slider props so each test only states what it cares about.
-function renderPanel(overrides: Partial<ComponentProps<typeof RightPanel>> = {}) {
+function renderPanel(
+  overrides: Partial<ComponentProps<typeof Harness>> = {},
+) {
   const props = {
     result: null as DesignResponse | null,
     rerendering: false,
@@ -48,7 +61,7 @@ function renderPanel(overrides: Partial<ComponentProps<typeof RightPanel>> = {})
     onRerender: vi.fn(),
     ...overrides,
   }
-  return { ...render(<RightPanel {...props} />), props }
+  return { ...render(<Harness {...props} />), props }
 }
 
 const passResult: DesignResponse = {
@@ -110,13 +123,60 @@ const readinessResult: DesignResponse = {
   },
 }
 
+// --- UI-v2 slice 2 (#23): the Inspector tabs ---
+describe('RightPanel Inspector tabs', () => {
+  it('renders the three tabs with proper tablist semantics and switches panels', () => {
+    stubFetch()
+    renderPanel({ result: passResult })
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((t) => t.textContent)).toEqual(['Parameters', 'Quality', 'Export'])
+    expect(screen.getByRole('tab', { name: 'Parameters' }).getAttribute('aria-selected')).toBe('true')
+    // Quality content is hidden until its tab is chosen.
+    expect(screen.queryByRole('columnheader', { name: /Target/ })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Quality' }))
+    expect(screen.getByRole('tab', { name: 'Quality' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('columnheader', { name: /Target \(mm\)/ })).toBeTruthy()
+  })
+
+  it('the always-visible verdict strip shows the gate verdict on EVERY tab and opens Quality', () => {
+    stubFetch()
+    renderPanel({ result: passResult }) // parameters tab active
+    // The strip is the only VISIBLE "Passed" (role queries exclude the hidden Quality
+    // panel's badge) — the verdict never hides behind a tab.
+    const strip = screen.getByRole('button', { name: /Passed/ })
+    expect(strip).toBeTruthy()
+    fireEvent.click(strip)
+    expect(screen.getByRole('tab', { name: 'Quality' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('panels stay mounted across switches — a slider draft survives a tab round-trip', () => {
+    stubFetch()
+    renderPanel({
+      result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
+    })
+    const slider = screen.getByRole('slider', { name: 'Width' }) as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '120' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Parameters' }))
+    expect((screen.getByRole('slider', { name: 'Width' }) as HTMLInputElement).value).toBe('120')
+  })
+
+  it('shows no verdict strip before a part exists', () => {
+    stubFetch()
+    renderPanel({ result: null })
+    expect(screen.queryByText('Passed')).toBeNull()
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
+  })
+})
+
 describe('RightPanel', () => {
   it('renders the printability verdict, the size, and findings from the result', () => {
     stubFetch()
-    renderPanel({ result: passResult })
+    renderPanel({ result: passResult, initialTab: 'quality' })
     // UX-008 (stage-D): the badge carries the plain verdict — the card title supplies the
-    // subject; no "Gate:" jargon in the trust moment.
-    expect(screen.getByText('Passed')).toBeTruthy()
+    // subject; no "Gate:" jargon in the trust moment. Slice 2: the verdict appears TWICE
+    // by design — the always-visible Inspector strip + the printability card itself.
+    expect(screen.getAllByText('Passed')).toHaveLength(2)
     expect(screen.queryByText(/Gate:/)).toBeNull()
     expect(screen.getByText('Dimensions match')).toBeTruthy()
     expect(screen.getByText(/80 × 60 × 40 mm/)).toBeTruthy()
@@ -168,7 +228,7 @@ describe('RightPanel', () => {
 describe('RightPanel readiness card', () => {
   it('renders the score gauge, verdict, confidence, risks, recommendations, and attribution', () => {
     stubFetch()
-    renderPanel({ result: readinessResult })
+    renderPanel({ initialTab: 'quality', result: readinessResult })
     // The gauge exposes the score to assistive tech.
     expect(screen.getByRole('img', { name: /readiness score 72 out of 100/i })).toBeTruthy()
     expect(screen.getByText('Printable with notes')).toBeTruthy()
@@ -219,7 +279,7 @@ describe('RightPanel readiness card', () => {
     }
     const onFocusRisk = vi.fn()
     const onToggleHighlights = vi.fn()
-    renderPanel({ result: located, onFocusRisk, highlightsOn: true, onToggleHighlights })
+    renderPanel({ initialTab: 'quality', result: located, onFocusRisk, highlightsOn: true, onToggleHighlights })
     // The located risk is a button; clicking it asks the viewport to focus that issue.
     fireEvent.click(screen.getByRole('button', { name: /Overhang unsupported/i }))
     expect(onFocusRisk).toHaveBeenCalledWith('OVERHANG_UNSUPPORTED')
@@ -230,7 +290,7 @@ describe('RightPanel readiness card', () => {
 
   it('renders a non-located risk as plain text (no button, no toggle) when no geometry', () => {
     stubFetch()
-    renderPanel({ result: readinessResult, onFocusRisk: vi.fn(), onToggleHighlights: vi.fn() })
+    renderPanel({ initialTab: 'quality', result: readinessResult, onFocusRisk: vi.fn(), onToggleHighlights: vi.fn() })
     // readinessResult's risk has no geometry → not a button, and no "Show on model" toggle.
     expect(screen.queryByRole('button', { name: /Overhang unsupported/i })).toBeNull()
     expect(screen.queryByLabelText(/Show on model/i)).toBeNull()
@@ -260,7 +320,7 @@ describe('RightPanel readiness card', () => {
         },
       },
     }
-    const { container } = renderPanel({ result: passReadiness })
+    const { container } = renderPanel({ initialTab: 'quality', result: passReadiness })
     expect(container.querySelector('.kc-readiness.kc-rtone-pass')).toBeTruthy()
     expect(screen.getByText(/via KimCad printability gate/i)).toBeTruthy()
     expect(screen.getByText('Medium confidence')).toBeTruthy()
@@ -280,19 +340,19 @@ describe('RightPanel readiness card', () => {
         },
       },
     }
-    renderPanel({ result: withHistory })
+    renderPanel({ initialTab: 'quality', result: withHistory })
     expect(screen.getByText('Matches your strongest past prints.')).toBeTruthy()
   })
 
   it('shows the readiness placeholder before a part is designed', () => {
     stubFetch()
-    renderPanel({ result: null })
+    renderPanel({ initialTab: 'quality', result: null })
     expect(screen.getByText(/print-readiness score .* appears here/i)).toBeTruthy()
   })
 
   it('shows a failed-attempt note (not the idle placeholder) when the design failed', () => {
     stubFetch()
-    renderPanel({ result: { status: 'gate_failed', has_mesh: false } as DesignResponse })
+    renderPanel({ initialTab: 'quality', result: { status: 'gate_failed', has_mesh: false } as DesignResponse })
     expect(screen.getByText(/no part to assess/i)).toBeTruthy()
   })
 })
@@ -305,7 +365,7 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
     stubFetch()
     // readinessResult carries risks, recommendations, and a confidence. (UX-109, stage-BCD:
     // the standalone Gate tip was removed — the Printability title tip carries the concept.)
-    renderPanel({ result: readinessResult })
+    renderPanel({ initialTab: 'quality', result: readinessResult })
     for (const term of ['Readiness', 'Confidence', 'Risks', 'Recommendations', 'Printability']) {
       expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
     }
@@ -335,7 +395,7 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
         },
       },
     }
-    renderPanel({ result: noRisks })
+    renderPanel({ initialTab: 'quality', result: noRisks })
     expect(screen.queryByRole('button', { name: tip('Risks') })).toBeNull()
     for (const term of ['Readiness', 'Recommendations', 'Printability', 'Confidence']) {
       expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
@@ -344,7 +404,7 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
 
   it('clicking a card tip reveals its plain-language definition inline', () => {
     stubFetch()
-    renderPanel({ result: readinessResult })
+    renderPanel({ initialTab: 'quality', result: readinessResult })
     fireEvent.click(screen.getByRole('button', { name: tip('Printability') }))
     expect(screen.getByRole('note').textContent).toMatch(/pass/i)
   })
@@ -412,7 +472,7 @@ describe('RightPanel live sliders', () => {
     expect((screen.getByRole('slider', { name: 'Width' }) as HTMLInputElement).value).toBe('80')
     // The server clamps the requested value to 150 and echoes it back as the new truth.
     rerender(
-      <RightPanel
+      <Harness
         result={templateResult([param({ name: 'width', label: 'Width', value: 150, max: 200 })])}
         rerendering={false}
         rerenderError={null}
@@ -584,8 +644,8 @@ describe('RightPanel units (Slice 4)', () => {
     renderPanel({ result: passResult })
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // Column headers now read "(in)".
-    expect(screen.getByRole('columnheader', { name: /Target \(in\)/ })).toBeTruthy()
-    expect(screen.getByRole('columnheader', { name: /Actual \(in\)/ })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: /Target \(in\)/, hidden: true })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: /Actual \(in\)/, hidden: true })).toBeTruthy()
     // The 80mm target/actual cells convert to 3.15.
     expect(screen.getAllByText('3.15').length).toBeGreaterThanOrEqual(2)
   })
@@ -707,7 +767,7 @@ describe('RightPanel units (Slice 4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'in' }))
     // After ONE click: slider value 3.15 in AND the dims target/actual cells read 3.15.
     expect(screen.getByRole('button', { name: /Width: 3\.150 in/i })).toBeTruthy()
-    expect(screen.getByRole('columnheader', { name: /Target \(in\)/ })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: /Target \(in\)/, hidden: true })).toBeTruthy()
     expect(screen.getAllByText('3.15').length).toBeGreaterThanOrEqual(2)
   })
 

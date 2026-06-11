@@ -963,6 +963,74 @@ input {
   border-left: 1px solid var(--kc-hair);
 }
 
+/* UI-v2 slice 2 (#23): the Inspector — an always-visible verdict strip + the three tabs. */
+.kc-insp-verdict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-btn);
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.kc-insp-verdict:hover {
+  border-color: var(--kc-accent);
+}
+.kc-insp-verdict-score {
+  color: var(--kc-muted);
+  font-weight: 600;
+}
+.kc-insp-verdict-go {
+  margin-left: auto;
+  color: var(--kc-muted);
+}
+.kc-insp-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--kc-hair);
+  border-radius: var(--kc-r-btn);
+  background: var(--kc-surface-2);
+  /* The bar stays put while the active panel scrolls under it. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.kc-insp-tab {
+  padding: 7px 4px;
+  border: none;
+  border-radius: calc(var(--kc-r-btn) - 3px);
+  background: transparent;
+  color: var(--kc-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kc-insp-tab:hover {
+  color: var(--kc-ink);
+}
+.kc-insp-tab-active {
+  background: var(--kc-surface);
+  color: var(--kc-ink);
+  box-shadow: var(--kc-shadow-card);
+}
+.kc-insp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.kc-insp-panel[hidden] {
+  display: none;
+}
+
 .kc-card {
   display: flex;
   flex-direction: column;

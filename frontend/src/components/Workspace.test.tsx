@@ -8,7 +8,10 @@ import Workspace from './Workspace'
 // composition — specifically the UX-004 mobile "Check & download" CTA.
 vi.mock('./ChatPanel', () => ({ default: () => <div data-testid="chat" /> }))
 vi.mock('./Viewport', () => ({ default: () => <div data-testid="viewport" /> }))
-vi.mock('./RightPanel', () => ({ default: () => <div data-testid="right" /> }))
+// The mock surfaces the lifted `tab` prop (slice 2) so the CTA's tab-switch is assertable.
+vi.mock('./RightPanel', () => ({
+  default: (p: { tab?: string }) => <div data-testid="right" data-tab={p.tab} />,
+}))
 vi.mock('./VersionRail', () => ({ default: () => null }))
 
 afterEach(cleanup)
@@ -58,7 +61,7 @@ describe('Workspace mobile CTA (UX-004 / RTEST-004)', () => {
     expect(screen.getByRole('button', { name: /check & download/i })).toBeTruthy()
   })
 
-  it('the CTA scrolls the export card into view', () => {
+  it('the CTA opens the Export tab, then scrolls the export card into view', async () => {
     const el = document.createElement('div')
     el.id = 'kc-export-card'
     const scrollSpy = vi.fn()
@@ -66,6 +69,10 @@ describe('Workspace mobile CTA (UX-004 / RTEST-004)', () => {
     document.body.appendChild(el)
     render(<Workspace {...props(withMesh)} />)
     fireEvent.click(screen.getByRole('button', { name: /check & download/i }))
+    // Slice 2: the CTA first switches the Inspector to Export…
+    expect(screen.getByTestId('right').getAttribute('data-tab')).toBe('export')
+    // …then scrolls on the next frame (after the tabpanel un-hides).
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
     expect(scrollSpy).toHaveBeenCalled()
     el.remove()
   })

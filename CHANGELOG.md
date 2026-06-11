@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **The tabbed Inspector (UI-v2 slice 2, #23).** The right panel's four stacked cards are now
+  three tabs — **Parameters · Quality · Export** — under an always-visible verdict strip
+  (gate verdict + readiness score; click to open Quality), so the part's status never hides
+  behind a tab. Smart default: a gate-failing part opens on Quality, a passing one on
+  Parameters. Panels stay mounted across switches (slider drafts and an in-flight slice
+  survive), and the phone's "Check & download" bar now opens the Export tab before scrolling.
 - **Dark mode (UI-v2 slice 1, #23).** Settings → Display → Appearance: Light / Dark /
   System (follows the OS live), persisted, applied before first paint (no light flash).
   Implemented as pure token inversion — the entire UI flips from one override block, with

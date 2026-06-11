@@ -631,6 +631,16 @@ function PrintabilityCard({ result }: { result: DesignResponse | null }) {
   )
 }
 
+// KC-18 / UI-v2 slice 2 (#23): the Inspector's three tabs. 'quality' carries BOTH the
+// readiness (Smart Mesh) and printability cards — one "is it good?" surface.
+export type InspectorTab = 'parameters' | 'quality' | 'export'
+
+const _TABS: Array<{ key: InspectorTab; label: string }> = [
+  { key: 'parameters', label: 'Parameters' },
+  { key: 'quality', label: 'Quality' },
+  { key: 'export', label: 'Export' },
+]
+
 export default function RightPanel({
   result,
   rerendering,
@@ -639,6 +649,8 @@ export default function RightPanel({
   onFocusRisk,
   highlightsOn,
   onToggleHighlights,
+  tab,
+  onTab,
 }: {
   result: DesignResponse | null
   rerendering: boolean
@@ -647,23 +659,90 @@ export default function RightPanel({
   onFocusRisk?: (issueId: string) => void
   highlightsOn?: boolean
   onToggleHighlights?: () => void
+  /** UI-v2 slice 2: the active Inspector tab — lifted to Workspace so the mobile CTA (and
+   *  future surfaces) can open Export directly. */
+  tab: InspectorTab
+  onTab: (t: InspectorTab) => void
 }) {
+  const report = result?.report
   return (
     <aside className="kc-col-right">
-      <ParametersCard
-        result={result}
-        rerendering={rerendering}
-        rerenderError={rerenderError}
-        onRerender={onRerender}
-      />
-      <ReadinessCard
-        result={result}
-        onFocusRisk={onFocusRisk}
-        highlightsOn={highlightsOn}
-        onToggleHighlights={onToggleHighlights}
-      />
-      <PrintabilityCard result={result} />
-      <ExportPanel result={result} />
+      {/* The always-visible verdict strip (the reference design's "inspection band"): the
+          gate verdict never hides behind a tab. Clicking it opens Quality. */}
+      {report && (
+        <button
+          type="button"
+          className="kc-insp-verdict"
+          onClick={() => onTab('quality')}
+          title="Open the quality report"
+        >
+          <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
+            {gateLabel(report.gate_status)}
+          </span>
+          {typeof result?.report?.readiness?.score === 'number' && (
+            <span className="kc-insp-verdict-score">
+              Readiness {Math.round(result.report.readiness.score)}
+            </span>
+          )}
+          <span className="kc-insp-verdict-go" aria-hidden="true">→</span>
+        </button>
+      )}
+      <div className="kc-insp-tabs" role="tablist" aria-label="Inspector">
+        {_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            id={`kc-insp-tab-${t.key}`}
+            aria-selected={tab === t.key}
+            aria-controls={`kc-insp-panel-${t.key}`}
+            className={`kc-insp-tab${tab === t.key ? ' kc-insp-tab-active' : ''}`}
+            onClick={() => onTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {/* Panels stay MOUNTED (hidden, not unmounted) so slider drafts, debounces, and the
+          export panel's in-flight slice survive a tab switch. */}
+      <div
+        role="tabpanel"
+        id="kc-insp-panel-parameters"
+        aria-labelledby="kc-insp-tab-parameters"
+        hidden={tab !== 'parameters'}
+        className="kc-insp-panel"
+      >
+        <ParametersCard
+          result={result}
+          rerendering={rerendering}
+          rerenderError={rerenderError}
+          onRerender={onRerender}
+        />
+      </div>
+      <div
+        role="tabpanel"
+        id="kc-insp-panel-quality"
+        aria-labelledby="kc-insp-tab-quality"
+        hidden={tab !== 'quality'}
+        className="kc-insp-panel"
+      >
+        <ReadinessCard
+          result={result}
+          onFocusRisk={onFocusRisk}
+          highlightsOn={highlightsOn}
+          onToggleHighlights={onToggleHighlights}
+        />
+        <PrintabilityCard result={result} />
+      </div>
+      <div
+        role="tabpanel"
+        id="kc-insp-panel-export"
+        aria-labelledby="kc-insp-tab-export"
+        hidden={tab !== 'export'}
+        className="kc-insp-panel"
+      >
+        <ExportPanel result={result} />
+      </div>
     </aside>
   )
 }
