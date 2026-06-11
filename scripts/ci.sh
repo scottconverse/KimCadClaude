@@ -27,6 +27,11 @@ echo "[ci] ruff check..."
 # never go green on a degraded environment (the pytest collection hook only SKIPS locally).
 echo "[ci] geometry backends..."
 "$PY" scripts/check_geometry_backends.py
+# KC-5 (#10): the pinned binaries' curated CVE/advisory review (offline + deterministic;
+# pip-audit in the CI workflow covers the Python tree). Fails on a blocking advisory OR a
+# pin bumped without a review.
+echo "[ci] binary advisories..."
+"$PY" scripts/check_binary_advisories.py
 echo "[ci] pytest..."
 # -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
 # mistaken for one that proved the real slicer contract (TEST-002).

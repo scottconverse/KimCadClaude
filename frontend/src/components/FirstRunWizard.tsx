@@ -12,8 +12,8 @@ import {
 } from '../api'
 
 // Stage 8.5 Slice 9 MS-4 — the first-run setup walkthrough (spec §5.1; built to
-// docs/design/prototype/jsx/wizard.jsx). A 5-step guided setup: Welcome → Your AI model →
-// Your printer → Direct printing (optional) → Ready. It is SELECTION + persistence wired to the
+// docs/design/prototype/jsx/wizard.jsx). A 5-step guided setup: Welcome → Set up your AI →
+// Pick your printer → Direct printing (optional) → Ready. It is SELECTION + persistence wired to the
 // existing endpoints (/api/settings, /api/model-status) — there is no model download and no
 // installer/SmartScreen step here; those belong to the Stage-11 bundled installer.
 //
@@ -22,7 +22,7 @@ import {
 // and the "direct printing" step is an honest download-vs-later choice rather than a fake
 // connect-and-test form (the connector setup UI lands later).
 
-const STEPS = ['Welcome', 'Your AI model', 'Your printer', 'Direct printing', 'Ready'] as const
+const STEPS = ['Welcome', 'Set up your AI', 'Pick your printer', 'Direct printing', 'Ready'] as const
 
 function modelLabel(m: ModelStatus): string {
   if (m.backend === 'cloud') return 'Cloud'
@@ -280,7 +280,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                 <p className="kc-wiz-lede">
                   Describe a part in plain words — or start from a photo or a sketch — and get a
                   print-ready file in minutes. It runs on your computer; nothing leaves your machine
-                  unless you choose to. Let’s get you set up.
+                  unless you choose to. A few quick steps and you’re in — and you can reopen this
+                  setup any time from Settings.
                 </p>
                 <ul className="kc-wiz-bullets">
                   <li>Pick the AI model that turns your words into a design.</li>
@@ -293,7 +294,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
             {step === 1 && (
               <>
                 <h1 id={headingId} className="kc-wiz-h1">
-                  Your AI model
+                  Set up your AI
                 </h1>
                 <p className="kc-wiz-lede">
                   KimCad runs a small local model to turn your words into a validated design plan. It
@@ -476,7 +477,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
             {step === 2 && (
               <>
                 <h1 id={headingId} className="kc-wiz-h1">
-                  Your printer
+                  Pick your printer
                 </h1>
                 <p className="kc-wiz-lede">
                   This sets the build volume and slicing profile so KimCad’s checks match your

@@ -27,6 +27,10 @@ CI." It runs:
 - a committed-SPA **build-reproducibility** check (the built UI is committed; it must match a
   fresh build),
 - the **installer-staging smoke** (`build_installer --stage-only` + `verify_install`),
+- a **binary advisory review** (`scripts/check_binary_advisories.py` — every pinned
+  OpenSCAD/OrcaSlicer version must carry a reviewed CVE assessment; bumping a pin without
+  one fails the gate; the bump process is in that script's docstring). The CI workflow
+  additionally runs **pip-audit** against `requirements.lock` for the Python tree,
 - and, in release mode, live-tool proof.
 
 Enable the hook once per clone:
