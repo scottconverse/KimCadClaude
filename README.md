@@ -13,32 +13,40 @@ No CAD skills required, and the core path runs CPU-only — no discrete GPU. An 
 fallback (a second generator that can clear prompts OpenSCAD can't) and adds **editable STEP/BREP
 CAD export** — see *Optional: the CadQuery backend*, below.
 
-> Status: **beta built (`0.9.0b1`)** — awaiting real-hardware validation. The deterministic pipeline, the gated G-code export
-> (CLI `--slice` and the web UI) proven to *slice* for all three of Kim's printers (Bambu P2S,
-> Bambu A1, Elegoo Neptune 4 Max — software/profile validation, not yet a real print), and
-> Manifold3D mesh hardening are in (through Stage 7, tagged `stage-7`). **Stage 8.5 (Usability) is
-> done — merged to `main` and tagged `stage-8.5`:** local-first persistence
-> and a "My Designs" library keep your work between sessions (see *Saving your work*, below, and
-> `docs/guide-my-designs.md`); you can refine a part as a conversation with version history, type
-> exact numbers, switch between mm and inches, manage everything from an in-app Settings screen, and
-> start a design by **describing it with a photo** — read by the local vision model into a rough,
-> editable starting point that never leaves your machine. **Stage 8 (the CadQuery parallel backend
-> — mutual OpenSCAD↔CadQuery fallback + STEP export) is done — merged to `main` and tagged
-> `stage-8`.** **Stage 9 (image & sketch on-ramps) is done — merged to `main` and tagged
-> `stage-9`:** both on-ramps now run on a dedicated, *working* local vision model
-> (`qwen2.5vl:3b` — the second pull in Setup below; the photo path's Stage 8.5 wiring never
-> worked against the real model), and a new **start from a sketch** path reads written
-> dimensions as written (`docs/guide-photo-onramp.md`). **Stage 10 (direct print) is done — merged
-> to `main` and tagged `stage-10`:** send a sliced part straight from the app (connector picker →
-> in-app confirm → live status; a built-in test connection proves the path with no hardware), a
-> **Bambu-native LAN connector** for the P2S/A1 (mock-validated — see *Send to a printer*, below),
-> and the setup wizard now **downloads the AI models in-app** with progress. **Stage 11 — the
-> Windows installer + beta gate — is done, and the BETA IS BUILT (`0.9.0b1`, tagged `beta`):**
-> `KimCad-Setup-0.9.0b1.exe` installs a complete KimCad — app window, AI wiring, CAD tools,
-> the PrintProof3D validation engine — with zero terminal use
-> ([docs/install-guide.md](docs/install-guide.md)). Real-hardware print validation on Kim's
-> printers is the beta's own job — see ROADMAP and
-> [docs/beta/first-hardware-contact.md](docs/beta/first-hardware-contact.md).
+> **Status: Windows beta — `0.9.0b1`.** All eleven build stages are complete and gate-passed at
+> 0/0/0/0/0; `KimCad-Setup-0.9.0b1.exe` installs a complete KimCad — app window, AI wiring, CAD
+> tools, and the PrintProof3D validation engine — with **zero terminal use**. The deterministic
+> pipeline slices end-to-end for all three reference printers (Bambu P2S, Bambu A1, Elegoo Neptune
+> 4 Max — software/profile validation). The one thing left is **real-hardware print validation** —
+> that is the beta's own job (see the [ROADMAP](ROADMAP.md) and
+> [first-hardware-contact](docs/beta/first-hardware-contact.md)).
+>
+> **▶ [Download the installer](../../releases/latest)** &nbsp;·&nbsp; [Install guide](docs/install-guide.md)
+> &nbsp;·&nbsp; [User manual](docs/USER-MANUAL.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+
+<details>
+<summary><b>Stage-by-stage history</b> (0 → 11, each tagged)</summary>
+
+- **Stages 0–7** (`stage-0` … `stage-7`) — the deterministic core: design-plan IR, the template
+  engine + live sliders, OpenSCAD render, mesh validation + the Printability Gate, auto-orient,
+  Manifold3D hardening, the model layer (advisor + bake-off), and Smart Mesh readiness + the
+  arm's-length PrintProof3D engine.
+- **Stage 8** (`stage-8`) — the **CadQuery parallel backend**: mutual OpenSCAD↔CadQuery fallback in
+  an arm's-length worker, plus editable **STEP/BREP** export.
+- **Stage 8.5** (`stage-8.5`) — **usability**: local-first persistence + the "My Designs" library,
+  refine-as-a-conversation with version history, numeric entry, mm/inch units, the in-app Settings
+  screen, and the first "describe with a photo" on-ramp.
+- **Stage 9** (`stage-9`) — **image & sketch on-ramps** on a dedicated, working local vision model
+  (`qwen2.5vl:3b`); a dimensioned sketch reads its written dimensions as written.
+- **Stage 10** (`stage-10`) — **direct print**: send a sliced part straight from the app (picker →
+  in-app confirm → live status), a Bambu-native LAN connector for the P2S/A1, and in-app model
+  downloads with progress.
+- **Stage 11** (`stage-11` + `beta`) — the **Windows installer** (WebView2 shell, bundled Python +
+  SPA + OpenSCAD + OrcaSlicer + PrintProof3D) and the **beta gate** — the `0.9.0b1` release.
+
+Full detail in the [CHANGELOG](CHANGELOG.md) and [ROADMAP](ROADMAP.md).
+
+</details>
 
 ## What it does
 
@@ -366,24 +374,25 @@ measured in isolation) and recommends whether to switch the default; it only rec
 
 ### Local development checks
 
-Lint and tests run locally as a pre-push gate (handy when GitHub-hosted CI minutes
-aren't available). Enable the hook once per clone:
+Lint and tests run locally as a pre-push gate. Enable the hook once per clone:
 
 ```
 git config core.hooksPath .githooks
 ```
 
 After that, every `git push` runs `scripts/ci.sh` and blocks the push if anything fails.
-That local Windows pre-push hook is the **authoritative gate**: ruff, the full pytest
-suite (including the live OrcaSlicer slice), the frontend Vitest suite, a committed-SPA
-build-reproducibility check, and — in release mode — live-tool proof.
+That gate is `ruff`, the full pytest suite (including the live OrcaSlicer slice), the
+frontend Vitest suite, a committed-SPA build-reproducibility check, the installer-staging
+smoke (`build_installer --stage-only` + `verify_install`), and — in release mode —
+live-tool proof.
 
-Hosted GitHub Actions CI (`.github/workflows/ci.yml`) is an **intentionally partial
-smoke check** — Python lint + `pytest` only, on a Linux runner — and is currently
-disabled (out of Actions minutes; re-enable with `gh workflow enable CI`). It does **not**
-run the frontend tests/build or the live Windows-only OrcaSlicer slice, so a green hosted
-check is not equivalent to the local gate and is not authoritative. Treat the pre-push hook
-as the gate of record until hosted CI is brought up to the same coverage.
+**CI runs on a self-hosted GitHub Actions runner** on the Windows build box
+(`.github/workflows/ci.yml`), executing the *same* `scripts/ci.sh`. This is deliberate:
+the gate's live OpenSCAD / OrcaSlicer / CadQuery tests and the Windows installer build
+can't run on hosted Linux runners, and the repo's hosted-minutes budget is limited (see
+[the Stage 11 dispositions](docs/audits/stage-11/dispositions-2026-06-10.md)). The
+self-hosted runner is the gate of record; the pre-push hook runs the identical script so a
+push only reaches CI if it already passed locally.
 
 ## Platform notes
 
@@ -393,10 +402,43 @@ as the gate of record until hosted CI is brought up to the same coverage.
 | OpenSCAD | portable `.zip` in `tools/` | `.app` payload | AppImage |
 | OrcaSlicer | portable `.zip` in `tools/` | `.app` payload | AppImage |
 
+## Documentation
+
+| Read this | If you want to |
+|---|---|
+| **[User manual](docs/USER-MANUAL.md)** | the complete guide — everyday use, the CLI/power-user surface, and the architecture |
+| [Install guide](docs/install-guide.md) | install the Windows beta (double-click, no terminal) |
+| [Troubleshooting](docs/troubleshooting.md) | fix a setup or runtime snag, symptom-first |
+| [Supported printers](docs/supported-printers.md) | the printer + connection matrix |
+| [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) · [CHANGELOG.md](CHANGELOG.md) | go deep on the design, the plan, and the history |
+
+Task-specific guides live in [`docs/`](docs/README.md): the
+[photo/sketch on-ramp](docs/guide-photo-onramp.md), [sliders & units](docs/guide-sliders-and-units.md),
+[My Designs](docs/guide-my-designs.md), [Settings & cloud](docs/guide-settings-and-cloud.md),
+and the [CadQuery backend](docs/cadquery-backend.md).
+
+## Community & contributing
+
+KimCad is open source and welcomes use, issues, and pull requests.
+
+- **[Discussions](../../discussions)** — questions, ideas, show-and-tell, and the
+  real-hardware testing thread.
+- **[Issues](../../issues)** — bug reports and concrete feature requests.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how the build/test gate works and how to send a
+  change.
+- **[SECURITY.md](SECURITY.md)** — how to report a security concern.
+
+A note on scope: real-printer validation happens on the maintainer's hardware during the
+beta. If you run KimCad against a printer it lists as *API-validated* (not yet
+*metal-validated*), your report in Discussions is genuinely valuable — see
+[first-hardware-contact](docs/beta/first-hardware-contact.md) for what to watch.
+
 ## License
 
-Core: Apache-2.0. Bundled OpenSCAD (GPL-2.0) and OrcaSlicer (AGPL-3.0) are invoked
-as separate subprocesses, never linked — see the spec's licensing section.
+Core: **Apache-2.0** (see [LICENSE](LICENSE)). Bundled third-party engines are invoked as
+separate subprocesses, never linked: OpenSCAD (GPL-2.0), OrcaSlicer (AGPL-3.0), and the
+PrintProof3D validation engine (its own license). Each runs at arm's length, so their
+licenses do not attach to KimCad's own code.
 
 ## Project layout
 

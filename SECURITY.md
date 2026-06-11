@@ -1,7 +1,8 @@
 # Security Policy
 
-KimCad is an early-development, local-first tool. Please report security issues
-privately to the repository owner instead of opening a public issue.
+KimCad is a beta-stage, local-first tool. Please report security issues **privately** —
+use GitHub's [private vulnerability reporting](../../security/advisories/new) (Security →
+Report a vulnerability) rather than opening a public issue.
 
 ## What To Include
 

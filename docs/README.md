@@ -3,7 +3,8 @@
 A map of what's current vs. historical, so the user-facing doc surface stays clean.
 
 ## Current (read these)
-- **`install-guide.md`** — the double-click Windows installer: SmartScreen, checksums, what goes where, first run. **Start here.**
+- **`USER-MANUAL.md`** — the complete guide in three tiers (everyday use · the technical/CLI surface · architecture). **The single best starting point.**
+- **`install-guide.md`** — the double-click Windows installer: SmartScreen, checksums, what goes where, first run.
 - **`supported-printers.md`** — the printer/connection matrix, API-validated vs metal-validated kept honest.
 - **`beta/first-hardware-contact.md`** — the scripted checklist for the first real-printer session (at Kim's).
 - **`getting-started-windows.md`** — the FROM-SOURCE setup walkthrough (developers / code-checkout users).

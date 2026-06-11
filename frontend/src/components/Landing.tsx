@@ -21,6 +21,53 @@ function SendGlyph() {
   )
 }
 
+// The capability strip below the fold — it conveys the whole product arc (three on-ramps →
+// printability checking → slice/print → local-first) without crowding the prompt-first flow.
+function CapGlyph({ name }: { name: 'ways' | 'check' | 'print' | 'local' }) {
+  const common = {
+    viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: 'currentColor',
+    strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'ways')
+    return (
+      <svg {...common}>
+        <path d="M3 7h11M3 12h7M3 17h9" />
+        <path d="M17 14.5 20.5 18 17 21.5" />
+        <circle cx="18.5" cy="6.5" r="3" />
+      </svg>
+    )
+  if (name === 'check')
+    return (
+      <svg {...common}>
+        <path d="M12 3 5 6v6c0 4 3 6.5 7 9 4-2.5 7-5 7-9V6Z" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+    )
+  if (name === 'print')
+    return (
+      <svg {...common}>
+        <path d="M7 9V4h10v5" />
+        <path d="M5 9h14a2 2 0 0 1 2 2v5h-4M5 16H3v-5a2 2 0 0 1 2-2Z" />
+        <rect x="7" y="14" width="10" height="6" rx="1" />
+      </svg>
+    )
+  return (
+    <svg {...common}>
+      <rect x="5" y="11" width="14" height="9" rx="1.5" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      <circle cx="12" cy="15.5" r="1.2" />
+    </svg>
+  )
+}
+
+const CAPABILITIES = [
+  { glyph: 'ways' as const, title: 'Three ways in', body: 'Describe it, photograph it, or sketch it — KimCad reads all three into a design.' },
+  { glyph: 'check' as const, title: 'Checked for printing', body: 'Every part is validated against your printer before it can be sliced — no surprises.' },
+  { glyph: 'print' as const, title: 'Slice & print', body: 'Download a print-ready file, or send it straight to your printer from the app.' },
+  { glyph: 'local' as const, title: 'Yours, on your machine', body: 'No account, no cloud by default. Nothing you make leaves your computer.' },
+]
+
 export default function Landing({
   onSubmit,
   busy,
@@ -124,6 +171,18 @@ export default function Landing({
           <span>2. Preview &amp; refine</span>
           <span>3. Check &amp; download</span>
         </p>
+
+        <section className="kc-capabilities" aria-label="What KimCad does">
+          {CAPABILITIES.map((c) => (
+            <div key={c.title} className="kc-cap">
+              <span className="kc-cap-icon" aria-hidden="true">
+                <CapGlyph name={c.glyph} />
+              </span>
+              <span className="kc-cap-title">{c.title}</span>
+              <span className="kc-cap-body">{c.body}</span>
+            </div>
+          ))}
+        </section>
       </div>
     </main>
   )

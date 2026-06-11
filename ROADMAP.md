@@ -325,9 +325,11 @@ goals and is recorded as deferred-not-dropped in the CHANGELOG entry.
 beta gate.
 - **Windows shell via WebView2** (controlled render engine); package the built SPA + Python core +
   bundled OpenSCAD + OrcaSlicer; a single installer; unsigned (SmartScreen documented).
-- **Bundle the PrintProof3D engine + turn Smart Mesh's deeper validation ON by default.** The
-  Stage-7 integration is arm's-length and verified (KimCad generates the engine's profiles, calls
-  it, parses the report); it's only off today because the engine binary isn't shipped. Bundle the
+- **Bundle the PrintProof3D engine + turn Smart Mesh's deeper validation ON by default.** *(DONE
+  at Stage 11 — v0.5.0 bundled, ON by default in the installed beta; the text below is the original
+  plan.)* The Stage-7 integration is arm's-length and verified (KimCad generates the engine's
+  profiles, calls it, parses the report); it was off pre-Stage-11 because the engine binary wasn't
+  shipped. Bundle the
   engine `.exe` in the installer alongside OpenSCAD/OrcaSlicer (or fetch+pin it via
   `scripts/fetch_tools.py` once it cuts a stable, per-platform published release) into
   `tools/printproof3d/` — the path the default config already names — so a default install gets the
