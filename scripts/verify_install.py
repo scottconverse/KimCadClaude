@@ -48,7 +48,12 @@ def main(argv: list[str] | None = None) -> int:
                          capture_output=True, text=True, timeout=120)
     if out.returncode != 0 or not out.stdout.startswith("kimcad "):
         return fail(f"--version: rc={out.returncode} out={out.stdout!r} err={out.stderr[-300:]!r}")
-    print(f"ok: {out.stdout.strip()}")
+    version = out.stdout.strip().split(" ", 1)[1]
+    print(f"ok: kimcad {version}")
+
+    # 11.5-audit FINDING-003: snapshot the ENTIRE app tree — "untouched" is proven by
+    # diff, not by spot-checking one directory.
+    before = {str(p.relative_to(app)) for p in app.rglob("*")}
 
     # 2-4. The server on the installed payload (demo: no model needed).
     proc = subprocess.Popen(
@@ -70,7 +75,9 @@ def main(argv: list[str] | None = None) -> int:
                 time.sleep(0.5)
         if health is None:
             return fail("server never answered /api/health within 60s")
-        print(f"ok: server up, version {health['version']}")
+        if health["version"] != version:
+            return fail(f"health version {health['version']!r} != launcher version {version!r}")
+        print(f"ok: server up, version {health['version']} (matches the launcher)")
         if not (health.get("openscad") and health.get("orcaslicer")):
             return fail(f"bundled tools not seen by the app: {health}")
         print("ok: bundled OpenSCAD + OrcaSlicer present")
@@ -90,14 +97,15 @@ def main(argv: list[str] | None = None) -> int:
             return fail(f"mesh download suspiciously small ({len(mesh)} bytes)")
         print(f"ok: demo design rendered, mesh downloaded ({len(mesh)} bytes)")
 
-        # 5. Writes landed in the per-user tree, not the install dir.
+        # 5. Writes landed in the per-user tree, not the install dir — by FULL tree diff.
         local = Path(os.environ.get("LOCALAPPDATA", "")) / "KimCad" / "output" / "web"
         if not local.exists():
             return fail(f"expected writes under {local} - the paths seam isn't routing")
-        stray = [p for p in (app / "output",) if p.exists()]
-        if stray:
-            return fail(f"the install dir was written to: {stray}")
-        print(f"ok: writes under {local}, install dir untouched")
+        after = {str(p.relative_to(app)) for p in app.rglob("*")}
+        new_paths = sorted(after - before)
+        if new_paths:
+            return fail(f"the install dir gained {len(new_paths)} path(s): {new_paths[:10]}")
+        print(f"ok: writes under {local}; the install tree is byte-path identical (diffed)")
     finally:
         proc.terminate()
         try:

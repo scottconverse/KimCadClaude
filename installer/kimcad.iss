@@ -10,11 +10,15 @@
 #ifndef StagingDir
   #error StagingDir must be passed by the build script (/DStagingDir=...)
 #endif
+#ifndef AppVersionQuad
+  #error AppVersionQuad must be passed by the build script (/DAppVersionQuad=...)
+#endif
 
 [Setup]
 AppId={{7E6F3A52-0A45-4D2B-9C1E-KimCadBeta01}
 AppName=KimCad
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersionQuad}
 AppPublisher=KimCad (open source, Apache-2.0)
 AppPublisherURL=https://github.com/scottconverse/KimCadClaude
 DefaultDirName={autopf}\KimCad
@@ -50,9 +54,11 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\kimcad_launcher.py"""
   WorkingDir: "{app}"; Description: "Launch KimCad now"; Flags: postinstall nowait skipifsilent
 
 [UninstallDelete]
-; __pycache__ trees the runtime writes under the app dir despite PYTHONDONTWRITEBYTECODE
-; not being set for the shortcut (cheap to clean; user data is NOT here).
-Type: filesandordirs; Name: "{app}\site-packages\__pycache__"
+; 11.5-audit FINDING-002: the launcher disables bytecode writing, but belt-and-braces —
+; the whole payload tree goes (user data is NOT here; it lives in {localappdata}\KimCad
+; and ~\.kimcad, both handled separately below/never touched).
+Type: filesandordirs; Name: "{app}\site-packages"
+Type: filesandordirs; Name: "{app}\python"
 
 [Code]
 var

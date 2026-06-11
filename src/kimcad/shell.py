@@ -139,9 +139,10 @@ def build_shell(
             httpd.shutdown()
             httpd.server_close()
             raise RuntimeError(
-                "KimCad's app window couldn't start - the Microsoft WebView2 runtime may "
-                "be missing (install 'WebView2 Runtime' from Microsoft, or use the "
-                f"browser instead: run `kimcad web`). Detail: {e}"
+                "KimCad's app window couldn't start - the Microsoft WebView2 runtime or "
+                ".NET Framework 4.7.2+ may be missing (both ship with Windows 11; on "
+                "older Windows, install 'WebView2 Runtime' from Microsoft). The browser "
+                f"always works instead: run `kimcad web`. Detail: {e}"
             ) from e
         # SHELL-002: stop the serve loop BEFORE closing the socket — closing under a live
         # serve_forever raises WinError 10038 in the daemon thread. shutdown() is a no-op

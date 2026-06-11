@@ -40,8 +40,20 @@ DIST = ROOT / "dist"
 STAGING = DIST / "staging"
 
 # The EXACT interpreter the test suite proved (the dev venv is 3.13.13) — pinned.
+# Bump policy (11.5-audit FINDING-005): bump ONLY together with the dev venv (rebuild it,
+# run the full suite green, then update URL + SHA here in the same commit) — the installer
+# must never ship an interpreter line the suite hasn't proven.
 PY_EMBED_URL = "https://www.python.org/ftp/python/3.13.13/python-3.13.13-embed-amd64.zip"
 PY_EMBED_SHA256 = "8766a8775746235e23cf5aee5027ab1060bb981d93110577adcf3508aa0cbd55"
+
+# 11.5-audit FINDING-001: the RELEASE strip — dirs/files in site-packages that are dev/
+# build toolchain, not runtime. Includes the underscore twins and the exe-stub bin dir;
+# enforced by an assertion after the strip, and the full verify_install exercises the
+# remaining tree (trimesh/scipy/manifold/slicing) so an over-strip fails loudly.
+RELEASE_STRIP = (
+    "pytest", "_pytest", "py.test", "pluggy", "iniconfig", "coverage", "ruff",
+    "pygments", "pip", "wheel", "pip_audit", "bin",
+)
 
 # The pinned Inno Setup compiler (installed once on the build box; jrsoftware.org's
 # installer for 6.7.3, sha256 4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0).
@@ -102,9 +114,19 @@ def stage_site_packages(skip_pip: bool) -> None:
         check=True,
     )
     # The installed app is a RELEASE: the dev/test toolchain has no business in it.
-    for unwanted in ("pytest", "ruff", "pip_audit", "coverage"):
-        for p in target.glob(f"{unwanted}*"):
-            shutil.rmtree(p, ignore_errors=True)
+    for unwanted in RELEASE_STRIP:
+        for p in list(target.glob(f"{unwanted}*")) + list(target.glob(f"{unwanted.capitalize()}*")):
+            if p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                p.unlink(missing_ok=True)
+    # Stray artifacts pip --target leaves behind.
+    for p in list(target.glob("*.whl")) + list(target.glob("*coverage*.pth")):
+        p.unlink(missing_ok=True)
+    # ENFORCED, not promised (the 11.5 audit caught a cosmetic strip): nothing from the
+    # strip list may remain.
+    leftovers = [p.name for n in RELEASE_STRIP for p in target.glob(f"{n}*")]
+    assert not leftovers, f"release strip incomplete: {leftovers}"
 
 
 def stage_payload() -> None:
@@ -166,9 +188,13 @@ def compile_installer(iscc: Path) -> Path:
             f"Inno Setup compiler not found at {iscc} - install the pinned 6.7.3 there "
             "(or pass --iscc)."
         )
+    # 11.5-audit FINDING-006: an explicit numeric quad for Windows VersionInfo (the file
+    # properties dialog) — PEP 440 pre-release tags don't belong in a Win32 version.
+    quad_match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    quad = ".".join(quad_match.groups()) + ".0" if quad_match else "0.0.0.0"
     subprocess.run(
-        [str(iscc), f"/DAppVersion={version}", f"/DStagingDir={STAGING}",
-         f"/O{DIST}", str(ROOT / "installer" / "kimcad.iss")],
+        [str(iscc), f"/DAppVersion={version}", f"/DAppVersionQuad={quad}",
+         f"/DStagingDir={STAGING}", f"/O{DIST}", str(ROOT / "installer" / "kimcad.iss")],
         check=True,
     )
     out = DIST / f"KimCad-Setup-{version}.exe"

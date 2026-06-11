@@ -22,6 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 os.environ["KIMCAD_INSTALL_ROOT"] = str(ROOT)
+# 11.5-audit FINDING-002: never write .pyc under the install dir at runtime — the payload
+# ships pre-compiled, and runtime bytecode would orphan dirs past the uninstaller.
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 sys.path.insert(0, str(ROOT / "site-packages"))
 
 
