@@ -108,7 +108,8 @@ defaults:
 printers:
   bambu_p2s:
     name: "Bambu Lab P2S"
-    build_volume: [256, 256, 256]   # VERIFY exact P2S envelope (P-series standard assumed)
+    build_volume: [256, 256, 256]   # VERIFIED == the shipped Orca machine profile's printable
+                                    # area (test_configured_build_volumes_match_the_shipped_orca_profiles)
     nozzle_diameter: 0.4
     orca_machine_profile: "Bambu Lab P2S 0.4 nozzle"
     orca_process_profile: "0.20mm Standard @BBL P2S"
@@ -121,8 +122,8 @@ printers:
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
   bambu_a1:
     name: "Bambu Lab A1"
-    build_volume: [256, 256, 256]   # VERIFY exact A1 envelope (nominal 256³; A1 is a
-                                    # different machine class than the P-series)
+    build_volume: [256, 256, 256]   # VERIFIED == the shipped Orca machine profile's printable
+                                    # area (same pin test as the P2S)
     nozzle_diameter: 0.4
     orca_machine_profile: "Bambu Lab A1 0.4 nozzle"
     orca_process_profile: "0.20mm Standard @BBL A1"

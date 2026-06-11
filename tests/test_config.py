@@ -176,3 +176,54 @@ def test_real_cadquery_interpreter_is_discovered():
     p = Config.load().cadquery_interpreter()
     assert p is not None
     assert p.exists()
+
+
+def _resolve_orca_machine_value(profiles_root, profile_name: str, key: str):
+    """Read ``key`` from an Orca machine profile, walking the ``inherits`` chain (a child
+    profile holds overrides; geometry usually lives in a shared parent)."""
+    import json
+
+    def _find(name: str):
+        hits = list(profiles_root.rglob(f"{name}.json"))
+        assert hits, f"machine profile {name!r} not found under {profiles_root}"
+        return json.loads(hits[0].read_text(encoding="utf-8"))
+
+    seen = set()
+    name = profile_name
+    while name and name not in seen:
+        seen.add(name)
+        data = _find(name)
+        if key in data:
+            return data[key]
+        name = data.get("inherits")
+    return None
+
+
+@pytest.mark.real_tool
+@pytest.mark.skipif(
+    not Config.load().orca_profiles_root().exists(), reason="OrcaSlicer profiles not fetched"
+)
+def test_configured_build_volumes_match_the_shipped_orca_profiles():
+    """KC-7 (#12): the build_volume each printer is gate-checked against must MATCH the
+    printable area of the very Orca machine profile we slice with — verified against the
+    shipped profile JSONs (inherits-chain resolved), so the numbers can never silently
+    drift from the slicer's own truth. Closes the config VERIFY markers with data."""
+    cfg = Config.load()
+    root = cfg.orca_profiles_root()
+    checked = 0
+    for key in cfg.raw.get("printers", {}):
+        p = cfg.printer(key)
+        if p.build_volume is None or not p.orca_machine_profile:
+            continue
+        area = _resolve_orca_machine_value(root, p.orca_machine_profile, "printable_area")
+        height = _resolve_orca_machine_value(root, p.orca_machine_profile, "printable_height")
+        assert area is not None and height is not None, f"{key}: no geometry in profile chain"
+        # printable_area is corner points like ["0x0","256x0","256x256","0x256"] — take the max.
+        xs, ys = zip(*[(float(c.split("x")[0]), float(c.split("x")[1])) for c in area])
+        profile_volume = (max(xs), max(ys), float(height))
+        assert profile_volume == tuple(p.build_volume), (
+            f"{key}: config build_volume {p.build_volume} != shipped Orca profile "
+            f"{profile_volume} ({p.orca_machine_profile!r})"
+        )
+        checked += 1
+    assert checked >= 3  # all three reference printers carry a sliceable profile today
