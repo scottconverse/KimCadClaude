@@ -57,6 +57,20 @@ the pass count, never lower it — the OpenSCAD-primary result is always kept un
 strictly beats it (`Pipeline._better_result`). The deterministic bench above guarantees the
 CadQuery path is itself sound; this procedure quantifies the union lift on the day's model.
 
-> Note (honesty): the per-prompt union lift varies with the model and the prompt set and is not
-> pinned to a fixed number here — re-run it on the current model rather than trusting a stale
-> figure (the lesson from the Stage-6 bake-off doc).
+> Note (honesty): the per-prompt union lift varies with the model and the prompt set —
+> re-run it on the current model rather than trusting a stale figure (the lesson from the
+> Stage-6 bake-off doc). `scripts/measure_cadquery_lift.py` automates this single-pass.
+
+### Measured (KC-4, #6) — 2026-06-11, `gemma4:e4b`, all 10 Appendix-B prompts
+
+**Realized lift = 0.** With CadQuery enabled, every prompt took the LLM-codegen path (none
+matched a template family), 4/10 reached a gate-PASS, and **the CadQuery fallback won zero of
+them** — including `b04`, where OpenSCAD render-failed and CadQuery still did not produce a
+better result. So on the shipping model the LLM-CadQuery *fallback generator* earns nothing.
+
+**Decision (KC-4 → KC-2/KC-3):** drop the LLM-CadQuery **fallback generator** (the
+`provider.generate_cadquery` path that executes LLM-written Python — the repo's highest-risk
+surface). This makes **KC-3** (OS-level worker confinement) moot, and narrows **KC-2** (STEP for
+installed users) to the safe path: STEP exported from **our own trusted, template-emitted**
+CadQuery scripts only — never LLM-authored code. The deterministic engine bench (§1) still
+guarantees that trusted-template CadQuery path is sound.
