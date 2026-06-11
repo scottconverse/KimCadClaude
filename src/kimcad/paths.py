@@ -47,6 +47,16 @@ def output_dir() -> Path:
     return writable_root() / "output"
 
 
+def user_config_path() -> Path:
+    """The user's config OVERLAY (``config/local.yaml``) — repo-local in dev (as always),
+    ``%LOCALAPPDATA%\\KimCad\\config\\local.yaml`` when installed: Program Files is
+    read-only, and overriding a printer or binary path must not need elevation
+    (11.4-audit FINDING-003)."""
+    if is_installed():
+        return writable_root() / "config" / "local.yaml"
+    return install_root() / "config" / "local.yaml"
+
+
 def webview_profile_dir() -> Path:
     """The app window's WebView2 profile (SHELL-005) — uninstaller-visible, ours alone.
     ALWAYS per-user (browser profiles are user state, not repo artifacts — a dev-tree

@@ -38,7 +38,11 @@ from kimcad.config import LLMBackend, Material, Printer
 from kimcad.ir import DesignPlan, design_plan_schema, normalize_plan_dict, parse_design_plan
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
-LIBRARY_DIR = Path(__file__).resolve().parents[2] / "library"
+# 11.4-audit FINDING-002: the library manifest reads from the INSTALL root (the seam),
+# not a second parents[2] copy that could disagree with openscad_runner's routed twin.
+from kimcad.config import PROJECT_ROOT as _ROOT  # noqa: E402
+
+LIBRARY_DIR = _ROOT / "library"
 
 _FENCE = re.compile(r"^\s*```(?:\w+)?\s*|\s*```\s*$", re.MULTILINE)
 

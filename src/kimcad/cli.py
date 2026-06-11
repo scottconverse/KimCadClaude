@@ -296,6 +296,20 @@ def _phase_printer():
     return emit
 
 
+def _resolve_out(raw: str) -> Path:
+    """Slice 11.4 (+11.4-audit FINDING-004): in the INSTALLED app a relative --out must
+    not land in Program Files / whatever CWD the shortcut launched with — it goes to the
+    per-user writable tree. Dev behavior (CWD-relative) is unchanged. Shared by design,
+    bench, and bakeoff."""
+    out = Path(raw)
+    if not out.is_absolute():
+        from kimcad.paths import is_installed, writable_root
+
+        if is_installed():
+            out = writable_root() / out
+    return out
+
+
 def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     # --send implies slicing (you can't send what wasn't sliced); validate the connector
     # up front so a typo fails fast, not after a multi-minute run. QA-1004 (stage-10 gate):
@@ -321,15 +335,7 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     pipeline = _build_pipeline(config, args)
     if do_slice:
         print(_slice_intent(config, pipeline.printer, pipeline.material))
-    # Slice 11.4: in the INSTALLED app a relative --out must not land in Program Files /
-    # whatever CWD the shortcut launched with — it goes to the per-user writable tree.
-    # Dev behavior (CWD-relative) is unchanged.
-    out_path = Path(args.out)
-    if not out_path.is_absolute():
-        from kimcad.paths import is_installed, writable_root
-
-        if is_installed():
-            out_path = writable_root() / out_path
+    out_path = _resolve_out(args.out)
     result = pipeline.run(
         args.prompt,
         out_path,
@@ -392,7 +398,7 @@ def _cmd_bench(config: Config, args: argparse.Namespace) -> int:
 
     pipeline = _build_pipeline(config, args)
     cases = load_cases(prompts_path)
-    out_dir = Path(args.out)
+    out_dir = _resolve_out(args.out)
     summary = run_benchmark(
         cases, make_case_runner(pipeline, out_dir, slice_for_grade=args.slice)
     )
@@ -438,7 +444,7 @@ def _cmd_bakeoff(config: Config, args: argparse.Namespace) -> int:
     material = config.material(args.material)
     incumbent = config.raw["llm"]["active"]
     cases = load_cases(prompts_path)
-    out_dir = Path(args.out)
+    out_dir = _resolve_out(args.out)
 
     bakeoff = run_bakeoff(
         backends,

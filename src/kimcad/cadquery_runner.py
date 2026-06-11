@@ -61,7 +61,9 @@ def _worker_env() -> dict[str, str]:
 # The worker script, run by the foreign <=3.13 interpreter BY ABSOLUTE PATH (not `-m`,
 # since the kimcad package isn't installed in the 3.13 environment). It's a sibling file.
 WORKER_PATH = Path(__file__).with_name("cadquery_worker.py")
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# 11.4-audit FINDING-001: routed through the paths seam (config re-exports it) — a local
+# parents[2] copy silently bypassed KIMCAD_INSTALL_ROOT for worker-venv discovery.
+from kimcad.config import PROJECT_ROOT  # noqa: E402
 
 # Imports the generated script may make. Everything else is blocked. (The worker also
 # pre-injects ``cq``/``cadquery``/``math``, so a well-formed script needs no import at all.)

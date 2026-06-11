@@ -20,10 +20,13 @@ import yaml
 # PROJECT_ROOT-relative (config templates, tools/, the worker venv) keeps working in both
 # layouts because the installer stages those trees under the install root.
 from kimcad.paths import install_root as _install_root
+from kimcad.paths import user_config_path as _user_config_path
 
 PROJECT_ROOT = _install_root()
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "default.yaml"
-LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
+# The user overlay is WRITABLE in both layouts (11.4-audit FINDING-003): repo-local in
+# dev, %LOCALAPPDATA%\KimCad\config\local.yaml when installed.
+LOCAL_CONFIG = _user_config_path()
 
 
 class UnknownConfigKey(RuntimeError):
