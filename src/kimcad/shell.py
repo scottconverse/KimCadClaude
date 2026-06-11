@@ -21,7 +21,6 @@ CadQuery posture).
 
 from __future__ import annotations
 
-import os
 import threading
 import webbrowser
 from http.server import ThreadingHTTPServer
@@ -61,9 +60,10 @@ class _JsApi:
 def _webview_storage_dir() -> Path:
     """Where the WebView2 profile lives (SHELL-005): our own app dir, not the shared
     ``%APPDATA%\\pywebview`` default — so the uninstaller can find it and other pywebview
-    apps can't share our profile. Routed through the Slice-11.4 paths seam when it lands."""
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    return Path(base) / "KimCad" / "webview"
+    apps can't share our profile. Routed through the Slice-11.4 paths seam."""
+    from kimcad.paths import webview_profile_dir
+
+    return webview_profile_dir()
 
 
 def build_shell(
@@ -87,9 +87,9 @@ def build_shell(
 
     config = Config.load()
     pipeline = build_web_pipeline(demo=demo, backend=backend)
-    # SHELL-006: CWD-relative on purpose for now — this path routes through the
-    # Slice-11.4 paths seam (writable_root) when it lands; shell.py is on 11.4's list.
-    web_root = Path("output") / "web"
+    from kimcad.paths import output_dir
+
+    web_root = output_dir() / "web"  # SHELL-006 closed: routed through the 11.4 seam
     handler = make_handler(pipeline, web_root, config=config)
     httpd: ThreadingHTTPServer | None = None
     for candidate in SHELL_PORTS:

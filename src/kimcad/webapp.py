@@ -2267,7 +2267,11 @@ def serve(
 
     config = Config.load()
     pipeline = build_web_pipeline(demo=demo, backend=backend)
-    web_root = out_root if out_root is not None else Path("output") / "web"
+    # Slice 11.4: the server's write tree routes through the paths seam — CWD-relative
+    # "output" breaks the moment the installed app launches from Program Files.
+    from kimcad.paths import output_dir
+
+    web_root = out_root if out_root is not None else output_dir() / "web"
     try:
         httpd = _ExclusiveBindServer((host, port), make_handler(pipeline, web_root, config=config))
     except OSError as e:

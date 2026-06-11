@@ -321,9 +321,18 @@ def _cmd_design(config: Config, args: argparse.Namespace) -> int:
     pipeline = _build_pipeline(config, args)
     if do_slice:
         print(_slice_intent(config, pipeline.printer, pipeline.material))
+    # Slice 11.4: in the INSTALLED app a relative --out must not land in Program Files /
+    # whatever CWD the shortcut launched with — it goes to the per-user writable tree.
+    # Dev behavior (CWD-relative) is unchanged.
+    out_path = Path(args.out)
+    if not out_path.is_absolute():
+        from kimcad.paths import is_installed, writable_root
+
+        if is_installed():
+            out_path = writable_root() / out_path
     result = pipeline.run(
         args.prompt,
-        Path(args.out),
+        out_path,
         proceed_anyway=args.proceed_anyway,
         confirm_print=do_slice,
         # QA-005: a real local generation takes minutes on the CPU target; a silent console

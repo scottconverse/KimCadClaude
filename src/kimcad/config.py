@@ -15,7 +15,13 @@ from typing import Any
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Slice 11.4: PROJECT_ROOT is the READ root — the repo root in dev, the install dir when
+# the launcher sets KIMCAD_INSTALL_ROOT (paths.py is the one switch). Everything that was
+# PROJECT_ROOT-relative (config templates, tools/, the worker venv) keeps working in both
+# layouts because the installer stages those trees under the install root.
+from kimcad.paths import install_root as _install_root
+
+PROJECT_ROOT = _install_root()
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "default.yaml"
 LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
 

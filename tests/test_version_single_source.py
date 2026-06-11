@@ -40,6 +40,33 @@ def test_no_source_file_carries_a_version_literal():
     assert offenders == [], f"version literals outside pyproject: {offenders}"
 
 
+def test_frontend_package_version_is_in_lockstep():
+    """11.3-audit FINDING-001/002: package.json AND its lock carry the npm-semver twin of
+    pyproject's PEP 440 version (0.9.0b1 <-> 0.9.0-beta.1) — enforced, not promised."""
+    import json
+    import re
+
+    declared = _declared()
+    m = re.fullmatch(r"(\d+\.\d+\.\d+)b(\d+)", declared)
+    expected = f"{m.group(1)}-beta.{m.group(2)}" if m else declared
+    pkg = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
+    assert pkg["version"] == expected
+    lock = json.loads((ROOT / "frontend" / "package-lock.json").read_text(encoding="utf-8"))
+    assert lock["version"] == expected
+
+
+def test_installer_scripts_take_the_version_as_a_parameter():
+    """11.3-audit FINDING-002 (forward guard): any Inno script must receive the version
+    via /D define (the build script reads pyproject), never carry a literal."""
+    declared = _declared()
+    iss_dir = ROOT / "installer"
+    if not iss_dir.exists():
+        return  # Slice 11.5 creates it; the guard arms itself then
+    for p in iss_dir.rglob("*.iss"):
+        text = p.read_text(encoding="utf-8", errors="replace")
+        assert declared not in text, f"{p.name} hardcodes the version - use /DAppVersion"
+
+
 def test_cli_version_flag_prints_the_single_source():
     out = subprocess.run(
         [sys.executable, "-m", "kimcad.cli", "--version"],
