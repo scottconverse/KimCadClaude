@@ -138,6 +138,20 @@ a KimCad you started earlier and forgot.
 kimcad web --port 8766
 ```
 
+## No "Download editable CAD (.STEP)" button / the STEP download fails
+
+**Cause (no button):** the optional CAD export engine (CadQuery) isn't installed — the
+Export panel then says so and points at Settings. Note the experimental generator's parts
+are `.STL`-only by design; only standard (template-built) parts can export STEP.
+
+**Fix:** *Settings → Editable CAD export* walks through the one-time setup
+(`py -3.13 -m pip install cadquery`, then *check again* — no restart needed). The first
+STEP download after that takes a few seconds while KimCad prepares the file.
+
+**Cause (button present but the download errors):** the engine install is broken or was
+removed mid-session. Re-run the pip install, then *check again* in Settings; the terminal
+running `kimcad web` logs the underlying error.
+
 ## Parts download as .stl instead of .3mf
 
 **Cause:** an OpenSCAD build without 3MF support (lib3mf). KimCad notices and falls back

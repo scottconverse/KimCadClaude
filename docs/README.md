@@ -6,6 +6,8 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 - **`USER-MANUAL.md`** — the complete guide in three tiers (everyday use · the technical/CLI surface · architecture). **The single best starting point.**
 - **`FAQ.md`** — quick answers to the questions beta users actually ask (SmartScreen, the model download, printers, privacy, recovery).
 - **`api.md`** — the local HTTP API, endpoint by endpoint, for integrators.
+- **`MODEL-GUIDE.md`** — which AI models ship, the measured bake-off behind the choice, and what to expect.
+- **`definition-of-done.md`** — what "done" means here: the per-change gate, the per-stage audits, the beta bar.
 - **`install-guide.md`** — the double-click Windows installer: SmartScreen, checksums, what goes where, first run.
 - **`supported-printers.md`** — the printer/connection matrix, API-validated vs metal-validated kept honest.
 - **`beta/first-hardware-contact.md`** — the scripted checklist for the first real-printer session (at Kim's).
