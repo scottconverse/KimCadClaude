@@ -39,7 +39,12 @@ def main(argv: list[str] | None = None) -> int:
     app = args.install_dir.resolve()
     py = app / "python" / "python.exe"
     launcher = app / "kimcad_launcher.py"
-    for p in (py, launcher, app / "tools" / "openscad", app / "config" / "default.yaml"):
+    for p in (
+        py, launcher, app / "tools" / "openscad", app / "config" / "default.yaml",
+        # Slice 11.7: the PrintProof3D engine ships (stable v0.5.0) — the default install
+        # must carry it at the path the config names.
+        app / "tools" / "printproof3d" / "printproof3d.exe",
+    ):
         if not p.exists():
             return fail(f"install tree incomplete: {p} missing")
 

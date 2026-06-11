@@ -3,7 +3,10 @@
 A map of what's current vs. historical, so the user-facing doc surface stays clean.
 
 ## Current (read these)
-- **`getting-started-windows.md`** — the non-developer Windows setup walkthrough (start here if you just want to use KimCad).
+- **`install-guide.md`** — the double-click Windows installer: SmartScreen, checksums, what goes where, first run. **Start here.**
+- **`supported-printers.md`** — the printer/connection matrix, API-validated vs metal-validated kept honest.
+- **`beta/first-hardware-contact.md`** — the scripted checklist for the first real-printer session (at Kim's).
+- **`getting-started-windows.md`** — the FROM-SOURCE setup walkthrough (developers / code-checkout users).
 - **`troubleshooting.md`** — symptom → cause → fix for every known setup/runtime snag.
 - **`design/`** — the controlling UI/UX design + the v3.0 product spec (`design/KimCad-Unified-Product-Spec-v3.0.md`). Build to this.
 - **`guide-my-designs.md`** — user-facing guide for the "My Designs" library.

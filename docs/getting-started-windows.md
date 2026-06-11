@@ -1,13 +1,19 @@
 # Getting started on Windows
 
+> **The easy way (the beta installer):** download `KimCad-Setup-<version>.exe` from the
+> releases page, double-click it, and follow
+> **[docs/install-guide.md](install-guide.md)** — no terminal at any point. The installer
+> bundles everything below except Ollama, and the in-app setup wizard handles Ollama and
+> the AI-model downloads with buttons and progress bars.
+>
+> **The rest of this page is the FROM-SOURCE path** — for developers, or anyone who
+> prefers to run KimCad from a code checkout.
+
 This walks you from nothing to a running KimCad, step by step. No CAD experience needed —
 and no programming. You'll copy a few commands into a terminal; each one is given exactly
-as you should type it.
-
-> **Heads-up:** until the one-click Windows installer ships (it's the last planned stage
-> before beta), setup means installing three things yourself: Python, Ollama, and KimCad's
-> own files. It takes about 15–30 minutes, most of it download time. If anything goes
-> wrong, [troubleshooting.md](troubleshooting.md) has the fixes for every common snag.
+as you should type it. Setup means installing three things yourself: Python, Ollama, and
+KimCad's own files — about 15–30 minutes, most of it download time. If anything goes
+wrong, [troubleshooting.md](troubleshooting.md) has the fixes for every common snag.
 
 ## What you'll need
 

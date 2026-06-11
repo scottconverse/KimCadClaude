@@ -144,6 +144,23 @@ def stage_payload() -> None:
     shutil.copy2(ROOT / "LICENSE", STAGING / "LICENSE")
 
 
+# Slice 11.7: the PrintProof3D validation engine reached STABLE v0.5.0 (2026-06-03) —
+# the ROADMAP's bundling gate is met, so a default install gets the real overhang/bridge/
+# bed-adhesion validation, not gate-only. The wrapper already degrades gracefully if the
+# binary is absent or misbehaves, so bundling can't destabilize the install.
+PP3D_URL = "https://github.com/scottconverse/PrintProof3D/releases/download/v0.5.0/printproof3d.exe"
+PP3D_SHA256 = "a0257980c29376813993bf7b74668b8368ba5da0218e2b1e73d52833561a5def"
+
+
+def stage_printproof3d() -> None:
+    print("printproof3d: staging the validation engine (v0.5.0, pinned) …")
+    cache = DIST / "cache" / "printproof3d.exe"
+    _download_verified(PP3D_URL, PP3D_SHA256, cache)
+    target = STAGING / "tools" / "printproof3d"
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(cache, target / "printproof3d.exe")
+
+
 def stage_tools() -> None:
     print("tools: OpenSCAD + OrcaSlicer …")
     target = STAGING / "tools"
@@ -217,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     stage_site_packages(args.skip_pip)
     stage_payload()
     stage_tools()
+    stage_printproof3d()
     smoke_staging()
     if args.stage_only:
         print("staged only (no installer) - dist/staging is ready")
