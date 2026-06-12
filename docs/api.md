@@ -115,6 +115,17 @@ per-send confirmation; a gate-failed or never-sliced part is refused. Responds w
 connector's typed result (including `simulated: true` for the built-in mock — a simulated
 send is never narrated as a real print).
 
+### POST `/api/print-outcome/<rid>`
+
+Record the optional real-world result after a **real** hardware send. The web UI offers
+`clean`, `issues`, `failed`, or `skip`; `skip` records nothing. Non-skip answers append a
+coarse local-only Smart Mesh history row (`print_outcome`) so KimCad can learn from actual
+prints without storing prompt text or geometry.
+
+Request: `{"outcome": "clean" | "issues" | "failed" | "skip"}`
+
+Response: `{"recorded": true, "outcome": "issues"}` (or `recorded:false` for skip).
+
 ### GET `/api/connectors` · GET `/api/connector-status/<name>` · GET/POST `/api/connections`
 
 `connectors` lists configured connections (`name`, `simulated`, `configured`).

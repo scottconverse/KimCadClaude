@@ -19,6 +19,7 @@ import {
   postSettings,
   postSlice,
   renameDesign,
+  recordPrintOutcome,
   reopenDesign,
   saveDesign,
   sendDesign,
@@ -517,6 +518,21 @@ describe('settings + status GET wrappers (TEST-403)', () => {
     const f = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ name: 'a b', ready: false }) }))
     await getConnectorStatus('a b')
     expect((f.mock.calls[0] as unknown[])[0]).toBe('/api/connector-status/a%20b')
+  })
+
+  it('recordPrintOutcome POSTs the real-print outcome to /api/print-outcome/<id>', async () => {
+    const f = mockFetch(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ recorded: true }),
+    }))
+    const r = await recordPrintOutcome(4, 'issues')
+    expect(r.recorded).toBe(true)
+    const call = f.mock.calls[0] as unknown[]
+    expect(call[0]).toBe('/api/print-outcome/4')
+    const init = call[1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({ outcome: 'issues' })
   })
 
   it('propagates the backend error message on a non-2xx GET', async () => {

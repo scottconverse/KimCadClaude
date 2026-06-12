@@ -206,6 +206,17 @@ after the slice build and reached 1024 pytest + 375 vitest; the pre-commit build
 correctly stayed red until the rebuilt SPA bundle is committed, so the final green gate is
 run after commit.
 
+**UI-v2 SLICE 6 - DONE (Codex, 2026-06-12):** print-outcome capture after a real send.
+Data contract: `POST /api/print-outcome/<rid>` accepts `clean` / `issues` / `failed` / `skip`;
+skip records nothing, non-skip appends a coarse local Smart Mesh history row with optional
+`print_outcome`. SendPanel only asks after `sendDesign` returns `sent:true` and `simulated:false`;
+mock/test sends do not ask. Failing tests landed first for the history field, backend endpoint,
+frontend API helper, and SendPanel prompt. Verified targeted Python + frontend tests, full
+Vitest (378), `tests/test_history.py` + `tests/test_webapp.py` (146), Vite/tsc build, and
+audit-lite at 0/0/0/0/0 (`audit-lite-ui-v2-slice-6-print-outcome-2026-06-12.md`). Final full
+`scripts/ci.sh` runs after the rebuilt SPA bundle is committed, matching the build-repro gate's
+HEAD comparison.
+
 **UI-v2 SLICE 3 DONE** (commit "UI-v2 slice 3", in/through the gate): the part-library
 browser — GET /api/templates (registry-driven; #19 catalog lands here automatically) +
 LibraryModal (searchable cards, seed-prompt picks through the normal flow) + landing entry.

@@ -15,11 +15,13 @@ vi.mock('../api', async (importOriginal) => {
     getConnectors: vi.fn(),
     getConnectorStatus: vi.fn(),
     sendDesign: vi.fn(),
+    recordPrintOutcome: vi.fn(),
   }
 })
 const mockConnectors = api.getConnectors as unknown as ReturnType<typeof vi.fn>
 const mockStatus = api.getConnectorStatus as unknown as ReturnType<typeof vi.fn>
 const mockSend = api.sendDesign as unknown as ReturnType<typeof vi.fn>
+const mockOutcome = api.recordPrintOutcome as unknown as ReturnType<typeof vi.fn>
 
 afterEach(() => {
   cleanup()
@@ -133,6 +135,32 @@ describe('SendPanel', () => {
     await waitFor(() => expect(mockStatus).toHaveBeenCalledWith('octoprint'))
     // UX-1006: right after OUR send, "printing" is the user's own job — progress, not "Busy".
     expect(await screen.findByText(/printing — your job is running/i)).toBeTruthy()
+  })
+
+  it('asks for the real print outcome after a hardware send and records the answer', async () => {
+    mockConnectors.mockResolvedValue(REAL_AND_MOCK)
+    mockSend.mockResolvedValue({ sent: true, connector: 'octoprint', simulated: false, job_id: 'j10', state: 'printing' })
+    mockStatus.mockResolvedValue({
+      name: 'octoprint', ready: false, online: true, state: 'printing', reason: 'busy', simulated: false,
+    })
+    mockOutcome.mockResolvedValue({ recorded: true })
+    render(<SendPanel designId={10} />)
+    fireEvent.click(await screen.findByRole('button', { name: /send to printer/i }))
+    fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
+    expect(await screen.findByText(/how did the print come out/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /had issues/i }))
+    await waitFor(() => expect(mockOutcome).toHaveBeenCalledWith(10, 'issues'))
+    expect(await screen.findByText(/thanks — saved/i)).toBeTruthy()
+  })
+
+  it('does not ask for an outcome after a simulated send', async () => {
+    mockConnectors.mockResolvedValue(MOCK_ONLY)
+    mockSend.mockResolvedValue({ sent: true, connector: 'mock', simulated: true, job_id: 'j1' })
+    render(<SendPanel designId={11} />)
+    fireEvent.click(await screen.findByRole('button', { name: /send test job/i }))
+    fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
+    expect(await screen.findByText(/test job accepted/i)).toBeTruthy()
+    expect(screen.queryByText(/how did the print come out/i)).toBeNull()
   })
 
   it('unmount stops the live-status poll chain (no background polling after re-slice)', async () => {

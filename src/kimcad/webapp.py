@@ -151,6 +151,20 @@ def _report_payload(report: Any) -> dict[str, Any]:
     }
 
 
+PRINT_OUTCOMES = {"clean", "issues", "failed", "skip"}
+
+
+def _max_actual_dim_from_payload(payload: dict[str, Any]) -> float:
+    dims = ((payload.get("report") or {}).get("dims") or [])
+    values: list[float] = []
+    for item in dims:
+        try:
+            values.append(float(item.get("actual")))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return max(values) if values else 0.0
+
+
 def _result_to_payload(result: Any) -> dict[str, Any]:
     """Shape a :class:`PipelineResult` into the JSON the UI consumes — shared by the initial
     design response and the live-slider re-render so both expose an identical contract:
@@ -1204,6 +1218,9 @@ def make_handler(
             if self.path.startswith("/api/send/"):
                 self._handle_send(self.path.rsplit("/", 1)[-1])
                 return
+            if self.path.startswith("/api/print-outcome/"):
+                self._handle_print_outcome(self.path.rsplit("/", 1)[-1])
+                return
             # Stage 8.5 — saved designs ("My Designs").
             if self.path == "/api/designs/save":
                 self._handle_design_save()
@@ -1678,6 +1695,49 @@ def make_handler(
             except ConnectorError:
                 pass
             self._json(200, info)
+
+        def _handle_print_outcome(self, raw_id: str) -> None:
+            """Record a real-world print outcome in the local Smart Mesh history store."""
+            from kimcad.history import HistoryStore, PrintRecord
+
+            try:
+                rid = int(raw_id)
+            except ValueError:
+                self._json(404, {"error": "Not found."})
+                return
+            data = self._read_json_body()
+            if data is None:
+                return
+            outcome = data.get("outcome")
+            if outcome not in PRINT_OUTCOMES:
+                self._json(400, {"error": "Unknown print outcome."})
+                return
+            if outcome == "skip":
+                self._json(200, {"recorded": False, "outcome": "skip"})
+                return
+            with reg.lock:
+                snap = reg.snapshot.get(rid)
+            if snap is None:
+                self._json(404, {"error": "That design is no longer available."})
+                return
+            try:
+                score = int(snap.get("readiness_score"))
+            except (TypeError, ValueError):
+                score = 0
+            payload = snap.get("payload") or {}
+            store = HistoryStore(get_config().history_path())
+            store.record(
+                PrintRecord(
+                    object_type=str(snap.get("object_type") or "part"),
+                    score=score,
+                    gate_status=str(snap.get("gate_status") or ""),
+                    material="",
+                    max_dim_mm=_max_actual_dim_from_payload(payload),
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    print_outcome=str(outcome),
+                )
+            )
+            self._json(200, {"recorded": True, "outcome": outcome})
 
         def _handle_photo_seed(self) -> None:
             """Slice 7: read an uploaded photo and return a ROUGH text seed (a description +

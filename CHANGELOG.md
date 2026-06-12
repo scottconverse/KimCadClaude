@@ -25,6 +25,9 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Print outcome capture (UI-v2 slice 6, #23).** After a real hardware send, KimCad now asks
+  **Came out clean / Had issues / Failed / Skip** and records non-skip answers in the local
+  Smart Mesh history store. Simulated test sends never ask, and skipping records nothing.
 - **Smart Mesh polish (UI-v2 slice 5, #23).** The Readiness card now treats a sparse local
   history as **"Track record: building"** instead of "Low confidence", keeps the gauge and
   history-comparison line intact, and pins the readiness verdict/confidence chip contrast in

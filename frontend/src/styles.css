@@ -3142,6 +3142,15 @@ input {
   align-items: center;
   gap: 6px;
 }
+.kc-print-outcome {
+  margin-top: 10px;
+}
+.kc-outcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
 
 /* Slice 11.2 — the Settings Printer-connections card. */
 .kc-conn-row {

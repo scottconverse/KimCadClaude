@@ -175,6 +175,34 @@ def test_http_layer_serves_index_design_and_mesh(tmp_path):
         httpd.server_close()
 
 
+def test_print_outcome_endpoint_records_real_world_result(tmp_path):
+    """UI-v2 slice 6: a post-send outcome is fed into the local Smart Mesh history store."""
+    import json
+    import urllib.request
+
+    from kimcad.history import HistoryStore
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        design = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a 20mm block"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+        rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        outcome = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/print-outcome/{rid}",
+            data=json.dumps({"outcome": "issues"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=10))
+
+    assert outcome == {"recorded": True, "outcome": "issues"}
+    records = HistoryStore(Config.load().history_path()).load()
+    assert records[-1].object_type == "block"
+    assert records[-1].print_outcome == "issues"
+
+
 # --- webapp hardening (ENG-004 / QA-003 / ENG-010) ----------------------------
 #
 # These exercise the real HTTP layer over an ephemeral port, like the test above, but

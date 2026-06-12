@@ -48,6 +48,7 @@ class PrintRecord:
     material: str
     max_dim_mm: float  # the largest bounding-box dimension — a coarse size handle
     created_at: str | None = None  # ISO-8601 if the caller stamps it; optional
+    print_outcome: str | None = None  # "clean" | "issues" | "failed" after a real print
 
 
 def compare_phrase(object_type: str, score: int, prior: list[PrintRecord]) -> str | None:
@@ -110,6 +111,7 @@ class HistoryStore:
                         material=str(item.get("material", "")),
                         max_dim_mm=float(item.get("max_dim_mm", 0.0)),
                         created_at=item.get("created_at"),
+                        print_outcome=item.get("print_outcome"),
                     )
                 )
             except (KeyError, TypeError, ValueError):

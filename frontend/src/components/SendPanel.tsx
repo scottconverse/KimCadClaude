@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getConnectors,
   getConnectorStatus,
+  recordPrintOutcome,
   sendDesign,
   type ConnectorStatusResponse,
   type ConnectorsResponse,
+  type PrintOutcome,
   type SendResponse,
 } from '../api'
 import { connectorLabel, connectorTone } from '../connectorStatus'
@@ -36,6 +38,7 @@ export default function SendPanel({ designId }: { designId: number | null }) {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<SendResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [outcomeState, setOutcomeState] = useState<'ask' | 'saving' | 'saved' | 'error' | 'skipped' | null>(null)
   const [live, setLive] = useState<ConnectorStatusResponse | null>(null)
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Generation counter: a new send (or unmount) bumps it, and any in-flight status request
@@ -130,16 +133,33 @@ export default function SendPanel({ designId }: { designId: number | null }) {
     setSending(true)
     setError(null)
     setResult(null)
+    setOutcomeState(null)
     setLive(null)
     stopPoll()
     try {
       const r = await sendDesign(designId, chosen)
       setResult(r)
+      if (r.sent && !r.simulated) setOutcomeState('ask')
       if (r.sent && !r.simulated) pollStatus(chosen, 120, pollGen.current) // follow a REAL job (~10 min cap)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Couldn’t reach the printer connection.')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function saveOutcome(outcome: PrintOutcome) {
+    if (designId == null) return
+    if (outcome === 'skip') {
+      setOutcomeState('skipped')
+      return
+    }
+    setOutcomeState('saving')
+    try {
+      await recordPrintOutcome(designId, outcome)
+      setOutcomeState('saved')
+    } catch {
+      setOutcomeState('error')
     }
   }
 
@@ -251,6 +271,57 @@ export default function SendPanel({ designId }: { designId: number | null }) {
                 </>
               )}
             </p>
+          )}
+          {!result.simulated && outcomeState && (
+            <div className="kc-print-outcome" aria-live="polite">
+              {outcomeState === 'ask' || outcomeState === 'saving' ? (
+                <>
+                  <p className="kc-muted-note">How did the print come out?</p>
+                  <div className="kc-outcome-actions" role="group" aria-label="Print outcome">
+                    <button
+                      type="button"
+                      className="kc-btn kc-btn-ghost"
+                      onClick={() => saveOutcome('clean')}
+                      disabled={outcomeState === 'saving'}
+                    >
+                      Came out clean
+                    </button>
+                    <button
+                      type="button"
+                      className="kc-btn kc-btn-ghost"
+                      onClick={() => saveOutcome('issues')}
+                      disabled={outcomeState === 'saving'}
+                    >
+                      Had issues
+                    </button>
+                    <button
+                      type="button"
+                      className="kc-btn kc-btn-ghost"
+                      onClick={() => saveOutcome('failed')}
+                      disabled={outcomeState === 'saving'}
+                    >
+                      Failed
+                    </button>
+                    <button
+                      type="button"
+                      className="kc-btn kc-btn-ghost"
+                      onClick={() => saveOutcome('skip')}
+                      disabled={outcomeState === 'saving'}
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </>
+              ) : outcomeState === 'saved' ? (
+                <p className="kc-muted-note">Thanks — saved to your local print history.</p>
+              ) : outcomeState === 'skipped' ? (
+                <p className="kc-muted-note">Skipped — no outcome was recorded.</p>
+              ) : (
+                <p className="kc-muted-note kc-export-error">
+                  Couldn&rsquo;t save that outcome. Your print file is still ready above.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -518,6 +518,22 @@ export async function sendDesign(designId: number, connector: string): Promise<S
   return data as SendResponse
 }
 
+export type PrintOutcome = 'clean' | 'issues' | 'failed' | 'skip'
+
+export async function recordPrintOutcome(
+  designId: number,
+  outcome: PrintOutcome,
+): Promise<{ recorded: boolean; outcome: PrintOutcome }> {
+  const res = await fetch(`/api/print-outcome/${designId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome }),
+  })
+  const data = await readJson(res)
+  throwIfNotOk(res, data)
+  return data as { recorded: boolean; outcome: PrintOutcome }
+}
+
 export function getConnectorStatus(name: string): Promise<ConnectorStatusResponse> {
   return getJson<ConnectorStatusResponse>(`/api/connector-status/${encodeURIComponent(name)}`)
 }
