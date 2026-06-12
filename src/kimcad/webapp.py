@@ -714,6 +714,10 @@ def make_handler(
     # Keyed by path -> (mtime, size, etag, body); a rebuild changes mtime/size and re-reads. The
     # asset set is small and fixed, so the cache is naturally bounded.
     static_cache: dict[str, tuple[float, int, str, bytes]] = {}
+    # UI-v2 epic close: print-outcome feedback is intentionally accepted only after a real
+    # hardware send in this server process. The SPA already asks at the right time; this closes
+    # the API trust boundary for non-browser callers.
+    real_print_sends: set[int] = set()
     config_box: dict[str, Any] = {"config": config}
 
     def get_config() -> Any:
@@ -857,6 +861,12 @@ def make_handler(
                 # ENG-405: serve the SPA shell fresh (via the freshness-cached static path) so a
                 # rebuilt index.html is picked up without a server restart, and carries an ETag.
                 self._serve_static(WEB_DIR / "index.html", "text/html; charset=utf-8")
+                return
+            if urlsplit(self.path).path == "/favicon.ico":
+                # Browsers request this automatically even though the SPA doesn't ship a brand
+                # asset yet. A clean 204 keeps the runtime console/network audit quiet without
+                # inventing a visual favicon.
+                self._send(204, b"", "image/x-icon")
                 return
             if self.path == "/api/options":
                 self._json(200, web_options(get_config(), saved_settings()))
@@ -1694,6 +1704,9 @@ def make_handler(
                 info["printer_detail"] = st.detail
             except ConnectorError:
                 pass
+            if not simulated:
+                with reg.lock:
+                    real_print_sends.add(rid)
             self._json(200, info)
 
         def _handle_print_outcome(self, raw_id: str) -> None:
@@ -1717,8 +1730,12 @@ def make_handler(
                 return
             with reg.lock:
                 snap = reg.snapshot.get(rid)
+                can_record = rid in real_print_sends
             if snap is None:
                 self._json(404, {"error": "That design is no longer available."})
+                return
+            if not can_record:
+                self._json(409, {"error": "Record an outcome after a real printer send."})
                 return
             try:
                 score = int(snap.get("readiness_score"))

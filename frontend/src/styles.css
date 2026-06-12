@@ -916,9 +916,29 @@ input {
   .kc-icon-btn,
   .kc-chip,
   .kc-field select,
+  .kc-help-btn,
+  .kc-link-btn,
+  .kc-btn-sm,
+  .kc-unit-btn,
+  .kc-photo-affordance,
+  .kc-design-name,
   .kc-design-act,
   .kc-mydesigns-sort select {
     min-height: 44px;
+  }
+  .kc-help-btn {
+    width: 44px;
+    min-width: 44px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+  .kc-link-btn,
+  .kc-btn-sm,
+  .kc-unit-btn,
+  .kc-photo-affordance,
+  .kc-design-name {
+    display: inline-flex;
+    align-items: center;
   }
   /* UX-003 / QA-005: the My Designs card actions (Rename / Duplicate / Export / Delete) join the
      44px touch floor and gain breathing room, and the destructive Delete is pushed to the row's

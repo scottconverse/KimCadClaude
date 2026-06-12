@@ -71,6 +71,11 @@ All notable changes to KimCad are documented here. Format follows
   is OpenSCAD-only; CadQuery now runs exclusively KimCad's own template twins.
 
 ### Fixed
+- **UI-v2 epic close hardening (#23).** The final walkthrough/full-audit pass tightened
+  browser-console hygiene (`/favicon.ico` now returns a clean 204), made mobile link-style
+  controls meet the same touch-target floor as the rest of the app chrome, corrected the API
+  docs for `POST /api/send/<rid>`, and made `POST /api/print-outcome/<rid>` enforce the same
+  "after a real hardware send" rule server-side that the SPA already followed.
 - **Cloud-key "Replace" is reversible (KC-1, #7).** Replacing the saved OpenRouter key now has
   a Cancel that returns to the masked view without touching the stored key; the full save
   round-trip (masked echo, keyring at rest, restart persistence) is pinned by an end-to-end

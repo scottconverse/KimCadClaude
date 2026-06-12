@@ -175,12 +175,14 @@ def test_http_layer_serves_index_design_and_mesh(tmp_path):
         httpd.server_close()
 
 
-def test_print_outcome_endpoint_records_real_world_result(tmp_path):
-    """UI-v2 slice 6: a post-send outcome is fed into the local Smart Mesh history store."""
+def test_print_outcome_endpoint_records_real_world_result_after_hardware_send(tmp_path, monkeypatch):
+    """UI-v2 slice 6: only a real hardware send unlocks Smart Mesh outcome recording."""
     import json
+    import urllib.error
     import urllib.request
 
     from kimcad.history import HistoryStore
+    from kimcad.printer_connector import JobState, PrinterState, PrinterStatus, PrintJob
 
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
     with _serve(pipe, tmp_path) as (host, port):
@@ -191,6 +193,49 @@ def test_print_outcome_endpoint_records_real_world_result(tmp_path):
             headers={"Content-Type": "application/json"},
         ), timeout=30))
         rid = int(design["mesh_url"].rsplit("/", 1)[-1])
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + f"/api/print-outcome/{rid}",
+                data=json.dumps({"outcome": "issues"}).encode(),
+                headers={"Content-Type": "application/json"},
+            ), timeout=10)
+            raise AssertionError("expected 409 before a real send")
+        except urllib.error.HTTPError as e:
+            assert e.code == 409
+
+        gcode = tmp_path / "hardware-send.gcode.3mf"
+        gcode.write_bytes(b"PK\x03\x04")
+        monkeypatch.setattr(
+            "kimcad.webapp.slice_registered_mesh",
+            lambda cfg, mesh, printer, material: ({"sliced": True}, gcode),
+        )
+
+        import kimcad.connectors as conn_mod
+
+        class _HardwareConnector:
+            name = "real"
+            drives_hardware = True
+
+            def send(self, gcode_path, *, confirm, job_name=None):
+                assert confirm is True
+                return PrintJob("real-job-1", JobState.printing)
+
+            def status(self):
+                return PrinterStatus(online=True, state=PrinterState.printing)
+
+        monkeypatch.setattr(conn_mod, "build_connector", lambda c, n: _HardwareConnector())
+        sliced = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/slice/{rid}",
+            data=json.dumps({"printer": "bambu_p2s", "material": "pla"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=10))
+        assert sliced["sliced"] is True
+        sent = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + f"/api/send/{rid}",
+            data=json.dumps({"connector": "real"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=10))
+        assert sent["sent"] is True and sent["simulated"] is False
         outcome = json.load(urllib.request.urlopen(urllib.request.Request(
             base + f"/api/print-outcome/{rid}",
             data=json.dumps({"outcome": "issues"}).encode(),
@@ -435,6 +480,9 @@ def test_serves_spa_index_and_assets_and_rejects_traversal(tmp_path):
         assert "text/html" in r.headers.get("Content-Type", "")
         html = r.read().decode("utf-8")
         assert 'id="root"' in html
+        favicon = urllib.request.urlopen(base + "/favicon.ico", timeout=10)
+        assert favicon.status == 204
+        assert favicon.read() == b""
         # Every /assets/ bundle the shell references is served with the right content type.
         refs = re.findall(r'(?:src|href)="/assets/([^"]+)"', html)
         assert refs, "the served shell should reference at least one /assets/ bundle"

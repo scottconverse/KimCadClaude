@@ -206,6 +206,17 @@ after the slice build and reached 1024 pytest + 375 vitest; the pre-commit build
 correctly stayed red until the rebuilt SPA bundle is committed, so the final green gate is
 run after commit.
 
+**UI-v2 EPIC CLOSE - DONE (Codex, 2026-06-12):** final `/walkthrough` + full 5-lens
+`/audit-full` pass completed after slices 5-6. First pass found three closeout fixes:
+browser console noise from `/favicon.ico` 404, API/docs drift on `POST /api/send/<rid>`, and
+the print-outcome endpoint trusting the SPA's after-real-send timing. Fixed with a 204 favicon
+route, corrected `docs/api.md`, and a server-side `real_print_sends` guard that returns 409
+until a non-simulated send succeeds. The deferred density pass is closed by targeted evidence:
+the live mobile walkthrough found no horizontal overflow and the only actionable density misses
+were link/title-style touch targets; those now share the 44px mobile floor. Final Playwright
+walkthrough: console clean, failed requests 0, overflow 0, `/api/templates` live, `/favicon.ico`
+204, missing print-outcome id 404. Full CI gate rerun below before push.
+
 **UI-v2 SLICE 6 - DONE (Codex, 2026-06-12):** print-outcome capture after a real send.
 Data contract: `POST /api/print-outcome/<rid>` accepts `clean` / `issues` / `failed` / `skip`;
 skip records nothing, non-skip appends a coarse local Smart Mesh history row with optional
