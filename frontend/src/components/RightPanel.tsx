@@ -343,7 +343,11 @@ function ParametersCard({
 const CONFIDENCE_BLURB: Record<string, string> = {
   High: 'Validated by the PrintProof3D engine.',
   Medium: 'From KimCad’s printability gate.',
-  Low: 'Provisional — the mesh could only be partly analyzed.',
+  Low: 'Baseline checks only; the local track record is still building.',
+}
+
+const CONFIDENCE_LABEL: Record<string, string> = {
+  Low: 'Track record: building',
 }
 
 // A screen-reader-only severity word per risk tone, so the warn/red tier isn't conveyed by the
@@ -416,7 +420,9 @@ function ReadinessBody({
       {readiness.confidence && (
         <p className="kc-readiness-conf kc-tip-host">
           <span className="kc-conf-line">
-            <span className="kc-conf-badge">{readiness.confidence} confidence</span>
+            <span className="kc-conf-badge">
+              {CONFIDENCE_LABEL[readiness.confidence] ?? `${readiness.confidence} confidence`}
+            </span>
             <InfoTip term="confidence" />
           </span>
           <span className="kc-conf-blurb">{CONFIDENCE_BLURB[readiness.confidence] ?? ''}</span>

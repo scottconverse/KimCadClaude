@@ -194,6 +194,18 @@ Then **slice 6**: print-outcome capture (Came out clean/Had issues/Failed/Skip a
 send → POST into the history store; check what /api/send + history already support). Epic
 then closes #23 → /walkthrough + /audit-team per cadence.
 
+**UI-v2 SLICE 5 - DONE (Codex, new machine, 2026-06-12):** fresh clone provisioned and
+`scripts/ci.sh` is green before code (1024 pytest + 368 vitest + live OrcaSlicer + CadQuery
+worker + build repro). Scope is the Smart Mesh polish from the handoff: ReadinessCard maps API
+`Low` confidence to **"Track record: building"** (never "Low confidence") while preserving the
+API contract; the confidence blurb now says the local track record is still building. Added
+Vitest coverage for the label and expanded the tone-contrast guard to light + dark theme
+tokens. Verified targeted Vitest (60), full Vitest (375), Vite/tsc build, and audit-lite at
+0/0/0/0/0 (`audit-lite-ui-v2-slice-5-smart-mesh-2026-06-12.md`). Full `scripts/ci.sh` was rerun
+after the slice build and reached 1024 pytest + 375 vitest; the pre-commit build-repro step
+correctly stayed red until the rebuilt SPA bundle is committed, so the final green gate is
+run after commit.
+
 **UI-v2 SLICE 3 DONE** (commit "UI-v2 slice 3", in/through the gate): the part-library
 browser — GET /api/templates (registry-driven; #19 catalog lands here automatically) +
 LibraryModal (searchable cards, seed-prompt picks through the normal flow) + landing entry.

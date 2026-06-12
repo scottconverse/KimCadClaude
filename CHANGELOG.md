@@ -25,6 +25,10 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Smart Mesh polish (UI-v2 slice 5, #23).** The Readiness card now treats a sparse local
+  history as **"Track record: building"** instead of "Low confidence", keeps the gauge and
+  history-comparison line intact, and pins the readiness verdict/confidence chip contrast in
+  both light and dark themes.
 - **Click-to-measure (UI-v2 slice 4, #23).** A **Measure** toggle on the 3D viewport: click
   two points on the part to get the straight-line distance plus per-axis ΔX/ΔY/ΔZ, in your
   display unit (mm or inches). Markers and a connecting line show exactly what was measured;

@@ -4,11 +4,27 @@
 // and Stage 7 warn-amber contrast misses before they shipped.
 import { describe, expect, it } from 'vitest'
 
-// --- styles.css :root tone tokens (keep in sync) ---
-const SURFACE = '#faf6ee'
-const PASS = '#1d7a4e', PASS_TEXT = '#15633d'
-const WARN = '#876312', WARN_TEXT = '#6a4e0b'
-const FAIL = '#a8431f'
+// --- styles.css tone tokens (keep in sync) ---
+const THEMES = [
+  {
+    name: 'light',
+    surface: '#faf6ee',
+    pass: '#1d7a4e',
+    passText: '#15633d',
+    warn: '#876312',
+    warnText: '#6a4e0b',
+    fail: '#a8431f',
+  },
+  {
+    name: 'dark',
+    surface: '#211f1b',
+    pass: '#75d89c',
+    passText: '#8fe5b0',
+    warn: '#c9962f',
+    warnText: '#ecc27a',
+    fail: '#ff8a66',
+  },
+]
 
 function srgbToLin(c: number): number {
   const s = c / 255
@@ -32,14 +48,14 @@ function mix(tone: string, pct: number, base: string): string {
 
 // [label, text token, background]: verdict text on the surface; the confidence/status badge text on
 // a 14%-tone tint of the surface (the worst case for that text). Small text -> AA 4.5:1.
-const CASES: Array<[string, string, string]> = [
-  ['pass verdict', PASS_TEXT, SURFACE],
-  ['pass badge', PASS_TEXT, mix(PASS, 0.14, SURFACE)],
-  ['warn verdict', WARN_TEXT, SURFACE],
-  ['warn badge', WARN_TEXT, mix(WARN, 0.14, SURFACE)],
-  ['fail verdict', FAIL, SURFACE],
-  ['fail badge', FAIL, mix(FAIL, 0.14, SURFACE)],
-]
+const CASES: Array<[string, string, string]> = THEMES.flatMap((theme) => [
+  [`${theme.name} pass verdict`, theme.passText, theme.surface],
+  [`${theme.name} pass badge`, theme.passText, mix(theme.pass, 0.14, theme.surface)],
+  [`${theme.name} warn verdict`, theme.warnText, theme.surface],
+  [`${theme.name} warn badge`, theme.warnText, mix(theme.warn, 0.14, theme.surface)],
+  [`${theme.name} fail verdict`, theme.fail, theme.surface],
+  [`${theme.name} fail badge`, theme.fail, mix(theme.fail, 0.14, theme.surface)],
+])
 
 describe('status tone tokens clear WCAG AA (UX-006 guard)', () => {
   it.each(CASES)('%s text clears 4.5:1', (_label, text, bg) => {

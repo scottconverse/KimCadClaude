@@ -344,6 +344,25 @@ describe('RightPanel readiness card', () => {
     expect(screen.getByText('Matches your strongest past prints.')).toBeTruthy()
   })
 
+  it('labels low confidence as a building track record, never low confidence', () => {
+    stubFetch()
+    const buildingRecord: DesignResponse = {
+      ...readinessResult,
+      report: {
+        ...readinessResult.report!,
+        readiness: {
+          ...readinessResult.report!.readiness!,
+          confidence: 'Low',
+          comparison: null,
+          attribution: 'KimCad printability gate',
+        },
+      },
+    }
+    renderPanel({ initialTab: 'quality', result: buildingRecord })
+    expect(screen.getByText('Track record: building')).toBeTruthy()
+    expect(screen.queryByText('Low confidence')).toBeNull()
+  })
+
   it('shows the readiness placeholder before a part is designed', () => {
     stubFetch()
     renderPanel({ initialTab: 'quality', result: null })
