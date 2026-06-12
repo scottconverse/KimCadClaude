@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Click-to-measure (UI-v2 slice 4, #23).** A **Measure** toggle on the 3D viewport: click
+  two points on the part to get the straight-line distance plus per-axis ΔX/ΔY/ΔZ, in your
+  display unit (mm or inches). Markers and a connecting line show exactly what was measured;
+  a click that misses the part says so instead of staying silent; a third click starts a new
+  measurement; dragging still rotates. Measurements clear automatically when the part changes
+  shape, so a stale readout can never describe a new geometry.
 - **The part-library browser (UI-v2 slice 3, #23).** "Browse the part library →" on the
   landing opens a searchable grid of every template family (name, plain summary, adjustable-
   dimension count, aliases), read live from the new `GET /api/templates` — so the catalog

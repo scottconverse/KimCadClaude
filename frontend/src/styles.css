@@ -827,6 +827,48 @@ input {
   opacity: 0;
 }
 
+/* UI-v2 slice 4 (#23): the measure tool — overlays on the dark viewport (theme-independent). */
+.kc-measure-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--kc-r-chip);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kc-measure-toggle:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.kc-measure-toggle-on {
+  border-color: #ff8a4b;
+  color: #ffb38a;
+}
+.kc-measure-readout {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  max-width: 70%;
+  padding: 6px 12px;
+  border-radius: var(--kc-r-chip);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+}
+.kc-measure-readout strong {
+  font-family: var(--kc-font-mono);
+}
+.kc-measure-deltas {
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--kc-font-mono);
+  font-size: 11px;
+}
+
 .kc-viewport-chip {
   position: absolute;
   top: 12px;

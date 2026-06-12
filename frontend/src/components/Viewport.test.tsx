@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HighlightRisk } from '../viewport/KCViewport'
 import Viewport from './Viewport'
@@ -9,6 +9,7 @@ const hl = vi.hoisted(() => ({
   setHighlights: vi.fn(),
   setHighlightsVisible: vi.fn(),
   focusHighlight: vi.fn(),
+  setMeasureMode: vi.fn(),
 }))
 
 // Stub the three.js/WebGL viewport so the component renders in jsdom — we're testing the overlay
@@ -28,6 +29,7 @@ vi.mock('../viewport/KCViewport', () => ({
     setHighlights = hl.setHighlights
     setHighlightsVisible = hl.setHighlightsVisible
     focusHighlight = hl.focusHighlight
+    setMeasureMode = hl.setMeasureMode
     dispose() {}
   },
 }))
@@ -126,5 +128,29 @@ describe('Viewport problem highlights (Slice 8)', () => {
         focus={{ id: 'OVERHANG_UNSUPPORTED', n: 2 }} />,
     )
     expect(hl.focusHighlight).toHaveBeenCalledTimes(2) // re-focus on a repeat click
+  })
+})
+
+describe('Viewport measure tool (UI-v2 slice 4, #23)', () => {
+  it('the toggle appears with a model, arms the engine, and the readout renders the result', async () => {
+    render(<Viewport {...baseProps} meshUrl="/api/mesh/1" />)
+    const toggle = await screen.findByRole('button', { name: 'Measure' })
+    fireEvent.click(toggle)
+    expect(hl.setMeasureMode).toHaveBeenLastCalledWith(true, expect.any(Function))
+    expect(screen.getByRole('button', { name: /Measuring — click two points/ })).toBeTruthy()
+    // The engine reports one point, then a full measurement — the readout follows.
+    const cb = hl.setMeasureMode.mock.lastCall![1] as (m: unknown) => void
+    // A miss is feedback, not silence (found in the live walkthrough).
+    act(() => cb({ points: 0, distanceMm: null, deltasMm: null }))
+    expect(screen.getByText(/missed the part/i)).toBeTruthy()
+    act(() => cb({ points: 1, distanceMm: null, deltasMm: null }))
+    expect(screen.getByText(/click the second point/i)).toBeTruthy()
+    act(() => cb({ points: 2, distanceMm: 82.46, deltasMm: [80, 0, 20] }))
+    expect(screen.getByText('82.5 mm')).toBeTruthy()
+    expect(screen.getByText(/ΔX 80 · ΔY 0 · ΔZ 20/)).toBeTruthy()
+    // Toggling off disarms the engine and drops the readout.
+    fireEvent.click(screen.getByRole('button', { name: /Measuring/ }))
+    expect(hl.setMeasureMode).toHaveBeenLastCalledWith(false, null)
+    expect(screen.queryByText('82.5 mm')).toBeNull()
   })
 })

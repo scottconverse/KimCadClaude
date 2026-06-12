@@ -32,6 +32,26 @@ export type HLGeometry =
   | { type: 'bounding_box'; min_x: number; min_y: number; min_z: number; max_x: number; max_y: number; max_z: number }
   | { type: 'triangles'; triangles: Array<{ v0: number[]; v1: number[]; v2: number[] }> }
 
+// UI-v2 slice 4 (#23): the click-to-measure readout pushed to the React layer.
+// points: 0 = the last click missed the part (feedback, not silence), 1 = first point set,
+// 2 = a full measurement.
+export interface MeasureState {
+  points: 0 | 1 | 2
+  /** Straight-line distance in mm (null until the second point lands). */
+  distanceMm: number | null
+  /** Per-axis |Δ| in mm, [X, Y, Z] (null until the second point lands). */
+  deltasMm: [number, number, number] | null
+}
+
+/** Pure measurement math — translation-invariant, so display coords measure the real part. */
+export function measureBetween(a: THREE.Vector3, b: THREE.Vector3): MeasureState {
+  return {
+    points: 2,
+    distanceMm: a.distanceTo(b),
+    deltasMm: [Math.abs(b.x - a.x), Math.abs(b.y - a.y), Math.abs(b.z - a.z)],
+  }
+}
+
 export interface HighlightRisk {
   issueId: string
   tone: string // 'fail' | 'warn' — drives the highlight color
@@ -108,6 +128,16 @@ export class KCViewport {
   private latestRisks: HighlightRisk[] = []
   private meshOffset = new THREE.Vector3(0, 0, 0)
 
+  // UI-v2 slice 4 (#23): the click-to-measure tool. Two surface picks -> the straight-line
+  // distance + per-axis deltas, in real mm. Display space is the raw STL translated by
+  // meshOffset only, and translation preserves distances/deltas — so measuring in display
+  // coords IS measuring the part. A third click starts a fresh measurement.
+  private measureMode = false
+  private measureGroup = new THREE.Group()
+  private measurePoints: THREE.Vector3[] = []
+  private onMeasure: ((m: MeasureState | null) => void) | null = null
+  private raycaster = new THREE.Raycaster()
+
   // Spherical camera (azimuth, polar, radius), auto-rotating when idle.
   private theta = -0.7
   private phi = 1.15
@@ -158,6 +188,7 @@ export class KCViewport {
     this.modelGroup = new THREE.Group()
     this.scene.add(this.modelGroup)
     this.scene.add(this.highlightGroup)
+    this.scene.add(this.measureGroup)
 
     this.buildPlate(256)
     this.bindInteractions(canvas)
@@ -175,6 +206,9 @@ export class KCViewport {
       return
     }
     this.removeModelChildren()
+    // Slice 4: measure points belong to the OLD geometry — a re-shaped part must never
+    // carry stale markers (the readout would lie about the new shape).
+    this.clearMeasure()
     geometry.computeVertexNormals()
     // Capture the original bounds BEFORE centering so highlights can reproduce the exact display
     // transform. Net offset applied to an original vertex p is (-center0.x, -center0.y, -min0.z).
@@ -481,6 +515,8 @@ export class KCViewport {
 
     let px = 0
     let py = 0
+    let downX = 0
+    let downY = 0
     const move = (e: PointerEvent) => {
       const dx = e.clientX - px
       const dy = e.clientY - py
@@ -494,21 +530,27 @@ export class KCViewport {
       window.removeEventListener('pointerup', up)
       this.dragCleanup = undefined
     }
-    const up = () => {
+    const up = (e: PointerEvent) => {
       this.dragging = false
       endDrag()
       window.clearTimeout(this.resumeTimer)
-      if (!this.reduceMotion) {
+      if (!this.reduceMotion && !this.measureMode) {
         this.resumeTimer = window.setTimeout(() => {
           this.autoRotate = true
         }, 3500)
       }
+      // Slice 4: a CLICK (a press that barely moved) in measure mode picks a surface point —
+      // a real drag stays a rotate, so measuring never fights orbiting.
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY)
+      if (this.measureMode && moved < 5) this.measureClick(e)
     }
     const down = (e: PointerEvent) => {
       this.dragging = true
       this.autoRotate = false
       px = e.clientX
       py = e.clientY
+      downX = e.clientX
+      downY = e.clientY
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
       this.dragCleanup = endDrag
@@ -522,5 +564,69 @@ export class KCViewport {
     }
     canvas.addEventListener('wheel', wheel, { passive: false })
     this.cleanups.push(() => canvas.removeEventListener('wheel', wheel))
+  }
+
+  // --- UI-v2 slice 4 (#23): click-to-measure -----------------------------------------
+
+  /** Turn measure mode on/off. `cb` receives the live readout (null = no/cleared points). */
+  setMeasureMode(on: boolean, cb: ((m: MeasureState | null) => void) | null = null): void {
+    this.measureMode = on
+    this.onMeasure = cb
+    if (on) this.autoRotate = false
+    if (!on) this.clearMeasure()
+  }
+
+  private clearMeasure(): void {
+    for (const child of [...this.measureGroup.children]) {
+      this.measureGroup.remove(child)
+      const obj = child as THREE.Mesh | THREE.Line
+      obj.geometry?.dispose?.()
+      const mat = obj.material as THREE.Material | undefined
+      mat?.dispose?.()
+    }
+    this.measurePoints = []
+    this.onMeasure?.(null)
+  }
+
+  private measureClick(e: PointerEvent): void {
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return
+    const ndc = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+    )
+    this.raycaster.setFromCamera(ndc, this.camera)
+    const hit = this.raycaster.intersectObjects(this.modelGroup.children, true)[0]
+    if (!hit) {
+      // Clicked past the part: say so (silence reads as a broken tool), keeping any
+      // existing first point.
+      if (this.measurePoints.length === 0) {
+        this.onMeasure?.({ points: 0, distanceMm: null, deltasMm: null })
+      }
+      return
+    }
+    if (this.measurePoints.length >= 2) this.clearMeasure() // third click starts fresh
+    this.measurePoints.push(hit.point.clone())
+    // Marker sized to the part so it reads at any zoom (≥1.2 mm floor for tiny parts).
+    const markerR = Math.max(1.2, (this.dims ? Math.max(this.dims.x, this.dims.y, this.dims.z) : 80) / 70)
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(markerR, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff8a4b, depthTest: false }),
+    )
+    marker.renderOrder = 3
+    marker.position.copy(hit.point)
+    this.measureGroup.add(marker)
+    if (this.measurePoints.length === 2) {
+      const [a, b] = this.measurePoints
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([a, b]),
+        new THREE.LineBasicMaterial({ color: 0xff8a4b, depthTest: false }),
+      )
+      line.renderOrder = 3
+      this.measureGroup.add(line)
+      this.onMeasure?.(measureBetween(a, b))
+    } else {
+      this.onMeasure?.({ points: 1, distanceMm: null, deltasMm: null })
+    }
   }
 }

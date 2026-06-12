@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { DESIGN_PHASES, phaseLabel, phaseStep } from '../designPhase'
-import { type Dimensions, type HighlightRisk, KCViewport } from '../viewport/KCViewport'
+import { useUnits } from '../useUnits'
+import {
+  type Dimensions,
+  type HighlightRisk,
+  type MeasureState,
+  KCViewport,
+} from '../viewport/KCViewport'
 
 // React wrapper around the vanilla KCViewport. It owns the viewport's lifecycle, loads the real
 // mesh from `meshUrl` (served at /api/mesh/<id>), and surfaces the print-aware affordances: the
@@ -54,6 +60,10 @@ export default function Viewport({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dims, setDims] = useState<Dimensions | null>(null)
+  // UI-v2 slice 4 (#23): the click-to-measure tool — mode + the live readout from the engine.
+  const [measuring, setMeasuring] = useState(false)
+  const [measure, setMeasure] = useState<MeasureState | null>(null)
+  const { formatMm, unit } = useUnits()
   // Whether a part is currently framed on screen. KCViewport.loadMesh swaps the mesh atomically
   // (it awaits the new geometry, THEN replaces the old one), so during a live-slider re-render the
   // previous part stays visible. While a model is shown we suppress the full-cover "Rendering…"
@@ -166,8 +176,46 @@ export default function Viewport({
           {showModel && (
             <span className="kc-viewport-chip">Auto-oriented · plate-down</span>
           )}
+          {/* UI-v2 slice 4: the click-to-measure tool. Toggle on -> two surface clicks give
+              the straight-line distance + per-axis deltas (in the display unit). */}
           {showModel && (
-            <span className="kc-viewport-hint">Drag to rotate · scroll to zoom</span>
+            <button
+              type="button"
+              className={`kc-measure-toggle${measuring ? ' kc-measure-toggle-on' : ''}`}
+              aria-pressed={measuring}
+              onClick={() => {
+                const next = !measuring
+                setMeasuring(next)
+                setMeasure(null)
+                vpRef.current?.setMeasureMode(next, next ? setMeasure : null)
+              }}
+            >
+              {measuring ? 'Measuring — click two points' : 'Measure'}
+            </button>
+          )}
+          {showModel && measuring && measure && (
+            <span className="kc-measure-readout" role="status">
+              {measure.points === 0 ? (
+                'That click missed the part — click on the part itself'
+              ) : measure.distanceMm === null ? (
+                'Point 1 set — click the second point'
+              ) : (
+                <>
+                  <strong>{formatMm(measure.distanceMm)} {unit}</strong>
+                  {measure.deltasMm && (
+                    <span className="kc-measure-deltas">
+                      {' '}ΔX {formatMm(measure.deltasMm[0])} · ΔY {formatMm(measure.deltasMm[1])} ·
+                      ΔZ {formatMm(measure.deltasMm[2])}
+                    </span>
+                  )}
+                </>
+              )}
+            </span>
+          )}
+          {showModel && (
+            <span className="kc-viewport-hint">
+              {measuring ? 'Click the part to measure · drag still rotates' : 'Drag to rotate · scroll to zoom'}
+            </span>
           )}
           {showModel && staleNote && (
             <span className="kc-viewport-stale" role="status">
