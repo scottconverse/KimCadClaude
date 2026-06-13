@@ -25,6 +25,9 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Picture-hanging hardware (#19, slice 4): sawtooth hanger, keyhole plate, hidden-rod
+  floating-shelf bracket.** Three ways to hang framed/displayed work, each render-verified with
+  a CadQuery `.STEP` twin. All tier baseline (they bear load / fit a specific screw).
 - **Picture & art frames (#19, slice 3): picture, certificate/diploma, mat board, floating,
   shadow box, and lithophane frames.** The first of Kim's frame/Zen design-world families —
   six framing templates, each with live sliders, an analytic bounding box verified against a

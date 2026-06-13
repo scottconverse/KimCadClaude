@@ -77,6 +77,22 @@ NEW_MODULES = {
         "face_rim_t=2);",
         [100, 120, 17],
     ),
+    # #19 slice 4: hangers
+    "sawtooth_hanger": (
+        "hangers.scad",
+        "sawtooth_hanger(plate_w=40, plate_h=15, plate_t=3, tooth_count=5, tooth_depth=4);",
+        [40, 3, 19],
+    ),
+    "keyhole_hanger_plate": (
+        "hangers.scad",
+        "keyhole_hanger_plate(plate_w=30, plate_h=50, plate_t=4, hole_d=10, slot_w=5);",
+        [30, 4, 50],
+    ),
+    "hidden_rod_shelf_bracket": (
+        "hangers.scad",
+        "hidden_rod_shelf_bracket(plate_w=80, plate_h=40, plate_t=6, rod_length=40, rod_d=8);",
+        [80, 46, 40],
+    ),
 }
 
 

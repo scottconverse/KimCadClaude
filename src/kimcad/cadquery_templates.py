@@ -325,6 +325,75 @@ def _lithophane_frame(v: dict[str, float]) -> str:
     )
 
 
+def _sawtooth_hanger(v: dict[str, float]) -> str:
+    # hangers.scad::sawtooth_hanger — plate + a row of triangular teeth + two screw holes.
+    pw, ph, pt = _f(v["plate_w"]), _f(v["plate_h"]), _f(v["plate_t"])
+    n = int(round(float(v["tooth_count"])))
+    td, sd = _f(v["tooth_depth"]), _f(v.get("screw_d", 3.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"run = {pw} / {n}\n"
+        f'body = cq.Workplane("XY").box({pw}, {pt}, {ph}, {_CF})\n'
+        f"for i in range({n}):\n"
+        f'    tooth = (cq.Workplane("XY").polyline([(0, 0), (run, 0), (0, {td} + eps)]).close()'
+        f".extrude({pt}).rotate((0, 0, 0), (1, 0, 0), 90).translate((i * run, {pt}, {ph} - eps)))\n"
+        f"    body = body.union(tooth)\n"
+        f'drill = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({pt} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for x in ({pw} * 0.25, {pw} * 0.75):\n"
+        f"    body = body.cut(drill.translate((x, -eps, {ph} * 0.45)))\n"
+        f"result = body\n"
+    )
+
+
+def _keyhole_hanger_plate(v: dict[str, float]) -> str:
+    # hangers.scad::keyhole_hanger_plate — plate minus entry hole + slot + slot-bottom + back counterbore.
+    pw, ph, pt = _f(v["plate_w"]), _f(v["plate_h"]), _f(v["plate_t"])
+    hd, sw = _f(v["hole_d"]), _f(v["slot_w"])
+    return (
+        f"eps = {_EPS}\n"
+        f"head_z = {ph} * 0.72\n"
+        f"slot_bot = {ph} * 0.30\n"
+        f"cb_d = {hd} + 6\n"
+        f"cb_depth = {pt} * 0.5\n"
+        f'body = cq.Workplane("XY").box({pw}, {pt}, {ph}, {_CF})\n'
+        f'hole = (cq.Workplane("XY").circle({hd} / 2).extrude({pt} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"body = body.cut(hole.translate(({pw} / 2, -eps, head_z)))\n"
+        f'slot = (cq.Workplane("XY").box({sw}, {pt} + 2 * eps, head_z - slot_bot, {_CF})'
+        f".translate(({pw} / 2 - {sw} / 2, -eps, slot_bot)))\n"
+        f"body = body.cut(slot)\n"
+        f'sb = (cq.Workplane("XY").circle({sw} / 2).extrude({pt} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"body = body.cut(sb.translate(({pw} / 2, -eps, slot_bot)))\n"
+        f'cb = (cq.Workplane("XY").circle(cb_d / 2).extrude(cb_depth + eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"body = body.cut(cb.translate(({pw} / 2, -eps, head_z)))\n"
+        f"result = body\n"
+    )
+
+
+def _hidden_rod_shelf_bracket(v: dict[str, float]) -> str:
+    # hangers.scad::hidden_rod_shelf_bracket — wall plate + two screw holes + two +Y shelf rods.
+    pw, ph, pt = _f(v["plate_w"]), _f(v["plate_h"]), _f(v["plate_t"])
+    rl, rd, sd = _f(v["rod_length"]), _f(v["rod_d"]), _f(v.get("screw_d", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f'body = cq.Workplane("XY").box({pw}, {pt}, {ph}, {_CF})\n'
+        f'drill = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({pt} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for z in ({ph} * 0.25, {ph} * 0.75):\n"
+        f"    body = body.cut(drill.translate(({pw} / 2, -eps, z)))\n"
+        f'rod = (cq.Workplane("XY").circle({rd} / 2).extrude({rl} + eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for x in ({pw} * 0.25, {pw} * 0.75):\n"
+        f"    body = body.union(rod.translate((x, {pt} - eps, {ph} / 2)))\n"
+        f"result = body\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -344,6 +413,9 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "floating_frame": _floating_frame,
     "shadow_box_frame": _shadow_box_frame,
     "lithophane_frame": _lithophane_frame,
+    "sawtooth_hanger": _sawtooth_hanger,
+    "keyhole_hanger_plate": _keyhole_hanger_plate,
+    "hidden_rod_shelf_bracket": _hidden_rod_shelf_bracket,
 }
 
 

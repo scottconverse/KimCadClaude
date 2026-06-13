@@ -83,3 +83,12 @@ modules:
       - "floating_frame(opening_w=90, opening_h=90, lip_w=10, gap=5, depth=20, back_t=3)  // bbox = [opening_w+2*gap+2*lip_w, opening_h+2*gap+2*lip_w, depth]"
       - "shadow_box_frame(opening_w=80, opening_h=80, border=12, cavity_depth=25, rabbet=4, back_t=3, lip=3)  // bbox = [opening_w+2*border, opening_h+2*border, cavity_depth+rabbet+back_t]"
       - "lithophane_frame(outer_w=100, outer_h=120, face_rim=8, light_gap=12, panel_t=3, face_rim_t=2)  // bbox = [outer_w, outer_h, face_rim_t+panel_t+light_gap]"
+
+  - file: hangers.scad
+    summary: >-
+      Picture/art hanging hardware: a flat back plate (wall at the -Y face) with teeth, a
+      keyhole slot, or horizontal shelf rods. Each prints flat with no supports.
+    signatures:
+      - "sawtooth_hanger(plate_w=40, plate_h=15, plate_t=3, tooth_count=5, tooth_depth=4)  // bbox = [plate_w, plate_t, plate_h+tooth_depth]"
+      - "keyhole_hanger_plate(plate_w=30, plate_h=50, plate_t=4, hole_d=10, slot_w=5)  // bbox = [plate_w, plate_t, plate_h]"
+      - "hidden_rod_shelf_bracket(plate_w=80, plate_h=40, plate_t=6, rod_length=40, rod_d=8)  // bbox = [plate_w, plate_t+rod_length, plate_h]"

@@ -68,6 +68,8 @@ EXPECTED_FAMILY_NAMES = frozenset(
         # #19 slice 3: frames (Kim's design world)
         "picture_frame", "certificate_frame", "mat_board", "floating_frame",
         "shadow_box_frame", "lithophane_frame",
+        # #19 slice 4: hangers
+        "sawtooth_hanger", "keyhole_hanger_plate", "hidden_rod_shelf_bracket",
     }
 )
 

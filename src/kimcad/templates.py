@@ -734,11 +734,92 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("face_rim", "outer_w", 2.0, 0.5), ("face_rim", "outer_h", 2.0, 0.5)),
     )
 
+    # --- #19 slice 4: hangers (Kim's design world) — hangers.scad ----------------------
+
+    sawtooth_hanger = TemplateFamily(
+        name="sawtooth_hanger",
+        summary="A sawtooth picture hanger — a nail catches any tooth to level the frame.",
+        tier="baseline",
+        object_types=("sawtooth hanger", "sawtooth picture hanger", "saw tooth hanger",
+                      "frame hanger", "toothed hanger"),
+        library_file="hangers.scad",
+        module="sawtooth_hanger",
+        params=(
+            ParamSpec(name="plate_w", label="Plate width", default=40.0, min=25.0, max=120.0,
+                      step=1.0, dim_keys=("plate_w", "width"), bbox_axis=0),
+            ParamSpec(name="plate_t", label="Thickness", default=3.0, min=2.0, max=6.0, step=0.5,
+                      bbox_axis=1),
+            ParamSpec(name="plate_h", label="Plate height", default=15.0, min=10.0, max=60.0,
+                      step=1.0, dim_keys=("plate_h", "height")),
+            ParamSpec(name="tooth_count", label="Teeth", default=5.0, min=3.0, max=12.0, step=1.0,
+                      unit="", integer=True, dim_keys=("tooth_count", "teeth")),
+            ParamSpec(name="tooth_depth", label="Tooth depth", default=4.0, min=2.0, max=8.0,
+                      step=0.5),
+        ),
+        fixed_args={"screw_d": 3.0},
+        bbox_x=(BBoxTerm(ref="plate_w"),),
+        bbox_y=(BBoxTerm(ref="plate_t"),),
+        bbox_z=(BBoxTerm(ref="plate_h"), BBoxTerm(ref="tooth_depth")),
+    )
+
+    keyhole_hanger_plate = TemplateFamily(
+        name="keyhole_hanger_plate",
+        summary="A flush keyhole plate: drop over a screw head and slide down to lock.",
+        tier="baseline",
+        object_types=("keyhole hanger", "keyhole plate", "keyhole slot plate", "keyhole mount",
+                      "keyhole bracket plate"),
+        library_file="hangers.scad",
+        module="keyhole_hanger_plate",
+        params=(
+            ParamSpec(name="plate_w", label="Width", default=30.0, min=20.0, max=100.0, step=1.0,
+                      dim_keys=("plate_w", "width"), bbox_axis=0),
+            ParamSpec(name="plate_t", label="Thickness", default=4.0, min=3.0, max=8.0, step=0.5,
+                      bbox_axis=1),
+            ParamSpec(name="plate_h", label="Height", default=50.0, min=35.0, max=150.0, step=1.0,
+                      dim_keys=("plate_h", "height"), bbox_axis=2),
+            ParamSpec(name="hole_d", label="Screw-head hole", default=10.0, min=6.0, max=16.0,
+                      step=0.5, dim_keys=("hole_d",)),
+            ParamSpec(name="slot_w", label="Slot width", default=5.0, min=3.0, max=10.0, step=0.5),
+        ),
+        bbox_x=(BBoxTerm(ref="plate_w"),),
+        bbox_y=(BBoxTerm(ref="plate_t"),),
+        bbox_z=(BBoxTerm(ref="plate_h"),),
+        # the entry hole + back counterbore (hole_d + 6) must fit the plate width; the slot is
+        # narrower than the entry hole.
+        gaps=(("hole_d", "plate_w", 1.0, 6.0), ("slot_w", "hole_d", 1.0, 1.0)),
+    )
+
+    hidden_rod_shelf_bracket = TemplateFamily(
+        name="hidden_rod_shelf_bracket",
+        summary="A concealed floating-shelf support: a wall plate with rods into the shelf.",
+        tier="baseline",
+        object_types=("floating shelf bracket", "hidden shelf bracket", "blind shelf bracket",
+                      "concealed shelf support", "rod shelf bracket"),
+        library_file="hangers.scad",
+        module="hidden_rod_shelf_bracket",
+        params=(
+            ParamSpec(name="plate_w", label="Plate width", default=80.0, min=40.0, max=160.0,
+                      step=1.0, dim_keys=("plate_w", "width"), bbox_axis=0),
+            ParamSpec(name="plate_h", label="Plate height", default=40.0, min=25.0, max=120.0,
+                      step=1.0, dim_keys=("plate_h", "height"), bbox_axis=2),
+            ParamSpec(name="plate_t", label="Plate thickness", default=6.0, min=4.0, max=10.0,
+                      step=0.5),
+            ParamSpec(name="rod_length", label="Rod length", default=40.0, min=20.0, max=90.0,
+                      step=1.0, dim_keys=("rod_length", "reach")),
+            ParamSpec(name="rod_d", label="Rod diameter", default=8.0, min=5.0, max=12.0, step=0.5),
+        ),
+        fixed_args={"screw_d": 4.0},
+        bbox_x=(BBoxTerm(ref="plate_w"),),
+        bbox_y=(BBoxTerm(ref="plate_t"), BBoxTerm(ref="rod_length")),
+        bbox_z=(BBoxTerm(ref="plate_h"),),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
         picture_frame, certificate_frame, mat_board, floating_frame, shadow_box_frame,
         lithophane_frame,
+        sawtooth_hanger, keyhole_hanger_plate, hidden_rod_shelf_bracket,
     )
 
 
