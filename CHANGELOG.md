@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Stands, easels, ledges & rails (#19, slice 8): wedge easel, tiered display riser, slanted
+  sign holder, desk nameplate stand, place-card holder, picture ledge shelf, peg-hook rail, and
+  a decorative J-hook.** Nine display-and-mount families, each render-verified against its
+  analytic bounding box with a trusted CadQuery `.STEP` twin. Load/leaning-fit parts (sign &
+  nameplate holders, picture ledge, plate stand) are tier baseline; the rest benchmarked.
+  **The catalog is now 54 families.**
 - **Flat decor & ornaments (#19, slice 7): rimmed coaster, hot-pad trivet, L-bookend,
   geometric wall tile, tile connector clip, ornament blank, ornament cap, two-part gift box,
   and jar lid.** Nine more families, each render-verified against its analytic bounding box with

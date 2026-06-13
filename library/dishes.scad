@@ -31,6 +31,16 @@
 //   ornament_cap(cap_d, cap_h, neck_d, loop_od, loop_t)               bbox = [cap_d, cap_d, cap_h + loop_od]
 //   gift_box_lid(width, depth, base_h, lid_h, wall, gap)   bbox = [2*width + gap, depth, lid_h]  (lid_h>=base_h)
 //   jar_lid(outer_d, top_t, skirt_d, skirt_h, skirt_wall)        bbox = [outer_d, outer_d, top_t + skirt_h]  (skirt_d <= outer_d)
+//   --- #19 slice 8: stands / ledges / rails ---
+//   wedge_easel_stand(width, back_height, base_depth, lip_height, lip_depth)        bbox = [width, base_depth, back_height + lip_height]
+//   display_riser(base_w, base_d, tiers, step_in, tier_t)                bbox = [base_w, base_d, tiers * tier_t]
+//   slanted_card_easel(base_w, base_depth, base_height, slot_w, back_margin, lean_deg) -> bbox [base_w, base_depth + back_margin, base_height]
+//   desk_nameplate_strip_stand(base_w, base_depth, base_height, slot_w, slot_back_offset)        bbox = [base_w, base_depth, base_height + slot_back_offset]
+//   place_card_holder(base_w, base_depth, base_height, slit_w, slit_depth, end_margin)   bbox = [base_w, base_depth, base_height]
+//   picture_ledge_shelf(length, depth, back_height, lip_height, thk, screw_d)        bbox = [length, depth, back_height]  (lip_height <= back_height)
+//   peg_hook_rail(length, bar_h, bar_t, peg_length, peg_d)                bbox = [length, bar_t + peg_length, bar_h]
+//   j_decor_hook(width, back_height, reach, catch_rise, thk, screw_d)        bbox = [width, thk + reach, back_height + catch_rise]
+//   plate_display_stand(base_w, base_depth, back_height, groove_w, base_h, lean_off)        bbox = [base_w, base_depth + lean_off, base_h + back_height]
 
 module ring_dish(od = 70, h = 18, wall = 3, well_depth = 12, spike_h = 0, spike_d = 6, fn = 96) {
     eps = 0.05;
@@ -562,5 +572,267 @@ module jar_lid(outer_d = 70, top_t = 4, skirt_d = 64, skirt_h = 12, skirt_wall =
             translate([0, 0, -eps])
                 cylinder(h = skirt_h + 3 * eps, d = skirt_id, $fn = fn);
         }
+    }
+}
+
+
+// --- #19 slice 8: stands / ledges / rails ---
+module wedge_easel_stand(width = 80, back_height = 70, base_depth = 60,
+                         lip_height = 14, lip_depth = 10) {
+    eps = 0.05;
+    union() {
+        // Wedge body: a right-triangle profile (depth x back_height) extruded across the
+        // width. The polygon lies in XY as [[0,0],[base_depth,0],[base_depth,back_height]]
+        // and extrudes +Z by width; rotate([90,0,90]) lays it into the output frame so the
+        // envelope is exactly [width, base_depth, back_height] corner-at-origin. The vertical
+        // BACK face is at Y = base_depth (full back_height); the hypotenuse from the front
+        // edge up to the back-top is the inclined REST face a framed photo/tile/sign leans on.
+        rotate([90, 0, 90])
+            linear_extrude(height = width)
+                polygon([[0, 0], [base_depth, 0], [base_depth, back_height]]);
+        // Front retaining lip: a full-width rail at the front edge (Y = 0). It shares the
+        // Z = 0 base plane with the wedge and overlaps lip_depth into the (thin) front of the
+        // wedge body, so the two fuse without a z-fight gap. Its top sits EXACTLY at
+        // back_height + lip_height (no +eps past the documented top face), so bbox_z is
+        // exactly back_height + lip_height and stays linear; bbox_x/y are unchanged (the lip
+        // is within width and within base_depth).
+        cube([width, lip_depth, back_height + lip_height]);
+    }
+}
+
+module display_riser(base_w = 90, base_d = 70, tiers = 4, step_in = 8, tier_t = 8) {
+    eps = 0.05;
+    n = round(tiers);                                            // integer tier count
+    union() {
+        for (i = [0 : n - 1]) {
+            tw = base_w - 2 * i * step_in;                       // this tier's width  (bottom widest)
+            td = base_d - 2 * i * step_in;                       // this tier's depth
+            z0 = (i == 0) ? 0 : i * tier_t - eps;                // over-cut down by eps into tier below
+            zt = (i + 1) * tier_t;                               // top of this tier
+            // centered slab on the base footprint: corner placed so its center sits at
+            // (base_w/2, base_d/2); top tier lands at exactly z = n * tier_t.
+            translate([(base_w - tw) / 2, (base_d - td) / 2, z0])
+                cube([tw, td, zt - z0]);
+        }
+    }
+}
+
+module slanted_card_easel(base_w = 90, base_depth = 40, base_height = 45, slot_w = 4,
+                          back_margin = 12, lean_deg = 15, fn = 48) {
+    eps = 0.05;
+    block_d = base_depth + back_margin;
+    a = lean_deg;
+    slot_len_x = base_w - 2 * (base_height * 0.12 + 4);
+    cut_h = base_height * 1.6;
+    px = base_w / 2;
+    pz = base_height;
+    py = back_margin + slot_w / 2;
+    difference() {
+        cube([base_w, block_d, base_height]);
+        translate([px, py, pz])
+            rotate([a, 0, 0])
+                translate([-slot_len_x / 2, -slot_w / 2, -cut_h + eps])
+                    cube([slot_len_x, slot_w, cut_h + eps]);
+    }
+}
+
+module desk_nameplate_strip_stand(base_w = 120, base_depth = 45, base_height = 14,
+                                  slot_w = 4, slot_back_offset = 30, fn = 48) {
+    eps = 0.05;
+    // The rear support is a right-triangle prism: its vertical leg at the BACK face (y =
+    // base_depth) rises slot_back_offset above the base top; the hypotenuse leans forward down to
+    // the base top. lean_run (the wedge's forward reach) is pinned to a fraction of base_depth so
+    // the wedge always fits inside the footprint and the analytic bbox stays linear.
+    lean_run = base_depth * 0.55;
+    lean_a = atan(lean_run / slot_back_offset);          // lean from vertical = the wedge slope
+    // The strip slot is a thin near-vertical channel parallel to the wedge hypotenuse, centered
+    // across the width. It seats the strip from the base top down into the base.
+    slot_seat = base_height * 0.6;                       // how far the slot sinks into the base
+    // where the slot's lower (front) edge meets the base top, measured from the front face
+    slot_foot_y = base_depth - lean_run * 0.5;
+
+    difference() {
+        union() {
+            // low base block — full footprint, prints flat on its bottom face
+            cube([base_w, base_depth, base_height]);
+            // rear leaning wedge: triangle profile in [depth, vertical] coords, extruded along the
+            // width then oriented with rotate([90,0,90]) so depth->Y, vertical->Z, width->X (the
+            // per-axis orientation proven by a render probe). The base foot over-laps the base top
+            // by eps so the two fuse; the apex lands exactly at base_height + slot_back_offset
+            // (envelope-exact in Z).
+            translate([0, 0, base_height])
+                rotate([90, 0, 90])
+                    linear_extrude(height = base_w)
+                        polygon([
+                            [base_depth - lean_run, -eps],            // front foot, on base top
+                            [base_depth,            -eps],            // back foot, on base top
+                            [base_depth,            slot_back_offset] // back apex (Z top)
+                        ]);
+        }
+        // near-vertical strip slot: a thin tall box leaning back at the wedge angle. Built upright,
+        // rotated -lean_a about X so it leans the same way as the hypotenuse, and positioned so its
+        // mouth opens at the top and it sinks slot_seat into the base. It over-cuts UP into the
+        // open air above the apex and only DOWN into the solid base/wedge.
+        slot_run = (base_height + slot_back_offset) + slot_seat + 2 * eps;
+        translate([(base_w - slot_w) / 2, slot_foot_y, -slot_seat])
+            rotate([-lean_a, 0, 0])
+                cube([slot_w, eps + base_depth, slot_run]);   // thin in X (slot_w), tall in Z
+    }
+}
+
+module place_card_holder(base_w = 60, base_depth = 25, base_height = 18,
+                         slit_w = 2.5, slit_depth = 12, end_margin = 6) {
+    eps = 0.05;
+    slot_l = base_depth - 2 * end_margin;                       // slot runs along Y, ends interior
+    slot_x0 = (base_w - slit_w) / 2;                            // centered across the width
+    difference() {
+        cube([base_w, base_depth, base_height]);               // base block, corner-at-origin
+        // thin vertical card slot: opens at the TOP (over-cut +eps up into open air), drops down
+        // slit_depth, fully interior in X (centered) and Y (end_margin both ends), never the bottom.
+        translate([slot_x0, end_margin, base_height - slit_depth])
+            cube([slit_w, slot_l, slit_depth + eps]);
+    }
+}
+
+module picture_ledge_shelf(length = 160, depth = 70, back_height = 40, lip_height = 15,
+                           thk = 4, screw_d = 4, fn = 32) {
+    eps = 0.05;
+    clear = 0.2;
+    difference() {
+        union() {
+            // back wall — vertical slab at the -Y face, full height
+            cube([length, thk, back_height]);
+            // floor — horizontal slab across the full depth, sitting on the bed
+            cube([length, depth, thk]);
+            // front lip — vertical slab at the +Y front edge, lip_height tall.
+            // base overlaps the floor by eps (down into solid), so it fuses cleanly and
+            // its top lands exactly at lip_height (<= back_height, so never past Z).
+            translate([0, depth - thk, thk - eps])
+                cube([length, thk, lip_height - thk + eps]);
+        }
+        // two back-wall screw holes through the back wall (along +Y), centered in the wall
+        // height; over-cut eps on both faces so both ends are clean (never past X faces).
+        for (x = [length * 0.25, length * 0.75])
+            translate([x, -eps, back_height / 2])
+                rotate([-90, 0, 0])
+                    cylinder(h = thk + 2 * eps, d = screw_d + clear, $fn = fn);
+    }
+}
+
+module peg_hook_rail(length = 160, bar_h = 40, bar_t = 12, peg_length = 35, peg_d = 12,
+                     peg_count = 5, fn = 32) {
+    eps = 0.05;
+    union() {
+        // back bar: corner-at-origin, X = length, Y = bar_t, Z = bar_h
+        cube([length, bar_t, bar_h]);
+        // a FIXED row of evenly-spaced horizontal +Y pegs, centered in Z. Each peg's base
+        // overlaps INTO the bar by eps (never past the -Y wall face), so the far tip lands
+        // exactly at bar_t + peg_length (envelope-exact). peg_count is fixed internally and
+        // inert to the envelope (the hidden_rod_shelf_bracket / propagation_station precedent);
+        // peg_d is pinned <= bar_h (peg stays inside the bar face in Z) and <= length/3 (the
+        // inset end pegs never overhang the X envelope), so the bbox stays linear.
+        for (i = [0:peg_count - 1])
+            translate([length / 2 + (i - (peg_count - 1) / 2) * (length / (peg_count + 1)),
+                       bar_t - eps, bar_h / 2])
+                rotate([-90, 0, 0])
+                    cylinder(h = peg_length + eps, d = peg_d, $fn = fn);
+    }
+}
+
+module j_decor_hook(width = 60, back_height = 70, reach = 22, catch_rise = 18, thk = 5,
+                    screw_d = 4, fn = 32) {
+    // A decorative J/U-profile robe/towel hook. A constant-thickness J ribbon is traced in the
+    // (Y, Z) plane as one watertight polygon (back tab + forward foot/bend + an up catch at the
+    // front) and extruded across the hook WIDTH; a screw hole is drilled through the back tab so
+    // it mounts to a wall. Bounding box = [width, thk + reach, back_height + catch_rise].
+    // back_height is pinned >= catch_rise upstream, so the front-catch tip (at back_height +
+    // catch_rise) is always the global Z max and the envelope stays the linear sum (no max()).
+    eps = 0.05;
+    clear = 0.2;
+    difference() {
+        // linear_extrude raises the (Y,Z) profile +Z by width; rotate([90,0,90]) maps the
+        // extrude axis -> +X (width), the profile's local-x -> +Y (thk+reach) and local-y ->
+        // +Z (back_height+catch_rise), so the rendered extents equal the declared bbox.
+        rotate([90, 0, 90])
+            linear_extrude(height = width)
+                polygon([
+                    [0, 0],                                    // back-bottom (outer)
+                    [thk + reach, 0],                          // front-bottom (foot, full reach)
+                    [thk + reach, back_height + catch_rise],   // catch tip (Z max, outer)
+                    [reach, back_height + catch_rise],         // catch tip (inner)
+                    [reach, thk],                              // inner: catch meets foot top
+                    [thk, thk],                                // inner: foot meets back tab
+                    [thk, back_height],                        // back tab top (inner)
+                    [0, back_height],                          // back tab top (outer)
+                ]);
+        // screw hole through the back tab into the wall: drilled along +Y (front-to-back through
+        // the thk-thick tab), centered across the width (X) and high on the tab (Z). Over-cuts
+        // both tab faces by eps so no skin is left, never past the documented outer faces.
+        translate([width / 2, -eps, back_height * 0.72])
+            rotate([-90, 0, 0])
+                cylinder(h = thk + 2 * eps, d = screw_d + clear, $fn = fn);
+    }
+}
+
+module plate_display_stand(base_w = 90, base_depth = 70, back_height = 90, groove_w = 8,
+                           base_h = 10, lean_off = 24, fn = 48) {
+    // An upright display stand that grips a decorative plate / tile on edge.
+    //   base_w      X footprint of the base slab and the back upright.
+    //   base_depth  Y footprint of the base slab.
+    //   back_height rise of the leaning back panel above the base top.
+    //   groove_w    width of the plate-gripping groove cut into the front face of the back.
+    //   base_h      FIXED base slab thickness (Z constant; not a slider).
+    //   lean_off    FIXED rearward offset of the back's top vs its bottom (sets the fixed lean).
+    //
+    // Prints flat on the base (Z=0). The back leans BACK (+Y) at a FIXED shallow angle
+    // (atan(lean_off/back_height) ~ 15 deg at the defaults), so the wall self-supports as it
+    // rises — no bridge / support. The groove faces FORWARD (the panel front, toward -Y) and
+    // opens UP, so a plate drops into it on edge.
+    //
+    // Bounding box = [base_w, base_depth + lean_off, base_h + back_height].
+    //   X: base_w (base and back share the full width).
+    //   Y: base spans 0..base_depth; the back's bottom sits at the base rear and its leaned top
+    //      reaches y = base_depth + lean_off (the rear-most, top-most point).
+    //   Z: base_h (base slab) + back_height (back rise).
+    eps = 0.05;
+    back_t = 12;                      // FIXED back-panel thickness (run along the lean base)
+    back_y0 = base_depth - back_t;    // FIXED: back bottom sits flush at the base rear
+    groove_d = 6;                     // FIXED groove depth into the front face
+    groove_z_lo = base_h + 8;         // FIXED cradle lip: groove starts above the base top
+
+    difference() {
+        union() {
+            // --- base slab: corner-at-origin, flat on the bed ---
+            cube([base_w, base_depth, base_h]);
+
+            // --- leaning back panel ---
+            // Profile authored in the Y-Z plane: local-x carries the Z values, local-y the Y
+            // values; extruded along its own +Z then stood up by rotate([0,-90,0]) (extrude axis
+            // -> -X) and shifted +base_w so the width lands at X 0..base_w. The bottom edge sinks
+            // eps into the base slab so the union fuses with no z-fight seam.
+            translate([base_w, 0, 0])
+                rotate([0, -90, 0])
+                    linear_extrude(height = base_w)
+                        polygon([
+                            [base_h - eps,          back_y0],                       // bottom front
+                            [base_h - eps,          back_y0 + back_t],              // bottom back
+                            [base_h + back_height,  back_y0 + back_t + lean_off],   // top back
+                            [base_h + back_height,  back_y0 + lean_off],            // top front
+                        ]);
+        }
+        // --- plate groove: a leaning slot cut into the FRONT face of the back panel, centered in
+        // X (width groove_w). It cuts groove_d INTO the panel and over-runs UP past the panel top
+        // into open air (never past an outer X/Y/Z face on the solid), so the envelope is
+        // unchanged. The cut parallelogram shares the panel's lean: its front edge starts eps
+        // ahead of the front face, its rear edge is groove_d back. ---
+        translate([(base_w + groove_w) / 2, 0, 0])
+            rotate([0, -90, 0])
+                linear_extrude(height = groove_w)
+                    polygon([
+                        [groove_z_lo,                 back_y0 - eps],                        // front, low
+                        [groove_z_lo,                 back_y0 + groove_d],                   // rear, low
+                        [base_h + back_height + eps,  back_y0 + groove_d + lean_off],        // rear, top (into air)
+                        [base_h + back_height + eps,  back_y0 - eps + lean_off],             // front, top (into air)
+                    ]);
     }
 }

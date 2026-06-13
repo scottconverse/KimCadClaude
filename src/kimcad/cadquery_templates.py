@@ -21,6 +21,7 @@ When a library module changes shape, its twin here changes in the same commit.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 from kimcad.templates import TemplateFamily
@@ -947,6 +948,240 @@ def _jar_lid(v: dict[str, float]) -> str:
     )
 
 
+# #19 slice 8: stands / easels + ledges / rails
+def _wedge_easel_stand(v: dict[str, float]) -> str:
+    # dishes.scad::wedge_easel_stand — a right-triangle wedge body (depth x back_height,
+    # extruded across the width) plus a full-width front retaining lip. The wedge profile is
+    # drawn in XY as the (base_depth, back_height) right triangle and extruded +Z by width
+    # (local X=base_depth, Y=back_height, Z=width); two rotations mirror the module's
+    # rotate([90,0,90]) — +90 about X then +90 about Z — landing the solid corner-at-origin
+    # with X in [0,width], Y in [0,base_depth], Z in [0,back_height] (the sawtooth_hanger
+    # profile-orient idiom). The full-height vertical BACK face lands at Y=base_depth; the
+    # hypotenuse is the inclined rest face. The lip is a corner-at-origin box at the front
+    # (Y=0) sharing the Z=0 base plane and overlapping lip_depth into the thin wedge front so
+    # they fuse; its top sits EXACTLY at back_height + lip_height (no over-cut past the top
+    # face), so the envelope is exactly [width, base_depth, back_height + lip_height].
+    width, bh, bd = _f(v["width"]), _f(v["back_height"]), _f(v["base_depth"])
+    lh, ld = _f(v["lip_height"]), _f(v["lip_depth"])
+    return (
+        f'wedge = (cq.Workplane("XY")'
+        f".polyline([(0, 0), ({bd}, 0), ({bd}, {bh})]).close().extrude({width})"
+        f".rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".rotate((0, 0, 0), (0, 0, 1), 90))\n"
+        f'lip = cq.Workplane("XY").box({width}, {ld}, {bh} + {lh}, {_CF})\n'
+        f"result = wedge.union(lip)\n"
+    )
+
+
+def _display_riser(v: dict[str, float]) -> str:
+    # dishes.scad::display_riser — a union of `tiers` stacked centered slabs (bottom widest),
+    # each tier_t tall, each stepped in by step_in per side. Each slab is a corner-at-origin
+    # box (_CF) translated so its XY center sits on the base footprint center; tier i>=1
+    # over-extends DOWN by eps into the tier below (interior to the union, never past the
+    # outer bottom face). bbox = [base_w, base_d, tiers * tier_t].
+    bw, bd = _f(v["base_w"]), _f(v["base_d"])
+    si, tt = _f(v["step_in"]), _f(v["tier_t"])
+    n = int(round(float(v["tiers"])))
+    return (
+        f"eps = {_EPS}\n"
+        f'result = cq.Workplane("XY").box({bw}, {bd}, {tt}, {_CF})\n'
+        f"for i in range(1, {n}):\n"
+        f"    tw = {bw} - 2 * i * {si}\n"
+        f"    td = {bd} - 2 * i * {si}\n"
+        f"    z0 = i * {tt} - eps\n"
+        f'    tier = (cq.Workplane("XY").box(tw, td, (i + 1) * {tt} - z0, {_CF})'
+        f".translate((({bw} - tw) / 2, ({bd} - td) / 2, z0)))\n"
+        f"    result = result.union(tier)\n"
+    )
+
+
+def _slanted_card_easel(v: dict[str, float]) -> str:
+    # dishes.scad::slanted_card_easel — a solid base block minus an interior angled card slot
+    # (a thin box leaned back about X by the fixed lean_deg, opening only through the top face).
+    bw, bd, bh = _f(v["base_w"]), _f(v["base_depth"]), _f(v["base_height"])
+    sw, bm, lean = _f(v["slot_w"]), _f(v["back_margin"]), _f(v.get("lean_deg", 15.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"block_d = {bd} + {bm}\n"
+        f"slot_len_x = {bw} - 2 * ({bh} * 0.12 + 4)\n"
+        f"cut_h = {bh} * 1.6\n"
+        f"px = {bw} / 2\n"
+        f"pz = {bh}\n"
+        f"py = {bm} + {sw} / 2\n"
+        f'block = cq.Workplane("XY").box({bw}, block_d, {bh}, {_CF})\n'
+        f'cutter = (cq.Workplane("XY").box(slot_len_x, {sw}, cut_h + eps, {_CF})'
+        f".translate((-slot_len_x / 2, -{sw} / 2, -cut_h + eps))"
+        f".rotate((0, 0, 0), (1, 0, 0), {lean})"
+        f".translate((px, py, pz)))\n"
+        f"result = block.cut(cutter)\n"
+    )
+
+
+def _desk_nameplate_holder(v: dict[str, float]) -> str:
+    # dishes.scad::desk_nameplate_strip_stand — a corner-at-origin base block + a rear right-triangle
+    # wedge leaning the strip back, minus a near-vertical strip slot. The wedge mirrors the module's
+    # linear_extrude(polygon) profile via polyline().close().extrude() oriented with the SAME
+    # rotate([90,0,90]) mapping (depth->Y, vertical->Z, width->X), proven per-axis by render. The
+    # lean geometry (lean_run, lean_a, slot_seat, slot_foot_y) is resolved at emit time from the
+    # clamped floats (the bud_vase_sleeve idiom), so the script stays pure cadquery ops — no math
+    # import. The slot leans -lean_a about X exactly as the module does, so the twin volume matches.
+    bw, bd, bh = _f(v["base_w"]), _f(v["base_depth"]), _f(v["base_height"])
+    sw, sbo = _f(v["slot_w"]), _f(v["slot_back_offset"])
+    lean_run = float(v["base_depth"]) * 0.55
+    lean_a = _f(-math.degrees(math.atan(lean_run / float(v["slot_back_offset"]))))
+    lean_run_f = _f(lean_run)
+    slot_seat = _f(float(v["base_height"]) * 0.6)
+    slot_foot_y = _f(float(v["base_depth"]) - lean_run * 0.5)
+    return (
+        f"eps = {_EPS}\n"
+        f"lean_run = {lean_run_f}\n"
+        f"slot_seat = {slot_seat}\n"
+        f"slot_foot_y = {slot_foot_y}\n"
+        f'base = cq.Workplane("XY").box({bw}, {bd}, {bh}, {_CF})\n'
+        f'wedge = (cq.Workplane("XY")'
+        f".polyline([({bd} - lean_run, -eps), ({bd}, -eps), ({bd}, {sbo})]).close()"
+        f".extrude({bw})"
+        f".rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".rotate((0, 0, 0), (0, 0, 1), 90)"
+        f".translate((0, 0, {bh})))\n"
+        f"body = base.union(wedge)\n"
+        f"slot_run = ({bh} + {sbo}) + slot_seat + 2 * eps\n"
+        f'slot = (cq.Workplane("XY").box({sw}, eps + {bd}, slot_run, {_CF})'
+        f".rotate((0, 0, 0), (1, 0, 0), {lean_a})"
+        f".translate(({bw} / 2 - {sw} / 2, slot_foot_y, -slot_seat)))\n"
+        f"result = body.cut(slot)\n"
+    )
+
+
+def _place_card_holder(v: dict[str, float]) -> str:
+    # dishes.scad::place_card_holder — base block minus a thin interior vertical card slot.
+    # Both the base and the slot are corner-at-origin boxes (via _CF). The slot is slit_w wide
+    # in X (centered), runs along Y between end_margin insets (interior on both ends), and opens
+    # at the TOP, over-cutting +eps up into open air while leaving a solid floor — so the cut is
+    # fully interior and the envelope stays exactly [base_w, base_depth, base_height].
+    bw, bd, bh = _f(v["base_w"]), _f(v["base_depth"]), _f(v["base_height"])
+    sw, sd = _f(v["slit_w"]), _f(v["slit_depth"])
+    em = _f(v.get("end_margin", 6.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"slot_l = {bd} - 2 * {em}\n"
+        f"slot_x0 = ({bw} - {sw}) / 2\n"
+        f'base = cq.Workplane("XY").box({bw}, {bd}, {bh}, {_CF})\n'
+        f'slot = (cq.Workplane("XY").box({sw}, slot_l, {sd} + eps, {_CF})'
+        f".translate((slot_x0, {em}, {bh} - {sd})))\n"
+        f"result = base.cut(slot)\n"
+    )
+
+
+def _picture_ledge_shelf(v: dict[str, float]) -> str:
+    # dishes.scad::picture_ledge_shelf — an L/channel profile (back wall at the -Y face +
+    # a floor + a front lip at the +Y edge) extruded along the length, minus two back-wall
+    # screw holes drilled along +Y. All corner-at-origin boxes; the lip is pinned <= back
+    # wall so the Z envelope stays back_height. bbox = [length, depth, back_height].
+    length, depth, bh = _f(v["length"]), _f(v["depth"]), _f(v["back_height"])
+    lh, t, sd = _f(v["lip_height"]), _f(v["thk"]), _f(v.get("screw_d", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f'back = cq.Workplane("XY").box({length}, {t}, {bh}, {_CF})\n'
+        f'floor = cq.Workplane("XY").box({length}, {depth}, {t}, {_CF})\n'
+        # front lip: base over-cut DOWN by eps into the floor solid; top lands at lip_height.
+        f'lip = (cq.Workplane("XY").box({length}, {t}, {lh} - {t} + eps, {_CF})'
+        f".translate((0, {depth} - {t}, {t} - eps)))\n"
+        f"body = back.union(floor).union(lip)\n"
+        # back-wall screw holes: a +Z cylinder rotated -90 about X points +Y (the wall_hook idiom).
+        f'drill = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({t} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for x in ({length} * 0.25, {length} * 0.75):\n"
+        f"    body = body.cut(drill.translate((x, -eps, {bh} / 2)))\n"
+        f"result = body\n"
+    )
+
+
+def _peg_hook_rail(v: dict[str, float]) -> str:
+    # dishes.scad::peg_hook_rail — a back bar (corner-at-origin box) + a FIXED row of horizontal
+    # +Y pegs centered in Z. A +Z cylinder rotated -90 about X points +Y (the scad
+    # rotate([-90,0,0])); each peg's base over-cuts INTO the bar by eps so the far tip lands at
+    # bar_t + peg_length. peg_count is fixed (5) and inert to the envelope (the
+    # hidden_rod_shelf_bracket / propagation_station precedent). bbox = [length, bar_t + peg_length, bar_h].
+    length, bar_h, bar_t = _f(v["length"]), _f(v["bar_h"]), _f(v["bar_t"])
+    peg_length, peg_d = _f(v["peg_length"]), _f(v["peg_d"])
+    n = 5
+    return (
+        f"eps = {_EPS}\n"
+        f'body = cq.Workplane("XY").box({length}, {bar_t}, {bar_h}, {_CF})\n'
+        f'peg = (cq.Workplane("XY").circle({peg_d} / 2).extrude({peg_length} + eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for i in range({n}):\n"
+        f"    x = {length} / 2 + (i - ({n} - 1) / 2) * ({length} / ({n} + 1))\n"
+        f"    body = body.union(peg.translate((x, {bar_t} - eps, {bar_h} / 2)))\n"
+        f"result = body\n"
+    )
+
+
+def _j_decor_hook(v: dict[str, float]) -> str:
+    # dishes.scad::j_decor_hook — a uniform-thickness J ribbon (back tab + forward foot + an up
+    # catch at the front) extruded across the hook width, minus a back-tab screw hole. The J
+    # cross-section is traced in (Y,Z) as a closed polyline on XY, extruded +Z by width, then
+    # rotated so the extrude axis -> +X (width), profile-x -> +Y (thk+reach) and profile-y ->
+    # +Z (back_height+catch_rise) — mirroring the module's rotate([90,0,90]) corner-for-corner.
+    # The screw bore (a +Z cylinder rotated -90 about X -> +Y) over-cuts both tab faces by eps.
+    w, bh, r = _f(v["width"]), _f(v["back_height"]), _f(v["reach"])
+    cr, t, sd = _f(v["catch_rise"]), _f(v["thk"]), _f(v.get("screw_d", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f'prof = (cq.Workplane("XY").polyline(['
+        f"(0, 0), ({t} + {r}, 0), ({t} + {r}, {bh} + {cr}), "
+        f"({r}, {bh} + {cr}), ({r}, {t}), ({t}, {t}), ({t}, {bh}), (0, {bh})"
+        f"]).close().extrude({w})"
+        f".rotate((0, 0, 0), (0, 0, 1), 90).rotate((0, 0, 0), (0, 1, 0), 90))\n"
+        f'bore = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({t} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90).translate(({w} / 2, -eps, {bh} * 0.72)))\n"
+        f"result = prof.cut(bore)\n"
+    )
+
+
+def _plate_display_stand(v: dict[str, float]) -> str:
+    # dishes.scad::plate_display_stand — base slab + a FIXED-lean back panel (parallelogram
+    # profile) with a leaning plate groove cut into its front face. The panel profile is authored
+    # in the Y-Z plane (local x = Z values, local y = Y values), extruded along +Z, then stood up
+    # by rotate(-90 about Y) and shifted +base_w so the width lands at X 0..base_w (mirrors the
+    # module's translate([base_w,0,0]) rotate([0,-90,0])). The groove is the same idiom at
+    # width groove_w, centered in X, cutting groove_d into the front face and over-running up into
+    # open air. bbox = [base_w, base_depth + lean_off, base_h + back_height].
+    bw, bd, bh_back = _f(v["base_w"]), _f(v["base_depth"]), _f(v["back_height"])
+    gw, base_h, lean = _f(v["groove_w"]), _f(v["base_h"]), _f(v["lean_off"])
+    back_t = _f(12.0)
+    groove_d = _f(6.0)
+    groove_z_lo_off = _f(8.0)
+    return (
+        f"eps = {_EPS}\n"
+        f"back_t = {back_t}\n"
+        f"back_y0 = {bd} - back_t\n"
+        f"groove_d = {groove_d}\n"
+        f"groove_z_lo = {base_h} + {groove_z_lo_off}\n"
+        f"top_z = {base_h} + {bh_back}\n"
+        f'base = cq.Workplane("XY").box({bw}, {bd}, {base_h}, {_CF})\n'
+        f'panel = (cq.Workplane("XY").polyline(['
+        f"({base_h} - eps, back_y0), "
+        f"({base_h} - eps, back_y0 + back_t), "
+        f"(top_z, back_y0 + back_t + {lean}), "
+        f"(top_z, back_y0 + {lean})"
+        f"]).close().extrude({bw})"
+        f".rotate((0, 0, 0), (0, 1, 0), -90).translate(({bw}, 0, 0)))\n"
+        f"body = base.union(panel)\n"
+        f'groove = (cq.Workplane("XY").polyline(['
+        f"(groove_z_lo, back_y0 - eps), "
+        f"(groove_z_lo, back_y0 + groove_d), "
+        f"(top_z + eps, back_y0 + groove_d + {lean}), "
+        f"(top_z + eps, back_y0 - eps + {lean})"
+        f"]).close().extrude({gw})"
+        f".rotate((0, 0, 0), (0, 1, 0), -90).translate((({bw} + {gw}) / 2, 0, 0)))\n"
+        f"result = body.cut(groove)\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -998,6 +1233,17 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "ornament_cap": _ornament_cap,
     "gift_box_lid": _gift_box_lid,
     "jar_lid": _jar_lid,
+    # #19 slice 8: stands / easels + ledges / rails (keyed by FAMILY name; the
+    # slanted_sign_holder family's module/twin is slanted_card_easel)
+    "wedge_easel_stand": _wedge_easel_stand,
+    "display_riser": _display_riser,
+    "slanted_sign_holder": _slanted_card_easel,
+    "desk_nameplate_holder": _desk_nameplate_holder,
+    "place_card_holder": _place_card_holder,
+    "picture_ledge_shelf": _picture_ledge_shelf,
+    "peg_hook_rail": _peg_hook_rail,
+    "j_decor_hook": _j_decor_hook,
+    "plate_display_stand": _plate_display_stand,
 }
 
 

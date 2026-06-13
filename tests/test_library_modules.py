@@ -218,6 +218,57 @@ NEW_MODULES = {
         "jar_lid(outer_d=70, top_t=4, skirt_d=64, skirt_h=12, skirt_wall=3);",
         [70, 70, 16],
     ),
+    # #19 slice 8: stands / easels + ledges / rails (keys are MODULE names — the render test
+    # calls the module; slanted_sign_holder's module is slanted_card_easel)
+    "wedge_easel_stand": (
+        "dishes.scad",
+        "wedge_easel_stand(width=80, back_height=70, base_depth=60, lip_height=14, lip_depth=10);",
+        [80, 60, 84],
+    ),
+    "display_riser": (
+        "dishes.scad",
+        "display_riser(base_w=90, base_d=70, tiers=4, step_in=8, tier_t=8);",
+        [90, 70, 32],
+    ),
+    "slanted_card_easel": (
+        "dishes.scad",
+        "slanted_card_easel(base_w=90, base_depth=40, base_height=45, slot_w=4, "
+        "back_margin=12, lean_deg=15);",
+        [90, 52, 45],
+    ),
+    "desk_nameplate_strip_stand": (
+        "dishes.scad",
+        "desk_nameplate_strip_stand(base_w=120, base_depth=45, base_height=14, slot_w=4, "
+        "slot_back_offset=30);",
+        [120, 45, 44],
+    ),
+    "place_card_holder": (
+        "dishes.scad",
+        "place_card_holder(base_w=60, base_depth=25, base_height=18, slit_w=2.5, "
+        "slit_depth=12, end_margin=6);",
+        [60, 25, 18],
+    ),
+    "picture_ledge_shelf": (
+        "dishes.scad",
+        "picture_ledge_shelf(length=160, depth=70, back_height=40, lip_height=15, thk=4, screw_d=4);",
+        [160, 70, 40],
+    ),
+    "peg_hook_rail": (
+        "dishes.scad",
+        "peg_hook_rail(length=160, bar_h=40, bar_t=12, peg_length=35, peg_d=12, peg_count=5);",
+        [160, 47, 40],
+    ),
+    "j_decor_hook": (
+        "dishes.scad",
+        "j_decor_hook(width=60, back_height=70, reach=22, catch_rise=18, thk=5);",
+        [60, 27, 88],
+    ),
+    "plate_display_stand": (
+        "dishes.scad",
+        "plate_display_stand(base_w=90, base_depth=70, back_height=90, groove_w=8, "
+        "base_h=10, lean_off=24);",
+        [90, 94, 100],
+    ),
 }
 
 

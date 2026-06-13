@@ -1618,6 +1618,274 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("skirt_d", "outer_d", 0.0, 1.0), ("skirt_wall", "skirt_d", 1.0, 0.25)),
     )
 
+    # #19 slice 8: stands / easels + ledges / rails
+    wedge_easel_stand = TemplateFamily(
+        name="wedge_easel_stand",
+        summary="A fixed-angle tabletop easel: a triangular wedge with a front lip to prop a framed photo, tile, or sign.",
+        tier="benchmarked",
+        object_types=(
+            "wedge easel", "tabletop easel", "fixed angle easel", "photo easel stand",
+            "tile easel", "sign easel", "desktop easel wedge",
+        ),
+        library_file="dishes.scad",
+        module="wedge_easel_stand",
+        params=(
+            ParamSpec(name="width", label="Width", default=80.0, dim_keys=("width",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="back_height", label="Back height", default=70.0, min=10.0, max=150.0, step=1.0,
+                dim_keys=("back_height", "height")),
+            ParamSpec(name="base_depth", label="Base depth", default=60.0, dim_keys=("base_depth", "depth"), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="lip_height", label="Lip height", default=14.0, min=4.0, max=30.0, step=1.0,
+                dim_keys=("lip_height", "lip")),
+            ParamSpec(name="lip_depth", label="Lip depth", default=10.0, min=4.0, max=40.0, step=1.0,
+                dim_keys=("lip_depth",)),
+        ),
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="base_depth"),),
+        bbox_z=(BBoxTerm(ref="back_height"), BBoxTerm(ref="lip_height")),
+        # the lip must stay inside the base footprint so it never extends the Y envelope
+        gaps=(("lip_depth", "base_depth", 2.0, 1.0),),
+    )
+
+    display_riser = TemplateFamily(
+        name="display_riser",
+        summary="A tiered stepped pedestal that elevates a displayed piece: stacked centered slabs, bottom widest, each stepped in.",
+        object_types=(
+            "display riser", "tiered riser", "stepped riser", "stepped pedestal",
+            "tiered pedestal", "display pedestal", "stepped display riser",
+        ),
+        library_file="dishes.scad",
+        module="display_riser",
+        params=(
+            ParamSpec(name="base_w", label="Base width", default=90.0, min=30.0, max=170.0, step=1.0,
+                dim_keys=("base_w", "width"), bbox_axis=0),
+            ParamSpec(name="base_d", label="Base depth", default=70.0, min=30.0, max=170.0, step=1.0,
+                dim_keys=("base_d", "depth"), bbox_axis=1),
+            ParamSpec(name="tiers", label="Tiers", default=4.0, min=2.0, max=5.0, step=1.0,
+                unit="", integer=True, dim_keys=("tiers", "steps", "levels")),
+            ParamSpec(name="step_in", label="Step inset", default=8.0, min=2.0, max=25.0, step=0.5,
+                dim_keys=("step_in", "inset", "step")),
+        ),
+        # tier_t FIXED at 8 mm so bbox_z = coef(=tier_t) * tiers stays LINEAR in the integer tiers
+        # (tiers * tier_t is otherwise bilinear).
+        fixed_args={"tier_t": 8.0},
+        bbox_x=(BBoxTerm(ref="base_w"),),
+        bbox_y=(BBoxTerm(ref="base_d"),),
+        bbox_z=(BBoxTerm(ref="tiers", coef=8.0),),
+        # step_in gap-clamped against BOTH base dims so the top tier (base - 2*(tiers-1)*step_in)
+        # stays comfortably positive across the whole slider envelope (worst case ~14 mm). The
+        # coef/gap are sized for the largest tier count (drawer_divider count-vs-length precedent).
+        gaps=(("step_in", "base_w", 2.0, 0.1), ("step_in", "base_d", 2.0, 0.1)),
+    )
+
+    slanted_sign_holder = TemplateFamily(
+        name="slanted_sign_holder",
+        summary="A weighted base block with an interior angled slot that holds a menu / price card at a readable backward tilt.",
+        tier="baseline",
+        object_types=(
+            "slanted sign holder", "card easel", "tabletop sign holder", "menu card holder",
+            "price card holder", "table card display", "sloped card holder", "angled sign base",
+        ),
+        library_file="dishes.scad",
+        module="slanted_card_easel",
+        params=(
+            ParamSpec(name="base_w", label="Base width", default=90.0, min=40.0, max=170.0, step=1.0,
+                dim_keys=("base_w", "width"), bbox_axis=0),
+            ParamSpec(name="base_depth", label="Base depth", default=40.0, min=20.0, max=120.0, step=1.0,
+                dim_keys=("base_depth", "depth")),
+            ParamSpec(name="base_height", label="Base height", default=45.0, min=20.0, max=120.0, step=1.0,
+                dim_keys=("base_height", "height"), bbox_axis=2),
+            ParamSpec(name="slot_w", label="Card slot width", default=4.0, min=2.0, max=10.0, step=0.5,
+                dim_keys=("slot_w", "slot", "card_thickness")),
+            ParamSpec(name="back_margin", label="Back margin", default=12.0, min=6.0, max=40.0, step=1.0,
+                dim_keys=("back_margin", "margin")),
+        ),
+        fixed_args={"lean_deg": 15.0},
+        bbox_x=(BBoxTerm(ref="base_w"),),
+        bbox_y=(BBoxTerm(ref="base_depth"), BBoxTerm(ref="back_margin")),
+        bbox_z=(BBoxTerm(ref="base_height"),),
+        gaps=(("slot_w", "base_depth", 2.0, 1.0), ("back_margin", "base_depth", 0.0, 1.0)),
+    )
+
+    desk_nameplate_holder = TemplateFamily(
+        name="desk_nameplate_holder",
+        summary="A low desk base with a rear leaning wedge: an engraved name strip drops into a near-vertical slot.",
+        tier="baseline",
+        object_types=(
+            "desk nameplate holder", "name plate holder", "name strip stand",
+            "desk name plate", "engraved nameplate holder", "name strip display",
+        ),
+        library_file="dishes.scad",
+        module="desk_nameplate_strip_stand",
+        params=(
+            ParamSpec(name="base_w", label="Base width", default=120.0, min=40.0, max=170.0, step=1.0,
+                dim_keys=("base_w", "width", "length"), bbox_axis=0),
+            ParamSpec(name="base_depth", label="Base depth", default=45.0, min=20.0, max=90.0, step=1.0,
+                dim_keys=("base_depth", "depth"), bbox_axis=1),
+            ParamSpec(name="base_height", label="Base height", default=14.0, min=8.0, max=40.0, step=1.0,
+                dim_keys=("base_height", "height")),
+            ParamSpec(name="slot_w", label="Slot width", default=4.0, min=2.0, max=12.0, step=0.5,
+                dim_keys=("slot_w", "strip_thickness", "slot")),
+            ParamSpec(name="slot_back_offset", label="Slot back rise", default=30.0, min=10.0, max=130.0,
+                step=1.0, dim_keys=("slot_back_offset", "back_offset", "rise")),
+        ),
+        bbox_x=(BBoxTerm(ref="base_w"),),
+        bbox_y=(BBoxTerm(ref="base_depth"),),
+        bbox_z=(BBoxTerm(ref="base_height"), BBoxTerm(ref="slot_back_offset")),
+    )
+
+    place_card_holder = TemplateFamily(
+        name="place_card_holder",
+        summary="A small base that stands a folded place card upright in a thin vertical slot.",
+        tier="benchmarked",
+        object_types=("place card holder", "place card stand", "name card holder",
+            "table card holder", "escort card holder", "place card slot"),
+        library_file="dishes.scad",
+        module="place_card_holder",
+        params=(
+            ParamSpec(name="base_w", label="Base width", default=60.0, min=20.0, max=170.0, step=1.0,
+                dim_keys=("base_w", "width", "length"), bbox_axis=0),
+            ParamSpec(name="base_depth", label="Base depth", default=25.0, min=16.0, max=120.0, step=1.0,
+                dim_keys=("base_depth", "depth"), bbox_axis=1),
+            ParamSpec(name="base_height", label="Base height", default=18.0, min=10.0, max=80.0, step=1.0,
+                dim_keys=("base_height", "height"), bbox_axis=2),
+            ParamSpec(name="slit_w", label="Slot width", default=2.5, min=1.0, max=6.0, step=0.5,
+                dim_keys=("slit_w", "slot_width", "card_thickness")),
+            ParamSpec(name="slit_depth", label="Slot depth", default=12.0, min=4.0, max=70.0, step=1.0,
+                dim_keys=("slit_depth", "slot_depth")),
+        ),
+        # end_margin is fixed (Y-end inset that keeps the slot interior along the depth); it never
+        # enters the envelope, and pinning it keeps slot_l = base_depth - 2*end_margin linear.
+        fixed_args={"end_margin": 6.0},
+        bbox_x=(BBoxTerm(ref="base_w"),),
+        bbox_y=(BBoxTerm(ref="base_depth"),),
+        bbox_z=(BBoxTerm(ref="base_height"),),
+        # the slot must leave a wall each side (slit_w <= base_w - 6) and a solid floor
+        # (slit_depth <= base_height - 2), so the cut stays strictly interior.
+        gaps=(("slit_w", "base_w", 6.0, 1.0), ("slit_depth", "base_height", 2.0, 1.0)),
+    )
+
+    picture_ledge_shelf = TemplateFamily(
+        name="picture_ledge_shelf",
+        summary="A long narrow wall ledge with a raised front lip that holds framed art leaning against the wall.",
+        tier="baseline",
+        object_types=(
+            "picture ledge", "art ledge", "photo ledge", "picture rail shelf",
+            "frame ledge shelf", "leaning art ledge", "display ledge shelf",
+        ),
+        library_file="dishes.scad",
+        module="picture_ledge_shelf",
+        params=(
+            ParamSpec(name="length", label="Length", default=160.0, dim_keys=("length", "width"), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="depth", label="Depth", default=70.0, min=20.0, max=170.0, step=1.0,
+                dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="back_height", label="Back-wall height", default=40.0, min=15.0, max=170.0,
+                step=1.0, dim_keys=("back_height", "height"), bbox_axis=2),
+            ParamSpec(name="lip_height", label="Front lip height", default=15.0, min=10.0, max=170.0,
+                step=1.0, dim_keys=("lip_height", "lip")),
+            ParamSpec(name="thk", label="Thickness", default=4.0, min=2.0, max=8.0, step=0.5,
+                dim_keys=("thk", "thickness", "wall")),
+        ),
+        fixed_args={"screw_d": 4.0},
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="back_height"),),
+        # The front lip must not rise above the back wall, so the Z envelope is always
+        # back_height (the lip_height term stays OUT of bbox_z, like a pinned secondary feature).
+        gaps=(("lip_height", "back_height", 0.0, 1.0),),
+    )
+
+    peg_hook_rail = TemplateFamily(
+        name="peg_hook_rail",
+        summary="A wall back-bar with a fixed row of evenly spaced projecting pegs for coats, towels, or keys.",
+        tier="benchmarked",
+        object_types=(
+            "peg hook rail", "peg rail", "coat peg rail", "towel peg rail",
+            "wall peg rail", "shaker peg rail", "key peg rail",
+        ),
+        library_file="dishes.scad",
+        module="peg_hook_rail",
+        params=(
+            ParamSpec(name="length", label="Bar length", default=160.0, min=40.0, max=170.0,
+                step=1.0, dim_keys=("length", "width"), bbox_axis=0),
+            ParamSpec(name="bar_h", label="Bar height", default=40.0, min=20.0, max=170.0,
+                step=1.0, dim_keys=("bar_h", "height"), bbox_axis=2),
+            ParamSpec(name="bar_t", label="Bar thickness", default=12.0, min=6.0, max=30.0,
+                step=1.0, dim_keys=("bar_t", "thickness")),
+            ParamSpec(name="peg_length", label="Peg length", default=35.0, min=15.0, max=120.0,
+                step=1.0, dim_keys=("peg_length", "projection", "reach", "depth")),
+            ParamSpec(name="peg_d", label="Peg diameter", default=12.0, min=6.0, max=25.0,
+                step=0.5, dim_keys=("peg_d", "peg_diameter", "diameter")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="bar_t"), BBoxTerm(ref="peg_length")),
+        bbox_z=(BBoxTerm(ref="bar_h"),),
+        # peg_d must fit within the bar height (a centered peg stays inside the Z envelope) AND
+        # within the bar length (the inset end pegs at x = length/6 must not overhang the X face,
+        # i.e. peg_d <= length/3) so the analytic bbox stays exactly linear across the slider range.
+        gaps=(("peg_d", "bar_h", 0.0, 1.0), ("peg_d", "length", 0.0, 0.333)),
+    )
+
+    j_decor_hook = TemplateFamily(
+        name="j_decor_hook",
+        summary="A decorative J-profile robe/towel hook: an extruded J ribbon (back tab, forward bend, an up catch) with a back screw tab.",
+        tier="benchmarked",
+        object_types=("j hook", "robe hook", "towel hook", "j profile hook", "decorative wall hook", "bathrobe hook"),
+        library_file="dishes.scad",
+        module="j_decor_hook",
+        params=(
+            ParamSpec(name="width", label="Hook width", default=60.0, min=10.0, max=120.0, step=1.0,
+                dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="back_height", label="Back tab height", default=70.0, min=20.0, max=150.0, step=1.0,
+                dim_keys=("back_height", "height"), bbox_axis=2),
+            ParamSpec(name="reach", label="Hook reach", default=22.0, min=10.0, max=120.0, step=1.0,
+                dim_keys=("reach", "projection", "depth")),
+            ParamSpec(name="catch_rise", label="Catch rise", default=18.0, min=5.0, max=80.0, step=1.0,
+                dim_keys=("catch_rise", "catch")),
+            ParamSpec(name="thk", label="Profile thickness", default=5.0, min=3.0, max=12.0, step=0.5,
+                dim_keys=("thk", "thickness", "wall")),
+        ),
+        fixed_args={"screw_d": 4.0},
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="thk"), BBoxTerm(ref="reach")),
+        bbox_z=(BBoxTerm(ref="back_height"), BBoxTerm(ref="catch_rise")),
+        # back_height pinned >= catch_rise so the front-catch tip (back_height + catch_rise) is always
+        # the tallest point and bbox_z stays the linear sum (the wall_hook pin-a-min precedent).
+        gaps=(("catch_rise", "back_height", 0.0, 1.0),),
+    )
+
+    plate_display_stand = TemplateFamily(
+        name="plate_display_stand",
+        summary="An upright display stand that grips a decorative plate or tile on edge: a flat "
+        "base with a fixed-lean back panel carrying a plate groove.",
+        tier="baseline",
+        object_types=(
+            "plate display stand", "plate stand", "plate easel", "display plate stand",
+            "decorative plate stand", "plate holder stand", "tile display stand",
+        ),
+        library_file="dishes.scad",
+        module="plate_display_stand",
+        params=(
+            ParamSpec(name="base_w", label="Base width", default=90.0, min=40.0, max=170.0, step=1.0,
+                dim_keys=("base_w", "width"), bbox_axis=0),
+            ParamSpec(name="base_depth", label="Base depth", default=70.0, min=30.0, max=120.0, step=1.0,
+                dim_keys=("base_depth", "depth")),
+            ParamSpec(name="back_height", label="Back height", default=90.0, min=40.0, max=140.0, step=1.0,
+                dim_keys=("back_height", "height")),
+            ParamSpec(name="groove_w", label="Plate groove width", default=8.0, min=4.0, max=20.0, step=0.5,
+                dim_keys=("groove_w", "plate_thickness", "groove")),
+        ),
+        # base_h and lean_off are FIXED so the lean angle is fixed and the bbox stays LINEAR
+        # (the rear-most/top-most point lands at base_depth + lean_off; the top at base_h +
+        # back_height). The back panel thickness (12) and groove depth (6) live inside the module.
+        fixed_args={"base_h": 10.0, "lean_off": 24.0},
+        bbox_x=(BBoxTerm(ref="base_w"),),
+        bbox_y=(BBoxTerm(ref="base_depth"), BBoxTerm(ref="lean_off")),
+        bbox_z=(BBoxTerm(ref="base_h"), BBoxTerm(ref="back_height")),
+        # The groove must stay narrower than the base width so the back panel keeps a wall each
+        # side of the slot (groove_w <= base_w/2 - 2).
+        gaps=(("groove_w", "base_w", 2.0, 0.5),),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
@@ -1632,6 +1900,10 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         # #19 slice 7: flat decor + ornaments
         coaster_with_rim, trivet, bookend, geometric_wall_tile, tile_connector_clip,
         ornament_blank, ornament_cap, gift_box_lid, jar_lid,
+        # #19 slice 8: stands / easels + ledges / rails
+        wedge_easel_stand, display_riser, slanted_sign_holder, desk_nameplate_holder,
+        place_card_holder, picture_ledge_shelf, peg_hook_rail, j_decor_hook,
+        plate_display_stand,
     )
 
 

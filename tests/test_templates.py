@@ -80,6 +80,10 @@ EXPECTED_FAMILY_NAMES = frozenset(
         # #19 slice 7: flat decor + ornaments
         "coaster_with_rim", "trivet", "bookend", "geometric_wall_tile", "tile_connector_clip",
         "ornament_blank", "ornament_cap", "gift_box_lid", "jar_lid",
+        # #19 slice 8: stands / easels + ledges / rails
+        "wedge_easel_stand", "display_riser", "slanted_sign_holder", "desk_nameplate_holder",
+        "place_card_holder", "picture_ledge_shelf", "peg_hook_rail", "j_decor_hook",
+        "plate_display_stand",
     }
 )
 
