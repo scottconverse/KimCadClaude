@@ -1692,6 +1692,319 @@ def _heatset_insert_boss(v: dict[str, float]) -> str:
     )
 
 
+# #19 slice 11: boxes + specialty (parts.scad). Emitters keyed by FAMILY name below.
+
+
+def _snap_fit_box(v: dict[str, float]) -> str:
+    # parts.scad::snap_fit_box — open-top walled BASE at the origin + an open-DOWN friction
+    # LID at x = width + gap (bore = base OUTER footprint + fit, so the cap drops over the
+    # base rim). lid_h <= height, so the BASE governs Z. Mirrors the module corner-for-corner;
+    # bbox = [2*width + gap, depth, height].
+    w, d, h, t = _f(v["width"]), _f(v["depth"]), _f(v["height"]), _f(v["wall"])
+    lid_h, gap, fit = _f(v["lid_h"]), _f(v["gap"]), _f(0.4)
+    return (
+        f"eps = {_EPS}\n"
+        f"fit = {fit}\n"
+        # BASE: open-top walled box at origin, floor = wall (cavity over-cuts +eps into air).
+        f'base_outer = cq.Workplane("XY").box({w}, {d}, {h}, {_CF})\n'
+        f'base_cav = (cq.Workplane("XY")'
+        f".box({w} - 2 * {t}, {d} - 2 * {t}, {h} - {t} + eps, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"base = base_outer.cut(base_cav)\n"
+        # LID: open-DOWN cap at x = width + gap; bore = base outer footprint + fit, centered,
+        # leaving a wall-thick top. Bore over-cuts -eps below the base into open air.
+        f"bore_w = {w} - 2 * {t} + fit\n"
+        f"bore_d = {d} - 2 * {t} + fit\n"
+        f'lid_outer = (cq.Workplane("XY").box({w}, {d}, {lid_h}, {_CF})'
+        f".translate(({w} + {gap}, 0, 0)))\n"
+        f'lid_cav = (cq.Workplane("XY").box(bore_w, bore_d, {lid_h} - {t} + eps, {_CF})'
+        f".translate(({w} + {gap} + ({w} - bore_w) / 2, ({d} - bore_d) / 2, -eps)))\n"
+        f"lid = lid_outer.cut(lid_cav)\n"
+        f"result = base.union(lid)\n"
+    )
+
+
+def _hinged_lid_box(v: dict[str, float]) -> str:
+    # parts.scad::hinged_lid_box — an open-top walled BASE at the origin and a separate press-on
+    # LID at x = width + gap. The lid is a flat top plate (full footprint) over the top `wall` of
+    # the height, plus a DOWNWARD INNER LIP ring (a box minus its bore) hanging from z = 0 that
+    # seats INSIDE the base rim with `fit` clearance. Both parts span z = 0 .. height and the lid
+    # footprint is exactly [width, depth], so the combined envelope equals
+    # [2*width + gap, depth, height]. Corner-at-origin (mirrors the cube() idiom). fit = 0.4
+    # diametral slip-fit clearance matches the OpenSCAD module.
+    w, d, h, t = _f(v["width"]), _f(v["depth"]), _f(v["height"]), _f(v["wall"])
+    gap = _f(v.get("gap", 10.0))
+    fit = _f(0.4)
+    return (
+        f"eps = {_EPS}\n"
+        f'base = cq.Workplane("XY").box({w}, {d}, {h}, {_CF})\n'
+        f'cavity = (cq.Workplane("XY")'
+        f".box({w} - 2 * {t}, {d} - 2 * {t}, {h} - {t} + 1.0, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"base = base.cut(cavity)\n"
+        f"lip_outer_w = {w} - 2 * {t} - {fit}\n"
+        f"lip_outer_d = {d} - 2 * {t} - {fit}\n"
+        f"lip_inner_w = lip_outer_w - 2 * {t}\n"
+        f"lip_inner_d = lip_outer_d - 2 * {t}\n"
+        f"lip_h = {h} - {t}\n"
+        f'plate = (cq.Workplane("XY").box({w}, {d}, {t}, {_CF})'
+        f".translate((0, 0, {h} - {t})))\n"
+        f'lip = (cq.Workplane("XY").box(lip_outer_w, lip_outer_d, lip_h + eps, {_CF}).cut('
+        f'cq.Workplane("XY").box(lip_inner_w, lip_inner_d, lip_h + 3 * eps, {_CF})'
+        f".translate(({t}, {t}, -eps)))"
+        f".translate((({w} - lip_outer_w) / 2, ({d} - lip_outer_d) / 2, 0)))\n"
+        f"lid = plate.union(lip).translate(({w} + {gap}, 0, 0))\n"
+        f"result = base.union(lid)\n"
+    )
+
+
+def _clamp_block(v: dict[str, float]) -> str:
+    # parts.scad::slot_clamp_block — solid block minus a top-open vertical slot (full depth,
+    # centred in X) minus a cross screw hole through both jaws along X. The slot over-cuts
+    # +/-eps past the front/back faces and +eps up into the open air above the rim; the screw
+    # bore over-cuts past both X faces. bbox = [width, depth, height].
+    w, d, h = _f(v["width"]), _f(v["depth"]), _f(v["height"])
+    sw, sd = _f(v["slot_w"]), _f(v["screw_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"slot_bottom = {h} / 3\n"
+        f"screw_z = slot_bottom + ({h} - slot_bottom) / 2\n"
+        f'block = cq.Workplane("XY").box({w}, {d}, {h}, {_CF})\n'
+        f'slot = (cq.Workplane("XY")'
+        f".box({sw}, {d} + 2 * eps, {h} - slot_bottom + eps, {_CF})"
+        f".translate((({w} - {sw}) / 2, -eps, slot_bottom)))\n"
+        # A +Z cylinder rotated +90 about Y points +X (the scad rotate([0,90,0])).
+        f'screw = (cq.Workplane("XY").circle(({sd} + {_CLEAR}) / 2)'
+        f".extrude({w} + 2 * eps)"
+        f".rotate((0, 0, 0), (0, 1, 0), 90).translate((-eps, {d} / 2, screw_z)))\n"
+        f"result = block.cut(slot).cut(screw)\n"
+    )
+
+
+def _cable_raceway(v: dict[str, float]) -> str:
+    # parts.scad::cable_raceway — outer block minus a top-open cable channel (wall walls +
+    # a wall-thick floor) minus a FIXED centered row of mounting bores through that floor.
+    # Each bore over-cuts -eps below the base and up into the open channel cavity, so the
+    # bore count is inert to the envelope (the drawer_divider precedent). bbox = [length, width, height].
+    length, width, height, t = _f(v["length"]), _f(v["width"]), _f(v["height"]), _f(v["wall"])
+    holes = 5
+    hole_d = _f(4.0)
+    return (
+        f"eps = {_EPS}\n"
+        f"chan_depth = {height} - {t} + eps\n"
+        f'body = cq.Workplane("XY").box({length}, {width}, {height}, {_CF})\n'
+        f'chan = (cq.Workplane("XY")'
+        f".box({length} - 2 * {t}, {width} - 2 * {t}, chan_depth, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"result = body.cut(chan)\n"
+        f'bore = cq.Workplane("XY").circle({hole_d} / 2).extrude({t} + 2 * eps)\n'
+        f"for i in range({holes}):\n"
+        f"    x = {length} / 2 + (i - ({holes} - 1) / 2) * ({length} / ({holes} + 1))\n"
+        f"    result = result.cut(bore.translate((x, {width} / 2, -eps)))\n"
+    )
+
+
+def _bar_pull_handle(v: dict[str, float]) -> str:
+    # parts.scad::bar_pull_handle — two vertical posts (full height) at the span ends, each with
+    # a forward arm (+Y) to a grip rail (+X) at the front top, minus a screw bore down through
+    # each post base. screw_d is a FIXED 4 mm internal (matches the module). arm_d = min(post_d,
+    # grip_d) so the arm is never fatter than either member it joins (clean union). Cylinder
+    # orientation mirrors the OpenSCAD rotate idioms: +Y = a +Z cylinder rotated -90 about X
+    # (the wall_hook arm); +X = a +Z cylinder rotated +90 about Y (the l_bracket upright hole).
+    span, h, depth = _f(v["span"]), _f(v["height"]), _f(v["depth"])
+    pd, gd = _f(v["post_d"]), _f(v["grip_d"])
+    arm_d = _f(min(float(v["post_d"]), float(v["grip_d"])))
+    sd = _f(4.0)
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"post_cx0 = {pd} / 2\n"
+        f"post_cx1 = {span} - {pd} / 2\n"
+        f"post_cy = {pd} / 2\n"
+        f"grip_cy = {depth} - {gd} / 2\n"
+        f"grip_cz = {h} - {gd} / 2\n"
+        f"arm_z = grip_cz\n"
+        f"arm_len = grip_cy\n"
+        f'post = cq.Workplane("XY").circle({pd} / 2).extrude({h})\n'
+        f"body = post.translate((post_cx0, post_cy, 0)).union(post.translate((post_cx1, post_cy, 0)))\n"
+        f'arm = (cq.Workplane("XY").circle({arm_d} / 2).extrude(arm_len)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for cx in (post_cx0, post_cx1):\n"
+        f"    body = body.union(arm.translate((cx, 0.0, arm_z)))\n"
+        f'grip = (cq.Workplane("XY").circle({gd} / 2).extrude({span})'
+        f".rotate((0, 0, 0), (0, 1, 0), 90).translate((0, grip_cy, grip_cz)))\n"
+        f"body = body.union(grip)\n"
+        f'drill = cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({h})\n'
+        f"for cx in (post_cx0, post_cx1):\n"
+        f"    body = body.cut(drill.translate((cx, post_cy, -eps)))\n"
+        f"result = body\n"
+    )
+
+
+def _phone_dock(v: dict[str, float]) -> str:
+    # parts.scad::phone_dock — weighted base slab + an angled back-rest wedge (back face at
+    # Y=depth, apex at Z=height) the device leans into, minus a leaning device slot and a front
+    # cable pass-through bore. base_h/front_y are fixed coefs of height/depth (the envelope stays
+    # exactly [width, depth, height], linear). The wedge profile is drawn on the YZ workplane as
+    # (depth, height) coords and extruded along +X by the width, so depth->Y, height->Z, width->X
+    # corner-for-corner with the OpenSCAD rotate([90,0,90]) linear_extrude wedge. The lean angle
+    # is precomputed in Python (module-level math) so the emitted script is import-free.
+    w, d, h = _f(v["width"]), _f(v["depth"]), _f(v["height"])
+    sw, cd = _f(v["slot_w"]), _f(v["cable_d"])
+    base_h = _f(float(v["height"]) * 0.4)
+    front_y = _f(float(v["depth"]) * 0.35)
+    rest_run = float(v["depth"]) - float(v["depth"]) * 0.35
+    lean_deg = _f(math.degrees(math.atan(rest_run / float(v["height"]))))
+    slot_len_x = _f(float(v["width"]) - 2 * (float(v["width"]) * 0.12 + 4))
+    slot_seat = _f(float(v["height"]) * 0.5)
+    py = _f(float(v["depth"]) - rest_run * 0.45)
+    slot_run = _f(float(v["height"]) + float(v["height"]) * 0.5 + 2 * _EPS)
+    return (
+        f"eps = {_EPS}\n"
+        f"base_h = {base_h}\n"
+        f"front_y = {front_y}\n"
+        f'base = cq.Workplane("XY").box({w}, {d}, base_h, {_CF})\n'
+        f'wedge = (cq.Workplane("YZ")'
+        f".polyline([(front_y, 0), ({d}, 0), ({d}, {h})]).close()"
+        f".extrude({w}))\n"
+        f"body = base.union(wedge)\n"
+        f'slot = (cq.Workplane("XY").box({slot_len_x}, {sw}, {slot_run}, {_CF})'
+        f".rotate((0, 0, 0), (1, 0, 0), -{lean_deg})"
+        f".translate((({w} - {slot_len_x}) / 2, {py}, {h} - {slot_seat})))\n"
+        f"body = body.cut(slot)\n"
+        f'cable = (cq.Workplane("XY").circle(({cd} + {_CLEAR}) / 2).extrude(front_y + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90).translate(({w} / 2, -eps, base_h * 0.5)))\n"
+        f"result = body.cut(cable)\n"
+    )
+
+
+def _pour_funnel(v: dict[str, float]) -> str:
+    # parts.scad::pour_funnel — an outer truncated-cone wall (outlet_d at the base, inlet_d at
+    # the rim) minus an inner truncated-cone bore that runs THROUGH both ends. Each frustum is a
+    # LOFT between two XY-centered circles at different Z (the proven taper idiom — NOT makeCone),
+    # mirroring the OpenSCAD cylinder(d1, d2) walls. The bore loft spans -eps below the base to
+    # height+eps above the rim (then translated down by eps) so both openings are clean and the
+    # cut never touches a documented face. inlet_d is pinned >= outlet_d, so the rim is the widest
+    # point and the envelope is exactly [inlet_d, inlet_d, height].
+    ind, h = _f(v["inlet_d"]), _f(v["height"])
+    outd, t = _f(v["outlet_d"]), _f(v["wall"])
+    return (
+        f"eps = {_EPS}\n"
+        f"in_bot = {outd} - 2 * {t}\n"
+        f"in_top = {ind} - 2 * {t}\n"
+        f'outer = (cq.Workplane("XY").circle({outd} / 2)'
+        f".workplane(offset={h}).circle({ind} / 2).loft())\n"
+        f'bore = (cq.Workplane("XY").circle(in_bot / 2)'
+        f".workplane(offset={h} + 2 * eps).circle(in_top / 2).loft()"
+        f".translate((0, 0, -eps)))\n"
+        f"result = outer.cut(bore)\n"
+    )
+
+
+def _gridfinity_bin(v: dict[str, float]) -> str:
+    # parts.scad::gridfinity_bin — outer block minus an open-top scoop cavity minus a top
+    # stacking-lip rim recess. grid_x/grid_y are the integer cell counts; the footprint is
+    # exactly 42*grid_x by 42*grid_y (the fixed Gridfinity pitch). Everything cut stays inside
+    # the outer walls, so the envelope is exactly [42*grid_x, 42*grid_y, height]. The grid
+    # counts are inert to the bbox except as the 42 coef (the drawer_divider precedent).
+    gx = int(round(float(v["grid_x"])))
+    gy = int(round(float(v["grid_y"])))
+    h, wall = _f(v["height"]), _f(v["wall"])
+    floor_t, lip = _f(v["floor_t"]), _f(v["lip"])
+    bx = _f(42.0 * gx)
+    by = _f(42.0 * gy)
+    return (
+        f"eps = {_EPS}\n"
+        f"ix = {bx} - 2 * {wall}\n"
+        f"iy = {by} - 2 * {wall}\n"
+        f"lip_wall = max(0.4, {wall} - {lip})\n"
+        f"lx = {bx} - 2 * lip_wall\n"
+        f"ly = {by} - 2 * lip_wall\n"
+        f"lip_z = {h} - {lip}\n"
+        f'outer = cq.Workplane("XY").box({bx}, {by}, {h}, {_CF})\n'
+        f'cavity = (cq.Workplane("XY").box(ix, iy, {h} - {floor_t} + eps, {_CF})'
+        f".translate(({wall}, {wall}, {floor_t})))\n"
+        f'recess = (cq.Workplane("XY").box(lx, ly, {lip} + eps, {_CF})'
+        f".translate((lip_wall, lip_wall, lip_z)))\n"
+        f"result = outer.cut(cavity).cut(recess)\n"
+    )
+
+
+def _gridfinity_baseplate(v: dict[str, float]) -> str:
+    # parts.scad::gridfinity_baseplate — a solid slab with a stepped cradle funnel cut into
+    # the TOP of each 42 mm cell. The slab is corner-at-origin; each recess is a centered box
+    # at the cell center over-cutting +eps UP into the open air above the top face, so the
+    # envelope stays exactly [42*grid_x, 42*grid_y, height]. grid_x/grid_y are FIXED grid
+    # integers -> the 42-coef bbox term (the gridfinity precedent), inert to the per-axis bbox.
+    gx = int(round(float(v["grid_x"])))
+    gy = int(round(float(v["grid_y"])))
+    h = _f(v["height"])
+    pitch = _f(42.0)
+    open_w = _f(42.0 - 2 * 0.25)          # 41.5
+    mid_w = _f(42.0 - 2 * 0.25 - 1.6)     # 39.9
+    throat_w = _f(42.0 - 2 * 0.25 - 3.4)  # 38.1
+    return (
+        f"eps = {_EPS}\n"
+        f"pitch = {pitch}\n"
+        f"cradle = min(2.6, {h} - 1)\n"
+        f"d1 = cradle * (0.8 / 2.6)\n"
+        f"d2 = cradle * (1.8 / 2.6)\n"
+        f"d3 = cradle\n"
+        f'result = cq.Workplane("XY").box({pitch} * {gx}, {pitch} * {gy}, {h}, {_CF})\n'
+        f"for ix in range({gx}):\n"
+        f"    for iy in range({gy}):\n"
+        f"        cx = ix * pitch + pitch / 2\n"
+        f"        cy = iy * pitch + pitch / 2\n"
+        f'        rim = (cq.Workplane("XY").box({open_w}, {open_w}, d1 + eps, {_CF})'
+        f".translate((cx - {open_w} / 2, cy - {open_w} / 2, {h} - d1)))\n"
+        f'        mid = (cq.Workplane("XY").box({mid_w}, {mid_w}, d2 + eps, {_CF})'
+        f".translate((cx - {mid_w} / 2, cy - {mid_w} / 2, {h} - d2)))\n"
+        f'        throat = (cq.Workplane("XY").box({throat_w}, {throat_w}, d3 + eps, {_CF})'
+        f".translate((cx - {throat_w} / 2, cy - {throat_w} / 2, {h} - d3)))\n"
+        f"        result = result.cut(rim).cut(mid).cut(throat)\n"
+    )
+
+
+def _threaded_nut(v: dict[str, float]) -> str:
+    # parts.scad::hex_nut_blank — a hex prism (across-flats = hex_af) minus a SMOOTH center
+    # bore (THREAD RELIEF ONLY, no modeled thread). The OpenSCAD cylinder($fn=6) and CadQuery
+    # .polygon(6, dia) BOTH put the first vertex at 0 deg (pointing +X), so they share an
+    # orientation with NO extra rotation — verified by render: X = across-corners = hex_af/
+    # cos(30), Y = across-flats = hex_af. polygon's `dia` is the across-corners (circumscribed)
+    # diameter, so divide hex_af by cos(30) to make the across-flats dimension exactly hex_af.
+    af, h, bore = _f(v["hex_af"]), _f(v["height"]), _f(v["bore_d"])
+    cos30 = _f(math.cos(math.radians(30)))
+    return (
+        f"eps = {_EPS}\n"
+        f"acorner = {af} / {cos30}\n"
+        f'body = cq.Workplane("XY").polygon(6, acorner).extrude({h})\n'
+        f'bore = (cq.Workplane("XY").circle({bore} / 2)'
+        f".extrude({h} + 2 * eps).translate((0, 0, -eps)))\n"
+        f"result = body.cut(bore)\n"
+    )
+
+
+def _threaded_bolt(v: dict[str, float]) -> str:
+    # parts.scad::threaded_bolt — THREAD RELIEF ONLY: a hex head ($fn=6) on a SMOOTH shaft,
+    # NOT a real thread. The smooth shaft rises z=0..shaft_l (over-extends +eps up INTO the
+    # head solid for a clean fuse); the hex head caps it shaft_l..shaft_l+head_h. OpenSCAD
+    # cylinder($fn=6) and CadQuery .polygon(6, dia) share the default vertices-on-X
+    # orientation, so X = across-corners (head_af/cos30) and Y = across-flats (head_af) match
+    # with NO extra rotation (verified per-axis: 13 -> X 15.0111, Y 13.0). The across-corners
+    # diameter is resolved to a float literal at emit time (no runtime math in the script).
+    head_h = _f(v["head_h"])
+    shaft_d, shaft_l = _f(v["shaft_d"]), _f(v["shaft_l"])
+    head_ac = _f(float(v["head_af"]) / math.cos(math.radians(30)))
+    return (
+        f"eps = {_EPS}\n"
+        f'shaft = cq.Workplane("XY").circle({shaft_d} / 2).extrude({shaft_l} + eps)\n'
+        f'head = (cq.Workplane("XY").polygon(6, {head_ac})'
+        f".extrude({head_h}).translate((0, 0, {shaft_l})))\n"
+        f"result = shaft.union(head)\n"
+    )
+
+
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "snap_box": _snap_box,
     "box": _open_box,
@@ -1776,6 +2089,19 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "pcb_standoff": _pcb_standoff,
     "french_cleat_rail": _french_cleat_rail,
     "heatset_insert_boss": _heatset_insert_boss,
+    # #19 slice 11: boxes + specialty (keyed by FAMILY name; clamp_block's module is
+    # slot_clamp_block, funnel's is pour_funnel, threaded_nut's is hex_nut_blank)
+    "snap_fit_box": _snap_fit_box,
+    "hinged_lid_box": _hinged_lid_box,
+    "clamp_block": _clamp_block,
+    "cable_raceway": _cable_raceway,
+    "bar_pull_handle": _bar_pull_handle,
+    "phone_dock": _phone_dock,
+    "funnel": _pour_funnel,
+    "gridfinity_bin": _gridfinity_bin,
+    "gridfinity_baseplate": _gridfinity_baseplate,
+    "threaded_nut": _threaded_nut,
+    "threaded_bolt": _threaded_bolt,
 }
 
 

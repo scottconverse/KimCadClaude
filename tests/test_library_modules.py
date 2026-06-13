@@ -378,6 +378,63 @@ NEW_MODULES = {
         "heatset_insert_boss(boss_d=12, height=14, pocket_d=5, pocket_depth=8, fn=96);",
         [12, 12, 14],
     ),
+    # #19 slice 11: boxes + specialty (keys are MODULE names; clamp_block's module is
+    # slot_clamp_block, funnel's is pour_funnel, threaded_nut's is hex_nut_blank)
+    "snap_fit_box": (
+        "parts.scad",
+        "snap_fit_box(width=80, depth=60, height=40, wall=2, lid_h=12, gap=10);",
+        [170, 60, 40],
+    ),
+    "hinged_lid_box": (
+        "parts.scad",
+        "hinged_lid_box(width=80, depth=60, height=40, wall=2, gap=10);",
+        [170, 60, 40],
+    ),
+    "slot_clamp_block": (
+        "parts.scad",
+        "slot_clamp_block(width=40, depth=30, height=35, slot_w=4, screw_d=5);",
+        [40, 30, 35],
+    ),
+    "cable_raceway": (
+        "parts.scad",
+        "cable_raceway(length=160, width=30, height=20, wall=3);",
+        [160, 30, 20],
+    ),
+    "bar_pull_handle": (
+        "parts.scad",
+        "bar_pull_handle(span=128, height=32, depth=30, post_d=14, grip_d=12);",
+        [128, 30, 32],
+    ),
+    "phone_dock": (
+        "parts.scad",
+        "phone_dock(width=80, depth=70, height=90, slot_w=12, cable_d=10);",
+        [80, 70, 90],
+    ),
+    "pour_funnel": (
+        "parts.scad",
+        "pour_funnel(inlet_d=90, height=80, outlet_d=20, wall=3);",
+        [90, 90, 80],
+    ),
+    "gridfinity_bin": (
+        "parts.scad",
+        "gridfinity_bin(grid_x=2, grid_y=1, height=35, wall=1.2, floor_t=4, lip=2.4);",
+        [84, 42, 35],
+    ),
+    "gridfinity_baseplate": (
+        "parts.scad",
+        "gridfinity_baseplate(grid_x=2, grid_y=2, height=6);",
+        [84, 84, 6],
+    ),
+    "hex_nut_blank": (
+        "parts.scad",
+        "hex_nut_blank(hex_af=19, height=10, bore_d=13, fn=64);",
+        [21.9393, 19.0, 10.0],
+    ),
+    "threaded_bolt": (
+        "parts.scad",
+        "threaded_bolt(head_af=13, head_h=8, shaft_d=8, shaft_l=40);",
+        [15.0111, 13.0, 48.0],
+    ),
 }
 
 

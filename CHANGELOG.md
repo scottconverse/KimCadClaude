@@ -25,6 +25,14 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **General hardware — boxes & specialty (#19, slice 11): snap-fit box, hinged/lipped-lid box,
+  slotted clamp block, cable raceway, bar pull handle, phone dock, pour funnel, Gridfinity bin &
+  baseplate, and hex nut/bolt blanks.** The final eleven families on `parts.scad`, each
+  render-verified against its analytic bounding box with a trusted CadQuery `.STEP` twin
+  (Gridfinity uses the 42 mm pitch; the nut & bolt are honestly labelled *thread-relief only* —
+  a smooth bore/shaft, not a certified thread). **This completes the #19 catalog expansion at 86
+  families** — up from 7 — spanning Kim's frame/Zen/decor world and a full set of everyday
+  engineering parts, every one honestly tiered and gate-verified against its analytic envelope.
 - **General hardware — rings, plates & brackets (#19, slice 10): washer, dowel pin, bumper
   foot, mounting flange, pierced mount pad, faceplate, VESA adapter plate, corner gusset, PCB
   standoff, French-cleat rail, and heat-set insert boss.** Eleven everyday engineering parts on

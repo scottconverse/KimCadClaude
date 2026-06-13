@@ -2497,6 +2497,365 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("pocket_d", "boss_d", 1.0, 0.5), ("pocket_depth", "height", 2.0, 1.0)),
     )
 
+    # #19 slice 11: boxes + specialty (library/parts.scad)
+    snap_fit_box = TemplateFamily(
+        name="snap_fit_box",
+        summary="A two-part friction/snap-fit box: an open-top walled base plus a mating lid that drops over the base rim, printed side by side along X.",
+        tier="baseline",
+        # Trims: "snap-fit box" normalizes to "snap fit box" (self-dup, dropped); "lidded box"
+        # -> hinged_lid_box; "two part box" -> gift_box_lid. So every normalized alias is owned
+        # by exactly one family.
+        object_types=(
+            "snap fit box", "friction fit box", "press fit box", "base and lid box",
+        ),
+        library_file="parts.scad",
+        module="snap_fit_box",
+        params=(
+            ParamSpec(name="width", label="Width", default=80.0, min=10.0, max=80.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="depth", label="Depth", default=60.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=40.0, min=14.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="wall", label="Wall thickness", default=2.0, min=0.8, max=8.0, step=0.2,
+                      dim_keys=("wall", "thickness")),
+        ),
+        fixed_args={"lid_h": 12.0, "gap": 10.0},
+        bbox_x=(BBoxTerm(coef=2.0, ref="width"), BBoxTerm(ref="gap")),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        gaps=(
+            ("wall", "width", 1.0, 0.5),
+            ("wall", "depth", 1.0, 0.5),
+        ),
+    )
+    hinged_lid_box = TemplateFamily(
+        name="hinged_lid_box",
+        summary="A small parts/tackle box: an open-top base and a separate press-on lid with a downward inner lip that seats inside the base rim, printed side by side.",
+        tier="baseline",
+        # "lidded box" claimed here (trimmed from snap_fit_box) so each normalized alias has one owner.
+        object_types=(
+            "hinged lid box", "press-on lid box", "tackle box", "parts box with lid",
+            "lipped lid box", "press fit lid box", "lidded box",
+        ),
+        library_file="parts.scad",
+        module="hinged_lid_box",
+        params=(
+            ParamSpec(name="width", label="Width", default=80.0, min=10.0, max=80.0, step=1.0,
+                      dim_keys=("width",)),
+            ParamSpec(name="depth", label="Depth", default=60.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=40.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="wall", label="Wall thickness", default=2.0, min=0.8, max=8.0, step=0.2,
+                      dim_keys=("wall", "thickness")),
+        ),
+        # gap is the fixed side-by-side print gap; width is capped at 80 so the X envelope
+        # (2*width + gap) stays inside the ~170 mm sliceable footprint (QA-502).
+        fixed_args={"gap": 10.0},
+        bbox_x=(BBoxTerm(coef=2.0, ref="width"), BBoxTerm(ref="gap")),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # Keep the wall under each dimension so the cavity + the (cavity - 2*wall) lip bore never
+        # collapse. width uses coef 0.25 (the X span is shared between two parts), depth/height 0.5.
+        gaps=(("wall", "width", 1.0, 0.25), ("wall", "depth", 1.0, 0.5), ("wall", "height", 1.0, 0.5)),
+    )
+    clamp_block = TemplateFamily(
+        name="clamp_block",
+        summary="A slotted clamp block: a rectangular block split by a top slot to grip a rod or panel, tightened by a cross screw through the jaws.",
+        tier="baseline",
+        object_types=(
+            "slotted clamp block", "rod clamp block", "split clamp block", "shaft clamp block",
+            "pinch clamp block", "panel grip clamp",
+        ),
+        library_file="parts.scad",
+        module="slot_clamp_block",
+        params=(
+            ParamSpec(name="width", label="Width", default=40.0, min=16.0, max=120.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="depth", label="Depth", default=30.0, min=12.0, max=120.0, step=1.0,
+                      dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=35.0, min=16.0, max=120.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="slot_w", label="Slot width", default=4.0, min=1.5, max=40.0, step=0.5,
+                      dim_keys=("slot_w", "slot", "gap")),
+            ParamSpec(name="screw_d", label="Screw diameter", default=5.0, min=2.5, max=10.0, step=0.5,
+                      dim_keys=("screw_d", "screw", "bolt_d")),
+        ),
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # keep the slot under half the width so a jaw remains on each side; keep the screw bore
+        # inside the depth so the cross hole leaves wall around it.
+        gaps=(("slot_w", "width", 2.0, 0.5), ("screw_d", "depth", 2.0, 0.5)),
+    )
+    cable_raceway = TemplateFamily(
+        name="cable_raceway",
+        summary="A long open-top U-channel that routes cables along a wall or desk, with a row of mounting holes through the floor.",
+        tier="benchmarked",
+        object_types=(
+            "cable raceway", "cable channel", "wire raceway", "wire channel",
+            "cord raceway", "cable trunking", "desk cable channel",
+        ),
+        library_file="parts.scad",
+        module="cable_raceway",
+        params=(
+            ParamSpec(name="length", label="Length", default=160.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("length",), bbox_axis=0),
+            ParamSpec(name="width", label="Width", default=30.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=20.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=1.5, max=8.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # keep the wall under half the cross-section (minus a 1 mm minimum channel) on BOTH
+        # the width and the height, so a thick wall can't collapse the channel into a solid bar.
+        gaps=(("wall", "width", 1.0, 0.5), ("wall", "height", 1.0, 0.5)),
+    )
+    bar_pull_handle = TemplateFamily(
+        name="bar_pull_handle",
+        summary="A bar pull / drawer-pull handle: two cylindrical posts carry a grip rail spanning between them, with a screw hole through each post base.",
+        object_types=("bar pull handle", "pull handle", "bar handle", "drawer pull handle"),
+        library_file="parts.scad",
+        module="bar_pull_handle",
+        params=(
+            ParamSpec(name="span", label="Span", default=128.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("span", "width", "length"), bbox_axis=0),
+            ParamSpec(name="height", label="Height", default=32.0, min=16.0, max=80.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="depth", label="Depth", default=30.0, min=14.0, max=80.0, step=1.0,
+                      dim_keys=("depth", "projection", "reach"), bbox_axis=1),
+            ParamSpec(name="post_d", label="Post diameter", default=14.0, min=6.0, max=40.0, step=0.5,
+                      dim_keys=("post_d", "post_diameter")),
+            ParamSpec(name="grip_d", label="Grip diameter", default=12.0, min=6.0, max=40.0, step=0.5,
+                      dim_keys=("grip_d", "grip_diameter", "bar_d")),
+        ),
+        bbox_x=(BBoxTerm(ref="span"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # Keep the two posts inside the span (post_d <= span/2 - 2), each post/grip diameter inside
+        # the depth (<= depth/2 - 1, so the grip clears the posts and projects forward cleanly) and
+        # well under the height (<= 0.6*height), so the family never requests a degenerate combo that
+        # collapses the bar into a tangent kiss.
+        gaps=(
+            ("post_d", "span", 2.0, 0.5),
+            ("post_d", "depth", 1.0, 0.5),
+            ("grip_d", "depth", 1.0, 0.5),
+            ("post_d", "height", 0.0, 0.6),
+            ("grip_d", "height", 0.0, 0.6),
+        ),
+        tier="benchmarked",
+    )
+    phone_dock = TemplateFamily(
+        name="phone_dock",
+        summary="A weighted desk dock for a phone or tablet: an angled back rest the device leans into (a slot of width slot_w) on a heavy base, with a front cable pass-through.",
+        tier="baseline",
+        object_types=("phone dock", "tablet dock", "device dock", "charging dock"),
+        library_file="parts.scad",
+        module="phone_dock",
+        params=(
+            ParamSpec(name="width", label="Width", default=80.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="depth", label="Depth", default=70.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=90.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="slot_w", label="Device slot width", default=12.0, min=4.0, max=30.0,
+                      step=0.5, dim_keys=("slot_w", "slot", "thickness")),
+            ParamSpec(name="cable_d", label="Cable pass-through diameter", default=10.0, min=3.0,
+                      max=30.0, step=0.5, dim_keys=("cable_d", "cable_diameter", "cable")),
+        ),
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+    )
+    funnel = TemplateFamily(
+        name="funnel",
+        summary="A hollow truncated-cone pour funnel: a wide inlet at the top tapering down to a "
+        "narrow outlet spout at the bottom, with a bore that runs through both ends.",
+        object_types=(
+            "funnel",
+            "pour funnel",
+            "pour spout",
+            "kitchen funnel",
+            "filling funnel",
+            "decanting funnel",
+            "oil funnel",
+        ),
+        library_file="parts.scad",
+        module="pour_funnel",
+        params=(
+            ParamSpec(
+                name="inlet_d",
+                label="Inlet diameter (top)",
+                default=90,
+                min=30,
+                max=170,
+                step=1,
+                dim_keys=("inlet_d", "top_d", "mouth_d", "diameter"),
+                bbox_axis=0,
+            ),
+            ParamSpec(
+                name="height",
+                label="Height",
+                default=80,
+                min=20,
+                max=170,
+                step=1,
+                dim_keys=("height", "h"),
+                bbox_axis=2,
+            ),
+            ParamSpec(
+                name="outlet_d",
+                label="Outlet diameter (spout)",
+                default=20,
+                min=10,
+                max=100,
+                step=1,
+                dim_keys=("outlet_d", "spout_d", "bottom_d"),
+            ),
+            ParamSpec(
+                name="wall",
+                label="Wall thickness",
+                default=3,
+                min=1.2,
+                max=6,
+                step=0.2,
+                dim_keys=("wall", "wall_thickness"),
+            ),
+        ),
+        fixed_args={"fn": 96},
+        bbox_x=(BBoxTerm(ref="inlet_d"),),
+        bbox_y=(BBoxTerm(ref="inlet_d"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        gaps=(
+            ("outlet_d", "inlet_d", 0.0, 1.0),
+            ("wall", "outlet_d", 1.0, 0.5),
+        ),
+        tier="benchmarked",
+    )
+    gridfinity_bin = TemplateFamily(
+        name="gridfinity_bin",
+        summary="A Gridfinity-compatible storage bin: a grid of 42 mm cells with a stacking lip and a scooped interior.",
+        tier="baseline",
+        object_types=(
+            "gridfinity bin", "gridfinity", "gridfinity storage bin", "grid storage bin",
+            "modular grid bin", "gridfinity cell bin",
+        ),
+        library_file="parts.scad",
+        module="gridfinity_bin",
+        params=(
+            # 42*grid <= 170 => grid maxes capped at 4 (42*4 = 168). Integer cell counts: they
+            # enter the bbox ONLY as the fixed 42.0 coef per cell (the gridfinity pitch).
+            ParamSpec(name="grid_x", label="Cells X", default=2.0, min=1.0, max=4.0, step=1.0,
+                      unit="", integer=True, dim_keys=("grid_x", "cells_x", "columns"), bbox_axis=0),
+            ParamSpec(name="grid_y", label="Cells Y", default=1.0, min=1.0, max=4.0, step=1.0,
+                      unit="", integer=True, dim_keys=("grid_y", "cells_y", "rows"), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=35.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+        ),
+        fixed_args={"wall": 1.2, "floor_t": 4.0, "lip": 2.4},
+        bbox_x=(BBoxTerm(ref="grid_x", coef=42.0),),
+        bbox_y=(BBoxTerm(ref="grid_y", coef=42.0),),
+        bbox_z=(BBoxTerm(ref="height"),),
+    )
+    gridfinity_baseplate = TemplateFamily(
+        name="gridfinity_baseplate",
+        summary="A Gridfinity-compatible baseplate: a grid of 42 mm cells with a cradle each bin foot drops into.",
+        tier="baseline",
+        object_types=(
+            "gridfinity baseplate", "grid finity baseplate", "gridfinity base plate",
+            "gridfinity grid", "bin baseplate grid",
+        ),
+        library_file="parts.scad",
+        module="gridfinity_baseplate",
+        params=(
+            ParamSpec(name="grid_x", label="Cells across (X)", default=2.0, min=1.0, max=4.0,
+                      step=1.0, unit="", integer=True, dim_keys=("grid_x", "cols", "columns")),
+            ParamSpec(name="grid_y", label="Cells deep (Y)", default=2.0, min=1.0, max=4.0,
+                      step=1.0, unit="", integer=True, dim_keys=("grid_y", "rows")),
+            ParamSpec(name="height", label="Plate height", default=6.0, min=4.0, max=30.0,
+                      step=1.0, dim_keys=("height", "thickness"), bbox_axis=2),
+        ),
+        # The integer cell counts enter the bbox ONLY as the fixed 42 mm-pitch coef (the
+        # gridfinity 42*grid precedent); the cradle recesses cut only into the top, so they
+        # never perturb the envelope.
+        bbox_x=(BBoxTerm(coef=42.0, ref="grid_x"),),
+        bbox_y=(BBoxTerm(coef=42.0, ref="grid_y"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+    )
+    threaded_nut = TemplateFamily(
+        name="threaded_nut",
+        summary=(
+            "A hex nut blank: a hex prism with a smooth center bore. Thread relief only — not "
+            "a real thread; the bore is a smooth relief for a tapped insert or a printed-thread "
+            "test."
+        ),
+        tier="baseline",
+        object_types=(
+            "hex nut blank", "nut blank", "hex blank", "threaded nut blank", "hex coupler blank",
+            "knurled nut blank",
+        ),
+        library_file="parts.scad",
+        module="hex_nut_blank",
+        params=(
+            # hex_af is the across-FLATS footprint; the X envelope is hex_af/cos(30) (across-
+            # corners), so max 140 keeps X = 140/cos(30) = 161.7 inside the ~170 mm sliceable
+            # side (QA-502).
+            ParamSpec(name="hex_af", label="Hex across-flats", default=19.0, min=8.0, max=140.0,
+                      step=1.0, dim_keys=("hex_af", "across_flats", "width", "size"), bbox_axis=0),
+            ParamSpec(name="height", label="Height", default=10.0, min=4.0, max=60.0, step=1.0,
+                      dim_keys=("height", "thickness", "length"), bbox_axis=2),
+            ParamSpec(name="bore_d", label="Bore diameter", default=13.0, min=3.0, max=130.0,
+                      step=0.5, dim_keys=("bore_d", "bore", "id", "inner_diameter")),
+        ),
+        fixed_args={"fn": 64.0},
+        # X = across-corners = hex_af / cos(30); coef = 1/cos(30) = 1.1547005383792515.
+        bbox_x=(BBoxTerm(ref="hex_af", coef=1.1547005383792515),),
+        bbox_y=(BBoxTerm(ref="hex_af"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # the smooth relief bore must stay at least 2 mm inside the across-flats (its inscribed
+        # circle) or the bore breaks through the hex wall.
+        gaps=(("bore_d", "hex_af", 2.0, 1.0),),
+    )
+    threaded_bolt = TemplateFamily(
+        name="threaded_bolt",
+        summary="A hex-head bolt blank: a hex head on a smooth cylindrical shaft. THREAD RELIEF ONLY — a smooth shaft, not a real thread.",
+        tier="baseline",
+        object_types=(
+            "hex bolt blank", "hex head bolt", "bolt blank", "hex cap screw blank",
+            "machine bolt blank", "hex head fastener blank",
+        ),
+        library_file="parts.scad",
+        module="threaded_bolt",
+        params=(
+            # head_af is the hex across-flats; the X (across-corners) envelope is head_af/cos(30),
+            # so head_af max 30 keeps X (34.6) inside the sliceable footprint (QA-502).
+            ParamSpec(name="head_af", label="Head across-flats", default=13.0, min=8.0, max=30.0,
+                      step=0.5, dim_keys=("head_af", "head_width", "head", "width")),
+            ParamSpec(name="head_h", label="Head height", default=8.0, min=4.0, max=20.0, step=0.5,
+                      dim_keys=("head_h", "head_height")),
+            ParamSpec(name="shaft_d", label="Shaft diameter", default=8.0, min=3.0, max=24.0,
+                      step=0.5, dim_keys=("shaft_d", "shaft_diameter", "diameter")),
+            # Z = head_h + shaft_l; shaft_l max 150 with head_h max 20 keeps Z <= 170 (QA-502).
+            ParamSpec(name="shaft_l", label="Shaft length", default=40.0, min=8.0, max=150.0,
+                      step=1.0, dim_keys=("shaft_l", "shaft_length", "length")),
+        ),
+        fixed_args={"fn": 64.0},
+        # X = head across-corners = head_af / cos(30) = head_af * 1.1547005383792515 (verified by
+        # render: 13 -> 15.0111). Y = head across-flats = head_af. Z = head_h + shaft_l.
+        bbox_x=(BBoxTerm(ref="head_af", coef=1.1547005383792515),),
+        bbox_y=(BBoxTerm(ref="head_af"),),
+        bbox_z=(BBoxTerm(ref="head_h"), BBoxTerm(ref="shaft_l")),
+        # Keep the shaft inside the head's across-flats (the narrowest head dimension) so the head
+        # always overhangs the shaft and the analytic Y envelope stays exactly head_af.
+        gaps=(("shaft_d", "head_af", 0.0, 1.0),),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
@@ -2522,6 +2881,9 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         # #19 slice 10: generic ports — rings/plates/brackets
         washer, dowel_pin, bumper_foot, mounting_flange, pierced_mount_pad, faceplate,
         vesa_plate, corner_gusset, pcb_standoff, french_cleat_rail, heatset_insert_boss,
+        # #19 slice 11: boxes + specialty
+        snap_fit_box, hinged_lid_box, clamp_block, cable_raceway, bar_pull_handle, phone_dock,
+        funnel, gridfinity_bin, gridfinity_baseplate, threaded_nut, threaded_bolt,
     )
 
 

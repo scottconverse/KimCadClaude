@@ -93,6 +93,10 @@ EXPECTED_FAMILY_NAMES = frozenset(
         "washer", "dowel_pin", "bumper_foot", "mounting_flange", "pierced_mount_pad",
         "faceplate", "vesa_plate", "corner_gusset", "pcb_standoff", "french_cleat_rail",
         "heatset_insert_boss",
+        # #19 slice 11: boxes + specialty
+        "snap_fit_box", "hinged_lid_box", "clamp_block", "cable_raceway", "bar_pull_handle",
+        "phone_dock", "funnel", "gridfinity_bin", "gridfinity_baseplate", "threaded_nut",
+        "threaded_bolt",
     }
 )
 
