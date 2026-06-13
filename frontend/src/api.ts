@@ -392,6 +392,9 @@ export interface TemplateFamilyInfo {
   // through the NORMAL design flow; the library has no separate seeding machinery.
   seed: string
   param_count: number
+  // #19: honesty tier. "benchmarked" = what-you-set-is-what-you-get; "baseline" = real,
+  // verified geometry with a fitness caveat the user must check before real use.
+  tier: 'benchmarked' | 'baseline'
 }
 
 export function getTemplates(): Promise<{ families: TemplateFamilyInfo[] }> {

@@ -56,11 +56,26 @@ def _plan(object_type: str, *, dimensions=None, bbox=None) -> DesignPlan:
 
 # --- registry / matching -----------------------------------------------------------
 
+# The declared family set — the SINGLE place to acknowledge a new family (#19). The registry
+# is asserted against this below, so adding a family without listing it here (or vice versa)
+# fails loud: a deliberate "declare your new family" tripwire, but DRY (one literal, not the
+# old scattered `== 7`s).
+EXPECTED_FAMILY_NAMES = frozenset(
+    {"snap_box", "box", "enclosure", "tube", "wall_hook", "cable_clip", "drawer_divider"}
+)
+
+
 def test_registry_exposes_the_builtin_families():
     names = {f.name for f in default_registry().families()}
-    assert names == {
-        "snap_box", "box", "enclosure", "tube", "wall_hook", "cable_clip", "drawer_divider"
-    }
+    assert names == EXPECTED_FAMILY_NAMES
+
+
+def test_every_family_declares_a_tier_and_the_shipped_ones_are_benchmarked():
+    # #19: every family carries an honesty tier; the geometry-honest built-ins are all
+    # "benchmarked" (what-you-set-is-what-you-get). "baseline" is opt-in for fitness-caveat parts.
+    fams = default_registry().families()
+    assert all(f.tier in ("benchmarked", "baseline") for f in fams)
+    assert all(f.tier == "benchmarked" for f in fams)
 
 
 @pytest.mark.parametrize(
@@ -114,9 +129,9 @@ def test_registry_rejects_duplicate_alias():
 
 
 def test_builtin_registry_constructs_without_alias_collision():
-    # default_registry() construction itself raises on any collision; reaching here with a
-    # full family set proves the 7 built-ins have no overlapping aliases.
-    assert len(default_registry().families()) == 7
+    # default_registry() construction itself raises on any collision; reaching here with the
+    # full declared family set proves the built-ins have no overlapping aliases.
+    assert len(default_registry().families()) == len(EXPECTED_FAMILY_NAMES)
 
 
 # --- parameter derivation ----------------------------------------------------------

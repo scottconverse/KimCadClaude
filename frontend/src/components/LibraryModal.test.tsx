@@ -11,8 +11,9 @@ vi.mock('../api', () => ({ getTemplates }))
 import LibraryModal from './LibraryModal'
 
 const FAMILIES = [
-  { name: 'tube', summary: 'A ring / cylindrical spacer or standoff.', examples: ['tube', 'ring', 'spacer'], seed: 'a tube', param_count: 3 },
-  { name: 'wall_hook', summary: 'A wall-mounted hook.', examples: ['hook', 'wall hook'], seed: 'a hook', param_count: 3 },
+  { name: 'tube', summary: 'A ring / cylindrical spacer or standoff.', examples: ['tube', 'ring', 'spacer'], seed: 'a tube', param_count: 3, tier: 'benchmarked' },
+  { name: 'wall_hook', summary: 'A wall-mounted hook.', examples: ['hook', 'wall hook'], seed: 'a hook', param_count: 3, tier: 'benchmarked' },
+  { name: 'threaded_nut', summary: 'A hex nut (thread relief only).', examples: ['nut', 'hex nut'], seed: 'a nut', param_count: 3, tier: 'baseline' },
 ]
 
 afterEach(() => {
@@ -27,10 +28,23 @@ describe('LibraryModal', () => {
     const onClose = vi.fn()
     render(<LibraryModal onPick={onPick} onClose={onClose} />)
     const tubeCard = await screen.findByRole('button', { name: /cylindrical spacer/i })
-    expect(screen.getAllByText(/3 adjustable dimensions/)).toHaveLength(2)
+    expect(screen.getAllByText(/3 adjustable dimensions/)).toHaveLength(3)
     fireEvent.click(tubeCard)
     expect(onPick).toHaveBeenCalledWith('a tube')
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('flags baseline families with a "verify before use" badge; benchmarked ones stay clean (#19)', async () => {
+    getTemplates.mockResolvedValue({ families: FAMILIES })
+    render(<LibraryModal onPick={vi.fn()} onClose={vi.fn()} />)
+    // The baseline nut carries exactly one tier badge; the two benchmarked parts carry none.
+    const badges = await screen.findAllByText(/verify before use/i)
+    expect(badges).toHaveLength(1)
+    const nutCard = screen.getByRole('button', { name: /hex nut/i })
+    expect(nutCard.textContent).toMatch(/verify before use/i)
+    expect(screen.getByRole('button', { name: /cylindrical spacer/i }).textContent).not.toMatch(
+      /verify before use/i,
+    )
   })
 
   it('search filters by name, summary, and aliases', async () => {

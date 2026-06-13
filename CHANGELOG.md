@@ -25,6 +25,14 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Template honesty tiers (#19, slice 1).** Every part-library family now carries a tier:
+  **benchmarked** (what-you-set-is-what-you-get) or **baseline** (real, gate-verified geometry
+  with a fitness caveat to check before real use — e.g. thread *relief* rather than certified
+  threads, a Gridfinity-*compatible* footprint, a VESA hole *pattern*). The library browser
+  flags baseline parts with a "verify before use" badge; benchmarked parts stay unbadged. The
+  tier is inert to the Printability Gate — **every** family, whatever its label, is verified
+  against its analytic bounding box by a real render. This is the foundation for broadening the
+  catalog without the breadth-inflation of relabeled generic primitives.
 - **Print outcome capture (UI-v2 slice 6, #23).** After a real hardware send, KimCad now asks
   **Came out clean / Had issues / Failed / Skip** and records non-skip answers in the local
   Smart Mesh history store. Simulated test sends never ask, and skipping records nothing.

@@ -50,7 +50,8 @@ export default function LibraryModal({
       (f) =>
         f.name.toLowerCase().includes(q) ||
         f.summary.toLowerCase().includes(q) ||
-        f.examples.some((e) => e.toLowerCase().includes(q)),
+        f.examples.some((e) => e.toLowerCase().includes(q)) ||
+        f.tier.includes(q),
     )
   }, [families, query])
 
@@ -102,7 +103,17 @@ export default function LibraryModal({
                 className="kc-library-card"
                 onClick={() => { onPick(f.seed); onClose() }}
               >
-                <span className="kc-library-card-name">{f.examples[0]}</span>
+                <span className="kc-library-card-name">
+                  {f.examples[0]}
+                  {f.tier === 'baseline' && (
+                    <span
+                      className="kc-library-tier kc-library-tier-baseline"
+                      title="Real, verified geometry — but check dimensions, fit & load before real use."
+                    >
+                      Verify before use
+                    </span>
+                  )}
+                </span>
                 <span className="kc-library-card-sum">{f.summary}</span>
                 <span className="kc-library-card-meta">
                   {f.param_count} adjustable {f.param_count === 1 ? 'dimension' : 'dimensions'}

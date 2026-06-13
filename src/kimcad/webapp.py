@@ -900,6 +900,8 @@ def make_handler(
                         "examples": list(f.object_types[:4]),
                         "seed": f"{_article(f.object_types[0])} {f.object_types[0]}",
                         "param_count": len(f.params),
+                        # #19: honesty tier — "benchmarked" or "baseline" (verify before real use).
+                        "tier": f.tier,
                     }
                     for f in default_registry().families()
                 ]

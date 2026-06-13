@@ -29,6 +29,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -133,6 +134,13 @@ class TemplateFamily(BaseModel):
     # whose bore is wider than its wall (coef 1.0), OR a box whose wall is so thick the cavity
     # vanishes into a solid block (coef 0.5: wall <= half the dimension - gap). See _apply_gaps.
     gaps: tuple[tuple[str, str, float, float], ...] = ()
+    # Honesty tier surfaced in the library picker (#19). "benchmarked" = what-you-set-is-
+    # what-you-get, no hidden fitness caveat. "baseline" = real, gate-verified geometry but a
+    # real-world fitness caveat the user must check before trusting it (e.g. thread RELIEF not
+    # certified threads, Gridfinity-compatible geometry, a VESA hole pattern, a heat-set pocket
+    # sized to a generic insert). The tier is INERT to the Printability Gate — every family,
+    # whatever its label, is render-verified against its analytic bbox identically.
+    tier: Literal["benchmarked", "baseline"] = "benchmarked"
 
     def _resolve(self, ref: str, values: dict[str, float]) -> float:
         if ref in values:

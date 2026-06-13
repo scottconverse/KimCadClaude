@@ -1666,6 +1666,9 @@ def test_templates_endpoint_lists_the_library(tmp_path):
         tube = by_name["tube"]
         assert tube["summary"]
         assert "spacer" in tube["examples"]
+        # #19: every family carries an honesty tier; the shipped built-ins are benchmarked.
+        assert {f["tier"] for f in fams} <= {"benchmarked", "baseline"}
+        assert tube["tier"] == "benchmarked"
         # The seed prompt is what the modal submits — article-correct ("an open box", not
         # "a open box") and routed through the NORMAL design flow.
         assert tube["seed"] == "a tube"

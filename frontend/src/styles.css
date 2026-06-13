@@ -2203,6 +2203,26 @@ input {
 .kc-library-card-name {
   font-weight: 700;
   text-transform: capitalize;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* #19: the honesty-tier badge. Only "baseline" parts get one (benchmarked is the clean
+ * default). Warn-tone tokens carry AA contrast in both themes (see --kc-warn-text). */
+.kc-library-tier {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.kc-library-tier-baseline {
+  color: var(--kc-warn-text);
+  background: color-mix(in srgb, var(--kc-warn-accent) 18%, var(--kc-mix-light));
+  border: 1px solid color-mix(in srgb, var(--kc-warn-accent) 45%, transparent);
 }
 .kc-library-card-sum {
   font-size: 12.5px;

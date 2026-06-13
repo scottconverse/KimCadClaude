@@ -183,6 +183,29 @@ credential store at rest.
 The printer + material catalog the UI offers (each printer with its build volume and
 `sliceable` flag) plus the effective defaults.
 
+### GET `/api/templates`
+
+The part-library catalog the browser modal renders, derived live from the template registry
+(the single source — the catalog grows here automatically as families are added). Returns
+`{"families": [...]}`, each family:
+
+```json
+{
+  "name": "tube",
+  "summary": "A ring / cylindrical spacer or standoff.",
+  "examples": ["tube", "ring", "spacer", "standoff"],
+  "seed": "a tube",
+  "param_count": 3,
+  "tier": "benchmarked"
+}
+```
+
+`seed` is the article-correct prompt the modal submits through the normal design flow (the
+library has no separate seeding path). `tier` is the honesty label: `benchmarked`
+(what-you-set-is-what-you-get) or `baseline` (real, gate-verified geometry with a fitness
+caveat to verify before real use). The tier is display-only — every family is verified
+against its analytic bounding box by a real render regardless of label.
+
 ### GET `/api/model-status`
 
 The AI layer's health: `backend` (`local`/`cloud`), `model`, `running`, `model_present`,

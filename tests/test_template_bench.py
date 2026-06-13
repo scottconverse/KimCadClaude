@@ -152,7 +152,9 @@ def test_every_family_re_renders_deterministically_under_budget():
     committed benchmark doc, not asserted here."""
     report = benchmark_families()
     assert report.binary_present
-    assert len(report.families) == 7
+    # The bench must cover the WHOLE registry (no magic count — the family set is declared
+    # once in test_templates.EXPECTED_FAMILY_NAMES and grows with #19).
+    assert len(report.families) == len(default_registry().families())
     assert report.ok, [f for f in report.families if not f.ok]
     for f in report.families:
         assert f.error is None, f"{f.name}: {f.error}"
