@@ -321,6 +321,63 @@ NEW_MODULES = {
         "d_ring_strap_hanger(strap_w=40, strap_t=5, strap_h=50, ring_od=28, ring_thk=6, screw_d=4);",
         [40, 11, 78],
     ),
+    # #19 slice 10: generic ports — rings/plates/brackets (keys are MODULE names; the washer
+    # family's module is flat_washer)
+    "flat_washer": (
+        "parts.scad",
+        "flat_washer(od=16, id=8, thickness=2);",
+        [16, 16, 2],
+    ),
+    "dowel_pin": (
+        "parts.scad",
+        "dowel_pin(diameter=6, length=30);",
+        [6, 6, 30],
+    ),
+    "bumper_foot": (
+        "parts.scad",
+        "bumper_foot(diameter=30, height=12, hole_d=4.5, counterbore_d=9, cbore_h=5);",
+        [30, 30, 12],
+    ),
+    "mounting_flange": (
+        "parts.scad",
+        "mounting_flange(diameter=80, thickness=8, bore_d=20, bolt_hole_d=5, bolt_circle_d=32);",
+        [80, 80, 8],
+    ),
+    "pierced_mount_pad": (
+        "parts.scad",
+        "pierced_mount_pad(width=60, depth=40, height=6, hole_d=8);",
+        [60, 40, 6],
+    ),
+    "faceplate": (
+        "parts.scad",
+        "faceplate(width=80, height=60, thickness=3, hole_d=4, inset=6);",
+        [80, 60, 3],
+    ),
+    "vesa_plate": (
+        "parts.scad",
+        "vesa_plate(width=140, height=140, thickness=4, vesa_spacing=100, hole_d=4.5, fn=32);",
+        [140, 140, 4],
+    ),
+    "corner_gusset": (
+        "parts.scad",
+        "corner_gusset(width=50, leg=40, thickness=6, hole_d=4);",
+        [50, 40, 40],
+    ),
+    "pcb_standoff": (
+        "parts.scad",
+        "pcb_standoff(board_w=70, board_d=50, base_t=3, standoff_h=8, hole_d=3.2, standoff_d=8, inset=5);",
+        [70, 50, 11],
+    ),
+    "french_cleat_rail": (
+        "parts.scad",
+        "french_cleat_rail(length=170, depth=22, rise=30, screw_d=4);",
+        [170, 22, 30],
+    ),
+    "heatset_insert_boss": (
+        "parts.scad",
+        "heatset_insert_boss(boss_d=12, height=14, pocket_d=5, pocket_depth=8, fn=96);",
+        [12, 12, 14],
+    ),
 }
 
 

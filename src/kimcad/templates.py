@@ -2190,6 +2190,313 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("ring_od", "strap_w", 0.0, 1.0),),
     )
 
+    # #19 slice 10: generic ports — rings / plates / brackets (library/parts.scad)
+    washer = TemplateFamily(
+        name="washer",
+        summary="A flat washer / shim: a disc with a concentric through bore, extruded to thickness.",
+        object_types=(
+            "washer", "flat washer", "shim", "shim washer", "penny washer", "fender washer",
+            "spacer washer", "sealing washer", "finishing washer",
+        ),
+        library_file="parts.scad",
+        module="flat_washer",
+        params=(
+            # od is the footprint (diameter), capped at the sliceable envelope (QA-502).
+            ParamSpec(name="od", label="Outer diameter", default=16.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="id", label="Bore diameter", default=8.0, min=1.0, max=160.0, step=0.5,
+                      dim_keys=("id", "inner_diameter", "bore", "hole")),
+            ParamSpec(name="thickness", label="Thickness", default=2.0, min=1.0, max=20.0, step=0.5,
+                      dim_keys=("thickness", "height", "t")),
+        ),
+        fixed_args={},
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="thickness"),),
+        # The bore must stay at least 1 mm inside the outer wall or difference() degenerates
+        # (mirrors the tube's id<od guard).
+        gaps=(("id", "od", 1.0, 1.0),),
+        tier="benchmarked",
+    )
+    dowel_pin = TemplateFamily(
+        name="dowel_pin",
+        summary="A solid alignment dowel pin — a plain cylinder (diameter x length).",
+        object_types=("dowel pin", "alignment pin", "locating pin", "dowel rod", "alignment dowel"),
+        library_file="parts.scad",
+        module="dowel_pin",
+        params=(
+            # diameter is the footprint on BOTH X and Y (the tube's od precedent); min pinned at
+            # 10 to respect the 10..170 fits range (QA-502), so the default sits at that floor (a
+            # default below its own min would clamp up and make the live-slider start ambiguous).
+            ParamSpec(name="diameter", label="Diameter", default=10.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("diameter", "dia", "d", "od"), bbox_axis=0),
+            ParamSpec(name="length", label="Length", default=30.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("length", "height", "len"), bbox_axis=2),
+        ),
+        bbox_x=(BBoxTerm(ref="diameter"),),
+        bbox_y=(BBoxTerm(ref="diameter"),),
+        bbox_z=(BBoxTerm(ref="length"),),
+        tier="benchmarked",
+    )
+    bumper_foot = TemplateFamily(
+        name="bumper_foot",
+        summary="A cabinet/appliance bumper foot: a short cylinder with a centered counterbored screw hole from the bottom.",
+        tier="benchmarked",
+        object_types=(
+            "bumper foot", "cabinet bumper foot", "appliance foot", "rubber foot", "furniture foot",
+            "cabinet foot", "counterbored foot",
+        ),
+        library_file="parts.scad",
+        module="bumper_foot",
+        params=(
+            ParamSpec(name="diameter", label="Diameter", default=30.0, min=12.0, max=120.0, step=1.0,
+                      dim_keys=("diameter", "od", "outer_diameter", "width"), bbox_axis=0),
+            ParamSpec(name="height", label="Height", default=12.0, min=6.0, max=60.0, step=1.0,
+                      dim_keys=("height", "h", "thickness")),
+            ParamSpec(name="hole_d", label="Screw hole", default=4.5, min=2.0, max=10.0, step=0.5,
+                      dim_keys=("hole_d", "screw_d", "bore")),
+            ParamSpec(name="counterbore_d", label="Counterbore diameter", default=9.0, min=4.0, max=30.0, step=0.5,
+                      dim_keys=("counterbore_d", "cbore_d", "head_d")),
+        ),
+        fixed_args={"cbore_h": 5.0},
+        bbox_x=(BBoxTerm(ref="diameter"),),
+        bbox_y=(BBoxTerm(ref="diameter"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # counterbore stays inside the foot wall (leaves >=2 mm wall each side); the screw hole
+        # stays narrower than the counterbore so the head-seat step always exists.
+        gaps=(("counterbore_d", "diameter", 4.0, 1.0), ("hole_d", "counterbore_d", 1.0, 1.0)),
+    )
+    mounting_flange = TemplateFamily(
+        name="mounting_flange",
+        summary="A round pipe/mounting flange: a disc with a centered bore and 4 bolt holes on a fixed bolt-circle.",
+        tier="baseline",
+        object_types=(
+            "mounting flange", "pipe flange", "flange disc", "bolt flange", "round flange plate",
+        ),
+        library_file="parts.scad",
+        module="mounting_flange",
+        params=(
+            ParamSpec(name="diameter", label="Diameter", default=80.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("diameter", "od", "outer_diameter", "width"), bbox_axis=0),
+            ParamSpec(name="thickness", label="Thickness", default=8.0, min=4.0, max=40.0, step=1.0,
+                      dim_keys=("thickness", "thick", "height"), bbox_axis=2),
+            ParamSpec(name="bore_d", label="Bore diameter", default=20.0, min=4.0, max=20.0, step=1.0,
+                      dim_keys=("bore_d", "bore", "inner_diameter", "id")),
+            ParamSpec(name="bolt_hole_d", label="Bolt hole diameter", default=5.0, min=3.0, max=6.0,
+                      step=0.5, dim_keys=("bolt_hole_d", "bolt_d")),
+        ),
+        fixed_args={"bolt_circle_d": 32.0},
+        bbox_x=(BBoxTerm(ref="diameter"),),
+        bbox_y=(BBoxTerm(ref="diameter"),),
+        bbox_z=(BBoxTerm(ref="thickness"),),
+        gaps=(("bore_d", "diameter", 1.0, 0.5),),
+    )
+    pierced_mount_pad = TemplateFamily(
+        name="pierced_mount_pad",
+        summary="A rectangular mounting pad with a single centered vertical through-hole.",
+        object_types=(
+            "pierced mount pad", "drilled mount pad", "bored mount pad", "through hole pad",
+            "bolt down pad", "centered hole pad",
+        ),
+        library_file="parts.scad",
+        module="pierced_mount_pad",
+        params=(
+            ParamSpec(name="width", label="Width", default=60.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="depth", label="Depth", default=40.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="height", label="Height", default=6.0, min=2.0, max=60.0, step=1.0,
+                      dim_keys=("height", "thickness"), bbox_axis=2),
+            ParamSpec(name="hole_d", label="Hole diameter", default=8.0, min=2.0, max=80.0, step=0.5,
+                      dim_keys=("hole_d", "hole_diameter", "bore", "diameter")),
+        ),
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # The bore must stay at least 1 mm inside the smaller of width/depth so the difference()
+        # never degenerates (hole_d under min(width, depth)). Two constraints, applied in order,
+        # converge on the tighter of the two dimensions.
+        gaps=(("hole_d", "width", 1.0, 1.0), ("hole_d", "depth", 1.0, 1.0)),
+        tier="benchmarked",
+    )
+    faceplate = TemplateFamily(
+        name="faceplate",
+        summary="A blanking faceplate / cover plate: a thin slab with four corner screw holes.",
+        object_types=(
+            "faceplate", "blanking plate", "blanking faceplate", "cover plate",
+            "blank plate", "wall plate", "cover panel",
+        ),
+        library_file="parts.scad",
+        module="faceplate",
+        params=(
+            ParamSpec(name="width", label="Width", default=80.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="height", label="Height", default=60.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=1),
+            ParamSpec(name="thickness", label="Thickness", default=3.0, min=1.5, max=12.0, step=0.5,
+                      dim_keys=("thickness", "thick", "wall"), bbox_axis=2),
+            ParamSpec(name="hole_d", label="Screw hole diameter", default=4.0, min=2.0, max=10.0,
+                      step=0.5, dim_keys=("hole_d", "screw_d", "hole_diameter")),
+        ),
+        fixed_args={"inset": 6.0},
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="height"),),
+        bbox_z=(BBoxTerm(ref="thickness"),),
+    )
+    vesa_plate = TemplateFamily(
+        name="vesa_plate",
+        summary="A VESA monitor-mount adapter plate: a slab with a centered square 4-hole VESA pattern.",
+        tier="baseline",
+        object_types=(
+            "vesa plate", "vesa mount", "vesa adapter", "vesa adapter plate", "vesa mount plate",
+            "monitor mount adapter", "tv vesa plate",
+        ),
+        library_file="parts.scad",
+        module="vesa_plate",
+        params=(
+            # width/height are the footprint (capped at the sliceable side, QA-502); thickness is Z.
+            ParamSpec(name="width", label="Width", default=140.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="height", label="Height", default=140.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=1),
+            ParamSpec(name="thickness", label="Thickness", default=4.0, min=3.0, max=12.0, step=0.5,
+                      dim_keys=("thickness", "depth"), bbox_axis=2),
+            # vesa_spacing is the center-to-center square pattern (e.g. 75 or 100 mm). Clamped under
+            # min(width,height)-20 so the four holes stay interior even at the widest hole_d.
+            ParamSpec(name="vesa_spacing", label="VESA spacing", default=100.0, min=50.0, max=150.0,
+                      step=1.0, dim_keys=("vesa_spacing", "spacing", "pattern")),
+            ParamSpec(name="hole_d", label="Hole diameter", default=4.5, min=3.0, max=8.0, step=0.1,
+                      dim_keys=("hole_d", "hole_diameter")),
+        ),
+        fixed_args={"fn": 32.0},
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="height"),),
+        bbox_z=(BBoxTerm(ref="thickness"),),
+        # Gap: vesa_spacing must stay under min(width,height) minus a 20 mm margin so the four-hole
+        # pattern (plus the hole radius, hole_d<=8) never reaches the X/Y outer faces — keeps the
+        # holes interior cuts and the bbox exactly [width, height, thickness].
+        gaps=(("vesa_spacing", "width", 20.0, 1.0), ("vesa_spacing", "height", 20.0, 1.0)),
+    )
+    corner_gusset = TemplateFamily(
+        name="corner_gusset",
+        summary="A triangular corner brace: a right-triangle web braced across its width, with a screw hole through each leg.",
+        tier="benchmarked",
+        object_types=(
+            "corner gusset", "triangle brace", "corner brace gusset", "triangular gusset",
+            "shelf gusset", "angle gusset",
+        ),
+        library_file="parts.scad",
+        module="corner_gusset",
+        params=(
+            ParamSpec(name="width", label="Width", default=50.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            # leg is BOTH the Y and Z envelope (the l_bracket arm-on-X-and-Z precedent); min 14 keeps the
+            # leg comfortably wider than the max mount thickness (12) so the screw holes stay inside the
+            # triangle web across the whole slider range and the part never degenerates.
+            ParamSpec(name="leg", label="Leg length", default=40.0, min=14.0, max=170.0, step=1.0,
+                      dim_keys=("leg", "length", "height"), bbox_axis=2),
+            # thickness only positions the two screw holes off each leg flat (like an inset); it is INERT
+            # to the [width, leg, leg] envelope, so it carries no bbox term.
+            ParamSpec(name="thickness", label="Mount thickness", default=6.0, min=3.0, max=12.0, step=0.5,
+                      dim_keys=("thickness", "thick", "wall")),
+            ParamSpec(name="hole_d", label="Screw hole diameter", default=4.0, min=2.0, max=8.0, step=0.5,
+                      dim_keys=("hole_d", "screw_d", "hole_diameter")),
+        ),
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="leg"),),
+        bbox_z=(BBoxTerm(ref="leg"),),
+        # the screw hole must stay narrower than the mount thickness it bores through, so the hole can't
+        # consume the leg flat (hole_d <= thickness - 1).
+        gaps=(("hole_d", "thickness", 1.0, 1.0),),
+    )
+    pcb_standoff = TemplateFamily(
+        name="pcb_standoff",
+        summary="A PCB mounting base: a base plate with four inset corner standoffs, each pierced by a through screw hole.",
+        tier="baseline",
+        object_types=(
+            "pcb standoff", "pcb mount", "board standoff", "circuit board standoff",
+            "pcb mounting base", "board mounting base",
+        ),
+        library_file="parts.scad",
+        module="pcb_standoff",
+        params=(
+            # board_w/board_d are the footprint; min raised to 25 so the four inset standoffs stay
+            # distinct and inside the plate across the whole slider range (wall_hook plate_h precedent).
+            ParamSpec(name="board_w", label="Board width", default=70.0, min=25.0, max=170.0, step=1.0,
+                      dim_keys=("board_w", "width"), bbox_axis=0),
+            ParamSpec(name="board_d", label="Board depth", default=50.0, min=25.0, max=170.0, step=1.0,
+                      dim_keys=("board_d", "depth"), bbox_axis=1),
+            ParamSpec(name="base_t", label="Base thickness", default=3.0, min=2.0, max=8.0, step=0.5,
+                      dim_keys=("base_t", "thickness", "floor")),
+            ParamSpec(name="standoff_h", label="Standoff height", default=8.0, min=3.0, max=40.0, step=0.5,
+                      dim_keys=("standoff_h", "height", "post_h")),
+            # hole_d capped at 5.5 < the fixed standoff_d (8) so the screw bore is always strictly
+            # inside the post wall — no gap() needed since standoff_d is fixed, not a slider.
+            ParamSpec(name="hole_d", label="Screw hole diameter", default=3.2, min=2.0, max=5.5, step=0.1,
+                      dim_keys=("hole_d", "screw_d", "bore")),
+        ),
+        fixed_args={"standoff_d": 8.0, "inset": 5.0},
+        bbox_x=(BBoxTerm(ref="board_w"),),
+        bbox_y=(BBoxTerm(ref="board_d"),),
+        bbox_z=(BBoxTerm(ref="base_t"), BBoxTerm(ref="standoff_h")),
+    )
+    french_cleat_rail = TemplateFamily(
+        name="french_cleat_rail",
+        summary="The wall half of a 45-degree French cleat: a beveled wall rail with screw holes that a matching cleat on the hung object drops onto.",
+        tier="baseline",
+        object_types=(
+            "french cleat rail", "wall cleat rail", "cleat rail", "french cleat wall rail",
+            "wall french cleat", "cleat wall rail",
+        ),
+        library_file="parts.scad",
+        module="french_cleat_rail",
+        params=(
+            ParamSpec(name="length", label="Length", default=170.0, dim_keys=("length", "width"), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="depth", label="Depth", default=22.0, min=14.0, max=60.0, step=1.0,
+                      dim_keys=("depth", "thickness"), bbox_axis=1),
+            ParamSpec(name="rise", label="Rise", default=30.0, min=14.0, max=170.0, step=1.0,
+                      dim_keys=("rise", "height"), bbox_axis=2),
+            ParamSpec(name="screw_d", label="Screw diameter", default=4.0, min=2.0, max=8.0, step=0.5,
+                      dim_keys=("screw_d", "screw_diameter", "screw")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="rise"),),
+        # thick is fixed at 6 mm inside the module; the 45-degree bevel = min(depth, rise) - thick
+        # stays strictly inside the envelope (the flat back corners set the [length, depth, rise]
+        # bbox), so depth and rise are pinned >= 14 (bevel >= 8, front face >= 6 mm) to keep the
+        # linear bbox exact and the part printable across the whole slider range.
+    )
+    heatset_insert_boss = TemplateFamily(
+        name="heatset_insert_boss",
+        summary="A heat-set insert boss: a cylindrical boss with a blind top pocket sized for a brass heat-set threaded insert.",
+        tier="baseline",
+        object_types=(
+            "heatset insert boss", "heat set insert boss", "insert boss",
+            "threaded insert boss", "heatset boss",
+        ),
+        library_file="parts.scad",
+        module="heatset_insert_boss",
+        params=(
+            ParamSpec(name="boss_d", label="Boss diameter", default=12.0, min=10.0, max=60.0,
+                      step=0.5, dim_keys=("boss_d", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="height", label="Boss height", default=14.0, min=10.0, max=60.0,
+                      step=0.5, dim_keys=("height", "length"), bbox_axis=2),
+            ParamSpec(name="pocket_d", label="Insert pocket diameter", default=5.0, min=3.0,
+                      max=12.0, step=0.1, dim_keys=("pocket_d", "insert_d", "bore")),
+            ParamSpec(name="pocket_depth", label="Insert pocket depth", default=8.0, min=3.0,
+                      max=50.0, step=0.5, dim_keys=("pocket_depth", "insert_depth", "depth")),
+        ),
+        fixed_args={"fn": 96.0},
+        bbox_x=(BBoxTerm(ref="boss_d"),),
+        bbox_y=(BBoxTerm(ref="boss_d"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # the insert pocket must leave a boss wall (pocket_d <= boss_d/2 - 1) and a solid floor
+        # (pocket_depth <= height - 2); both only ever cut INTO the solid / UP into open air, so
+        # neither bends the [boss_d, boss_d, height] envelope at any slider value.
+        gaps=(("pocket_d", "boss_d", 1.0, 0.5), ("pocket_depth", "height", 2.0, 1.0)),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
@@ -2212,6 +2519,9 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         canvas_stretcher_corner, frame_corner_clamp, frame_corner_joiner, frame_turn_button,
         frame_backing_clip, wire_loop_hanger, z_clip_panel_hanger, art_french_cleat_pair,
         picture_rail_hook, d_ring_strap_hanger,
+        # #19 slice 10: generic ports — rings/plates/brackets
+        washer, dowel_pin, bumper_foot, mounting_flange, pierced_mount_pad, faceplate,
+        vesa_plate, corner_gusset, pcb_standoff, french_cleat_rail, heatset_insert_boss,
     )
 
 

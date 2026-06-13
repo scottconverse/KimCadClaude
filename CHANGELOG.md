@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **General hardware — rings, plates & brackets (#19, slice 10): washer, dowel pin, bumper
+  foot, mounting flange, pierced mount pad, faceplate, VESA adapter plate, corner gusset, PCB
+  standoff, French-cleat rail, and heat-set insert boss.** Eleven everyday engineering parts on
+  a new `parts.scad` library, each render-verified against its analytic bounding box with a
+  trusted CadQuery `.STEP` twin. Pattern/fit-dependent parts (flange, VESA, PCB standoff, cleat
+  rail, insert boss) are tier baseline; the rest benchmarked. **The catalog is now 75 families.**
 - **Frame joinery & picture hangers (#19, slice 9): canvas stretcher corner, miter glue-up
   clamp, miter spline joiner, backing turn-button, backing clip, wire-loop hanger, Z-clip panel
   hanger, interlocking art-cleat pair, picture-rail hook, and a D-ring strap hanger.** Ten

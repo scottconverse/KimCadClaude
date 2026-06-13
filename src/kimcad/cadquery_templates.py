@@ -1474,6 +1474,224 @@ def _d_ring_strap_hanger(v: dict[str, float]) -> str:
 
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
+# #19 slice 10: generic ports — rings / plates / brackets (parts.scad twins)
+def _flat_washer(v: dict[str, float]) -> str:
+    # parts.scad::flat_washer — an annulus (the two-circle idiom) extruded to thickness. A
+    # concentric two-circle .extrude() is exactly the difference of the two XY-centered
+    # cylinders the module builds; envelope stays [od, od, thickness].
+    od, bore, t = _f(v["od"]), _f(v["id"]), _f(v["thickness"])
+    return (
+        f'result = (cq.Workplane("XY")'
+        f".circle({od} / 2).circle({bore} / 2).extrude({t}))\n"
+    )
+
+
+def _dowel_pin(v: dict[str, float]) -> str:
+    # parts.scad::dowel_pin — a solid XY-centered cylinder (diameter x length), no bore.
+    # The classic single-circle extrude idiom; bbox = [diameter, diameter, length].
+    d, length = _f(v["diameter"]), _f(v["length"])
+    return (
+        f'result = (cq.Workplane("XY")'
+        f".circle({d} / 2).extrude({length}))\n"
+    )
+
+
+def _bumper_foot(v: dict[str, float]) -> str:
+    # parts.scad::bumper_foot — solid XY-centered cylinder minus a bottom-entry screw bore minus
+    # a wider counterbore head pocket. Both cuts open downward (-eps) into the open air below the
+    # base; the screw bore stops 2 mm short of the top cap, so the envelope stays [diameter, diameter, height].
+    diameter, h = _f(v["diameter"]), _f(v["height"])
+    hole_d, cbore_d = _f(v["hole_d"]), _f(v["counterbore_d"])
+    cbore_h = _f(v.get("cbore_h", 5.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"bore_h = {h} - 2\n"
+        f'body = cq.Workplane("XY").circle({diameter} / 2).extrude({h})\n'
+        f'bore = (cq.Workplane("XY").circle({hole_d} / 2)'
+        f".extrude(bore_h + eps).translate((0, 0, -eps)))\n"
+        f'cbore = (cq.Workplane("XY").circle({cbore_d} / 2)'
+        f".extrude({cbore_h} + eps).translate((0, 0, -eps)))\n"
+        f"result = body.cut(bore).cut(cbore)\n"
+    )
+
+
+def _mounting_flange(v: dict[str, float]) -> str:
+    # parts.scad::mounting_flange — flange disc minus a centered bore minus 4 bolt holes on a
+    # FIXED bolt-circle. The disc is an XY-centered circle extruded (matches OpenSCAD cylinder);
+    # each bolt hole is an XY-centered +Z cylinder translated to (r*cos, r*sin) on the bolt
+    # circle. All cuts over-cut -eps below and +eps above into open air, so faces stay clean.
+    dia, t = _f(v["diameter"]), _f(v["thickness"])
+    bore, bhd = _f(v["bore_d"]), _f(v["bolt_hole_d"])
+    bcd = _f(v.get("bolt_circle_d", 32.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"bc_r = {bcd} / 2\n"
+        f'body = cq.Workplane("XY").circle({dia} / 2).extrude({t})\n'
+        f'bore = (cq.Workplane("XY").circle({bore} / 2)'
+        f".extrude({t} + 2 * eps).translate((0, 0, -eps)))\n"
+        f"result = body.cut(bore)\n"
+        f"for a in (45, 135, 225, 315):\n"
+        f"    bx = bc_r * math.cos(math.radians(a))\n"
+        f"    by = bc_r * math.sin(math.radians(a))\n"
+        f'    hole = (cq.Workplane("XY").circle({bhd} / 2)'
+        f".extrude({t} + 2 * eps).translate((bx, by, -eps)))\n"
+        f"    result = result.cut(hole)\n"
+    )
+
+
+def _pierced_mount_pad(v: dict[str, float]) -> str:
+    # parts.scad::pierced_mount_pad — corner-at-origin slab minus a centered vertical bore.
+    # The XY-centered cylinder is translated to the slab center (w/2, d/2) and over-cuts eps
+    # below the base and eps above the top into open air, so hole_d stays inert to the
+    # envelope. bbox = [width, depth, height].
+    w, d, h, hd = _f(v["width"]), _f(v["depth"]), _f(v["height"]), _f(v["hole_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f'slab = cq.Workplane("XY").box({w}, {d}, {h}, {_CF})\n'
+        f'bore = (cq.Workplane("XY").circle({hd} / 2)'
+        f".extrude({h} + 2 * eps).translate(({w} / 2, {d} / 2, -eps)))\n"
+        f"result = slab.cut(bore)\n"
+    )
+
+
+def _faceplate(v: dict[str, float]) -> str:
+    # parts.scad::faceplate — thin slab minus four corner screw holes drilled along Z.
+    w, h, t = _f(v["width"]), _f(v["height"]), _f(v["thickness"])
+    hd, inset = _f(v["hole_d"]), _f(v.get("inset", 6.0))
+    return (
+        f"eps = {_EPS}\n"
+        f'body = cq.Workplane("XY").box({w}, {h}, {t}, {_CF})\n'
+        # A +Z cylinder over-cutting eps below the bottom face and eps above the top, drilled
+        # straight down the thickness at each corner inset (matches the scad through-hole).
+        f'hole = (cq.Workplane("XY").circle(({hd} + {_CLEAR}) / 2)'
+        f".extrude({t} + 2 * eps).translate((0, 0, -eps)))\n"
+        f"for x in ({inset}, {w} - {inset}):\n"
+        f"    for y in ({inset}, {h} - {inset}):\n"
+        f"        body = body.cut(hole.translate((x, y, 0)))\n"
+        f"result = body\n"
+    )
+
+
+def _vesa_plate(v: dict[str, float]) -> str:
+    # parts.scad::vesa_plate — slab (corner at origin) minus a centered square 4-hole VESA
+    # pattern drilled through Z. Each XY-centered hole cylinder over-cuts -eps below and +eps
+    # above into open air (never past a documented X/Y face), so the envelope stays exactly
+    # [width, height, thickness]. Hole centers at (width/2 +/- s, height/2 +/- s), s = vesa_spacing/2.
+    w, h, t = _f(v["width"]), _f(v["height"]), _f(v["thickness"])
+    vs, hd = _f(v["vesa_spacing"]), _f(v["hole_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"s = {vs} / 2\n"
+        f'body = cq.Workplane("XY").box({w}, {h}, {t}, {_CF})\n'
+        f'hole = (cq.Workplane("XY").circle({hd} / 2)'
+        f".extrude({t} + 2 * eps).translate((0, 0, -eps)))\n"
+        f"for dx in (-s, s):\n"
+        f"    for dy in (-s, s):\n"
+        f"        body = body.cut(hole.translate(({w} / 2 + dx, {h} / 2 + dy, 0)))\n"
+        f"result = body\n"
+    )
+
+
+def _corner_gusset(v: dict[str, float]) -> str:
+    # parts.scad::corner_gusset — a right-triangle web (leg deep on Y, leg tall on Z) extruded
+    # across the width (X), with one screw hole bored along X through each leg flat. The profile
+    # is drawn in XY as the (leg, leg) right triangle and extruded +Z by width, then mapped to
+    # final axes by rotate +90 about X then +90 about Z (the wedge_easel_stand idiom): local
+    # X->final Y, local Y->final Z, local Z->final X, so the prism lands corner-at-origin with
+    # envelope [width, leg, leg]. Each hole is a +Z cylinder rotated +90 about Y (points +X, the
+    # _l_bracket xhole idiom), spanning the full width and over-cutting both web faces by eps.
+    # `thickness` only positions the holes off each leg flat, so it is inert to the envelope.
+    width, leg = _f(v["width"]), _f(v["leg"])
+    thickness, hole_d = _f(v["thickness"]), _f(v["hole_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"hole_pos = {leg} * 0.5\n"
+        f'web = (cq.Workplane("XY")'
+        f".polyline([(0, 0), ({leg}, 0), (0, {leg})]).close().extrude({width})"
+        f".rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".rotate((0, 0, 0), (0, 0, 1), 90))\n"
+        # +Z cylinder rotated +90 about Y points +X (the _l_bracket xhole idiom).
+        f'drill = (cq.Workplane("XY").circle(({hole_d} + clear) / 2)'
+        f".extrude({width} + 2 * eps).rotate((0, 0, 0), (0, 1, 0), 90))\n"
+        # bottom-leg hole (z low): at y = hole_pos, z = thickness/2
+        f"web = web.cut(drill.translate((-eps, hole_pos, {thickness} / 2)))\n"
+        # back-leg hole (y low): at y = thickness/2, z = hole_pos
+        f"web = web.cut(drill.translate((-eps, {thickness} / 2, hole_pos)))\n"
+        f"result = web\n"
+    )
+
+
+def _pcb_standoff(v: dict[str, float]) -> str:
+    # parts.scad::pcb_standoff — base plate + four corner standoffs (XY-centered cylinders on
+    # top of the plate), each pierced by a +Z through screw bore down the whole stack. The
+    # standoffs sit inside the footprint (inset >= standoff_d/2), so the envelope stays exactly
+    # [board_w, board_d, base_t + standoff_h].
+    bw, bd, bt = _f(v["board_w"]), _f(v["board_d"]), _f(v["base_t"])
+    sh, hd = _f(v["standoff_h"]), _f(v["hole_d"])
+    sd, inset = _f(v.get("standoff_d", 8.0)), _f(v.get("inset", 5.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"centers = (({inset}, {inset}), ({bw} - {inset}, {inset}), "
+        f"({inset}, {bd} - {inset}), ({bw} - {inset}, {bd} - {inset}))\n"
+        f'result = cq.Workplane("XY").box({bw}, {bd}, {bt}, {_CF})\n'
+        f'post = cq.Workplane("XY").circle({sd} / 2).extrude({sh})\n'
+        f"for (cx, cy) in centers:\n"
+        f"    result = result.union(post.translate((cx, cy, {bt})))\n"
+        f'bore = cq.Workplane("XY").circle({hd} / 2).extrude({bt} + {sh} + 2 * eps)\n'
+        f"for (cx, cy) in centers:\n"
+        f"    result = result.cut(bore.translate((cx, cy, -eps)))\n"
+    )
+
+
+def _french_cleat_rail(v: dict[str, float]) -> str:
+    # parts.scad::french_cleat_rail — the wall half of a 45-degree French cleat: a right-trapezoid
+    # rail profile extruded along the length (X), with two +Y screw bores through the solid lower
+    # back. The profile is authored in (Y=depth, Z=rise) and extruded +Z by length, then rotated by
+    # the module's rotate([90,0,90]) net (x,y,z)->(z,x,y) via rotate about X by 90 then about Z by
+    # 90: profile-x -> Y (depth), profile-y -> Z (rise), extrude -> X (length) (the
+    # art_french_cleat_pair / z_clip_panel_hanger profile-orient idiom). thick is FIXED, so
+    # bevel = min(depth, rise) - thick is clamped strictly inside the envelope and resolved at emit
+    # time from the clamped floats (no runtime min()); the flat back corners set the linear bbox
+    # [length, depth, rise]. The two bores (a FIXED count, inert to the envelope) are +Z cylinders
+    # rotated -90 about X (-> +Y) over-cutting both Y faces by eps.
+    length, depth, rise = _f(v["length"]), _f(v["depth"]), _f(v["rise"])
+    sd = _f(v.get("screw_d", 4.0))
+    bevel = _f(min(float(v["depth"]), float(v["rise"])) - float(v.get("thick", 6.0)))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"screw_z = ({rise} - {bevel}) / 2\n"
+        f"wall_profile = [(0, 0), ({depth}, 0), ({depth}, {rise}), "
+        f"({bevel}, {rise}), (0, {rise} - {bevel})]\n"
+        f'rail = (cq.Workplane("XY").polyline(wall_profile).close().extrude({length})'
+        f".rotate((0, 0, 0), (1, 0, 0), 90).rotate((0, 0, 0), (0, 0, 1), 90))\n"
+        f'bore = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({depth} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for x in ({length} * 0.2, {length} * 0.8):\n"
+        f"    rail = rail.cut(bore.translate((x, -eps, screw_z)))\n"
+        f"result = rail\n"
+    )
+
+
+def _heatset_insert_boss(v: dict[str, float]) -> str:
+    # parts.scad::heatset_insert_boss — solid XY-centered boss cylinder minus a centered blind
+    # top pocket that seats a brass heat-set threaded insert (the same solid-cylinder-minus-top-
+    # pocket idiom as _tealight_holder / _taper_candle_holder). The pocket over-cuts UP by eps
+    # into the open air above the rim (never past the boss height), so the envelope stays exactly
+    # [boss_d, boss_d, height]. Cylinders are XY-centered.
+    bd, h = _f(v["boss_d"]), _f(v["height"])
+    pd, pdep = _f(v["pocket_d"]), _f(v["pocket_depth"])
+    return (
+        f"eps = {_EPS}\n"
+        f"pocket_floor = {h} - {pdep}\n"
+        f'body = cq.Workplane("XY").circle({bd} / 2).extrude({h})\n'
+        f'pocket = (cq.Workplane("XY").circle({pd} / 2)'
+        f".extrude({pdep} + eps).translate((0, 0, pocket_floor)))\n"
+        f"result = body.cut(pocket)\n"
+    )
+
+
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "snap_box": _snap_box,
     "box": _open_box,
@@ -1545,6 +1763,19 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "art_french_cleat_pair": _art_french_cleat_pair,
     "picture_rail_hook": _picture_rail_hook,
     "d_ring_strap_hanger": _d_ring_strap_hanger,
+    # #19 slice 10: generic ports — rings/plates/brackets (keyed by FAMILY name; the washer
+    # family's module/twin is flat_washer)
+    "washer": _flat_washer,
+    "dowel_pin": _dowel_pin,
+    "bumper_foot": _bumper_foot,
+    "mounting_flange": _mounting_flange,
+    "pierced_mount_pad": _pierced_mount_pad,
+    "faceplate": _faceplate,
+    "vesa_plate": _vesa_plate,
+    "corner_gusset": _corner_gusset,
+    "pcb_standoff": _pcb_standoff,
+    "french_cleat_rail": _french_cleat_rail,
+    "heatset_insert_boss": _heatset_insert_boss,
 }
 
 

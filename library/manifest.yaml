@@ -144,3 +144,22 @@ modules:
       - "art_french_cleat_pair(length=120, depth=22, rise=18, thick=6, gap=10)  // matched pair of 45-degree interlocking wall cleats printed side by side; bbox = [length, 2*depth+gap, rise]"
       - "picture_rail_hook(width=50, throat_depth=18, throat_gap=22, body_height=60, thk=5, eye_d=8)  // over-the-molding inverted-J rail hook + cord eye; bbox = [width, throat_depth+thk, body_height+throat_gap]"
       - "d_ring_strap_hanger(strap_w=40, strap_t=5, strap_h=50, ring_od=28, ring_thk=6, screw_d=4)  // screw-down strap plate + fixed printed D-ring loop; bbox = [strap_w, strap_t+ring_thk, strap_h+ring_od]"
+
+  - file: parts.scad
+    summary: >-
+      Generic engineering ports — rings, plates, and brackets: flat washers/shims, dowel pins,
+      counterbored bumper feet, bolt-circle mounting flanges, drilled mount pads & faceplates,
+      VESA adapter plates, triangular corner gussets, PCB standoff bases, French cleat wall
+      rails, and heat-set insert bosses. Corner-at-origin; cylinders XY-centered; prints flat.
+    signatures:
+      - "flat_washer(od=16, id=8, thickness=2)  // disc od x thickness with a concentric id through bore; bbox = [od, od, thickness]"
+      - "dowel_pin(diameter=6, length=30)  // solid alignment cylinder; bbox = [diameter, diameter, length]"
+      - "bumper_foot(diameter=30, height=12, hole_d=4.5, counterbore_d=9, cbore_h=5)  // short foot + bottom counterbored screw hole; bbox = [diameter, diameter, height]"
+      - "mounting_flange(diameter=80, thickness=8, bore_d=20, bolt_hole_d=5, bolt_circle_d=32)  // round flange disc + centered bore + 4 bolt holes on a fixed bolt-circle; bbox = [diameter, diameter, thickness]"
+      - "pierced_mount_pad(width=60, depth=40, height=6, hole_d=8)  // rectangular pad + single centered vertical through-hole; bbox = [width, depth, height]"
+      - "faceplate(width=80, height=60, thickness=3, hole_d=4, inset=6)  // blanking/cover plate + four corner screw holes; bbox = [width, height, thickness]"
+      - "vesa_plate(width=140, height=140, thickness=4, vesa_spacing=100, hole_d=4.5)  // monitor-mount adapter slab + centered square 4-hole VESA pattern; bbox = [width, height, thickness]"
+      - "corner_gusset(width=50, leg=40, thickness=6, hole_d=4)  // triangular corner brace web + a screw hole through each leg; bbox = [width, leg, leg]"
+      - "pcb_standoff(board_w=70, board_d=50, base_t=3, standoff_h=8, hole_d=3.2, standoff_d=8, inset=5)  // base plate + four inset corner standoffs with through screw holes; bbox = [board_w, board_d, base_t+standoff_h]"
+      - "french_cleat_rail(length=170, depth=22, rise=30, screw_d=4)  // wall half of a 45-degree French cleat + screw holes; bbox = [length, depth, rise]"
+      - "heatset_insert_boss(boss_d=12, height=14, pocket_d=5, pocket_depth=8)  // cylindrical boss + blind top pocket for a brass heat-set insert; bbox = [boss_d, boss_d, height]"

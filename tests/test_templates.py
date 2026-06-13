@@ -89,6 +89,10 @@ EXPECTED_FAMILY_NAMES = frozenset(
         "frame_turn_button", "frame_backing_clip", "wire_loop_hanger",
         "z_clip_panel_hanger", "art_french_cleat_pair", "picture_rail_hook",
         "d_ring_strap_hanger",
+        # #19 slice 10: generic ports — rings/plates/brackets
+        "washer", "dowel_pin", "bumper_foot", "mounting_flange", "pierced_mount_pad",
+        "faceplate", "vesa_plate", "corner_gusset", "pcb_standoff", "french_cleat_rail",
+        "heatset_insert_boss",
     }
 )
 
