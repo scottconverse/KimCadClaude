@@ -546,6 +546,207 @@ def _zen_garden_tray(v: dict[str, float]) -> str:
     )
 
 
+# --- #19 slice 6: holders / cups + planters (dishes.scad) ----------------------------
+
+
+def _tealight_holder(v: dict[str, float]) -> str:
+    # dishes.scad::tealight_holder — solid outer cylinder minus a centered top pocket that
+    # seats a standard ~38-40 mm tealight cup. Both cylinders are XY-centered; the pocket
+    # over-cuts +eps up into open air, so the envelope stays exactly [od, od, h].
+    od, h = _f(v["od"]), _f(v["h"])
+    pd, ph = _f(v["pocket_d"]), _f(v["pocket_h"])
+    return (
+        f"eps = {_EPS}\n"
+        f"pocket_floor = {h} - {ph}\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'pocket = (cq.Workplane("XY").circle({pd} / 2)'
+        f".extrude({ph} + eps).translate((0, 0, pocket_floor)))\n"
+        f"result = body.cut(pocket)\n"
+    )
+
+
+def _taper_candle_holder(v: dict[str, float]) -> str:
+    # dishes.scad::taper_candle_holder — a solid XY-centered base cylinder (base_d x h) minus a
+    # centered top bore (bore_d x bore_depth) that grips a ~22 mm taper. The bore over-cuts UP by
+    # eps into the open air above the rim (never past the base height); bbox = [base_d, base_d, h].
+    base_d, h = _f(v["base_d"]), _f(v["h"])
+    bore_d, bd = _f(v["bore_d"]), _f(v["bore_depth"])
+    return (
+        f"eps = {_EPS}\n"
+        f"bore_floor = {h} - {bd}\n"
+        f'body = cq.Workplane("XY").circle({base_d} / 2).extrude({h})\n'
+        f'bore = (cq.Workplane("XY").circle({bore_d} / 2)'
+        f".extrude({bd} + eps).translate((0, 0, bore_floor)))\n"
+        f"result = body.cut(bore)\n"
+    )
+
+
+def _luminary_base(v: dict[str, float]) -> str:
+    # dishes.scad::luminary_base — outer puck minus a center puck cavity minus a wider top
+    # rim-ledge counterbore. Cylinders are XY-centered (matches OpenSCAD's cylinder()); the
+    # ledge diameter is min()-clamped strictly inside the outer wall, mirroring the module,
+    # so the top ledge cut can never shave the documented height.
+    od, h = _f(v["outer_d"]), _f(v["height"])
+    cd, ch, rl = _f(v["cavity_d"]), _f(v["cavity_h"]), _f(v["rim_ledge"])
+    lt = _f(v.get("ledge_t", 3.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"cavity_floor = {h} - {ch}\n"
+        f"ledge_d = min({cd} + 2 * {rl}, {od} - 2)\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'cavity = (cq.Workplane("XY").circle({cd} / 2)'
+        f".extrude({ch} + eps).translate((0, 0, cavity_floor)))\n"
+        f'ledge = (cq.Workplane("XY").circle(ledge_d / 2)'
+        f".extrude({lt} + eps).translate((0, 0, {h} - {lt})))\n"
+        f"result = body.cut(cavity).cut(ledge)\n"
+    )
+
+
+def _bud_vase_sleeve(v: dict[str, float]) -> str:
+    # dishes.scad::bud_vase_sleeve — XY-centered outer cylinder minus a top bore. safe_bore
+    # mirrors the module's min(bore_d, od - 2*wall) wall guard, resolved at emit time from the
+    # clamped float values (so the script stays a pure cylinder cut, no runtime min()).
+    od, h = _f(v["od"]), _f(v["h"])
+    bore_depth = _f(v["bore_depth"])
+    safe_bore = _f(min(float(v["bore_d"]), float(v["od"]) - 2 * float(v["wall"])))
+    return (
+        f"eps = {_EPS}\n"
+        f"bore_floor = {h} - {bore_depth}\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'bore = (cq.Workplane("XY").circle({safe_bore} / 2)'
+        f".extrude({bore_depth} + eps).translate((0, 0, bore_floor)))\n"
+        f"result = body.cut(bore)\n"
+    )
+
+
+def _pencil_cup(v: dict[str, float]) -> str:
+    # dishes.scad::pencil_cup — solid outer cylinder hollowed to a top-open pocket with a
+    # thick floor. Bore = od - 2*wall, pocket floor at z = floor_t, over-cut up by eps into
+    # the open air above the rim. XY-centered cylinders; bbox = [od, od, h].
+    od, h, wall, floor_t = _f(v["od"]), _f(v["h"]), _f(v["wall"]), _f(v["floor_t"])
+    return (
+        f"eps = {_EPS}\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'pocket = (cq.Workplane("XY").circle(({od} - 2 * {wall}) / 2)'
+        f".extrude({h} - {floor_t} + eps).translate((0, 0, {floor_t})))\n"
+        f"result = body.cut(pocket)\n"
+    )
+
+
+def _propagation_station(v: dict[str, float]) -> str:
+    # dishes.scad::propagation_station — a horizontal bar on top of two end legs, with a FIXED
+    # row of vertical tube bores drilled down into the bar. The bar carries the full [length,
+    # depth] footprint and rises from z = leg_h to z = leg_h + h; the legs sit inside that
+    # footprint (so the envelope is exactly [length, depth, h + leg_h]). bores is FIXED — it
+    # does not enter the bbox (the drawer_divider / incense_stick_holder precedent).
+    length, depth, h = _f(v["length"]), _f(v["depth"]), _f(v["h"])
+    tube_d, leg_h = _f(v["tube_d"]), _f(v["leg_h"])
+    bores = 5
+    leg_w = _f(10.0)
+    return (
+        f"eps = {_EPS}\n"
+        f"bore_depth = {h} - 2\n"
+        f'bar = (cq.Workplane("XY").box({length}, {depth}, {h}, {_CF})'
+        f".translate((0, 0, {leg_h})))\n"
+        f"result = bar\n"
+        f"for i in range({bores}):\n"
+        f"    x = {length} / 2 + (i - ({bores} - 1) / 2) * ({length} / ({bores} + 1))\n"
+        f'    bore = (cq.Workplane("XY").circle({tube_d} / 2).extrude(bore_depth + eps)'
+        f".translate((x, {depth} / 2, {leg_h} + {h} - bore_depth)))\n"
+        f"    result = result.cut(bore)\n"
+        f"for x in (0.0, {length} - {leg_w}):\n"
+        f'    leg = (cq.Workplane("XY").box({leg_w}, {depth}, {leg_h} + eps, {_CF})'
+        f".translate((x, 0, 0)))\n"
+        f"    result = result.union(leg)\n"
+    )
+
+
+def _planter_pot(v: dict[str, float]) -> str:
+    # dishes.scad::planter_pot — outer tapered frustum minus an inner tapered cavity minus a
+    # center drain hole. Each frustum is a LOFT between two XY-centered circles at different Z
+    # (the proven taper idiom — NOT makeCone); the drain is an XY-centered cylinder. floor = wall.
+    bd, td, h = _f(v["bottom_d"]), _f(v["top_d"]), _f(v["h"])
+    wall, dd = _f(v["wall"]), _f(v["drain_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"floor = {wall}\n"
+        f"in_bot = {bd} - 2 * {wall}\n"
+        f"in_top = {td} - 2 * {wall}\n"
+        f'outer = (cq.Workplane("XY").circle({bd} / 2)'
+        f".workplane(offset={h}).circle({td} / 2).loft())\n"
+        f'cavity = (cq.Workplane("XY").circle(in_bot / 2)'
+        f".workplane(offset={h} - floor + eps).circle(in_top / 2).loft()"
+        f".translate((0, 0, floor)))\n"
+        f'drain = (cq.Workplane("XY").circle({dd} / 2)'
+        f".extrude(floor + 2 * eps).translate((0, 0, -eps)))\n"
+        f"result = outer.cut(cavity).cut(drain)\n"
+    )
+
+
+def _planter_saucer(v: dict[str, float]) -> str:
+    # dishes.scad::planter_saucer — outer body minus a catch pocket, plus a raised inner
+    # pot-rest rim ring (the two-circle annulus idiom). Cylinders are XY-centered.
+    od, h, wall = _f(v["od"]), _f(v["h"]), _f(v["wall"])
+    floor_t, rim_h, rim_w = _f(v["floor_t"]), _f(v["rim_h"]), _f(v.get("rim_w", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"pocket_d = {od} - 2 * {wall}\n"
+        f"rim_id = pocket_d - 2 * {rim_w}\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'pocket = (cq.Workplane("XY").circle(pocket_d / 2)'
+        f".extrude({h} - {floor_t} + eps).translate((0, 0, {floor_t})))\n"
+        f'rim = (cq.Workplane("XY").circle(pocket_d / 2).circle(rim_id / 2)'
+        f".extrude({rim_h} + eps).translate((0, 0, {floor_t} - eps)))\n"
+        f"result = body.cut(pocket).union(rim)\n"
+    )
+
+
+def _bonsai_pot(v: dict[str, float]) -> str:
+    # dishes.scad::bonsai_pot - box-tray hollowed to a soil pocket (floor = wall thick), minus a
+    # FIXED 2x2 grid of base drain holes. Each XY-centered drain bore spans -eps (open air below)
+    # up into the open pocket cavity, so it never touches the outer envelope.
+    length, width, h = _f(v["length"]), _f(v["width"]), _f(v["h"])
+    t, dd = _f(v["wall"]), _f(v["drain_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"pocket_l = {length} - 2 * {t}\n"
+        f"pocket_w = {width} - 2 * {t}\n"
+        f"pocket_depth = {h} - {t}\n"
+        f'outer = cq.Workplane("XY").box({length}, {width}, {h}, {_CF})\n'
+        f'pocket = (cq.Workplane("XY")'
+        f".box(pocket_l, pocket_w, pocket_depth + eps, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"result = outer.cut(pocket)\n"
+        f'drill = cq.Workplane("XY").circle({dd} / 2).extrude({t} + 2 * eps)\n'
+        f"for dx in ({length} * 0.3, {length} * 0.7):\n"
+        f"    for dy in ({width} * 0.3, {width} * 0.7):\n"
+        f"        result = result.cut(drill.translate((dx, dy, -eps)))\n"
+    )
+
+
+def _succulent_pot(v: dict[str, float]) -> str:
+    # dishes.scad::succulent_pot — an n-gon (facets-sided) prism hollowed to a top-open soil
+    # pocket above a wall-thick floor, minus one center round drain through that floor. The
+    # outer prism is .polygon(facets, od) [XY-centered, vertices on the across-corners od circle],
+    # so od is the across-corners diameter; the default octagon (facets % 4 == 0) fills the bbox
+    # to exactly [od, od, h] and other facet counts inscribe WITHIN that od circle (never past it),
+    # so facets is inert to the envelope (drawer_divider precedent). The pocket bore is the same
+    # facets-gon at od - 2*wall, floor at z = wall, over-cut UP by eps into the open air above the
+    # rim. The drain over-cuts -eps below the base and +eps into the pocket so both faces are clean.
+    od, h, wall = _f(v["od"]), _f(v["h"]), _f(v["wall"])
+    n = int(round(float(v["facets"])))
+    dd = _f(v["drain_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f'body = cq.Workplane("XY").polygon({n}, {od}).extrude({h})\n'
+        f'pocket = (cq.Workplane("XY").polygon({n}, {od} - 2 * {wall})'
+        f".extrude({h} - {wall} + eps).translate((0, 0, {wall})))\n"
+        f'drain = (cq.Workplane("XY").circle({dd} / 2)'
+        f".extrude({wall} + 2 * eps).translate((0, 0, -eps)))\n"
+        f"result = body.cut(pocket).cut(drain)\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -575,6 +776,17 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "soap_dish": _soap_dish,
     "handled_tray": _handled_tray,
     "zen_garden_tray": _zen_garden_tray,
+    # #19 slice 6: holders/cups + planters
+    "tealight_holder": _tealight_holder,
+    "taper_candle_holder": _taper_candle_holder,
+    "luminary_base": _luminary_base,
+    "bud_vase_sleeve": _bud_vase_sleeve,
+    "pencil_cup": _pencil_cup,
+    "propagation_station": _propagation_station,
+    "planter_pot": _planter_pot,
+    "planter_saucer": _planter_saucer,
+    "bonsai_pot": _bonsai_pot,
+    "succulent_pot": _succulent_pot,
 }
 
 

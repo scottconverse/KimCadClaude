@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Holders, cups & planters (#19, slice 6): tealight & taper-candle holders, luminary base,
+  bud-vase sleeve, pencil cup, propagation station, tapered planter pot, planter saucer, bonsai
+  pot, and succulent pot.** Ten more of Kim's design-world families, each render-verified against
+  its analytic bounding box with a trusted CadQuery `.STEP` twin (the planter pot's taper is a
+  CadQuery loft). Holders that seat a real object (tealight cup, taper, glass tube) are tier
+  baseline; the cups, planters, and saucer are benchmarked. **The catalog is now 36 families.**
 - **Zen & desktop dishes (#19, slice 5): ring/trinket dish, incense cone & stick holders,
   catch-all valet tray, draining soap dish, handled serving tray, and a zen sand-garden tray.**
   Seven decorative dishes/trays for Kim's design world, each render-verified against its

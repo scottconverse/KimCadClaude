@@ -1003,6 +1003,329 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         ),
     )
 
+    # --- #19 slice 6: holders / cups + planters — dishes.scad --------------------------
+    # Authored + render-verified via the verified-authoring workflow (each module proven
+    # watertight at its analytic bbox; twins gate-checked at 0.5mm). All in dishes.scad.
+
+    tealight_holder = TemplateFamily(
+        name="tealight_holder",
+        summary="A tealight / votive holder: a round body with a top pocket that seats a standard ~38-40 mm metal tealight cup.",
+        tier="baseline",
+        object_types=(
+            "tealight holder", "tea light holder", "votive holder", "tealight cup holder",
+            "candle tealight holder", "tea candle holder",
+        ),
+        library_file="dishes.scad",
+        module="tealight_holder",
+        params=(
+            ParamSpec(name="od", label="Outer diameter", default=50.0, min=20.0, max=120.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=20.0, min=10.0, max=80.0, step=1.0,
+                      dim_keys=("h", "height")),
+            ParamSpec(name="pocket_d", label="Tealight pocket diameter", default=39.5, min=20.0, max=110.0,
+                      step=0.5, dim_keys=("pocket_d", "pocket_diameter", "cup_d")),
+            ParamSpec(name="pocket_h", label="Tealight pocket depth", default=12.0, min=4.0, max=70.0,
+                      step=0.5, dim_keys=("pocket_h", "pocket_depth", "cup_h")),
+            ParamSpec(name="wall", label="Rim wall", default=3.0, min=1.5, max=8.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+        ),
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        # the pocket must leave a rim all round (pocket_d <= od - 2*wall, min wall 1.5 -> gap 3) and a
+        # floor under it (pocket_h <= h - 2); both keep the difference() from blowing through the body.
+        gaps=(("pocket_d", "od", 3.0, 1.0), ("pocket_h", "h", 2.0, 1.0)),
+    )
+
+    # taper_candle_holder: reconstructed (its family_code came back "duplicate_ignored", a race
+    # artifact). Mirrors the tealight_holder style — bbox = [base_d, base_d, h], a solid base with a
+    # centered top socket; gaps keep a rim around the bore and a floor under it.
+    taper_candle_holder = TemplateFamily(
+        name="taper_candle_holder",
+        summary="A weighted taper candle holder: a solid round base with a centered top socket that grips a standard ~22 mm taper candle.",
+        tier="baseline",
+        object_types=(
+            "taper candle holder", "candle holder", "taper holder", "candlestick",
+            "candlestick holder", "dinner candle holder", "candle stick holder",
+        ),
+        library_file="dishes.scad",
+        module="taper_candle_holder",
+        params=(
+            ParamSpec(name="base_d", label="Base diameter", default=70.0, min=30.0, max=160.0, step=1.0,
+                      dim_keys=("base_d", "base_diameter", "diameter", "od", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=40.0, min=15.0, max=120.0, step=1.0,
+                      dim_keys=("h", "height")),
+            ParamSpec(name="bore_d", label="Candle socket diameter", default=22.0, min=8.0, max=60.0,
+                      step=0.5, dim_keys=("bore_d", "bore_diameter", "socket_d", "candle_d")),
+            ParamSpec(name="bore_depth", label="Candle socket depth", default=25.0, min=8.0, max=110.0,
+                      step=0.5, dim_keys=("bore_depth", "socket_depth", "depth")),
+        ),
+        bbox_x=(BBoxTerm(ref="base_d"),),
+        bbox_y=(BBoxTerm(ref="base_d"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        # the socket must leave a rim all round (bore_d <= base_d - 8) and a floor under it
+        # (bore_depth <= h - 2), so the difference() never blows through the weighted base.
+        gaps=(("bore_d", "base_d", 8.0, 1.0), ("bore_depth", "h", 2.0, 1.0)),
+    )
+
+    luminary_base = TemplateFamily(
+        name="luminary_base",
+        summary="A weighted candle/LED luminary base: an outer cylinder with a center puck cavity and a wider top rim ledge.",
+        tier="baseline",
+        object_types=("luminary base", "luminary", "candle luminary", "led luminary base",
+                      "luminary candle base", "luminary holder", "tealight luminary"),
+        library_file="dishes.scad",
+        module="luminary_base",
+        params=(
+            ParamSpec(name="outer_d", label="Outer diameter", default=80.0, min=30.0, max=170.0,
+                      step=1.0, dim_keys=("outer_d", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="height", label="Height", default=40.0, min=15.0, max=170.0,
+                      step=1.0, dim_keys=("height", "h"), bbox_axis=2),
+            ParamSpec(name="cavity_d", label="Cavity diameter", default=52.0, min=20.0, max=150.0,
+                      step=1.0, dim_keys=("cavity_d", "cavity_diameter", "puck_d")),
+            ParamSpec(name="cavity_h", label="Cavity depth", default=26.0, min=8.0, max=150.0,
+                      step=1.0, dim_keys=("cavity_h", "cavity_depth", "puck_h")),
+            ParamSpec(name="rim_ledge", label="Rim ledge", default=5.0, min=2.0, max=20.0,
+                      step=0.5, dim_keys=("rim_ledge", "ledge")),
+        ),
+        fixed_args={"ledge_t": 3.0},
+        bbox_x=(BBoxTerm(ref="outer_d"),),
+        bbox_y=(BBoxTerm(ref="outer_d"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # cavity_d stays inside the outer wall (gap 8 leaves >=4 mm wall each side); the wider
+        # rim ledge is additionally clamped inside the body IN the module (ledge_d = min(...,
+        # outer_d - 2)), so the top ledge slab can never shave the documented height; cavity_h
+        # stays under the height so a >=2 mm floor remains under the puck cavity.
+        gaps=(
+            ("rim_ledge", "outer_d", 4.0, 0.5),
+            ("cavity_d", "outer_d", 8.0, 1.0),
+            ("cavity_h", "height", 2.0, 1.0),
+        ),
+    )
+
+    bud_vase_sleeve = TemplateFamily(
+        name="bud_vase_sleeve",
+        summary="A printed sleeve that seats a glass test tube as the watertight vessel "
+                "(bud vase / reed-diffuser / dry-stem sleeve): an outer cylinder with a vertical bore.",
+        tier="baseline",
+        object_types=("bud vase sleeve", "bud vase", "test tube vase", "reed diffuser sleeve",
+                      "stem vase sleeve", "test tube holder"),
+        library_file="dishes.scad",
+        module="bud_vase_sleeve",
+        params=(
+            # od is the footprint (diameter), capped at the sliceable envelope (QA-502).
+            ParamSpec(name="od", label="Outer diameter", default=60.0, min=20.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=120.0, min=20.0, max=170.0, step=1.0,
+                      dim_keys=("h", "height", "length")),
+            ParamSpec(name="bore_d", label="Bore diameter", default=26.0, min=8.0, max=160.0, step=1.0,
+                      dim_keys=("bore_d", "bore_diameter", "tube_diameter", "bore")),
+            ParamSpec(name="bore_depth", label="Bore depth", default=110.0, min=10.0, max=168.0, step=1.0,
+                      dim_keys=("bore_depth", "depth", "insert_depth")),
+            ParamSpec(name="wall", label="Wall thickness", default=4.0, min=1.5, max=10.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+        ),
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        # The bore must stay >= 2 mm inside the outer wall (so the wall never breaks) and the
+        # bore floor must leave >= 2 mm of solid material under the seated tube.
+        gaps=(("bore_d", "od", 2.0, 1.0), ("bore_depth", "h", 2.0, 1.0)),
+    )
+
+    pencil_cup = TemplateFamily(
+        name="pencil_cup",
+        summary="A straight-walled round pen / pencil / brush cup: an outer cylinder hollowed to a deep pocket over a thick floor.",
+        object_types=(
+            "pencil cup", "pen cup", "pen holder", "pencil holder", "brush cup",
+            "pencil cup holder", "desk cup", "pen pot", "pencil pot",
+        ),
+        library_file="dishes.scad",
+        module="pencil_cup",
+        params=(
+            ParamSpec(name="od", label="Outer diameter", default=70.0, min=24.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=100.0, min=20.0, max=170.0, step=1.0,
+                      dim_keys=("h", "height", "length")),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=1.5, max=10.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="floor_t", label="Floor thickness", default=4.0, min=1.5, max=20.0, step=0.5,
+                      dim_keys=("floor_t", "floor", "base")),
+        ),
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        # Keep the wall under half the OD (minus a 2 mm minimum bore) so a thick wall on a slim
+        # cup can't collapse the pocket into a solid puck; keep the floor under the height (minus
+        # a 2 mm minimum pocket) so the cup always has a usable cavity.
+        gaps=(("wall", "od", 2.0, 0.5), ("floor_t", "h", 2.0, 1.0)),
+    )
+
+    # propagation_station: reconstructed (its family_code came back as the bare name string, a
+    # race artifact). From its scad signature + new_modules_call/bbox + notes: a horizontal bar
+    # on two end legs with a FIXED 5-bore row; bbox = [length, depth, h + leg_h] (the bar rises
+    # from z = leg_h to leg_h + h). tube_d is the only count-relevant slider; bores/leg_w fixed.
+    propagation_station = TemplateFamily(
+        name="propagation_station",
+        summary="A test-tube propagation station: a horizontal bar on two end legs, with a fixed row of vertical tube bores for plant cuttings.",
+        tier="baseline",
+        object_types=(
+            "propagation station", "propagation bar", "cutting propagation station",
+            "plant propagation station", "test tube propagation station", "propagation stand",
+            "cutting station", "plant cutting holder",
+        ),
+        library_file="dishes.scad",
+        module="propagation_station",
+        params=(
+            ParamSpec(name="length", label="Length", default=160.0, min=60.0, max=170.0, step=1.0,
+                      dim_keys=("length", "width"), bbox_axis=0),
+            ParamSpec(name="depth", label="Depth", default=40.0, min=24.0, max=80.0, step=1.0,
+                      dim_keys=("depth",), bbox_axis=1),
+            ParamSpec(name="h", label="Bar height", default=20.0, min=12.0, max=60.0, step=1.0,
+                      dim_keys=("h", "bar_height")),
+            ParamSpec(name="tube_d", label="Tube bore diameter", default=24.0, min=8.0, max=40.0,
+                      step=0.5, dim_keys=("tube_d", "tube_diameter", "bore_d", "diameter")),
+            ParamSpec(name="leg_h", label="Leg height", default=70.0, min=20.0, max=110.0, step=1.0,
+                      dim_keys=("leg_h", "leg_height", "height")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="h"), BBoxTerm(ref="leg_h")),
+        # tube_d <= depth - 4 (>=2 mm wall each side across depth) and tube_d <= length/6 (narrower
+        # than the inter-bore pitch so the 5 fixed bores cannot overlap).
+        gaps=(("tube_d", "depth", 4.0, 1.0), ("tube_d", "length", 0.0, 1.0 / 6.0)),
+    )
+
+    planter_pot = TemplateFamily(
+        name="planter_pot",
+        summary="A tapered plant pot: a frustum wall (wider at the rim) over a flat floor, with a center drain hole.",
+        tier="benchmarked",  # what-you-set-is-what-you-get; no hidden fitness caveat (it holds soil/water)
+        object_types=(
+            "planter pot", "plant pot", "flower pot", "flowerpot", "planter", "nursery pot",
+            "tapered pot", "seedling pot",
+        ),
+        library_file="dishes.scad",
+        module="planter_pot",
+        params=(
+            # top_d is the footprint (the rim is the widest point), so it carries bbox_x/y; it is
+            # pinned >= bottom_d by the gap below so the envelope stays linear at [top_d, top_d, h].
+            ParamSpec(name="top_d", label="Rim diameter", default=90.0, min=30.0, max=170.0, step=1.0,
+                      dim_keys=("top_d", "rim_diameter", "diameter", "od", "width"), bbox_axis=0),
+            ParamSpec(name="bottom_d", label="Base diameter", default=70.0, min=30.0, max=160.0, step=1.0,
+                      dim_keys=("bottom_d", "base_diameter", "base_d")),
+            ParamSpec(name="h", label="Height", default=90.0, min=20.0, max=170.0, step=1.0,
+                      dim_keys=("h", "height")),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=2.0, max=6.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="drain_d", label="Drain hole diameter", default=12.0, min=4.0, max=20.0, step=0.5,
+                      dim_keys=("drain_d", "drain", "drain_diameter", "hole_d")),
+        ),
+        bbox_x=(BBoxTerm(ref="top_d"),),
+        bbox_y=(BBoxTerm(ref="top_d"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(
+            # the rim is the widest point: keep bottom_d <= top_d so top_d sets the linear bbox.
+            ("bottom_d", "top_d", 0.0, 1.0),
+            # keep the wall under half the BASE diameter (the narrow end) so the inner taper never
+            # collapses: wall <= bottom_d/2 - 1 -> inner base diameter (bottom_d - 2*wall) >= 2.
+            ("wall", "bottom_d", 1.0, 0.5),
+            # keep the drain at least 14 mm inside the base diameter so it stays well within the
+            # inner floor ring (drain_d <= bottom_d - 14) and never breaks the floor edge.
+            ("drain_d", "bottom_d", 14.0, 1.0),
+        ),
+    )
+
+    planter_saucer = TemplateFamily(
+        name="planter_saucer",
+        summary="A shallow round drip tray under a plant pot: a catch pocket inside a full-height outer rim, with a raised inner ring the pot rests on above collected water.",
+        object_types=("planter saucer", "plant saucer", "pot saucer", "drip tray", "saucer",
+                      "plant drip tray", "flower pot saucer"),
+        library_file="dishes.scad",
+        module="planter_saucer",
+        params=(
+            ParamSpec(name="od", label="Outer diameter", default=140.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=22.0, min=10.0, max=80.0, step=1.0,
+                      dim_keys=("h", "height"), bbox_axis=2),
+            ParamSpec(name="wall", label="Wall thickness", default=4.0, min=1.5, max=8.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="floor_t", label="Floor thickness", default=3.0, min=1.5, max=10.0, step=0.5,
+                      dim_keys=("floor_t", "floor", "base")),
+            ParamSpec(name="rim_h", label="Pot-rest rim height", default=6.0, min=2.0, max=40.0, step=0.5,
+                      dim_keys=("rim_h", "rim_height", "rim")),
+        ),
+        fixed_args={"rim_w": 4.0},
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(
+            ("wall", "od", 4.0, 0.5),
+            ("floor_t", "h", 2.0, 1.0),
+            ("rim_h", "h", 4.0, 1.0),
+        ),
+    )
+
+    bonsai_pot = TemplateFamily(
+        name="bonsai_pot",
+        summary="A shallow rectangular bonsai tray-pot: a walled soil pocket over a fixed grid of base drain holes.",
+        tier="benchmarked",
+        object_types=("bonsai pot", "bonsai tray", "bonsai planter", "bonsai dish",
+                      "plant tray", "penjing pot"),
+        library_file="dishes.scad",
+        module="bonsai_pot",
+        params=(
+            ParamSpec(name="length", label="Length", default=140.0, dim_keys=("length",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="width", label="Width", default=100.0, dim_keys=("width", "depth"), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="h", label="Height", default=35.0, dim_keys=("h", "height"), bbox_axis=2, **_HEIGHT),
+            ParamSpec(name="wall", label="Wall thickness", default=4.0, min=1.5, max=8.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="drain_d", label="Drain hole diameter", default=8.0, min=2.0, max=20.0, step=0.5,
+                      dim_keys=("drain_d", "drain", "hole_d")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(("wall", "length", 1.0, 0.5), ("wall", "width", 1.0, 0.5), ("wall", "h", 1.0, 0.5)),
+    )
+
+    succulent_pot = TemplateFamily(
+        name="succulent_pot",
+        summary="A small faceted (n-gon) succulent pot: a straight-walled prism hollowed to a soil pocket with a center drain hole.",
+        # benchmarked: what-you-set-is-what-you-get geometry — no real-world fitness caveat. od is
+        # the across-corners diameter and the envelope; facets only re-shapes the prism inside it.
+        object_types=(
+            "succulent pot", "succulent planter", "cactus pot", "faceted planter",
+            "geometric planter", "mini planter", "small planter pot",
+        ),
+        library_file="dishes.scad",
+        module="succulent_pot",
+        params=(
+            # od is the across-corners (vertex-to-vertex) diameter AND the X/Y footprint, capped at
+            # the sliceable envelope (QA-502). The default octagon (facets % 4 == 0) fills the bbox
+            # to exactly [od, od, h]; other facet counts inscribe within the od circle, never past it.
+            ParamSpec(name="od", label="Outer diameter", default=80.0, min=24.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=75.0, min=20.0, max=170.0, step=1.0,
+                      dim_keys=("h", "height")),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=1.5, max=8.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            # facets is an INTERNAL integer count (number of sides) — it re-shapes the prism inside
+            # the od circle but does NOT change the [od, od, h] envelope (drawer_divider precedent),
+            # so it carries no bbox_axis and is excluded from the gate target.
+            ParamSpec(name="facets", label="Sides", default=8.0, min=3.0, max=12.0, step=1.0,
+                      unit="", integer=True, dim_keys=("facets", "sides", "faces")),
+            ParamSpec(name="drain_d", label="Drain diameter", default=12.0, min=3.0, max=40.0, step=0.5,
+                      dim_keys=("drain_d", "drain", "hole_d")),
+        ),
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        # Keep the wall under half the diameter so the soil pocket never collapses (wall <= od/2 - 4),
+        # and keep the drain comfortably inside the pocket floor (drain_d <= od/2 - 8) so the bore
+        # never breaks through the side wall.
+        gaps=(("wall", "od", 4.0, 0.5), ("drain_d", "od", 8.0, 0.5)),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
@@ -1011,6 +1334,9 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         sawtooth_hanger, keyhole_hanger_plate, hidden_rod_shelf_bracket,
         ring_dish, incense_cone_holder, incense_stick_holder, catchall_tray, soap_dish,
         handled_tray, zen_garden_tray,
+        # #19 slice 6: holders/cups + planters
+        tealight_holder, taper_candle_holder, luminary_base, bud_vase_sleeve, pencil_cup,
+        propagation_station, planter_pot, planter_saucer, bonsai_pot, succulent_pot,
     )
 
 

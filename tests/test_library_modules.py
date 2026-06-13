@@ -121,6 +121,57 @@ NEW_MODULES = {
         "zen_garden_tray(length=120, width=90, wall_h=18, wall=3, foot_h=6, corner_r=6, foot_d=10);",
         [120, 90, 24],
     ),
+    # #19 slice 6: holders / cups + planters
+    "tealight_holder": (
+        "dishes.scad",
+        "tealight_holder(od=50, h=20, pocket_d=39.5, pocket_h=12, wall=3);",
+        [50, 50, 20],
+    ),
+    "taper_candle_holder": (
+        "dishes.scad",
+        "taper_candle_holder(base_d=70, h=40, bore_d=22, bore_depth=25);",
+        [70, 70, 40],
+    ),
+    "luminary_base": (
+        "dishes.scad",
+        "luminary_base(outer_d=80, height=40, cavity_d=52, cavity_h=26, rim_ledge=5, ledge_t=3);",
+        [80, 80, 40],
+    ),
+    "bud_vase_sleeve": (
+        "dishes.scad",
+        "bud_vase_sleeve(od=60, h=120, bore_d=26, bore_depth=110, wall=4);",
+        [60, 60, 120],
+    ),
+    "pencil_cup": (
+        "dishes.scad",
+        "pencil_cup(od=70, h=100, wall=3, floor_t=4);",
+        [70, 70, 100],
+    ),
+    "propagation_station": (
+        "dishes.scad",
+        "propagation_station(length=160, depth=40, h=20, tube_d=24, leg_h=70);",
+        [160, 40, 90],
+    ),
+    "planter_pot": (
+        "dishes.scad",
+        "planter_pot(bottom_d=70, top_d=90, h=90, wall=3, drain_d=12);",
+        [90, 90, 90],
+    ),
+    "planter_saucer": (
+        "dishes.scad",
+        "planter_saucer(od=140, h=22, wall=4, floor_t=3, rim_h=6, rim_w=4);",
+        [140, 140, 22],
+    ),
+    "bonsai_pot": (
+        "dishes.scad",
+        "bonsai_pot(length=140, width=100, h=35, wall=4, drain_d=8);",
+        [140, 100, 35],
+    ),
+    "succulent_pot": (
+        "dishes.scad",
+        "succulent_pot(od=80, h=75, wall=3, facets=8, drain_d=12);",
+        [80, 80, 75],
+    ),
 }
 
 

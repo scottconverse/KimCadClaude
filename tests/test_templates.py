@@ -73,6 +73,10 @@ EXPECTED_FAMILY_NAMES = frozenset(
         # #19 slice 5: zen trays / dishes / incense holders
         "ring_dish", "incense_cone_holder", "incense_stick_holder", "catchall_tray",
         "soap_dish", "handled_tray", "zen_garden_tray",
+        # #19 slice 6: holders/cups + planters
+        "tealight_holder", "taper_candle_holder", "luminary_base", "bud_vase_sleeve",
+        "pencil_cup", "propagation_station", "planter_pot", "planter_saucer",
+        "bonsai_pot", "succulent_pot",
     }
 )
 

@@ -11,6 +11,16 @@
 //   handled_tray(length, width, h, wall, handle_w)                     bbox = [length, width, h]
 //   zen_garden_tray(length, width, wall_h, wall, foot_h, corner_r, foot_d)
 //                                                       bbox = [length, width, wall_h + foot_h]
+//   tealight_holder(od, h, pocket_d, pocket_h, wall)                   bbox = [od, od, h]
+//   taper_candle_holder(base_d, h, bore_d, bore_depth)                 bbox = [base_d, base_d, h]
+//   luminary_base(outer_d, height, cavity_d, cavity_h, rim_ledge, ledge_t)   bbox = [outer_d, outer_d, height]
+//   bud_vase_sleeve(od, h, bore_d, bore_depth, wall)                   bbox = [od, od, h]
+//   pencil_cup(od, h, wall, floor_t)                                   bbox = [od, od, h]
+//   propagation_station(length, depth, h, tube_d, leg_h)              bbox = [length, depth, h + leg_h]
+//   planter_pot(bottom_d, top_d, h, wall, drain_d)      bbox = [top_d, top_d, h]  (top_d>=bottom_d)
+//   planter_saucer(od, h, wall, floor_t, rim_h, rim_w)                 bbox = [od, od, h]
+//   bonsai_pot(length, width, h, wall, drain_d)                        bbox = [length, width, h]
+//   succulent_pot(od, h, wall, facets, drain_d)                        bbox = [od, od, h]
 
 module ring_dish(od = 70, h = 18, wall = 3, well_depth = 12, spike_h = 0, spike_d = 6, fn = 96) {
     eps = 0.05;
@@ -161,4 +171,190 @@ module zen_garden_tray(length = 120, width = 90, wall_h = 18, wall = 3, foot_h =
                         offset(r = corner_r - wall)
                             square([length - 2 * corner_r, width - 2 * corner_r], center = false);
         }
+}
+
+// --- #19 slice 6: holders / cups + planters -----------------------------------------
+
+module tealight_holder(od = 50, h = 20, pocket_d = 39.5, pocket_h = 12, wall = 3, fn = 96) {
+    eps = 0.05;
+    // A tealight / votive holder: a solid round body (od x h) with a centered top pocket
+    // (pocket_d x pocket_h) sized to drop in a standard ~38-40 mm metal tealight cup. The
+    // `wall` param documents the minimum rim left around the pocket (pocket_d <= od - 2*wall).
+    // Both cylinders are XY-centered like OpenSCAD's cylinder(). The pocket over-cuts UP by eps
+    // into the open air above the rim (never below into a documented face), so the envelope is
+    // exactly [od, od, h] and the floor stays solid.
+    difference() {
+        cylinder(h = h, d = od, $fn = fn);                       // solid outer body
+        translate([0, 0, h - pocket_h])                          // centered tealight pocket
+            cylinder(h = pocket_h + eps, d = pocket_d, $fn = fn);
+    }
+}
+
+module taper_candle_holder(base_d = 70, h = 40, bore_d = 22, bore_depth = 25, fn = 96) {
+    eps = 0.05;
+    // A weighted taper candle holder: a solid round base (base_d x h) with a centered top
+    // bore (bore_d x bore_depth) that grips the tapered foot of a standard ~22 mm taper.
+    // Both cylinders are XY-centered like OpenSCAD's cylinder(). The bore over-cuts UP by eps
+    // into the open air above the rim (never below into a documented face), so the top face is
+    // clean and the envelope is exactly [base_d, base_d, h].
+    difference() {
+        cylinder(h = h, d = base_d, $fn = fn);                   // solid base body
+        translate([0, 0, h - bore_depth])                        // centered candle socket
+            cylinder(h = bore_depth + eps, d = bore_d, $fn = fn);
+    }
+}
+
+module luminary_base(outer_d = 80, height = 40, cavity_d = 52, cavity_h = 26,
+                     rim_ledge = 5, ledge_t = 3, fn = 96) {
+    eps = 0.05;
+    cavity_floor = height - cavity_h;            // z of the puck-cavity floor
+    // widened seat at the very top, clamped strictly inside the outer wall so the ledge can
+    // never reach the body edge and shave the documented height (keeps the Z bbox exact).
+    ledge_d = min(cavity_d + 2 * rim_ledge, outer_d - 2);
+    difference() {
+        cylinder(h = height, d = outer_d, $fn = fn);          // weighted outer body
+        // center cavity for the tealight / LED puck — open top, over-cut up into open air
+        translate([0, 0, cavity_floor])
+            cylinder(h = cavity_h + eps, d = cavity_d, $fn = fn);
+        // top rim ledge: a shallow wider counterbore the puck flange seats on, cut from the
+        // top down by ledge_t and over-cut up by eps (never past the outer height)
+        translate([0, 0, height - ledge_t])
+            cylinder(h = ledge_t + eps, d = ledge_d, $fn = fn);
+    }
+}
+
+module bud_vase_sleeve(od = 60, h = 120, bore_d = 26, bore_depth = 110, wall = 4, fn = 96) {
+    eps = 0.05;
+    // The bore never breaks the outer wall: clamped to leave >= wall all round (the registry
+    // gap also enforces this, so the clamp is just belt-and-braces and never changes the bbox).
+    safe_bore = min(bore_d, od - 2 * wall);
+    bore_floor = h - bore_depth;                              // z of the bore floor
+    difference() {
+        cylinder(h = h, d = od, $fn = fn);                   // outer sleeve body, [od, od, h]
+        // vertical bore that seats the glass test tube — over-cut UP into open air by eps so
+        // the top face is clean; the floor stays >= (h - bore_depth) of solid material.
+        translate([0, 0, bore_floor])
+            cylinder(h = bore_depth + eps, d = safe_bore, $fn = fn);
+    }
+}
+
+module pencil_cup(od = 70, h = 100, wall = 3, floor_t = 4, fn = 96) {
+    eps = 0.05;
+    // Straight-walled round pen / pencil / brush cup: a solid outer cylinder hollowed to a
+    // top-open pocket with a thick floor. The pocket bore is od - 2*wall; its floor sits at
+    // z = floor_t. The cut over-cuts UP by eps into the open air above the rim (never past h),
+    // so the top face is clean and the bbox is exactly [od, od, h].
+    difference() {
+        cylinder(h = h, d = od, $fn = fn);                       // outer body, XY-centered
+        translate([0, 0, floor_t])                               // top-open pocket
+            cylinder(h = h - floor_t + eps, d = od - 2 * wall, $fn = fn);
+    }
+}
+
+module propagation_station(length = 160, depth = 40, h = 20, tube_d = 24, leg_h = 70, fn = 64) {
+    eps = 0.05;
+    bores = 5;                                                  // FIXED count — NOT in the bbox
+    leg_w = 10;                                                 // fixed end-leg footprint along X
+    bore_depth = h - 2;                                         // bore down through the bar, 2 mm floor
+    union() {
+        difference() {
+            // The horizontal bar sits ON TOP of the legs: it spans the full [length, depth]
+            // footprint (the X/Y envelope) and rises from z = leg_h to z = leg_h + h (the Z top).
+            translate([0, 0, leg_h])
+                cube([length, depth, h]);
+            // A FIXED row of vertical tube bores, evenly spaced along the bar's length and
+            // centered across its depth. Each bore is open at the top (over-cut UP by eps into
+            // the air above the rim, never past leg_h + h) and stops 2 mm above the bar floor.
+            for (i = [0 : bores - 1]) {
+                x = length / 2 + (i - (bores - 1) / 2) * (length / (bores + 1));
+                translate([x, depth / 2, leg_h + h - bore_depth])
+                    cylinder(h = bore_depth + eps, d = tube_d, $fn = fn);
+            }
+        }
+        // Two end legs, each the full depth, from the floor up INTO the bar (over-cut +eps up so
+        // the leg fuses to the bar without a z-fight gap, never past the bar's own solid). The
+        // legs sit inside the bar's [0, length] footprint, so they add nothing to the envelope.
+        for (x = [0, length - leg_w])
+            translate([x, 0, 0])
+                cube([leg_w, depth, leg_h + eps]);
+    }
+}
+
+module planter_pot(bottom_d = 70, top_d = 90, h = 90, wall = 3, drain_d = 12, fn = 96) {
+    eps = 0.05;
+    // A tapered plant pot: an outer frustum wall (bottom_d at the base, top_d at the rim, h
+    // tall) over a flat floor, with a center drain hole. top_d is PINNED >= bottom_d, so the
+    // rim is the widest point and sets the footprint -> envelope is exactly [top_d, top_d, h].
+    // Cylinders are XY-centered like OpenSCAD's cylinder(); floor thickness = wall.
+    floor = wall;                                                // solid floor under the cavity
+    in_bot = bottom_d - 2 * wall;                                // inner taper, inset `wall` all round
+    in_top = top_d - 2 * wall;
+    difference() {
+        cylinder(h = h, d1 = bottom_d, d2 = top_d, $fn = fn);    // outer tapered wall
+        // inner tapered cavity from the floor up, over-cut +eps UP into the open air above the
+        // rim (never past a documented face) so the soil cavity is open-topped and clean.
+        translate([0, 0, floor])
+            cylinder(h = h - floor + eps, d1 = in_bot, d2 = in_top, $fn = fn);
+        // center drain hole: -eps below the floor up through it +eps into the cavity above.
+        translate([0, 0, -eps])
+            cylinder(h = floor + 2 * eps, d = drain_d, $fn = fn);
+    }
+}
+
+module planter_saucer(od = 140, h = 22, wall = 4, floor_t = 3, rim_h = 6, rim_w = 4, fn = 96) {
+    eps = 0.05;
+    pocket_d = od - 2 * wall;                       // catch pocket diameter (inside the outer rim)
+    rim_id = pocket_d - 2 * rim_w;                  // inner bore of the raised pot-rest ring
+    union() {
+        difference() {
+            cylinder(h = h, d = od, $fn = fn);                       // outer body / saucer wall (rim)
+            translate([0, 0, floor_t])                               // catch pocket (open top, over-cut up by eps)
+                cylinder(h = h - floor_t + eps, d = pocket_d, $fn = fn);
+        }
+        // raised inner rim the pot sits on: an annular ring rising rim_h off the pocket floor,
+        // dropped -eps into the floor so it fuses without a z-fight gap; rises into open air,
+        // never above the outer rim top (gaps keep rim_h <= h - floor_t).
+        translate([0, 0, floor_t - eps])
+            difference() {
+                cylinder(h = rim_h + eps, d = pocket_d, $fn = fn);
+                translate([0, 0, -eps])
+                    cylinder(h = rim_h + 3 * eps, d = rim_id, $fn = fn);
+            }
+    }
+}
+
+module bonsai_pot(length = 140, width = 100, h = 35, wall = 4, drain_d = 8, fn = 48) {
+    eps = 0.05;
+    pocket_l = length - 2 * wall;
+    pocket_w = width - 2 * wall;
+    pocket_depth = h - wall;                                      // floor = wall thick
+    difference() {
+        cube([length, width, h]);                                // outer envelope
+        translate([wall, wall, wall])                            // recessed soil pocket (open top, +eps into air)
+            cube([pocket_l, pocket_w, pocket_depth + eps]);
+        for (dx = [length * 0.3, length * 0.7], dy = [width * 0.3, width * 0.7])
+            translate([dx, dy, -eps])
+                cylinder(h = wall + 2 * eps, d = drain_d, $fn = fn);
+    }
+}
+
+module succulent_pot(od = 80, h = 75, wall = 3, facets = 8, drain_d = 12, fn = 48) {
+    eps = 0.05;
+    // A small straight-walled faceted pot for one succulent: an n-gon prism (facets sides)
+    // hollowed to a top-open soil pocket above a `wall`-thick floor, with one center drain
+    // bored through that floor. The outer prism is OpenSCAD's XY-centered cylinder($fn=facets),
+    // so its vertices ride the across-corners circle of diameter `od` — od is therefore the
+    // across-corners diameter, and an octagon (the default, facets a multiple of 4) fills the
+    // bbox to exactly [od, od, h]. `facets` only re-shapes the prism INSIDE that od circle, so
+    // it never pushes the envelope past od (the drawer_divider count-is-inert precedent); the
+    // analytic bbox stays [od, od, h]. The pocket bore is od - 2*wall and its floor sits at
+    // z = wall; the pocket over-cuts UP by eps into the open air above the rim (never past h).
+    // The drain over-cuts -eps below the base and +eps into the pocket so both faces are clean.
+    difference() {
+        cylinder(h = h, d = od, $fn = facets);                   // outer faceted body
+        translate([0, 0, wall])                                  // top-open soil pocket
+            cylinder(h = h - wall + eps, d = od - 2 * wall, $fn = facets);
+        translate([0, 0, -eps])                                  // center drain through the floor
+            cylinder(h = wall + 2 * eps, d = drain_d, $fn = fn);
+    }
 }
