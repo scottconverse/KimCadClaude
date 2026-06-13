@@ -578,9 +578,167 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         bbox_z=(BBoxTerm(ref="arm"),),
     )
 
+    # --- #19 slice 3: frames (Kim's design world) — frames.scad ------------------------
+    # Rectangular frames carry the envelope as opening + 2*border (like the enclosure's
+    # inner + 2*wall), so opening/border maxes are chosen to keep the outer envelope <=170.
+
+    picture_frame = TemplateFamily(
+        name="picture_frame",
+        summary="A picture frame with a back rabbet that seats glass, art, and backing.",
+        tier="baseline",
+        object_types=("picture frame", "photo frame", "art frame", "rabbet frame", "wall frame"),
+        library_file="frames.scad",
+        module="picture_frame",
+        params=(
+            ParamSpec(name="opening_w", label="Opening width", default=90.0, min=20.0, max=140.0,
+                      step=1.0, dim_keys=("opening_w", "width")),
+            ParamSpec(name="opening_h", label="Opening height", default=130.0, min=20.0, max=140.0,
+                      step=1.0, dim_keys=("opening_h", "height")),
+            ParamSpec(name="border", label="Border width", default=12.0, min=6.0, max=15.0,
+                      step=1.0, dim_keys=("border", "frame_width")),
+            ParamSpec(name="rabbet", label="Rabbet depth", default=4.0, min=2.0, max=10.0, step=0.5),
+            ParamSpec(name="depth", label="Frame depth", default=10.0, min=5.0, max=30.0,
+                      step=1.0, dim_keys=("depth", "thickness")),
+        ),
+        fixed_args={"lip": 3.0},
+        bbox_x=(BBoxTerm(ref="opening_w"), BBoxTerm(ref="border", coef=2.0)),
+        bbox_y=(BBoxTerm(ref="opening_h"), BBoxTerm(ref="border", coef=2.0)),
+        bbox_z=(BBoxTerm(ref="depth"),),
+        # the rabbet must leave a front face (rabbet <= depth - 2)
+        gaps=(("rabbet", "depth", 2.0, 1.0),),
+    )
+
+    # Same geometry as picture_frame, document-proportioned defaults + its own aliases.
+    certificate_frame = TemplateFamily(
+        name="certificate_frame",
+        summary="A document/diploma frame (wider border, portrait default).",
+        tier="baseline",
+        object_types=("certificate frame", "diploma frame", "document frame", "award frame",
+                      "degree frame"),
+        library_file="frames.scad",
+        module="picture_frame",
+        params=(
+            ParamSpec(name="opening_w", label="Opening width", default=120.0, min=20.0, max=140.0,
+                      step=1.0, dim_keys=("opening_w", "width")),
+            ParamSpec(name="opening_h", label="Opening height", default=140.0, min=20.0, max=140.0,
+                      step=1.0, dim_keys=("opening_h", "height")),
+            ParamSpec(name="border", label="Border width", default=12.0, min=6.0, max=15.0,
+                      step=1.0, dim_keys=("border", "frame_width")),
+            ParamSpec(name="rabbet", label="Rabbet depth", default=5.0, min=2.0, max=10.0, step=0.5),
+            ParamSpec(name="depth", label="Frame depth", default=12.0, min=5.0, max=30.0,
+                      step=1.0, dim_keys=("depth", "thickness")),
+        ),
+        fixed_args={"lip": 3.0},
+        bbox_x=(BBoxTerm(ref="opening_w"), BBoxTerm(ref="border", coef=2.0)),
+        bbox_y=(BBoxTerm(ref="opening_h"), BBoxTerm(ref="border", coef=2.0)),
+        bbox_z=(BBoxTerm(ref="depth"),),
+        gaps=(("rabbet", "depth", 2.0, 1.0),),
+    )
+
+    mat_board = TemplateFamily(
+        name="mat_board",
+        summary="A flat framing mat with a centered window opening.",
+        object_types=("mat board", "frame mat", "photo mat", "matte board", "window mat",
+                      "passe partout"),
+        library_file="frames.scad",
+        module="mat_board",
+        params=(
+            ParamSpec(name="mat_w", label="Mat width", default=130.0, min=40.0, max=170.0,
+                      step=1.0, dim_keys=("mat_w", "width"), bbox_axis=0),
+            ParamSpec(name="mat_h", label="Mat height", default=160.0, min=40.0, max=170.0,
+                      step=1.0, dim_keys=("mat_h", "height"), bbox_axis=1),
+            ParamSpec(name="window_w", label="Window width", default=90.0, min=20.0, max=160.0,
+                      step=1.0, dim_keys=("window_w",)),
+            ParamSpec(name="window_h", label="Window height", default=120.0, min=20.0, max=160.0,
+                      step=1.0, dim_keys=("window_h",)),
+            ParamSpec(name="mat_t", label="Thickness", default=2.0, min=1.0, max=6.0, step=0.5,
+                      bbox_axis=2),
+        ),
+        bbox_x=(BBoxTerm(ref="mat_w"),),
+        bbox_y=(BBoxTerm(ref="mat_h"),),
+        bbox_z=(BBoxTerm(ref="mat_t"),),
+        # the window must leave a >=5 mm mat border each side
+        gaps=(("window_w", "mat_w", 10.0, 1.0), ("window_h", "mat_h", 10.0, 1.0)),
+    )
+
+    floating_frame = TemplateFamily(
+        name="floating_frame",
+        summary="A floating frame: the art sits on a recessed shelf with a shadow gap.",
+        tier="baseline",
+        object_types=("floating frame", "float frame", "floater frame", "canvas floater",
+                      "shadow gap frame"),
+        library_file="frames.scad",
+        module="floating_frame",
+        params=(
+            ParamSpec(name="opening_w", label="Art width", default=90.0, min=20.0, max=110.0,
+                      step=1.0, dim_keys=("opening_w", "width")),
+            ParamSpec(name="opening_h", label="Art height", default=90.0, min=20.0, max=110.0,
+                      step=1.0, dim_keys=("opening_h", "height")),
+            ParamSpec(name="lip_w", label="Lip width", default=10.0, min=5.0, max=15.0, step=1.0),
+            ParamSpec(name="gap", label="Shadow gap", default=5.0, min=2.0, max=8.0, step=0.5),
+            ParamSpec(name="depth", label="Frame depth", default=20.0, min=10.0, max=40.0,
+                      step=1.0, dim_keys=("depth", "thickness"), bbox_axis=2),
+        ),
+        fixed_args={"back_t": 3.0},
+        bbox_x=(BBoxTerm(ref="opening_w"), BBoxTerm(ref="gap", coef=2.0), BBoxTerm(ref="lip_w", coef=2.0)),
+        bbox_y=(BBoxTerm(ref="opening_h"), BBoxTerm(ref="gap", coef=2.0), BBoxTerm(ref="lip_w", coef=2.0)),
+        bbox_z=(BBoxTerm(ref="depth"),),
+    )
+
+    shadow_box_frame = TemplateFamily(
+        name="shadow_box_frame",
+        summary="A deep shadow box: solid back, display cavity, and a front glass rabbet.",
+        tier="baseline",
+        object_types=("shadow box", "shadow box frame", "memory box frame", "display box frame",
+                      "deep display frame"),
+        library_file="frames.scad",
+        module="shadow_box_frame",
+        params=(
+            ParamSpec(name="opening_w", label="Opening width", default=80.0, min=20.0, max=130.0,
+                      step=1.0, dim_keys=("opening_w", "width")),
+            ParamSpec(name="opening_h", label="Opening height", default=80.0, min=20.0, max=130.0,
+                      step=1.0, dim_keys=("opening_h", "height")),
+            ParamSpec(name="border", label="Border width", default=12.0, min=6.0, max=20.0, step=1.0),
+            ParamSpec(name="cavity_depth", label="Cavity depth", default=25.0, min=8.0, max=60.0,
+                      step=1.0, dim_keys=("cavity_depth", "depth")),
+            ParamSpec(name="rabbet", label="Rabbet depth", default=4.0, min=2.0, max=8.0, step=0.5),
+        ),
+        fixed_args={"back_t": 3.0, "lip": 3.0},
+        bbox_x=(BBoxTerm(ref="opening_w"), BBoxTerm(ref="border", coef=2.0)),
+        bbox_y=(BBoxTerm(ref="opening_h"), BBoxTerm(ref="border", coef=2.0)),
+        bbox_z=(BBoxTerm(ref="cavity_depth"), BBoxTerm(ref="rabbet"), BBoxTerm(ref="back_t")),
+    )
+
+    lithophane_frame = TemplateFamily(
+        name="lithophane_frame",
+        summary="A backlit lithophane frame with a panel rebate and an LED light gap.",
+        tier="baseline",
+        object_types=("lithophane frame", "litho frame", "backlit frame", "light gap frame",
+                      "lit picture frame"),
+        library_file="frames.scad",
+        module="lithophane_frame",
+        params=(
+            ParamSpec(name="outer_w", label="Width", default=100.0, min=40.0, max=170.0,
+                      step=1.0, dim_keys=("outer_w", "width"), bbox_axis=0),
+            ParamSpec(name="outer_h", label="Height", default=120.0, min=40.0, max=170.0,
+                      step=1.0, dim_keys=("outer_h", "height"), bbox_axis=1),
+            ParamSpec(name="face_rim", label="Face rim", default=8.0, min=4.0, max=20.0, step=1.0),
+            ParamSpec(name="light_gap", label="Light gap", default=12.0, min=6.0, max=30.0, step=1.0),
+            ParamSpec(name="panel_t", label="Panel thickness", default=3.0, min=1.0, max=6.0, step=0.5),
+        ),
+        fixed_args={"face_rim_t": 2.0},
+        bbox_x=(BBoxTerm(ref="outer_w"),),
+        bbox_y=(BBoxTerm(ref="outer_h"),),
+        bbox_z=(BBoxTerm(ref="face_rim_t"), BBoxTerm(ref="panel_t"), BBoxTerm(ref="light_gap")),
+        # the face rim must leave a window (face_rim <= outer/2 - 2)
+        gaps=(("face_rim", "outer_w", 2.0, 0.5), ("face_rim", "outer_h", 2.0, 0.5)),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
+        picture_frame, certificate_frame, mat_board, floating_frame, shadow_box_frame,
+        lithophane_frame,
     )
 
 

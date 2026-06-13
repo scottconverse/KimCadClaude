@@ -246,6 +246,85 @@ def _l_bracket(v: dict[str, float]) -> str:
     )
 
 
+def _picture_frame(v: dict[str, float]) -> str:
+    # frames.scad::picture_frame — outer face minus a through window minus a back rabbet.
+    ow_in, oh_in = _f(v["opening_w"]), _f(v["opening_h"])
+    b, rab, d, lip = _f(v["border"]), _f(v["rabbet"]), _f(v["depth"]), _f(v.get("lip", 3.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"ow = {ow_in} + 2 * {b}\n"
+        f"oh = {oh_in} + 2 * {b}\n"
+        f'outer = cq.Workplane("XY").box(ow, oh, {d}, {_CF})\n'
+        f'win = (cq.Workplane("XY").box({ow_in}, {oh_in}, {d} + 2 * eps, {_CF})'
+        f".translate(({b}, {b}, -eps)))\n"
+        f'rab = (cq.Workplane("XY").box({ow_in} + 2 * {lip}, {oh_in} + 2 * {lip}, {rab} + eps, {_CF})'
+        f".translate(({b} - {lip}, {b} - {lip}, -eps)))\n"
+        f"result = outer.cut(win).cut(rab)\n"
+    )
+
+
+def _mat_board(v: dict[str, float]) -> str:
+    # frames.scad::mat_board — a flat sheet minus a centered window.
+    mw, mh, ww, wh, mt = _f(v["mat_w"]), _f(v["mat_h"]), _f(v["window_w"]), _f(v["window_h"]), _f(v["mat_t"])
+    return (
+        f"eps = {_EPS}\n"
+        f'sheet = cq.Workplane("XY").box({mw}, {mh}, {mt}, {_CF})\n'
+        f'win = (cq.Workplane("XY").box({ww}, {wh}, {mt} + 2 * eps, {_CF})'
+        f".translate((({mw} - {ww}) / 2, ({mh} - {wh}) / 2, -eps)))\n"
+        f"result = sheet.cut(win)\n"
+    )
+
+
+def _floating_frame(v: dict[str, float]) -> str:
+    # frames.scad::floating_frame — outer block minus the front-open art cavity above the back shelf.
+    ow_in, oh_in = _f(v["opening_w"]), _f(v["opening_h"])
+    lw, gap, d, bt = _f(v["lip_w"]), _f(v["gap"]), _f(v["depth"]), _f(v.get("back_t", 3.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"ow = {ow_in} + 2 * {gap} + 2 * {lw}\n"
+        f"oh = {oh_in} + 2 * {gap} + 2 * {lw}\n"
+        f'outer = cq.Workplane("XY").box(ow, oh, {d}, {_CF})\n'
+        f'cav = (cq.Workplane("XY").box({ow_in} + 2 * {gap}, {oh_in} + 2 * {gap}, {d} - {bt} + eps, {_CF})'
+        f".translate(({lw}, {lw}, {bt})))\n"
+        f"result = outer.cut(cav)\n"
+    )
+
+
+def _shadow_box_frame(v: dict[str, float]) -> str:
+    # frames.scad::shadow_box_frame — solid back, blind cavity, front glass rabbet.
+    ow_in, oh_in, b = _f(v["opening_w"]), _f(v["opening_h"]), _f(v["border"])
+    cd, rab = _f(v["cavity_depth"]), _f(v["rabbet"])
+    bt, lip = _f(v.get("back_t", 3.0)), _f(v.get("lip", 3.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"ow = {ow_in} + 2 * {b}\n"
+        f"oh = {oh_in} + 2 * {b}\n"
+        f"depth = {cd} + {rab} + {bt}\n"
+        f'outer = cq.Workplane("XY").box(ow, oh, depth, {_CF})\n'
+        f'cav = (cq.Workplane("XY").box({ow_in}, {oh_in}, {cd} + eps, {_CF})'
+        f".translate(({b}, {b}, {bt})))\n"
+        f'rab = (cq.Workplane("XY").box({ow_in} + 2 * {lip}, {oh_in} + 2 * {lip}, {rab} + eps, {_CF})'
+        f".translate(({b} - {lip}, {b} - {lip}, {bt} + {cd})))\n"
+        f"result = outer.cut(cav).cut(rab)\n"
+    )
+
+
+def _lithophane_frame(v: dict[str, float]) -> str:
+    # frames.scad::lithophane_frame — face rim with a window, panel rebate, open-back light cavity.
+    ow, oh, fr = _f(v["outer_w"]), _f(v["outer_h"]), _f(v["face_rim"])
+    lg, pt, frt = _f(v["light_gap"]), _f(v["panel_t"]), _f(v.get("face_rim_t", 2.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"depth = {frt} + {pt} + {lg}\n"
+        f'outer = cq.Workplane("XY").box({ow}, {oh}, depth, {_CF})\n'
+        f'win = (cq.Workplane("XY").box({ow} - 2 * {fr}, {oh} - 2 * {fr}, {frt} + eps, {_CF})'
+        f".translate(({fr}, {fr}, -eps)))\n"
+        f'cav = (cq.Workplane("XY").box({ow} - {fr}, {oh} - {fr}, {pt} + {lg} + eps, {_CF})'
+        f".translate(({fr} / 2, {fr} / 2, {frt})))\n"
+        f"result = outer.cut(win).cut(cav)\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -259,6 +338,12 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "pegboard_hook": _pegboard_hook,
     "spool_holder": _spool_holder,
     "l_bracket": _l_bracket,
+    "picture_frame": _picture_frame,
+    "certificate_frame": _picture_frame,  # same geometry, document-proportioned defaults
+    "mat_board": _mat_board,
+    "floating_frame": _floating_frame,
+    "shadow_box_frame": _shadow_box_frame,
+    "lithophane_frame": _lithophane_frame,
 }
 
 

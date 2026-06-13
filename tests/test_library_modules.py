@@ -49,6 +49,34 @@ NEW_MODULES = {
         "drawer_divider(length=150, depth=80, height=50, panel_t=2, compartments=3);",
         [150, 80, 50],
     ),
+    # #19 slice 3: frames
+    "picture_frame": (
+        "frames.scad",
+        "picture_frame(opening_w=90, opening_h=130, border=12, rabbet=4, depth=10, lip=3);",
+        [114, 154, 10],
+    ),
+    "mat_board": (
+        "frames.scad",
+        "mat_board(mat_w=130, mat_h=160, window_w=90, window_h=120, mat_t=2);",
+        [130, 160, 2],
+    ),
+    "floating_frame": (
+        "frames.scad",
+        "floating_frame(opening_w=90, opening_h=90, lip_w=10, gap=5, depth=20, back_t=3);",
+        [120, 120, 20],
+    ),
+    "shadow_box_frame": (
+        "frames.scad",
+        "shadow_box_frame(opening_w=80, opening_h=80, border=12, cavity_depth=25, rabbet=4, "
+        "back_t=3, lip=3);",
+        [104, 104, 32],
+    ),
+    "lithophane_frame": (
+        "frames.scad",
+        "lithophane_frame(outer_w=100, outer_h=120, face_rim=8, light_gap=12, panel_t=3, "
+        "face_rim_t=2);",
+        [100, 120, 17],
+    ),
 }
 
 

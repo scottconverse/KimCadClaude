@@ -71,3 +71,15 @@ modules:
     summary: Drawer divider — a frame split into equal compartments by cross walls.
     signatures:
       - "drawer_divider(length=150, depth=80, height=50, panel_t=2, compartments=3)  // bbox = [length, depth, height]"
+
+  - file: frames.scad
+    summary: >-
+      Picture / art frames and framing boards: rectangular frames with a back glass rabbet,
+      flat mats, floating frames, deep shadow boxes, and backlit lithophane frames. Each is
+      built corner-at-origin so the bbox is the exact envelope.
+    signatures:
+      - "picture_frame(opening_w=90, opening_h=130, border=12, rabbet=4, depth=10, lip=3)  // bbox = [opening_w+2*border, opening_h+2*border, depth]"
+      - "mat_board(mat_w=130, mat_h=160, window_w=90, window_h=120, mat_t=2)  // bbox = [mat_w, mat_h, mat_t]"
+      - "floating_frame(opening_w=90, opening_h=90, lip_w=10, gap=5, depth=20, back_t=3)  // bbox = [opening_w+2*gap+2*lip_w, opening_h+2*gap+2*lip_w, depth]"
+      - "shadow_box_frame(opening_w=80, opening_h=80, border=12, cavity_depth=25, rabbet=4, back_t=3, lip=3)  // bbox = [opening_w+2*border, opening_h+2*border, cavity_depth+rabbet+back_t]"
+      - "lithophane_frame(outer_w=100, outer_h=120, face_rim=8, light_gap=12, panel_t=3, face_rim_t=2)  // bbox = [outer_w, outer_h, face_rim_t+panel_t+light_gap]"

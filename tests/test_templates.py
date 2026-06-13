@@ -65,6 +65,9 @@ EXPECTED_FAMILY_NAMES = frozenset(
         "snap_box", "box", "enclosure", "tube", "wall_hook", "cable_clip", "drawer_divider",
         # #19 slice 2: library modules that shipped unused, now selectable families
         "pegboard_hook", "spool_holder", "l_bracket",
+        # #19 slice 3: frames (Kim's design world)
+        "picture_frame", "certificate_frame", "mat_board", "floating_frame",
+        "shadow_box_frame", "lithophane_frame",
     }
 )
 
@@ -74,12 +77,17 @@ def test_registry_exposes_the_builtin_families():
     assert names == EXPECTED_FAMILY_NAMES
 
 
-def test_every_family_declares_a_tier_and_the_shipped_ones_are_benchmarked():
-    # #19: every family carries an honesty tier; the geometry-honest built-ins are all
-    # "benchmarked" (what-you-set-is-what-you-get). "baseline" is opt-in for fitness-caveat parts.
+def test_every_family_declares_a_valid_tier():
+    # #19: every family carries an honesty tier. The original geometry-honest built-ins are
+    # all "benchmarked"; "baseline" is reserved for families with a real fitness caveat
+    # (a frame seats glass+art; a tealight cup seats a metal cup; threads are relief-only).
     fams = default_registry().families()
     assert all(f.tier in ("benchmarked", "baseline") for f in fams)
-    assert all(f.tier == "benchmarked" for f in fams)
+    originals = {"snap_box", "box", "enclosure", "tube", "wall_hook", "cable_clip", "drawer_divider"}
+    by_name = {f.name: f for f in fams}
+    assert all(by_name[n].tier == "benchmarked" for n in originals)
+    # The expansion introduced baseline families — prove the tier is actually exercised.
+    assert any(f.tier == "baseline" for f in fams)
 
 
 @pytest.mark.parametrize(

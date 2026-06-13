@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Picture & art frames (#19, slice 3): picture, certificate/diploma, mat board, floating,
+  shadow box, and lithophane frames.** The first of Kim's frame/Zen design-world families —
+  six framing templates, each with live sliders, an analytic bounding box verified against a
+  real render, and a trusted CadQuery `.STEP` twin. The frames are tier **baseline** (they seat
+  glass/art/backing or an LED panel — verify the fit for your materials); the flat mat board is
+  benchmarked.
 - **Three new part families (#19, slice 2): pegboard hook, spool holder, L-bracket.** Three
   printable library modules that shipped unused are now selectable templates — each with live
   sliders, an analytic bounding box the gate verifies against a real render, and a trusted
