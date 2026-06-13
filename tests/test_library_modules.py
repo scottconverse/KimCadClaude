@@ -93,6 +93,34 @@ NEW_MODULES = {
         "hidden_rod_shelf_bracket(plate_w=80, plate_h=40, plate_t=6, rod_length=40, rod_d=8);",
         [80, 46, 40],
     ),
+    # #19 slice 5: zen trays / dishes / incense holders
+    "ring_dish": ("dishes.scad", "ring_dish(od=70, h=18, wall=3, well_depth=12, spike_h=0);", [70, 70, 18]),
+    "incense_cone_holder": (
+        "dishes.scad",
+        "incense_cone_holder(dish_d=70, h=18, ped_d=28, moat_depth=8, dimple_d=12);",
+        [70, 70, 18],
+    ),
+    "incense_stick_holder": (
+        "dishes.scad",
+        "incense_stick_holder(length=120, width=40, h=12, hole_d=4, trough_depth=6);",
+        [120, 40, 12],
+    ),
+    "catchall_tray": (
+        "dishes.scad",
+        "catchall_tray(length=120, width=90, h=25, wall=3, corner_r=8, floor=2);",
+        [120, 90, 25],
+    ),
+    "soap_dish": ("dishes.scad", "soap_dish(length=110, width=80, h=22, wall=3, rib_count=4);", [110, 80, 22]),
+    "handled_tray": (
+        "dishes.scad",
+        "handled_tray(length=160, width=120, h=40, wall=3, handle_w=70);",
+        [160, 120, 40],
+    ),
+    "zen_garden_tray": (
+        "dishes.scad",
+        "zen_garden_tray(length=120, width=90, wall_h=18, wall=3, foot_h=6, corner_r=6, foot_d=10);",
+        [120, 90, 24],
+    ),
 }
 
 

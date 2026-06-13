@@ -92,3 +92,17 @@ modules:
       - "sawtooth_hanger(plate_w=40, plate_h=15, plate_t=3, tooth_count=5, tooth_depth=4)  // bbox = [plate_w, plate_t, plate_h+tooth_depth]"
       - "keyhole_hanger_plate(plate_w=30, plate_h=50, plate_t=4, hole_d=10, slot_w=5)  // bbox = [plate_w, plate_t, plate_h]"
       - "hidden_rod_shelf_bracket(plate_w=80, plate_h=40, plate_t=6, rod_length=40, rod_d=8)  // bbox = [plate_w, plate_t+rod_length, plate_h]"
+
+  - file: dishes.scad
+    summary: >-
+      Zen / desktop trays, dishes, and incense holders: ring/trinket dishes, incense cone &
+      stick holders, rounded catch-all & handled serving trays, draining soap dishes, and a
+      zen sand garden tray on feet. Corner-at-origin; cylinders XY-centered; prints flat.
+    signatures:
+      - "ring_dish(od=70, h=18, wall=3, well_depth=12, spike_h=0)  // ring/trinket dish; optional center spike; bbox = [od, od, h+spike_h]"
+      - "incense_cone_holder(dish_d=70, h=18, ped_d=28, moat_depth=8, dimple_d=12)  // bbox = [dish_d, dish_d, h]"
+      - "incense_stick_holder(length=120, width=40, h=12, hole_d=4, trough_depth=6)  // bbox = [length, width, h]"
+      - "catchall_tray(length=120, width=90, h=25, wall=3, corner_r=8, floor=2)  // rounded valet/EDC tray; bbox = [length, width, h]"
+      - "soap_dish(length=110, width=80, h=22, wall=3, rib_count=4)  // draining; bbox = [length, width, h]"
+      - "handled_tray(length=160, width=120, h=40, wall=3, handle_w=70)  // grips in end walls; bbox = [length, width, h]"
+      - "zen_garden_tray(length=120, width=90, wall_h=18, wall=3, foot_h=6)  // sand tray on feet; bbox = [length, width, wall_h+foot_h]"

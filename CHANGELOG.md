@@ -25,6 +25,11 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Zen & desktop dishes (#19, slice 5): ring/trinket dish, incense cone & stick holders,
+  catch-all valet tray, draining soap dish, handled serving tray, and a zen sand-garden tray.**
+  Seven decorative dishes/trays for Kim's design world, each render-verified against its
+  analytic bounding box with a trusted CadQuery `.STEP` twin. Stick-incense holder is tier
+  baseline (holds a lit stick); the rest are benchmarked.
 - **Picture-hanging hardware (#19, slice 4): sawtooth hanger, keyhole plate, hidden-rod
   floating-shelf bracket.** Three ways to hang framed/displayed work, each render-verified with
   a CadQuery `.STEP` twin. All tier baseline (they bear load / fit a specific screw).

@@ -394,6 +394,158 @@ def _hidden_rod_shelf_bracket(v: dict[str, float]) -> str:
     )
 
 
+def _ring_dish(v: dict[str, float]) -> str:
+    # dishes.scad::ring_dish — outer puck minus a top well, plus an optional center spike.
+    od, h, wall = _f(v["od"]), _f(v["h"]), _f(v["wall"])
+    wd, sh, sd = _f(v["well_depth"]), _f(v["spike_h"]), _f(v.get("spike_d", 6.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"well_floor = {h} - {wd}\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'well = (cq.Workplane("XY").circle(({od} - 2 * {wall}) / 2)'
+        f".extrude({wd} + eps).translate((0, 0, well_floor)))\n"
+        f'spike = (cq.Workplane("XY").circle({sd} / 2)'
+        f".extrude({wd} + {sh} + eps).translate((0, 0, well_floor - eps)))\n"
+        f"result = body.cut(well).union(spike)\n"
+    )
+
+
+def _incense_cone_holder(v: dict[str, float]) -> str:
+    # dishes.scad::incense_cone_holder — dish minus an annular ash moat minus a downward cone dimple.
+    dish_d, h = _f(v["dish_d"]), _f(v["h"])
+    ped_d, md, dd = _f(v["ped_d"]), _f(v["moat_depth"]), _f(v["dimple_d"])
+    rim = _f(v.get("rim", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"moat_od = {dish_d} - 2 * {rim}\n"
+        f'dish = cq.Workplane("XY").circle({dish_d} / 2).extrude({h})\n'
+        f'moat = (cq.Workplane("XY").circle(moat_od / 2).circle({ped_d} / 2)'
+        f".extrude({md} + eps).translate((0, 0, {h} - {md})))\n"
+        f'dimple = (cq.Workplane("XY").circle({dd} / 2)'
+        f".extrude({md} + eps).translate((0, 0, {h} - {md})))\n"
+        f"result = dish.cut(moat).cut(dimple)\n"
+    )
+
+
+def _incense_stick_holder(v: dict[str, float]) -> str:
+    # dishes.scad::incense_stick_holder — boat minus an ash trough minus a fixed row of stick bores.
+    length, width, h = _f(v["length"]), _f(v["width"]), _f(v["h"])
+    hd, td = _f(v["hole_d"]), _f(v["trough_depth"])
+    bores = 5
+    return (
+        f"eps = {_EPS}\n"
+        f"end_inset = 0.1 * {length}\n"
+        f"side_inset = 0.2 * {width}\n"
+        f"trough_l = {length} - 2 * end_inset\n"
+        f"trough_w = {width} - 2 * side_inset\n"
+        f"bore_y = {width} - side_inset - {hd} / 2 - 1\n"
+        f"bore_depth = {h} - 2\n"
+        f'body = cq.Workplane("XY").box({length}, {width}, {h}, {_CF})\n'
+        f'trough = (cq.Workplane("XY").box(trough_l, trough_w, {td} + eps, {_CF})'
+        f".translate((end_inset, side_inset, {h} - {td})))\n"
+        f"result = body.cut(trough)\n"
+        f"for i in range({bores}):\n"
+        f"    x = {length} / 2 + (i - ({bores} - 1) / 2) * ({length} / ({bores} + 1))\n"
+        f'    bore = (cq.Workplane("XY").circle({hd} / 2).extrude(bore_depth + eps)'
+        f".translate((x, bore_y, {h} - bore_depth)))\n"
+        f"    result = result.cut(bore)\n"
+    )
+
+
+def _catchall_tray(v: dict[str, float]) -> str:
+    # dishes.scad::catchall_tray — rounded-rect prism (|Z edges filleted) minus an inset rounded pocket.
+    length, width, h = _f(v["length"]), _f(v["width"]), _f(v["h"])
+    t, cr, floor = _f(v["wall"]), _f(v["corner_r"]), _f(v.get("floor", 2.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"inner_r = {cr} - {t}\n"
+        f'outer = (cq.Workplane("XY").box({length}, {width}, {h}, {_CF})'
+        f'.edges("|Z").fillet({cr}))\n'
+        f'pocket = (cq.Workplane("XY").box({length} - 2 * {t}, {width} - 2 * {t}, {h} - {floor} + eps, {_CF})'
+        f'.edges("|Z").fillet(inner_r).translate(({t}, {t}, {floor})))\n'
+        f"result = outer.cut(pocket)\n"
+    )
+
+
+def _soap_dish(v: dict[str, float]) -> str:
+    # dishes.scad::soap_dish — open-top tray + rib_count drainage ribs minus a row of drain holes.
+    length, w, h = _f(v["length"]), _f(v["width"]), _f(v["h"])
+    t = _f(v["wall"])
+    n = int(round(float(v["rib_count"])))
+    return (
+        f"eps = {_EPS}\n"
+        f"pocket_l = {length} - 2 * {t}\n"
+        f"pocket_w = {w} - 2 * {t}\n"
+        f"pocket_depth = {h} - {t}\n"
+        f"pitch = pocket_l / ({n} + 1)\n"
+        f"rib_t = min(1.6, pitch / 4)\n"
+        f"rib_h = min(2.0, pocket_depth / 2)\n"
+        f"drain_d = min(min(3.0, pitch / 4), pocket_w / 2)\n"
+        f'outer = cq.Workplane("XY").box({length}, {w}, {h}, {_CF})\n'
+        f'pocket = (cq.Workplane("XY")'
+        f".box(pocket_l, pocket_w, pocket_depth + eps, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"result = outer.cut(pocket)\n"
+        f"for i in range(1, {n} + 1):\n"
+        f"    x = {t} + i * pitch - rib_t / 2\n"
+        f'    rib = (cq.Workplane("XY")'
+        f".box(rib_t, pocket_w, rib_h + eps, {_CF})"
+        f".translate((x, {t}, {t} - eps)))\n"
+        f"    result = result.union(rib)\n"
+        f'drill = cq.Workplane("XY").circle(drain_d / 2).extrude({t} + 2 * eps)\n'
+        f"for i in range({n} + 1):\n"
+        f"    x = {t} + i * pitch + pitch / 2\n"
+        f"    result = result.cut(drill.translate((x, {w} / 2, -eps)))\n"
+    )
+
+
+def _handled_tray(v: dict[str, float]) -> str:
+    # dishes.scad::handled_tray — box-tray hollowed to a pocket, with two rounded grips through
+    # the short end walls (slot2D = the convex hull of two circles, the scad hull() equivalent).
+    length, width, h = _f(v["length"]), _f(v["width"]), _f(v["h"])
+    t, hw = _f(v["wall"]), _f(v["handle_w"])
+    return (
+        f"eps = {_EPS}\n"
+        f"slot_h = {h} * 0.25\n"
+        f"slot_zc = {h} * 0.90 - {t} - slot_h / 2\n"
+        f'outer = cq.Workplane("XY").box({length}, {width}, {h}, {_CF})\n'
+        f'pocket = (cq.Workplane("XY")'
+        f".box({length} - 2 * {t}, {width} - 2 * {t}, {h} - {t} + eps, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"body = outer.cut(pocket)\n"
+        f'grip = (cq.Workplane("XY").slot2D({hw}, slot_h, 90).extrude({t} + 2 * eps)'
+        f".rotate((0, 0, 0), (0, 1, 0), 90))\n"
+        f"body = body.cut(grip.translate((-eps, {width} / 2, slot_zc)))\n"
+        f"body = body.cut(grip.translate(({length} - {t} - eps, {width} / 2, slot_zc)))\n"
+        f"result = body\n"
+    )
+
+
+def _zen_garden_tray(v: dict[str, float]) -> str:
+    # dishes.scad::zen_garden_tray — four XY-centered corner feet under a rounded-rect tray body
+    # with a top-open sand cavity. The rounded rect is a corner-at-origin box with its vertical
+    # (|Z) edges filleted at corner_r — the same robust idiom as _catchall_tray (mirrors the
+    # OpenSCAD offset(square) rounded rect to the same envelope + corner radius).
+    length, width, wall_h = _f(v["length"]), _f(v["width"]), _f(v["wall_h"])
+    wall, foot_h = _f(v["wall"]), _f(v["foot_h"])
+    cr, fd = _f(v.get("corner_r", 6.0)), _f(v.get("foot_d", 10.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"foot_r = {fd} / 2\n"
+        f"inset = {cr} + foot_r\n"
+        f'body = (cq.Workplane("XY").box({length}, {width}, {wall_h}, {_CF})'
+        f'.edges("|Z").fillet({cr}).translate((0, 0, {foot_h})))\n'
+        f'cav = (cq.Workplane("XY").box({length} - 2 * {wall}, {width} - 2 * {wall}, '
+        f"{wall_h} - {wall} + eps, {_CF})"
+        f'.edges("|Z").fillet({cr} - {wall}).translate(({wall}, {wall}, {foot_h} + {wall})))\n'
+        f"result = body.cut(cav)\n"
+        f'foot = cq.Workplane("XY").circle(foot_r).extrude({foot_h} + eps)\n'
+        f"for fx in (inset, {length} - inset):\n"
+        f"    for fy in (inset, {width} - inset):\n"
+        f"        result = result.union(foot.translate((fx, fy, 0)))\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -416,6 +568,13 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "sawtooth_hanger": _sawtooth_hanger,
     "keyhole_hanger_plate": _keyhole_hanger_plate,
     "hidden_rod_shelf_bracket": _hidden_rod_shelf_bracket,
+    "ring_dish": _ring_dish,
+    "incense_cone_holder": _incense_cone_holder,
+    "incense_stick_holder": _incense_stick_holder,
+    "catchall_tray": _catchall_tray,
+    "soap_dish": _soap_dish,
+    "handled_tray": _handled_tray,
+    "zen_garden_tray": _zen_garden_tray,
 }
 
 

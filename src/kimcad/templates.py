@@ -814,12 +814,203 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         bbox_z=(BBoxTerm(ref="plate_h"),),
     )
 
+    # --- #19 slice 5: zen trays / dishes / incense holders — dishes.scad ----------------
+    # Authored + render-verified via the verified-authoring workflow (each module proven
+    # watertight at its analytic bbox before integration); twins gate-checked at 0.5mm.
+
+    ring_dish = TemplateFamily(
+        name="ring_dish",
+        summary="A round trinket / ring dish: a shallow well in a solid puck, with an optional center spike.",
+        object_types=("ring dish", "trinket dish", "jewelry dish", "ring holder", "trinket bowl"),
+        library_file="dishes.scad",
+        module="ring_dish",
+        params=(
+            ParamSpec(name="od", label="Outer diameter", default=70.0, min=24.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=18.0, min=8.0, max=120.0, step=1.0,
+                      dim_keys=("h", "height")),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=1.5, max=10.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="well_depth", label="Well depth", default=12.0, min=3.0, max=110.0, step=1.0,
+                      dim_keys=("well_depth", "depth")),
+            ParamSpec(name="spike_h", label="Center spike height", default=0.0, min=0.0, max=80.0, step=1.0,
+                      dim_keys=("spike_h", "spike")),
+        ),
+        fixed_args={"spike_d": 6.0},
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"), BBoxTerm(ref="spike_h")),
+        gaps=(("wall", "od", 4.0, 0.5), ("well_depth", "h", 2.0, 1.0)),
+    )
+
+    incense_cone_holder = TemplateFamily(
+        name="incense_cone_holder",
+        summary="A round incense-cone burner dish with an ash moat around a dimpled pedestal.",
+        object_types=("incense cone holder", "incense cone dish", "cone incense holder",
+                      "cone burner", "incense cone burner"),
+        library_file="dishes.scad",
+        module="incense_cone_holder",
+        params=(
+            ParamSpec(name="dish_d", label="Dish diameter", default=70.0, min=40.0, max=160.0,
+                      step=1.0, dim_keys=("dish_d", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Dish height", default=18.0, min=10.0, max=60.0, step=1.0,
+                      dim_keys=("h", "height"), bbox_axis=2),
+            ParamSpec(name="ped_d", label="Pedestal diameter", default=28.0, min=12.0, max=148.0,
+                      step=1.0, dim_keys=("ped_d", "pedestal_diameter")),
+            ParamSpec(name="moat_depth", label="Moat depth", default=8.0, min=3.0, max=58.0,
+                      step=0.5, dim_keys=("moat_depth", "moat")),
+            ParamSpec(name="dimple_d", label="Cone dimple diameter", default=12.0, min=4.0,
+                      max=144.0, step=0.5, dim_keys=("dimple_d", "dimple")),
+        ),
+        fixed_args={"rim": 4.0},
+        bbox_x=(BBoxTerm(ref="dish_d"),),
+        bbox_y=(BBoxTerm(ref="dish_d"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(
+            ("ped_d", "dish_d", 12.0, 1.0),
+            ("dimple_d", "ped_d", 4.0, 1.0),
+            ("moat_depth", "h", 2.0, 1.0),
+        ),
+    )
+
+    incense_stick_holder = TemplateFamily(
+        name="incense_stick_holder",
+        summary="A low ash boat for stick incense: a trough along its length with a row of stick bores.",
+        tier="baseline",
+        object_types=(
+            "incense stick holder", "incense holder", "incense burner", "stick incense holder",
+            "incense ash boat", "incense ash catcher", "joss stick holder",
+        ),
+        library_file="dishes.scad",
+        module="incense_stick_holder",
+        params=(
+            ParamSpec(name="length", label="Length", default=120.0, dim_keys=("length",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="width", label="Width", default=40.0, dim_keys=("width", "depth"), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="h", label="Height", default=12.0, dim_keys=("h", "height"), bbox_axis=2, **_HEIGHT),
+            ParamSpec(name="hole_d", label="Stick-bore diameter", default=4.0, min=2.0, max=8.0, step=0.5,
+                      dim_keys=("hole_d", "stick_diameter", "diameter")),
+            ParamSpec(name="trough_depth", label="Trough depth", default=6.0, min=2.0, max=20.0, step=0.5,
+                      dim_keys=("trough_depth",)),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(("hole_d", "width", 1.0, 0.5), ("trough_depth", "h", 2.0, 1.0)),
+    )
+
+    catchall_tray = TemplateFamily(
+        name="catchall_tray",
+        summary="A rounded-rect catch-all valet tray: a walled pocket with a solid floor.",
+        object_types=("catchall tray", "catchall", "valet tray", "edc tray", "key tray"),
+        library_file="dishes.scad",
+        module="catchall_tray",
+        params=(
+            ParamSpec(name="length", label="Length", default=120.0, dim_keys=("length",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="width", label="Width", default=90.0, dim_keys=("width", "depth"), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="h", label="Height", default=25.0, dim_keys=("h", "height"), bbox_axis=2, **_HEIGHT),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=1.5, max=8.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="corner_r", label="Corner radius", default=8.0, min=2.0, max=40.0, step=0.5,
+                      dim_keys=("corner_r", "radius", "fillet")),
+        ),
+        fixed_args={"floor": 2.0},
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(
+            ("corner_r", "length", 1.0, 0.5),
+            ("corner_r", "width", 1.0, 0.5),
+            ("wall", "corner_r", 1.0, 1.0),
+        ),
+    )
+
+    soap_dish = TemplateFamily(
+        name="soap_dish",
+        summary="A rectangular draining soap dish: a pocketed tray with floor drain ribs and holes.",
+        object_types=("soap dish", "soap holder", "soap saver", "draining soap dish",
+                      "soap rest", "bar soap dish"),
+        library_file="dishes.scad",
+        module="soap_dish",
+        params=(
+            ParamSpec(name="length", label="Length", default=110.0, dim_keys=("length",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="width", label="Width", default=80.0, dim_keys=("width", "depth"), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="h", label="Height", default=22.0, dim_keys=("h", "height"), bbox_axis=2, **_HEIGHT),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=0.8, max=8.0, step=0.2,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="rib_count", label="Drainage ribs", default=4.0, min=1.0, max=12.0, step=1.0,
+                      unit="", integer=True, dim_keys=("rib_count", "ribs")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(("wall", "length", 1.0, 0.5), ("wall", "width", 1.0, 0.5), ("wall", "h", 1.0, 0.5)),
+    )
+
+    handled_tray = TemplateFamily(
+        name="handled_tray",
+        summary="A shallow serving tray with two integral grip cut-outs in the end walls.",
+        object_types=("handled tray", "serving tray", "carry tray", "tray with handles",
+                      "two handled tray"),
+        library_file="dishes.scad",
+        module="handled_tray",
+        params=(
+            ParamSpec(name="length", label="Length", default=160.0, dim_keys=("length",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="width", label="Width", default=120.0, dim_keys=("width", "depth"), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="h", label="Height", default=40.0, dim_keys=("h", "height"), bbox_axis=2, **_HEIGHT),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=0.8, max=8.0, step=0.2,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="handle_w", label="Handle width", default=70.0, min=10.0, max=140.0,
+                      step=1.0, dim_keys=("handle_w", "handle")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        gaps=(
+            ("wall", "length", 1.0, 0.5),
+            ("wall", "width", 1.0, 0.5),
+            ("wall", "h", 1.0, 0.5),
+            ("handle_w", "width", 2.0, 1.0),
+        ),
+    )
+
+    zen_garden_tray = TemplateFamily(
+        name="zen_garden_tray",
+        summary="A shallow zen sand garden tray: a rounded-rect tray on four short corner feet.",
+        object_types=("zen garden", "sand garden", "zen tray", "sand tray", "meditation tray",
+                      "rock garden", "zen garden tray"),
+        library_file="dishes.scad",
+        module="zen_garden_tray",
+        params=(
+            ParamSpec(name="length", label="Length", default=120.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("length", "width"), bbox_axis=0),
+            ParamSpec(name="width", label="Width", default=90.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("width", "depth"), bbox_axis=1),
+            ParamSpec(name="wall_h", label="Rim height", default=18.0, min=6.0, max=60.0, step=1.0,
+                      dim_keys=("wall_h", "rim_height", "height")),
+            ParamSpec(name="wall", label="Wall thickness", default=3.0, min=1.5, max=5.0, step=0.5,
+                      dim_keys=("wall", "thickness")),
+            ParamSpec(name="foot_h", label="Foot height", default=6.0, min=2.0, max=20.0, step=1.0,
+                      dim_keys=("foot_h", "foot_height")),
+        ),
+        fixed_args={"corner_r": 6.0, "foot_d": 10.0},
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="wall_h"), BBoxTerm(ref="foot_h")),
+        gaps=(
+            ("wall", "wall_h", 1.0, 1.0),
+            ("wall", "length", 1.0, 0.5),
+            ("wall", "width", 1.0, 0.5),
+        ),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
         picture_frame, certificate_frame, mat_board, floating_frame, shadow_box_frame,
         lithophane_frame,
         sawtooth_hanger, keyhole_hanger_plate, hidden_rod_shelf_bracket,
+        ring_dish, incense_cone_holder, incense_stick_holder, catchall_tray, soap_dish,
+        handled_tray, zen_garden_tray,
     )
 
 

@@ -70,6 +70,9 @@ EXPECTED_FAMILY_NAMES = frozenset(
         "shadow_box_frame", "lithophane_frame",
         # #19 slice 4: hangers
         "sawtooth_hanger", "keyhole_hanger_plate", "hidden_rod_shelf_bracket",
+        # #19 slice 5: zen trays / dishes / incense holders
+        "ring_dish", "incense_cone_holder", "incense_stick_holder", "catchall_tray",
+        "soap_dish", "handled_tray", "zen_garden_tray",
     }
 )
 
