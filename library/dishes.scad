@@ -41,6 +41,17 @@
 //   peg_hook_rail(length, bar_h, bar_t, peg_length, peg_d)                bbox = [length, bar_t + peg_length, bar_h]
 //   j_decor_hook(width, back_height, reach, catch_rise, thk, screw_d)        bbox = [width, thk + reach, back_height + catch_rise]
 //   plate_display_stand(base_w, base_depth, back_height, groove_w, base_h, lean_off)        bbox = [base_w, base_depth + lean_off, base_h + back_height]
+//   --- #19 slice 9: frame joinery + profile hangers ---
+//   canvas_stretcher_corner(arm, leg_w, bar_t, tongue_l, tongue_h)        bbox = [arm, arm, bar_t + tongue_h]
+//   frame_corner_clamp(jaw_l, jaw_t, jaw_h, screw_d, corner)        bbox = [jaw_l + corner, jaw_l + corner, jaw_h]
+//   frame_corner_joiner(plate, plate_t, screw_d, screw_inset, rib_h, rib_w)        bbox = [plate, plate, plate_t + rib_h]
+//   frame_turn_button(button_l, button_w, button_t, bore_d, boss_h, boss_d, corner_r)        bbox = [button_l, button_w, button_t + boss_h]
+//   frame_backing_clip(clip_l, clip_w, clip_t, step, tab)        bbox = [clip_l, clip_w, clip_t + step]
+//   wire_loop_hanger(base_w, base_t, base_h, loop_height, loop_thk, screw_d)        bbox = [base_w, base_t, base_h + loop_height]
+//   z_clip_panel_hanger(length, flange_w, web_h, thk, screw_d)        bbox = [length, flange_w + thk, web_h + 2*thk]
+//   art_french_cleat_pair(length, depth, rise, thick, gap)        bbox = [length, 2*depth + gap, rise]
+//   picture_rail_hook(width, throat_depth, throat_gap, body_height, thk, eye_d)        bbox = [width, throat_depth + thk, body_height + throat_gap]
+//   d_ring_strap_hanger(strap_w, strap_t, strap_h, ring_od, ring_thk, screw_d)        bbox = [strap_w, strap_t + ring_thk, strap_h + ring_od]
 
 module ring_dish(od = 70, h = 18, wall = 3, well_depth = 12, spike_h = 0, spike_d = 6, fn = 96) {
     eps = 0.05;
@@ -834,5 +845,346 @@ module plate_display_stand(base_w = 90, base_depth = 70, back_height = 90, groov
                         [base_h + back_height + eps,  back_y0 + groove_d + lean_off],        // rear, top (into air)
                         [base_h + back_height + eps,  back_y0 - eps + lean_off],             // front, top (into air)
                     ]);
+    }
+}
+
+// --- #19 slice 9: frame joinery + profile hangers ----------------------------------
+
+module canvas_stretcher_corner(arm = 80, leg_w = 18, bar_t = 10, tongue_l = 40, tongue_h = 8) {
+    eps = 0.05;
+    tongue_w = leg_w * 0.5;        // interior — centered in the leg, never touches an outer face
+    tongue_off = (leg_w - tongue_w) / 2;
+    union() {
+        // --- the L body: two arms in the upper slab z = [tongue_h, tongue_h + bar_t] ---
+        translate([0, 0, tongue_h]) {
+            cube([arm, leg_w, bar_t]);   // X arm: full arm length along X, leg_w wide in Y
+            cube([leg_w, arm, bar_t]);   // Y arm: full arm length along Y, leg_w wide in X
+        }
+        // --- underside tongues: drop from z = 0 .. tongue_h, fused up into the slab by eps ---
+        // tongue under the X arm, running along X (slots into the X-direction bar end)
+        translate([0, tongue_off, 0])
+            cube([tongue_l, tongue_w, tongue_h + eps]);
+        // tongue under the Y arm, running along Y (slots into the Y-direction bar end)
+        translate([tongue_off, 0, 0])
+            cube([tongue_w, tongue_l, tongue_h + eps]);
+    }
+}
+
+module frame_corner_clamp(jaw_l = 50, jaw_t = 12, jaw_h = 20, screw_d = 5, corner = 20,
+                          fn = 48) {
+    eps = 0.05;
+    clear = 0.2;
+    difference() {
+        union() {
+            // square corner block at the origin corner
+            cube([corner, corner, jaw_h]);
+            // jaw running +X: starts inside the corner block (-eps) so it fuses with no
+            // z-fight gap; far face lands exactly at corner + jaw_l (envelope-exact).
+            translate([corner - eps, 0, 0])
+                cube([jaw_l + eps, jaw_t, jaw_h]);
+            // jaw running +Y: same overlap into the corner block.
+            translate([0, corner - eps, 0])
+                cube([jaw_t, jaw_l + eps, jaw_h]);
+        }
+        // one vertical thumbscrew bore through the X jaw (over-cut both ends into open air)
+        translate([corner + jaw_l / 2, jaw_t / 2, -eps])
+            cylinder(h = jaw_h + 2 * eps, d = screw_d + clear, $fn = fn);
+        // one vertical thumbscrew bore through the Y jaw
+        translate([jaw_t / 2, corner + jaw_l / 2, -eps])
+            cylinder(h = jaw_h + 2 * eps, d = screw_d + clear, $fn = fn);
+    }
+}
+
+module frame_corner_joiner(plate = 50, plate_t = 4, screw_d = 4, screw_inset = 10, rib_h = 2,
+                           rib_w = 4, fn = 48) {
+    eps = 0.05;
+    clear = 0.2;
+    cb_d = screw_d + 4;          // counterbore clears the screw head
+    cb_depth = plate_t * 0.5;    // counterbore sinks halfway into the plate from the top
+    rib_len = plate - 2 * screw_inset;  // rib runs between the two screw bosses, inside the plate
+    union() {
+        difference() {
+            // flat square plate, corner-at-origin
+            cube([plate, plate, plate_t]);
+            // two counterbored screw holes on the plate diagonal, drilled down through Z.
+            // Through-hole over-cuts -eps below and +eps above so both faces are clean; the
+            // counterbore sinks from the top face down by cb_depth (interior to the plate).
+            for (p = [[screw_inset, screw_inset], [plate - screw_inset, plate - screw_inset]]) {
+                translate([p[0], p[1], -eps])
+                    cylinder(h = plate_t + 2 * eps, d = screw_d + clear, $fn = fn);
+                translate([p[0], p[1], plate_t - cb_depth])
+                    cylinder(h = cb_depth + eps, d = cb_d, $fn = fn);
+            }
+        }
+        // raised registration rib: a thin upstanding bar centered on the plate, running along Y
+        // between the two screw bosses. Drops -eps into the plate top so it fuses without a
+        // z-fight gap and the rib top lands at exactly plate_t + rib_h (envelope-exact). Its XY
+        // footprint (rib_w x rib_len) is centered and strictly inside [plate, plate].
+        translate([plate / 2 - rib_w / 2, screw_inset, plate_t - eps])
+            cube([rib_w, rib_len, rib_h + eps]);
+    }
+}
+
+module frame_turn_button(button_l = 40, button_w = 16, button_t = 4, bore_d = 4,
+                         boss_h = 3, boss_d = 12, corner_r = 4, fn = 64) {
+    eps = 0.05;
+    // boss diameter clamped strictly inside the bar width so it never widens the Y envelope;
+    // the boss footprint sits inside [button_w], so bbox_y stays exactly button_w.
+    boss_dia = min(boss_d, button_w - 2);
+    cx = button_l / 2;                 // pivot at the bar center
+    cy = button_w / 2;
+    difference() {
+        union() {
+            // rounded bar: corner-at-origin rounded rect extruded button_t thick. corner_r is a
+            // fixed internal radius (<= half the min dim across the ranges), so the rendered X/Y
+            // extents stay exactly [button_l, button_w] — corner_r is inert to the envelope.
+            linear_extrude(height = button_t)
+                translate([corner_r, corner_r])
+                    offset(r = corner_r)
+                        square([button_l - 2 * corner_r, button_w - 2 * corner_r],
+                               center = false);
+            // raised pivot boss around the bore: from the bar bottom up to button_t + boss_h
+            // (fuses with the bar; its top sets the Z envelope to exactly button_t + boss_h).
+            translate([cx, cy, 0])
+                cylinder(h = button_t + boss_h, d = boss_dia, $fn = fn);
+        }
+        // center pivot bore drilled through the whole stack (over-cut eps each end into open air)
+        translate([cx, cy, -eps])
+            cylinder(h = button_t + boss_h + 2 * eps, d = bore_d, $fn = fn);
+    }
+}
+
+module frame_backing_clip(clip_l = 30, clip_w = 16, clip_t = 3, step = 6, tab = 10) {
+    // A flat stepped (two-level) offset retainer clip. A constant-thickness profile (clip_t)
+    // is extruded across the width (clip_w) along +Y. The profile lies in the X (length) - Z
+    // (height) plane: a clip_l-long lower body at the rabbet level, a riser of height `step`,
+    // and an upper `tab` that laps back over the backing board to retain it.
+    // Bounding box = [clip_l, clip_w, clip_t + step]. Prints flat on a side face, no supports.
+    eps = 0.05;
+    // Constant-thickness stepped polygon in X (length) - Z (height), CCW. The lower body top
+    // sits at clip_t; the riser lifts the tab so its underside is at `step` and its top at
+    // step + clip_t (the documented Z). The riser overlaps the body by eps so the two levels
+    // fuse with no z-fight (the overlap stays INTERIOR — never past clip_t+step or clip_l).
+    translate([0, clip_w, 0])
+        rotate([90, 0, 0])
+            linear_extrude(height = clip_w)
+                polygon([
+                    [0, 0],                              // body bottom-left
+                    [clip_l, 0],                         // body bottom-right
+                    [clip_l, step + clip_t],             // up the right face to the full height
+                    [clip_l - tab, step + clip_t],       // top of the tab, leftward
+                    [clip_l - tab, step - eps],          // down the tab front face (into the body)
+                    [clip_l - tab - clip_t, step - eps], // riser inner face (interior overlap)
+                    [clip_l - tab - clip_t, clip_t],     // step down to the lower body top
+                    [0, clip_t]                          // back along the body top to the start
+                ]);
+}
+
+module wire_loop_hanger(base_w = 30, base_t = 4, base_h = 18, loop_height = 22, loop_thk = 4,
+                        screw_d = 4, fn = 32) {
+    eps = 0.05;
+    clear = 0.2;
+    cx = base_w / 2;
+    // Triangle base half-width: keep the upstanding loop's outer edges steep (<= 45deg from
+    // vertical) so it prints without support. half = loop_height/2 -> side angle atan(0.5) ~ 27deg.
+    half = loop_height / 2;
+    wall = loop_thk;                 // loop bar thickness (in the profile plane)
+    // Loop sits in the X-Z plane, extruded along +Y to loop_thk (loop_thk <= base_t, so Y == base_t).
+    yoff = (base_t - loop_thk) / 2;  // centre the loop bar across the plate thickness
+    difference() {
+        union() {
+            // base plate: X=base_w, Y=base_t, Z=base_h, corner at origin.
+            cube([base_w, base_t, base_h]);
+            // upstanding triangular bail. The profile polygon is drawn in (x, height);
+            // linear_extrude takes it +Z by loop_thk, then rotate([90,0,0]) maps profile-height ->
+            // +Z and the extrude -> -Y, so translate Y by (yoff + loop_thk) seats the bar across the
+            // plate thickness and Z by base_h seats it on the plate top. The base over-extends DOWN
+            // into the plate by eps (envelope-exact: apex lands exactly at base_h + loop_height,
+            // like the sawtooth teeth).
+            translate([0, yoff + loop_thk, base_h - eps])
+                rotate([90, 0, 0])
+                    linear_extrude(height = loop_thk)
+                        difference() {
+                            // outer triangle: base on the plate, apex at +loop_height
+                            polygon([[cx - half, 0],
+                                     [cx + half, 0],
+                                     [cx, loop_height + eps]]);
+                            // inner triangle: the wire hole, inset by wall on every side
+                            polygon([[cx - half + wall, wall + eps],
+                                     [cx + half - wall, wall + eps],
+                                     [cx, loop_height - wall]]);
+                        }
+        }
+        // screw hole through the base plate (along Y), low so it clears the bail.
+        translate([cx, -eps, base_h * 0.4])
+            rotate([-90, 0, 0])
+                cylinder(h = base_t + 2 * eps, d = screw_d + clear, $fn = fn);
+    }
+}
+
+module z_clip_panel_hanger(length = 120, flange_w = 20, web_h = 15, thk = 4, screw_d = 4,
+                           fn = 32) {
+    eps = 0.05;
+    clear = 0.2;
+    top = web_h + 2 * thk;        // full profile height (worldZ extent)
+    // Z cross-section in local (a, b): a -> worldY (flange_w + thk), b -> worldZ (top). The
+    // bottom flange spans a in [0, flange_w] at b in [0, thk]; the web is the thk-thick column
+    // at the RIGHT end of the bottom flange (a in [flange_w - thk, flange_w]); the top flange is
+    // the lip that extends thk past the web (a in [flange_w - thk, flange_w + thk]) at the top
+    // (b in [web_h + thk, top]) — the catch the mating half hooks behind. linear_extrude pushes
+    // this profile along local +Z by length; rotate([90,0,90]) cyclically maps local
+    // (x,y,z) -> (z,x,y) so length -> worldX, a -> worldY, b -> worldZ (corner at origin), giving
+    // the exact [length, flange_w + thk, top] envelope (the wedge_easel_stand orient idiom).
+    difference() {
+        rotate([90, 0, 90])
+            linear_extrude(height = length)
+                polygon([
+                    [0, 0],
+                    [flange_w, 0],
+                    [flange_w, web_h + thk],
+                    [flange_w + thk, web_h + thk],
+                    [flange_w + thk, top],
+                    [flange_w - thk, top],
+                    [flange_w - thk, thk],
+                    [0, thk],
+                ]);
+        // Two counterbored screw holes down through the bottom mounting flange (along worldZ).
+        // The bottom flange lies at worldZ in [0, thk], worldY in [0, flange_w]; holes are
+        // centred on the flange (y = flange_w/2). The through-bore over-cuts eps below the base
+        // and the counterbore over-cuts eps up into open air above the flange top — neither
+        // reaches a documented outer face, so the envelope is unchanged and screw_d stays out of
+        // the bbox.
+        for (x = [length * 0.25, length * 0.75]) {
+            translate([x, flange_w / 2, -eps])
+                cylinder(h = thk + 2 * eps, d = screw_d + clear, $fn = fn);   // through-bore
+            translate([x, flange_w / 2, thk * 0.5])
+                cylinder(h = thk * 0.5 + eps, d = screw_d * 2, $fn = fn);     // countersink relief
+        }
+    }
+}
+
+module art_french_cleat_pair(length = 120, depth = 22, rise = 18, thick = 6, gap = 10) {
+    eps = 0.05;
+    // 45-degree bevel run (equal in Y and Z). Clamped strictly inside the envelope so it
+    // never reaches an outer face; the bbox extremes (Y=depth, Z=rise) are set by the flat
+    // corners and are independent of bevel, so this keeps the envelope exactly linear.
+    bevel = min(depth, rise) - thick;
+
+    // Wall half: right trapezoid, bevel chamfers the top-FRONT corner so the working face
+    // points up-and-front. Mounting back is the flat +Y face (against the wall).
+    wall_profile = [
+        [0, 0],                 // bottom, front
+        [depth, 0],             // bottom, back (wall side)
+        [depth, rise],          // top, back
+        [bevel, rise],          // top, after the chamfer runs forward by `bevel`
+        [0, rise - bevel],      // front face, chamfer descends to here
+    ];
+    // Art half: the wall profile mirrored top-to-bottom (Z -> rise - Z) so its bevel faces
+    // DOWN-and-front and seats onto the wall half's up-facing bevel.
+    art_profile = [
+        [0, rise],              // top, front
+        [depth, rise],          // top, back (mounts to the art)
+        [depth, 0],             // bottom, back
+        [bevel, 0],             // bottom, after the chamfer runs forward by `bevel`
+        [0, bevel],             // front face, chamfer rises to here
+    ];
+
+    // Extrude each profile along X (length): the profile lies in Y-Z, so we build it in the
+    // X-Y plane (linear_extrude up +Z) then rotate it to stand the cross-section in Y-Z and
+    // lie the extrusion along +X. rotate([90,0,90]) maps local (x,y,z)->(z, x, y):
+    //   profile X (our Y, 0..depth)  -> world Y
+    //   profile Y (our Z, 0..rise)   -> world Z
+    //   extrude  Z (0..length)       -> world X
+    // Wall half at Y in [0, depth].
+    rotate([90, 0, 90])
+        linear_extrude(height = length)
+            polygon(wall_profile);
+
+    // Art half at Y in [depth + gap, 2*depth + gap]: same extrusion, translated +Y by depth+gap.
+    translate([0, depth + gap, 0])
+        rotate([90, 0, 90])
+            linear_extrude(height = length)
+                polygon(art_profile);
+}
+
+module picture_rail_hook(width = 50, throat_depth = 18, throat_gap = 22, body_height = 60,
+                         thk = 5, eye_d = 8, fn = 32) {
+    // An over-the-molding picture-rail hook. A constant-thickness inverted-J ribbon is traced
+    // in the (Y, Z) plane as one watertight polygon — a back leg (the body) drops down the wall,
+    // turns forward over the rail top (the throat), and a front lip drops back down to catch the
+    // rail's front face — then extruded across the hook WIDTH. A cord eye is drilled through the
+    // body near the bottom. Bounding box = [width, throat_depth + thk, body_height + throat_gap].
+    //   throat: interior cavity that straddles the rail — (throat_depth - thk) deep by
+    //           (throat_gap - thk) tall (one wall thickness is consumed on each closing face).
+    //   body:   the back leg, dropping body_height below the throat to the cord eye.
+    // thk is pinned small enough upstream (thk <= throat_depth - 2 and thk <= throat_gap - 2) that
+    // the ribbon never self-intersects; the top-back crossbar corner is always the global Y/Z max
+    // so the envelope stays the linear sum (no max()).
+    eps = 0.05;
+    clear = 0.2;
+    top_z = body_height + throat_gap;   // global Z max (top crossbar outer face)
+    back_y = throat_depth + thk;        // global Y max (back leg outer face)
+    difference() {
+        // linear_extrude raises the (Y,Z) profile +Z by width; rotate([90,0,90]) maps the
+        // extrude axis -> +X (width), the profile's local-x -> +Y (throat_depth + thk) and
+        // local-y -> +Z (body_height + throat_gap), so the rendered extents equal the bbox.
+        rotate([90, 0, 90])
+            linear_extrude(height = width)
+                polygon([
+                    [0, body_height],          // front lip outer, bottom
+                    [0, top_z],                // front-top corner (outer)
+                    [back_y, top_z],           // back-top corner (outer)
+                    [back_y, 0],               // back leg outer, bottom (body base)
+                    [throat_depth, 0],         // back leg inner, bottom
+                    [throat_depth, top_z - thk],   // back leg inner, top (under crossbar)
+                    [thk, top_z - thk],        // front lip inner, top
+                    [thk, body_height],        // front lip inner, bottom
+                ]);
+        // cord eye through the back leg (body), drilled along +Y, centered across the width and
+        // low on the body. Over-cuts both leg faces by eps so no skin is left; the bore lies
+        // wholly within the back-leg material (throat_depth..back_y), never past an outer face.
+        translate([width / 2, throat_depth - eps, body_height * 0.4])
+            rotate([-90, 0, 0])
+                cylinder(h = thk + 2 * eps, d = eye_d + clear, $fn = fn);
+    }
+}
+
+module d_ring_strap_hanger(strap_w = 40, strap_t = 5, strap_h = 50, ring_od = 28, ring_thk = 6,
+                           screw_d = 4, fn = 64) {
+    eps = 0.05;
+    clear = 0.2;
+    ring_id = ring_od / 2;            // a fixed half-ring loop: bore = half the OD
+    ring_cx = strap_w / 2;            // ring centered across the plate width
+    ring_cz = strap_h + ring_od / 2;  // ring center so its top lands exactly at strap_h + ring_od
+    // The annulus is tangent to the plate top at a single point; a short fuse boss spanning the
+    // tangent zone welds the loop to the plate (watertight) without changing the envelope — it
+    // stays inside the ring's X footprint (width ring_id) and the ring's +Y span, and reaches
+    // only up to ring_cz so it never exceeds strap_h + ring_od (the boss is buried in the lower
+    // ring solid).
+    boss_w = ring_id;
+    union() {
+        // strap plate with two screw holes (along Y)
+        difference() {
+            cube([strap_w, strap_t, strap_h]);
+            for (z = [strap_h * 0.25, strap_h * 0.75])
+                translate([strap_w / 2, -eps, z])
+                    rotate([-90, 0, 0])
+                        cylinder(h = strap_t + 2 * eps, d = screw_d + clear, $fn = fn);
+        }
+        // fuse boss: dips eps into the plate and rises to the ring center, centered in X and
+        // matching the loop's +Y thickness span (strap_t .. strap_t + ring_thk).
+        translate([ring_cx - boss_w / 2, strap_t, strap_h - eps])
+            cube([boss_w, ring_thk, ring_od / 2 + eps]);
+        // fixed vertical-annulus loop. The 2D annulus is drawn in XY then linear_extrude'd along
+        // +Z by ring_thk; rotate([-90,0,0]) stands it into the X-Z plane with the extrusion along
+        // +Y, and the translate puts its near face at the plate's +Y front face (y = strap_t) so
+        // the +Y reach is exactly strap_t + ring_thk. The top lands exactly at strap_h + ring_od.
+        translate([ring_cx, strap_t, ring_cz])
+            rotate([-90, 0, 0])
+                linear_extrude(height = ring_thk)
+                    difference() {
+                        circle(d = ring_od, $fn = fn);
+                        circle(d = ring_id, $fn = fn);
+                    }
     }
 }

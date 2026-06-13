@@ -1182,6 +1182,296 @@ def _plate_display_stand(v: dict[str, float]) -> str:
     )
 
 
+# --- #19 slice 9: frame joinery + profile hangers ----------------------------------
+
+
+def _canvas_stretcher_corner(v: dict[str, float]) -> str:
+    # dishes.scad::canvas_stretcher_corner — an L of two flat arms in the upper slab
+    # z = [tongue_h, tongue_h + bar_t], plus two underside tongues (z = [0, tongue_h]) fused
+    # up into the slab by eps. tongue_w/tongue_off are interior (a fraction of leg_w), so they
+    # never touch an outer face; bbox = [arm, arm, bar_t + tongue_h].
+    arm, leg_w, bar_t = _f(v["arm"]), _f(v["leg_w"]), _f(v["bar_t"])
+    tongue_l, tongue_h = _f(v["tongue_l"]), _f(v["tongue_h"])
+    return (
+        f"eps = {_EPS}\n"
+        f"tongue_w = {leg_w} * 0.5\n"
+        f"tongue_off = ({leg_w} - tongue_w) / 2\n"
+        f'xarm = (cq.Workplane("XY").box({arm}, {leg_w}, {bar_t}, {_CF})'
+        f".translate((0, 0, {tongue_h})))\n"
+        f'yarm = (cq.Workplane("XY").box({leg_w}, {arm}, {bar_t}, {_CF})'
+        f".translate((0, 0, {tongue_h})))\n"
+        f"result = xarm.union(yarm)\n"
+        f'xtongue = (cq.Workplane("XY").box({tongue_l}, tongue_w, {tongue_h} + eps, {_CF})'
+        f".translate((0, tongue_off, 0)))\n"
+        f'ytongue = (cq.Workplane("XY").box(tongue_w, {tongue_l}, {tongue_h} + eps, {_CF})'
+        f".translate((tongue_off, 0, 0)))\n"
+        f"result = result.union(xtongue).union(ytongue)\n"
+    )
+
+
+def _frame_corner_clamp(v: dict[str, float]) -> str:
+    # dishes.scad::frame_corner_clamp — square corner block + two perpendicular cube jaws
+    # (+X and +Y), corner-at-origin, minus one vertical thumbscrew bore through each jaw.
+    jl, jt, jh = _f(v["jaw_l"]), _f(v["jaw_t"]), _f(v["jaw_h"])
+    sd, c = _f(v["screw_d"]), _f(v["corner"])
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f'corner = cq.Workplane("XY").box({c}, {c}, {jh}, {_CF})\n'
+        # +X jaw, overlapping the corner block by eps so the union fuses cleanly; far face at c+jl
+        f'jaw_x = (cq.Workplane("XY").box({jl} + eps, {jt}, {jh}, {_CF})'
+        f".translate(({c} - eps, 0, 0)))\n"
+        # +Y jaw
+        f'jaw_y = (cq.Workplane("XY").box({jt}, {jl} + eps, {jh}, {_CF})'
+        f".translate((0, {c} - eps, 0)))\n"
+        f"body = corner.union(jaw_x).union(jaw_y)\n"
+        # vertical Z bore through the X jaw (over-cut both ends into open air)
+        f'bore = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({jh} + 2 * eps)'
+        f".translate((0, 0, -eps)))\n"
+        f"body = body.cut(bore.translate(({c} + {jl} / 2, {jt} / 2, 0)))\n"
+        # vertical Z bore through the Y jaw
+        f"body = body.cut(bore.translate(({jt} / 2, {c} + {jl} / 2, 0)))\n"
+        f"result = body\n"
+    )
+
+
+def _frame_corner_joiner(v: dict[str, float]) -> str:
+    # dishes.scad::frame_corner_joiner — flat square plate corner-at-origin, two counterbored
+    # Z-drilled screw holes on the diagonal, plus a raised registration rib bar along Y. The
+    # Z-drilled cylinders extrude +Z natively (no rotation, like the base holes in _l_bracket);
+    # the counterbore sinks from the top face by plate_t/2. The rib is a corner-at-origin box
+    # centered in X and inset on Y, dropping -eps into the plate top so it fuses cleanly.
+    plate, pt = _f(v["plate"]), _f(v["plate_t"])
+    sd, si, rh = _f(v["screw_d"]), _f(v["screw_inset"]), _f(v["rib_h"])
+    rw = _f(v.get("rib_w", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"cb_d = {sd} + 4\n"
+        f"cb_depth = {pt} * 0.5\n"
+        f"rib_len = {plate} - 2 * {si}\n"
+        f'body = cq.Workplane("XY").box({plate}, {plate}, {pt}, {_CF})\n'
+        f"for (px, py) in (({si}, {si}), ({plate} - {si}, {plate} - {si})):\n"
+        f'    through = (cq.Workplane("XY").circle(({sd} + clear) / 2)'
+        f".extrude({pt} + 2 * eps).translate((px, py, -eps)))\n"
+        f"    body = body.cut(through)\n"
+        f'    cbore = (cq.Workplane("XY").circle(cb_d / 2)'
+        f".extrude(cb_depth + eps).translate((px, py, {pt} - cb_depth)))\n"
+        f"    body = body.cut(cbore)\n"
+        f'    rib = (cq.Workplane("XY").box({rw}, rib_len, {rh} + eps, {_CF})'
+        f".translate(({plate} / 2 - {rw} / 2, {si}, {pt} - eps)))\n"
+        f"result = body.union(rib)\n"
+    )
+
+
+def _frame_turn_button(v: dict[str, float]) -> str:
+    # dishes.scad::frame_turn_button — a rounded bar (|Z edges filleted) + a center pivot boss,
+    # minus a through bore. The bar is corner-at-origin; the boss/bore are XY-centered cylinders
+    # at the bar center. boss_dia mirrors the module's min(boss_d, button_w - 2) wall guard,
+    # resolved at emit time from the clamped values (so the script stays a plain cylinder cut).
+    bl, bw, bt = _f(v["button_l"]), _f(v["button_w"]), _f(v["button_t"])
+    bore, bh = _f(v["bore_d"]), _f(v["boss_h"])
+    cr = _f(v.get("corner_r", 4.0))
+    boss_dia = _f(min(float(v.get("boss_d", 12.0)), float(v["button_w"]) - 2))
+    return (
+        f"eps = {_EPS}\n"
+        f"cx = {bl} / 2\n"
+        f"cy = {bw} / 2\n"
+        f"top = {bt} + {bh}\n"
+        f'bar = (cq.Workplane("XY").box({bl}, {bw}, {bt}, {_CF})'
+        f'.edges("|Z").fillet({cr}))\n'
+        f'boss = (cq.Workplane("XY").circle({boss_dia} / 2).extrude(top)'
+        f".translate((cx, cy, 0)))\n"
+        f'bore = (cq.Workplane("XY").circle({bore} / 2).extrude(top + 2 * eps)'
+        f".translate((cx, cy, -eps)))\n"
+        f"result = bar.union(boss).cut(bore)\n"
+    )
+
+
+def _frame_backing_clip(v: dict[str, float]) -> str:
+    # dishes.scad::frame_backing_clip — a constant-thickness stepped (two-level) offset retainer
+    # profile extruded across the width. The polyline mirrors the module's polygon corner-for-
+    # corner in (length X, height Y); .rotate((1,0,0),90) + translate(+clip_w in Y) reproduce the
+    # module's rotate([90,0,0]) so the height axis lands on world Z and the part fills [clip_l,
+    # clip_w, clip_t + step]. tab is an inner profile feature, inert to the envelope.
+    cl, cw, ct = _f(v["clip_l"]), _f(v["clip_w"]), _f(v["clip_t"])
+    st, tb = _f(v["step"]), _f(v["tab"])
+    return (
+        f"eps = {_EPS}\n"
+        f"pts = [\n"
+        f"    (0, 0),\n"
+        f"    ({cl}, 0),\n"
+        f"    ({cl}, {st} + {ct}),\n"
+        f"    ({cl} - {tb}, {st} + {ct}),\n"
+        f"    ({cl} - {tb}, {st} - eps),\n"
+        f"    ({cl} - {tb} - {ct}, {st} - eps),\n"
+        f"    ({cl} - {tb} - {ct}, {ct}),\n"
+        f"    (0, {ct}),\n"
+        f"]\n"
+        f'result = (cq.Workplane("XY").polyline(pts).close()'
+        f".extrude({cw})"
+        f".rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".translate((0, {cw}, 0)))\n"
+    )
+
+
+def _wire_loop_hanger(v: dict[str, float]) -> str:
+    # dishes.scad::wire_loop_hanger — base plate + an upstanding triangular bail (outer triangle
+    # minus inner triangle) for picture wire, minus one screw hole through the plate (along Y).
+    # The triangle profile is drawn in (X, height); extrude +Z by loop_thk then rotate +90 about X
+    # maps profile-height -> +Z and the extrude -> -Y, mirroring the module's rotate([90,0,0]).
+    bw, bt, bh = _f(v["base_w"]), _f(v["base_t"]), _f(v["base_h"])
+    lh, lt, sd = _f(v["loop_height"]), _f(v["loop_thk"]), _f(v.get("screw_d", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"cx = {bw} / 2\n"
+        f"half = {lh} / 2\n"
+        f"wall = {lt}\n"
+        f"yoff = ({bt} - {lt}) / 2\n"
+        f'plate = cq.Workplane("XY").box({bw}, {bt}, {bh}, {_CF})\n'
+        f'outer = (cq.Workplane("XY")'
+        f".polyline([(cx - half, 0), (cx + half, 0), (cx, {lh} + eps)]).close()"
+        f".extrude({lt}).rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".translate((0, yoff + {lt}, {bh} - eps)))\n"
+        f'inner = (cq.Workplane("XY")'
+        f".polyline([(cx - half + wall, wall + eps), (cx + half - wall, wall + eps), "
+        f"(cx, {lh} - wall)]).close()"
+        f".extrude({lt} + 2 * eps).rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".translate((0, yoff + {lt} + eps, {bh} - eps)))\n"
+        f"bail = outer.cut(inner)\n"
+        f"body = plate.union(bail)\n"
+        f'drill = (cq.Workplane("XY").circle(({sd} + clear) / 2)'
+        f".extrude({bt} + 2 * eps).rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"body = body.cut(drill.translate((cx, -eps, {bh} * 0.4)))\n"
+        f"result = body\n"
+    )
+
+
+def _z_clip_panel_hanger(v: dict[str, float]) -> str:
+    # dishes.scad::z_clip_panel_hanger — a Z cross-section extruded along length, minus two
+    # counterbored screw holes through the bottom mounting flange. The profile polyline mirrors
+    # the module's polygon corner-for-corner; .extrude(length) pushes it along local +Z, then
+    # rotate +90 about X then +90 about Z (the module's rotate([90,0,90])) cyclically maps local
+    # (x,y,z) -> (z,x,y): length -> worldX, the flange-span a -> worldY, the height b -> worldZ,
+    # corner at origin. So the envelope is exactly [length, flange_w + thk, web_h + 2*thk]. The
+    # holes are XY-centered cylinders cut down through the flange (worldZ), over-cut into open air
+    # at both ends, so screw_d never touches the envelope.
+    length, fw, wh = _f(v["length"]), _f(v["flange_w"]), _f(v["web_h"])
+    t, sd = _f(v["thk"]), _f(v["screw_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"top = {wh} + 2 * {t}\n"
+        f'profile = (cq.Workplane("XY").polyline(['
+        f"(0, 0), ({fw}, 0), ({fw}, {wh} + {t}), ({fw} + {t}, {wh} + {t}), "
+        f"({fw} + {t}, top), ({fw} - {t}, top), ({fw} - {t}, {t}), (0, {t})"
+        f"]).close().extrude({length})"
+        f".rotate((0, 0, 0), (1, 0, 0), 90)"
+        f".rotate((0, 0, 0), (0, 0, 1), 90))\n"
+        f"body = profile\n"
+        f'bore = (cq.Workplane("XY").circle(({sd} + clear) / 2)'
+        f".extrude({t} + 2 * eps).translate((0, 0, -eps)))\n"
+        f'cbore = (cq.Workplane("XY").circle({sd})'
+        f".extrude({t} * 0.5 + eps).translate((0, 0, {t} * 0.5)))\n"
+        f"for x in ({length} * 0.25, {length} * 0.75):\n"
+        f"    body = body.cut(bore.translate((x, {fw} / 2, 0)))\n"
+        f"    body = body.cut(cbore.translate((x, {fw} / 2, 0)))\n"
+        f"result = body\n"
+    )
+
+
+def _art_french_cleat_pair(v: dict[str, float]) -> str:
+    # dishes.scad::art_french_cleat_pair — two right-trapezoid 45-degree cleat rails extruded
+    # along the length (X), side by side in Y past a FIXED gap. Each profile is built in X-Y and
+    # extruded +Z, then rotated by the module's rotate([90,0,90]) net (x,y,z)->(z,x,y) via a
+    # rotate about X by 90 then about Z by 90 (Rz*Rx): profile-x->Y (depth), profile-y->Z (rise),
+    # extrude->X (length). The wall half's bevel faces up-and-front; the art half is the wall
+    # profile mirrored top-to-bottom so its bevel faces down-and-front and seats onto it. bevel
+    # is min()-clamped strictly inside the envelope, so the bbox stays exactly [length, 2*depth+
+    # gap, rise]; resolved at emit time from the clamped floats (no runtime min()).
+    length, depth, rise = _f(v["length"]), _f(v["depth"]), _f(v["rise"])
+    gap = _f(v.get("gap", 10.0))
+    bevel = _f(min(float(v["depth"]), float(v["rise"])) - float(v["thick"]))
+    return (
+        f"eps = {_EPS}\n"
+        f"wall_profile = [(0, 0), ({depth}, 0), ({depth}, {rise}), "
+        f"({bevel}, {rise}), (0, {rise} - {bevel})]\n"
+        f"art_profile = [(0, {rise}), ({depth}, {rise}), ({depth}, 0), "
+        f"({bevel}, 0), (0, {bevel})]\n"
+        f'wall = (cq.Workplane("XY").polyline(wall_profile).close().extrude({length})'
+        f".rotate((0, 0, 0), (1, 0, 0), 90).rotate((0, 0, 0), (0, 0, 1), 90))\n"
+        f'art = (cq.Workplane("XY").polyline(art_profile).close().extrude({length})'
+        f".rotate((0, 0, 0), (1, 0, 0), 90).rotate((0, 0, 0), (0, 0, 1), 90)"
+        f".translate((0, {depth} + {gap}, 0)))\n"
+        f"result = wall.union(art)\n"
+    )
+
+
+def _picture_rail_hook(v: dict[str, float]) -> str:
+    # dishes.scad::picture_rail_hook — a constant-thickness inverted-J ribbon traced in the
+    # (Y,Z) plane and extruded across the width, minus a cord eye drilled through the body.
+    # The module extrudes the (local-x, local-y) profile +Z by width then rotates [90,0,90];
+    # the net point map is (x, y, z) -> (z, x, y), i.e. extrude->X, local-x->Y, local-y->Z,
+    # landing corner-at-origin. We replicate it with the two global-axis rotations rotate(X,90)
+    # then rotate(Z,90) (== OpenSCAD's rotate([90,0,90])).
+    width, td, tg = _f(v["width"]), _f(v["throat_depth"]), _f(v["throat_gap"])
+    bh, thk, eye = _f(v["body_height"]), _f(v["thk"]), _f(v.get("eye_d", 8.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"top_z = {bh} + {tg}\n"
+        f"back_y = {td} + {thk}\n"
+        f"profile = [\n"
+        f"    (0, {bh}),\n"
+        f"    (0, top_z),\n"
+        f"    (back_y, top_z),\n"
+        f"    (back_y, 0),\n"
+        f"    ({td}, 0),\n"
+        f"    ({td}, top_z - {thk}),\n"
+        f"    ({thk}, top_z - {thk}),\n"
+        f"    ({thk}, {bh}),\n"
+        f"]\n"
+        f'body = (cq.Workplane("XY").polyline(profile).close().extrude({width})'
+        f".rotate((0, 0, 0), (1, 0, 0), 90).rotate((0, 0, 0), (0, 0, 1), 90))\n"
+        # cord eye through the back leg (body): a +Z cylinder rotated -90 about X points +Y
+        # (mirrors the module's rotate([-90,0,0]) Y-drill), laid through the body at low Z.
+        f'eye = (cq.Workplane("XY").circle(({eye} + clear) / 2).extrude({thk} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90)"
+        f".translate(({width} / 2, {td} - eps, {bh} * 0.4)))\n"
+        f"result = body.cut(eye)\n"
+    )
+
+
+def _d_ring_strap_hanger(v: dict[str, float]) -> str:
+    # dishes.scad::d_ring_strap_hanger — strap plate (two Y screw holes) + a fuse boss + a fixed
+    # vertical-annulus loop standing above the plate top in the X-Z plane (thickness along +Y).
+    sw, st, sh = _f(v["strap_w"]), _f(v["strap_t"]), _f(v["strap_h"])
+    rod, rthk, sd = _f(v["ring_od"]), _f(v["ring_thk"]), _f(v.get("screw_d", 4.0))
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"ring_id = {rod} / 2\n"
+        f"ring_cx = {sw} / 2\n"
+        f"ring_cz = {sh} + {rod} / 2\n"
+        f"boss_w = ring_id\n"
+        f'plate = cq.Workplane("XY").box({sw}, {st}, {sh}, {_CF})\n'
+        # two screw holes through the plate (a +Z cylinder rotated -90 about X points +Y)
+        f'drill = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({st} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for z in ({sh} * 0.25, {sh} * 0.75):\n"
+        f"    plate = plate.cut(drill.translate(({sw} / 2, -eps, z)))\n"
+        # fuse boss: dips eps into the plate, rises to the ring center, +Y thickness = ring_thk
+        f'boss = (cq.Workplane("XY").box(boss_w, {rthk}, {rod} / 2 + eps, {_CF})'
+        f".translate((ring_cx - boss_w / 2, {st}, {sh} - eps)))\n"
+        # vertical-annulus loop: a disc-minus-bore extruded +Z, rotated -90 about X (extrusion ->
+        # +Y) so it stands in the X-Z plane, near face at y = strap_t, top at strap_h + ring_od.
+        f'ring = (cq.Workplane("XY").circle({rod} / 2).circle(ring_id / 2).extrude({rthk})'
+        f".rotate((0, 0, 0), (1, 0, 0), -90).translate((ring_cx, {st}, ring_cz)))\n"
+        f"result = plate.union(boss).union(ring)\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -1244,6 +1534,17 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "peg_hook_rail": _peg_hook_rail,
     "j_decor_hook": _j_decor_hook,
     "plate_display_stand": _plate_display_stand,
+    # #19 slice 9: frame joinery + profile hangers (keyed by FAMILY name)
+    "canvas_stretcher_corner": _canvas_stretcher_corner,
+    "frame_corner_clamp": _frame_corner_clamp,
+    "frame_corner_joiner": _frame_corner_joiner,
+    "frame_turn_button": _frame_turn_button,
+    "frame_backing_clip": _frame_backing_clip,
+    "wire_loop_hanger": _wire_loop_hanger,
+    "z_clip_panel_hanger": _z_clip_panel_hanger,
+    "art_french_cleat_pair": _art_french_cleat_pair,
+    "picture_rail_hook": _picture_rail_hook,
+    "d_ring_strap_hanger": _d_ring_strap_hanger,
 }
 
 

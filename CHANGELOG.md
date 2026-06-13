@@ -25,6 +25,13 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Frame joinery & picture hangers (#19, slice 9): canvas stretcher corner, miter glue-up
+  clamp, miter spline joiner, backing turn-button, backing clip, wire-loop hanger, Z-clip panel
+  hanger, interlocking art-cleat pair, picture-rail hook, and a D-ring strap hanger.** Ten
+  frame-building and hanging-hardware families that complete the framing workflow end to end,
+  each render-verified against its analytic bounding box with a trusted CadQuery `.STEP` twin.
+  All tier baseline (they bear load or fit a specific bar/moulding profile). **The catalog is
+  now 64 families** — a deep frame / Zen / decor library for Kim's design world.
 - **Stands, easels, ledges & rails (#19, slice 8): wedge easel, tiered display riser, slanted
   sign holder, desk nameplate stand, place-card holder, picture ledge shelf, peg-hook rail, and
   a decorative J-hook.** Nine display-and-mount families, each render-verified against its

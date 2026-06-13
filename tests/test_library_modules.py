@@ -269,6 +269,58 @@ NEW_MODULES = {
         "base_h=10, lean_off=24);",
         [90, 94, 100],
     ),
+    # #19 slice 9: frame joinery + profile hangers (keys are MODULE names)
+    "canvas_stretcher_corner": (
+        "dishes.scad",
+        "canvas_stretcher_corner(arm=80, leg_w=18, bar_t=10, tongue_l=40, tongue_h=8);",
+        [80, 80, 18],
+    ),
+    "frame_corner_clamp": (
+        "dishes.scad",
+        "frame_corner_clamp(jaw_l=50, jaw_t=12, jaw_h=20, screw_d=5, corner=20);",
+        [70, 70, 20],
+    ),
+    "frame_corner_joiner": (
+        "dishes.scad",
+        "frame_corner_joiner(plate=50, plate_t=4, screw_d=4, screw_inset=10, rib_h=2, rib_w=4);",
+        [50, 50, 6],
+    ),
+    "frame_turn_button": (
+        "dishes.scad",
+        "frame_turn_button(button_l=40, button_w=16, button_t=4, bore_d=4, boss_h=3, "
+        "boss_d=12, corner_r=4);",
+        [40, 16, 7],
+    ),
+    "frame_backing_clip": (
+        "dishes.scad",
+        "frame_backing_clip(clip_l=30, clip_w=16, clip_t=3, step=6, tab=10);",
+        [30, 16, 9],
+    ),
+    "wire_loop_hanger": (
+        "dishes.scad",
+        "wire_loop_hanger(base_w=30, base_t=4, base_h=18, loop_height=22, loop_thk=4, screw_d=4);",
+        [30, 4, 40],
+    ),
+    "z_clip_panel_hanger": (
+        "dishes.scad",
+        "z_clip_panel_hanger(length=120, flange_w=20, web_h=15, thk=4, screw_d=4);",
+        [120, 24, 23],
+    ),
+    "art_french_cleat_pair": (
+        "dishes.scad",
+        "art_french_cleat_pair(length=120, depth=22, rise=18, thick=6, gap=10);",
+        [120, 54, 18],
+    ),
+    "picture_rail_hook": (
+        "dishes.scad",
+        "picture_rail_hook(width=50, throat_depth=18, throat_gap=22, body_height=60, thk=5, eye_d=8);",
+        [50, 23, 82],
+    ),
+    "d_ring_strap_hanger": (
+        "dishes.scad",
+        "d_ring_strap_hanger(strap_w=40, strap_t=5, strap_h=50, ring_od=28, ring_thk=6, screw_d=4);",
+        [40, 11, 78],
+    ),
 }
 
 

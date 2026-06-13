@@ -1886,6 +1886,310 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("groove_w", "base_w", 2.0, 0.5),),
     )
 
+    # #19 slice 9: frame joinery + profile hangers
+    canvas_stretcher_corner = TemplateFamily(
+        name="canvas_stretcher_corner",
+        summary="An L-shaped mitered corner key that squares and joins two canvas stretcher bars at 90 degrees, with underside tongues that slot into the bar ends.",
+        tier="baseline",
+        object_types=(
+            "canvas stretcher corner", "stretcher corner key", "stretcher bar corner",
+            "canvas frame corner key", "stretcher bar joiner", "canvas corner brace",
+        ),
+        library_file="dishes.scad",
+        module="canvas_stretcher_corner",
+        params=(
+            ParamSpec(name="arm", label="Arm length", default=80.0, min=30.0, max=170.0,
+                      step=1.0, dim_keys=("arm", "length"), bbox_axis=0),
+            ParamSpec(name="leg_w", label="Leg width", default=18.0, min=10.0, max=40.0,
+                      step=1.0, dim_keys=("leg_w", "width")),
+            ParamSpec(name="bar_t", label="Bar thickness", default=10.0, min=4.0, max=30.0,
+                      step=0.5, dim_keys=("bar_t", "thickness")),
+            ParamSpec(name="tongue_l", label="Tongue length", default=40.0, min=10.0, max=80.0,
+                      step=1.0, dim_keys=("tongue_l",)),
+            ParamSpec(name="tongue_h", label="Tongue height", default=8.0, min=3.0, max=20.0,
+                      step=0.5, dim_keys=("tongue_h",)),
+        ),
+        bbox_x=(BBoxTerm(ref="arm"),),
+        bbox_y=(BBoxTerm(ref="arm"),),
+        bbox_z=(BBoxTerm(ref="bar_t"), BBoxTerm(ref="tongue_h")),
+        # the tongue must stay inside an arm (tongue_l <= arm) so it never overruns the L body
+        gaps=(("tongue_l", "arm", 1.0, 1.0),),
+    )
+
+    frame_corner_clamp = TemplateFamily(
+        name="frame_corner_clamp",
+        summary="A right-angle frame glue-up jig: a corner block with two perpendicular jaws holding two mitered pieces square.",
+        tier="baseline",
+        object_types=(
+            "frame corner clamp", "miter corner jig", "frame corner jig",
+            "right angle glue jig", "frame assembly jig", "miter glue clamp",
+            "corner gluing jig",
+        ),
+        library_file="dishes.scad",
+        module="frame_corner_clamp",
+        params=(
+            ParamSpec(name="jaw_l", label="Jaw length", default=50.0, min=20.0, max=120.0,
+                      step=1.0, dim_keys=("jaw_l", "length"), bbox_axis=0),
+            ParamSpec(name="jaw_t", label="Jaw thickness", default=12.0, min=6.0, max=30.0,
+                      step=1.0, dim_keys=("jaw_t", "thickness")),
+            ParamSpec(name="jaw_h", label="Jaw height", default=20.0, min=10.0, max=60.0,
+                      step=1.0, dim_keys=("jaw_h", "height"), bbox_axis=2),
+            ParamSpec(name="screw_d", label="Thumbscrew diameter", default=5.0, min=3.0, max=8.0,
+                      step=0.5, dim_keys=("screw_d", "screw_diameter")),
+            ParamSpec(name="corner", label="Corner block size", default=20.0, min=12.0, max=40.0,
+                      step=1.0, dim_keys=("corner", "corner_size")),
+        ),
+        fixed_args={},
+        bbox_x=(BBoxTerm(ref="jaw_l"), BBoxTerm(ref="corner")),
+        bbox_y=(BBoxTerm(ref="jaw_l"), BBoxTerm(ref="corner")),
+        bbox_z=(BBoxTerm(ref="jaw_h"),),
+        # the thumbscrew bore must fit inside the jaw thickness (screw_d <= jaw_t - 2), and the
+        # corner block must fully back the jaw (jaw_t <= corner) so the L stays clean.
+        gaps=(("screw_d", "jaw_t", 2.0, 1.0), ("jaw_t", "corner", 0.0, 1.0)),
+    )
+
+    frame_corner_joiner = TemplateFamily(
+        name="frame_corner_joiner",
+        summary="A flat under-side spline plate that screws across a 45-degree frame miter to lock two moulding lengths.",
+        tier="baseline",
+        object_types=(
+            "frame corner joiner", "miter joiner plate", "frame miter spline", "corner spline plate",
+            "frame joining plate", "miter lock plate",
+        ),
+        library_file="dishes.scad",
+        module="frame_corner_joiner",
+        params=(
+            ParamSpec(name="plate", label="Plate size", default=50.0, min=24.0, max=170.0, step=1.0,
+                      dim_keys=("plate", "size", "width"), bbox_axis=0),
+            ParamSpec(name="plate_t", label="Plate thickness", default=4.0, min=2.0, max=12.0, step=0.5,
+                      dim_keys=("plate_t", "thickness")),
+            ParamSpec(name="screw_d", label="Screw diameter", default=4.0, min=2.0, max=8.0, step=0.5,
+                      dim_keys=("screw_d", "screw")),
+            ParamSpec(name="screw_inset", label="Screw inset", default=10.0, min=6.0, max=40.0, step=1.0,
+                      dim_keys=("screw_inset", "inset")),
+            ParamSpec(name="rib_h", label="Registration rib height", default=2.0, min=1.0, max=10.0, step=0.5,
+                      dim_keys=("rib_h", "rib")),
+        ),
+        fixed_args={"rib_w": 4.0},
+        bbox_x=(BBoxTerm(ref="plate"),),
+        bbox_y=(BBoxTerm(ref="plate"),),
+        bbox_z=(BBoxTerm(ref="plate_t"), BBoxTerm(ref="rib_h")),
+        # the two diagonal screw bosses must clear each other inside the plate (screw_inset <= plate/2 - 4);
+        # the counterbore (screw_d + 4) must fit the plate around each boss (screw_d <= plate/4 - 1).
+        gaps=(("screw_inset", "plate", 4.0, 0.5), ("screw_d", "plate", 1.0, 0.25)),
+    )
+
+    frame_turn_button = TemplateFamily(
+        name="frame_turn_button",
+        summary="A rotating frame turn-button: a rounded bar with a center pivot bore and a raised boss that screws to a frame back and pivots to retain the backing board.",
+        tier="baseline",
+        object_types=(
+            "frame turn button", "turn button retainer", "backing board retainer",
+            "frame backing button", "art backing turnbutton", "frame back swivel retainer",
+        ),
+        library_file="dishes.scad",
+        module="frame_turn_button",
+        params=(
+            ParamSpec(name="button_l", label="Button length", default=40.0, min=30.0, max=170.0,
+                      step=1.0, dim_keys=("button_l", "length", "width"), bbox_axis=0),
+            ParamSpec(name="button_w", label="Button width", default=16.0, min=12.0, max=40.0,
+                      step=1.0, dim_keys=("button_w", "width", "depth"), bbox_axis=1),
+            ParamSpec(name="button_t", label="Bar thickness", default=4.0, min=2.0, max=10.0,
+                      step=0.5, dim_keys=("button_t", "thickness")),
+            ParamSpec(name="bore_d", label="Pivot bore diameter", default=4.0, min=2.0, max=8.0,
+                      step=0.5, dim_keys=("bore_d", "bore", "screw_d")),
+            ParamSpec(name="boss_h", label="Boss height", default=3.0, min=1.0, max=12.0,
+                      step=0.5, dim_keys=("boss_h", "boss")),
+        ),
+        # boss_d is a fixed pivot-boss diameter clamped inside button_w by the module's
+        # min(boss_d, button_w - 2), so it never widens the Y envelope; corner_r is a fixed
+        # rounding radius <= half the min in-range dimension, so the X/Y extents stay exact.
+        fixed_args={"boss_d": 12.0, "corner_r": 4.0},
+        bbox_x=(BBoxTerm(ref="button_l"),),
+        bbox_y=(BBoxTerm(ref="button_w"),),
+        bbox_z=(BBoxTerm(ref="button_t"), BBoxTerm(ref="boss_h")),
+    )
+
+    frame_backing_clip = TemplateFamily(
+        name="frame_backing_clip",
+        summary="A flat stepped offset clip that wedges between a frame rabbet and the backing board to retain it without screws.",
+        tier="baseline",
+        object_types=(
+            "frame backing clip", "backing retainer clip", "rabbet backing clip",
+            "offset backing clip", "frame backing retainer", "spring backing clip",
+        ),
+        library_file="dishes.scad",
+        module="frame_backing_clip",
+        params=(
+            ParamSpec(name="clip_l", label="Clip length", default=30.0, min=15.0, max=80.0,
+                      step=1.0, dim_keys=("clip_l", "length"), bbox_axis=0),
+            ParamSpec(name="clip_w", label="Clip width", default=16.0, min=8.0, max=80.0,
+                      step=1.0, dim_keys=("clip_w", "width"), bbox_axis=1),
+            ParamSpec(name="clip_t", label="Material thickness", default=3.0, min=1.5, max=6.0,
+                      step=0.5, dim_keys=("clip_t", "thickness", "wall")),
+            ParamSpec(name="step", label="Offset step", default=6.0, min=2.0, max=40.0,
+                      step=0.5, dim_keys=("step", "offset")),
+            ParamSpec(name="tab", label="Retaining tab", default=10.0, min=5.0, max=40.0,
+                      step=1.0, dim_keys=("tab",)),
+        ),
+        bbox_x=(BBoxTerm(ref="clip_l"),),
+        bbox_y=(BBoxTerm(ref="clip_w"),),
+        bbox_z=(BBoxTerm(ref="clip_t"), BBoxTerm(ref="step")),
+        # Keep the stepped profile valid across the whole slider range: the riser starts at
+        # x = clip_l - tab - clip_t, which must stay > 0. Cap the tab to half the length and the
+        # material thickness to a quarter of the length so clip_l - tab - clip_t >= clip_l/4 + 3.
+        gaps=(("tab", "clip_l", 2.0, 0.5), ("clip_t", "clip_l", 1.0, 0.25)),
+    )
+
+    wire_loop_hanger = TemplateFamily(
+        name="wire_loop_hanger",
+        summary="A screw-on plate with an upstanding triangular wire bail for hanging framed art.",
+        tier="baseline",
+        object_types=(
+            "wire loop hanger", "picture wire hanger", "wire bail hanger", "framing wire loop",
+            "art wire hanger", "triangle bail hanger",
+        ),
+        library_file="dishes.scad",
+        module="wire_loop_hanger",
+        params=(
+            ParamSpec(name="base_w", label="Plate width", default=30.0, min=12.0, max=170.0,
+                      step=1.0, dim_keys=("base_w", "width"), bbox_axis=0),
+            ParamSpec(name="base_t", label="Plate thickness", default=4.0, min=2.0, max=12.0,
+                      step=0.5, dim_keys=("base_t", "thickness"), bbox_axis=1),
+            ParamSpec(name="base_h", label="Plate height", default=18.0, min=12.0, max=170.0,
+                      step=1.0, dim_keys=("base_h", "height")),
+            ParamSpec(name="loop_height", label="Loop height", default=22.0, min=10.0, max=120.0,
+                      step=1.0, dim_keys=("loop_height", "loop")),
+            ParamSpec(name="loop_thk", label="Loop thickness", default=4.0, min=1.5, max=12.0,
+                      step=0.5),
+        ),
+        fixed_args={"screw_d": 4.0},
+        bbox_x=(BBoxTerm(ref="base_w"),),
+        bbox_y=(BBoxTerm(ref="base_t"),),
+        bbox_z=(BBoxTerm(ref="base_h"), BBoxTerm(ref="loop_height")),
+        # loop_thk <= base_t keeps the bail inside the plate thickness so the Y envelope stays
+        # exactly base_t; loop_thk <= 0.5*loop_height - 0.5 keeps the inner wire-hole triangle
+        # valid (the loop bar half-base = loop_height/2 stays wider than the bar wall).
+        gaps=(("loop_thk", "base_t", 0.0, 1.0), ("loop_thk", "loop_height", 0.5, 0.5)),
+    )
+
+    z_clip_panel_hanger = TemplateFamily(
+        name="z_clip_panel_hanger",
+        summary="The wall half of a Z-profile interlocking panel clip; the mating half hangs a flat sign/mirror flush.",
+        tier="baseline",
+        object_types=(
+            "z clip", "z clip hanger", "z clip panel hanger", "z bar hanger",
+            "interlocking panel clip", "french cleat z clip", "flush mount z clip",
+        ),
+        library_file="dishes.scad",
+        module="z_clip_panel_hanger",
+        params=(
+            ParamSpec(name="length", label="Length", default=120.0, dim_keys=("length", "width"), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="flange_w", label="Flange width", default=20.0, min=12.0, max=80.0,
+                      step=1.0, dim_keys=("flange_w", "flange", "depth")),
+            ParamSpec(name="web_h", label="Web height", default=15.0, min=8.0, max=150.0,
+                      step=1.0, dim_keys=("web_h", "web", "standoff", "height")),
+            ParamSpec(name="thk", label="Material thickness", default=4.0, min=2.0, max=10.0,
+                      step=0.5, dim_keys=("thk", "thickness", "wall")),
+            ParamSpec(name="screw_d", label="Screw diameter", default=4.0, min=2.0, max=8.0,
+                      step=0.5, dim_keys=("screw_d", "screw", "screw_diameter")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="flange_w"), BBoxTerm(ref="thk")),
+        bbox_z=(BBoxTerm(ref="web_h"), BBoxTerm(coef=2.0, ref="thk")),
+        # Keep the counterbore (screw_d*2) inside the mounting flange so the screw holes never
+        # breach a Y face: screw_d <= flange_w/2 - 1 (the wall_hook param-pin precedent — the
+        # hole must stay strictly within the flange or the envelope would no longer be linear).
+        gaps=(("screw_d", "flange_w", 1.0, 0.5),),
+    )
+
+    art_french_cleat_pair = TemplateFamily(
+        name="art_french_cleat_pair",
+        summary="A matched pair of interlocking 45-degree wall cleats (wall half + art half), printed side by side, to hang and self-level a piece.",
+        tier="baseline",
+        object_types=(
+            "french cleat pair", "art french cleat", "interlocking wall cleat",
+            "picture french cleat", "45 degree wall cleat", "art hanging cleat pair",
+            "beveled wall cleat",
+        ),
+        library_file="dishes.scad",
+        module="art_french_cleat_pair",
+        params=(
+            ParamSpec(name="length", label="Length", default=120.0, dim_keys=("length", "width"), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="depth", label="Cleat depth", default=22.0, min=12.0, max=80.0, step=1.0,
+                      dim_keys=("depth", "cleat_depth")),
+            ParamSpec(name="rise", label="Rise", default=18.0, min=12.0, max=170.0, step=1.0,
+                      dim_keys=("rise", "height")),
+            ParamSpec(name="thick", label="Back thickness", default=6.0, min=3.0, max=10.0, step=0.5,
+                      dim_keys=("thick", "thickness", "wall")),
+        ),
+        fixed_args={"gap": 10.0},
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="depth", coef=2.0), BBoxTerm(ref="gap")),
+        bbox_z=(BBoxTerm(ref="rise"),),
+    )
+
+    picture_rail_hook = TemplateFamily(
+        name="picture_rail_hook",
+        summary="An over-the-molding picture-rail hook: an inverted-J that hooks over the rail without nails, with a cord eye.",
+        tier="baseline",
+        object_types=(
+            "picture rail hook", "rail hook", "molding hook", "moulding hook",
+            "over the rail hook", "picture moulding hook",
+        ),
+        library_file="dishes.scad",
+        module="picture_rail_hook",
+        params=(
+            ParamSpec(name="width", label="Width", default=50.0, min=30.0, max=170.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="throat_depth", label="Throat depth", default=18.0, min=8.0, max=60.0,
+                      step=1.0, dim_keys=("throat_depth", "rail_depth", "depth")),
+            ParamSpec(name="throat_gap", label="Throat height", default=22.0, min=10.0, max=80.0,
+                      step=1.0, dim_keys=("throat_gap", "rail_height", "gap")),
+            ParamSpec(name="body_height", label="Body drop", default=60.0, min=20.0, max=150.0,
+                      step=1.0, dim_keys=("body_height", "height", "drop")),
+            ParamSpec(name="thk", label="Thickness", default=5.0, min=3.0, max=8.0, step=0.5,
+                      dim_keys=("thk", "thickness", "wall")),
+        ),
+        fixed_args={"eye_d": 8.0},
+        bbox_x=(BBoxTerm(ref="width"),),
+        bbox_y=(BBoxTerm(ref="throat_depth"), BBoxTerm(ref="thk")),
+        bbox_z=(BBoxTerm(ref="body_height"), BBoxTerm(ref="throat_gap")),
+        # Keep the wall thickness under each throat dimension (minus a 2 mm minimum cavity) so the
+        # inverted-J ribbon can never self-intersect into a degenerate / non-manifold profile.
+        gaps=(("thk", "throat_depth", 2.0, 1.0), ("thk", "throat_gap", 2.0, 1.0)),
+    )
+
+    d_ring_strap_hanger = TemplateFamily(
+        name="d_ring_strap_hanger",
+        summary="A screw-down strap plate with a fixed printed D-ring loop for hanging heavier framed art.",
+        tier="baseline",
+        object_types=("d ring strap hanger", "strap d ring hanger",
+                      "d ring picture hanger", "strap mount d ring"),
+        library_file="dishes.scad",
+        module="d_ring_strap_hanger",
+        params=(
+            ParamSpec(name="strap_w", label="Strap width", default=40.0, min=20.0, max=120.0,
+                      step=1.0, dim_keys=("strap_w", "width"), bbox_axis=0),
+            ParamSpec(name="strap_t", label="Strap thickness", default=5.0, min=3.0, max=12.0,
+                      step=0.5, dim_keys=("strap_t", "thickness")),
+            ParamSpec(name="strap_h", label="Strap height", default=50.0, min=30.0, max=110.0,
+                      step=1.0, dim_keys=("strap_h", "height")),
+            ParamSpec(name="ring_od", label="Ring outer diameter", default=28.0, min=16.0, max=60.0,
+                      step=1.0, dim_keys=("ring_od", "ring_diameter", "diameter")),
+            ParamSpec(name="ring_thk", label="Ring thickness", default=6.0, min=4.0, max=15.0,
+                      step=0.5, dim_keys=("ring_thk",)),
+        ),
+        fixed_args={"screw_d": 4.0},
+        bbox_x=(BBoxTerm(ref="strap_w"),),
+        bbox_y=(BBoxTerm(ref="strap_t"), BBoxTerm(ref="ring_thk")),
+        bbox_z=(BBoxTerm(ref="strap_h"), BBoxTerm(ref="ring_od")),
+        # The vertical-annulus loop (OD ring_od, centered across the plate width) and its fuse
+        # boss must stay inside the plate width, so pin ring_od <= strap_w — that keeps the X
+        # envelope exactly strap_w (proven: ring_od == strap_w renders at bbox_x = strap_w).
+        gaps=(("ring_od", "strap_w", 0.0, 1.0),),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
@@ -1904,6 +2208,10 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         wedge_easel_stand, display_riser, slanted_sign_holder, desk_nameplate_holder,
         place_card_holder, picture_ledge_shelf, peg_hook_rail, j_decor_hook,
         plate_display_stand,
+        # #19 slice 9: frame joinery + profile hangers
+        canvas_stretcher_corner, frame_corner_clamp, frame_corner_joiner, frame_turn_button,
+        frame_backing_clip, wire_loop_hanger, z_clip_panel_hanger, art_french_cleat_pair,
+        picture_rail_hook, d_ring_strap_hanger,
     )
 
 

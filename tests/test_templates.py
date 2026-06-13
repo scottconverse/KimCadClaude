@@ -84,6 +84,11 @@ EXPECTED_FAMILY_NAMES = frozenset(
         "wedge_easel_stand", "display_riser", "slanted_sign_holder", "desk_nameplate_holder",
         "place_card_holder", "picture_ledge_shelf", "peg_hook_rail", "j_decor_hook",
         "plate_display_stand",
+        # #19 slice 9: frame joinery + profile hangers
+        "canvas_stretcher_corner", "frame_corner_clamp", "frame_corner_joiner",
+        "frame_turn_button", "frame_backing_clip", "wire_loop_hanger",
+        "z_clip_panel_hanger", "art_french_cleat_pair", "picture_rail_hook",
+        "d_ring_strap_hanger",
     }
 )
 
