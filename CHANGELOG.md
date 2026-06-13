@@ -25,14 +25,29 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **#19 catalog epic-gate hardening (5-role audit → 0/0/0/0/0).** Closing the 7→86 catalog
+  expansion, a full audit-team pass drove every finding to zero: a construction-time guard now
+  rejects any family whose envelope could exceed the ~170 mm sliceable cap at its maximum
+  sliders (and seven families + one over-cap default were tightened to fit); the part library
+  gained an in-UI tier legend + a result count (the badge meaning is no longer tooltip-only),
+  an anchored tier search (no more substring pollution), and a mobile header that wraps;
+  dozens of natural-phrase aliases now route common typed prompts to the right family ("hex
+  nut", "nut", "bolt", "plate", "vase", "pot", "coaster", "easel", "tealight", "candle"…);
+  an offline test pins every family's analytic bbox (finite, positive, within the cap) without
+  a binary; and the user docs (README, USER-MANUAL, FAQ, ARCHITECTURE, ROADMAP) + a new
+  `docs/templates.md` catalog now describe the 86-family library and its honesty tiers.
 - **General hardware — boxes & specialty (#19, slice 11): snap-fit box, hinged/lipped-lid box,
   slotted clamp block, cable raceway, bar pull handle, phone dock, pour funnel, Gridfinity bin &
   baseplate, and hex nut/bolt blanks.** The final eleven families on `parts.scad`, each
   render-verified against its analytic bounding box with a trusted CadQuery `.STEP` twin
   (Gridfinity uses the 42 mm pitch; the nut & bolt are honestly labelled *thread-relief only* —
-  a smooth bore/shaft, not a certified thread). **This completes the #19 catalog expansion at 86
-  families** — up from 7 — spanning Kim's frame/Zen/decor world and a full set of everyday
-  engineering parts, every one honestly tiered and gate-verified against its analytic envelope.
+  a smooth bore/shaft, not a certified thread). The cable raceway, bar pull, and pour funnel are
+  tier **benchmarked**; the snap-fit & hinged-lid boxes, clamp block, phone dock, both Gridfinity
+  parts, and the thread-relief nut/bolt are tier **baseline** (a friction/snap fit, a held device,
+  a Gridfinity-compatible footprint, or a thread relief to confirm before use). **This completes
+  the #19 catalog expansion at 86 families** — up from 7 — spanning Kim's frame/Zen/decor world
+  and a full set of everyday engineering parts, every one honestly tiered and gate-verified
+  against its analytic envelope.
 - **General hardware — rings, plates & brackets (#19, slice 10): washer, dowel pin, bumper
   foot, mounting flange, pierced mount pad, faceplate, VESA adapter plate, corner gusset, PCB
   standoff, French-cleat rail, and heat-set insert boss.** Eleven everyday engineering parts on

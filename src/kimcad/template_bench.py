@@ -180,7 +180,7 @@ def _perturb(family: TemplateFamily, defaults: dict[str, float]) -> dict[str, fl
     geometry change (so the re-render isn't a no-op) without tripping the build-volume gate.
 
     ENG-507: this assumes ``family.params[0]`` is a geometry-affecting (linear) dimension —
-    true for all seven built-in families. A future family whose first parameter is cosmetic
+    true for every family in the registry. A future family whose first parameter is cosmetic
     (a toggle that doesn't change the mesh) would make the bench measure a no-op re-render; if
     that happens, pick the first param with a non-empty bbox contribution instead."""
     p = family.params[0]

@@ -285,6 +285,21 @@ class TemplateRegistry:
                         f"family '{fam.name}' has an empty bbox_{axis}; every axis needs at "
                         "least one term or its size silently reads as 0 mm"
                     )
+        # QA-502 (#19 audit ENG-1901): every family must be sliceable on the reference
+        # machines. Auto-orient can place ANY axis on the bed, so the analytic envelope at the
+        # all-MAX parameter set must be <= 170 mm on every axis. A multi-term axis whose slider
+        # maxima sum past 170 (e.g. a Z = back_height + lip_height) is un-sliceable; catch it at
+        # construction instead of shipping a part the gate passes (the bbox is accurate) but
+        # OrcaSlicer can't arrange. Computed through clamp_values so gaps are applied first.
+        for fam in families:
+            at_max = clamp_values(fam, {p.name: p.max for p in fam.params})
+            for axis, value in zip("xyz", fam.expected_bbox(at_max)):
+                if value > _SLICEABLE_CAP_MM + 0.01:
+                    raise ValueError(
+                        f"family '{fam.name}' bbox_{axis} reaches {value:.1f} mm at its maximum "
+                        f"sliders — exceeds the {_SLICEABLE_CAP_MM:.0f} mm sliceable cap (QA-502); "
+                        "tighten a contributing param's max so the axis sum fits"
+                    )
         index: dict[str, TemplateFamily] = {}
         for fam in families:
             for alias in fam.object_types:
@@ -346,6 +361,10 @@ class TemplateRegistry:
 # _HEIGHT are the same cap today — kept as two names for where the axis role is meaningful.
 _FOOTPRINT = dict(min=10.0, max=170.0, step=1.0)
 _HEIGHT = dict(min=10.0, max=170.0, step=1.0)
+# The reference P2S/A1 sliceable side (QA-502). Every family's analytic envelope at its
+# all-max sliders must stay within this on every axis (auto-orient can put any axis on the
+# bed) — enforced at registry construction (#19 audit ENG-1901).
+_SLICEABLE_CAP_MM = 170.0
 
 # ENG-501: keep a box wall under half of EACH outer dimension (minus a 1 mm minimum cavity) so a
 # thick wall on a small box can't collapse the part into a silently-solid block that still gates
@@ -833,8 +852,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
                       dim_keys=("wall", "thickness")),
             ParamSpec(name="well_depth", label="Well depth", default=12.0, min=3.0, max=110.0, step=1.0,
                       dim_keys=("well_depth", "depth")),
-            ParamSpec(name="spike_h", label="Center spike height", default=0.0, min=0.0, max=80.0, step=1.0,
-                      dim_keys=("spike_h", "spike")),
+            ParamSpec(name="spike_h", label="Center spike height", default=0.0, min=0.0, max=50.0, step=1.0,
+                      dim_keys=("spike_h", "spike")),  # h(max120)+spike_h(max50)=170 sliceable cap
         ),
         fixed_args={"spike_d": 6.0},
         bbox_x=(BBoxTerm(ref="od"),),
@@ -878,8 +897,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A low ash boat for stick incense: a trough along its length with a row of stick bores.",
         tier="baseline",
         object_types=(
-            "incense stick holder", "incense holder", "incense burner", "stick incense holder",
-            "incense ash boat", "incense ash catcher", "joss stick holder",
+            "incense stick holder", "incense", "incense holder", "incense burner",
+            "stick incense holder", "incense ash boat", "incense ash catcher", "joss stick holder",
         ),
         library_file="dishes.scad",
         module="incense_stick_holder",
@@ -1012,7 +1031,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A tealight / votive holder: a round body with a top pocket that seats a standard ~38-40 mm metal tealight cup.",
         tier="baseline",
         object_types=(
-            "tealight holder", "tea light holder", "votive holder", "tealight cup holder",
+            "tealight holder", "tealight", "tea light holder", "votive holder", "tealight cup holder",
             "candle tealight holder", "tea candle holder",
         ),
         library_file="dishes.scad",
@@ -1045,7 +1064,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A weighted taper candle holder: a solid round base with a centered top socket that grips a standard ~22 mm taper candle.",
         tier="baseline",
         object_types=(
-            "taper candle holder", "candle holder", "taper holder", "candlestick",
+            "taper candle holder", "candle", "candle holder", "taper holder", "candlestick",
             "candlestick holder", "dinner candle holder", "candle stick holder",
         ),
         library_file="dishes.scad",
@@ -1108,7 +1127,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A printed sleeve that seats a glass test tube as the watertight vessel "
                 "(bud vase / reed-diffuser / dry-stem sleeve): an outer cylinder with a vertical bore.",
         tier="baseline",
-        object_types=("bud vase sleeve", "bud vase", "test tube vase", "reed diffuser sleeve",
+        object_types=("bud vase", "vase", "bud vase sleeve", "test tube vase", "reed diffuser sleeve",
                       "stem vase sleeve", "test tube holder"),
         library_file="dishes.scad",
         module="bud_vase_sleeve",
@@ -1201,7 +1220,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A tapered plant pot: a frustum wall (wider at the rim) over a flat floor, with a center drain hole.",
         tier="benchmarked",  # what-you-set-is-what-you-get; no hidden fitness caveat (it holds soil/water)
         object_types=(
-            "planter pot", "plant pot", "flower pot", "flowerpot", "planter", "nursery pot",
+            "planter pot", "pot", "plant pot", "flower pot", "flowerpot", "planter", "nursery pot",
             "tapered pot", "seedling pot",
         ),
         library_file="dishes.scad",
@@ -1334,7 +1353,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         name="coaster_with_rim",
         summary="A round drink coaster with a shallow raised rim to contain condensation: a solid round body with a recessed top pocket inside a rim wall.",
         object_types=(
-            "coaster with rim", "drink coaster", "round coaster", "rimmed coaster",
+            "coaster", "coaster with rim", "drink coaster", "round coaster", "rimmed coaster",
             "condensation coaster", "cup coaster", "beverage coaster", "raised rim coaster",
         ),
         library_file="dishes.scad",
@@ -1487,7 +1506,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         name="ornament_blank",
         summary="A flat round medallion / ornament disc with a top hanging hole, ready for a relief or engraving.",
         object_types=(
-            "ornament blank", "ornament disc", "medallion blank", "medallion disc",
+            "ornament", "ornament blank", "ornament disc", "medallion blank", "medallion disc",
             "round ornament", "hanging ornament", "christmas ornament blank",
             "pendant blank", "engraving blank", "relief blank", "name medallion",
         ),
@@ -1533,8 +1552,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
                       dim_keys=("cap_h", "cap_height", "height")),
             ParamSpec(name="neck_d", label="Ornament-neck bore", default=14.0, min=4.0, max=110.0, step=0.5,
                       dim_keys=("neck_d", "neck_diameter", "bore")),
-            ParamSpec(name="loop_od", label="Hang-loop diameter", default=14.0, min=6.0, max=120.0, step=1.0,
-                      dim_keys=("loop_od", "loop_diameter", "loop")),
+            ParamSpec(name="loop_od", label="Hang-loop diameter", default=14.0, min=6.0, max=110.0, step=1.0,
+                      dim_keys=("loop_od", "loop_diameter", "loop")),  # cap_h(max60)+loop_od(max110)=170
             ParamSpec(name="loop_t", label="Hang-loop thickness", default=4.0, min=1.5, max=20.0, step=0.5,
                       dim_keys=("loop_t", "loop_thickness")),
         ),
@@ -1561,8 +1580,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
             # X envelope is 2*width + gap. Capped at 160 so each printed part stays inside the
             # ~170 mm sliceable side (QA-502) — the composite X is two separate prints OrcaSlicer
             # arranges, not one solid.
-            ParamSpec(name="width", label="Width", default=90.0, min=20.0, max=160.0, step=1.0,
-                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="width", label="Width", default=75.0, min=20.0, max=80.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),  # 2*width(max80)+gap(8)=168 sliceable cap
             ParamSpec(name="depth", label="Depth", default=70.0, dim_keys=("depth",), bbox_axis=1, **_FOOTPRINT),
             ParamSpec(name="base_h", label="Base height", default=35.0, min=10.0, max=160.0, step=1.0,
                       dim_keys=("base_h", "base_height")),
@@ -1624,7 +1643,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A fixed-angle tabletop easel: a triangular wedge with a front lip to prop a framed photo, tile, or sign.",
         tier="benchmarked",
         object_types=(
-            "wedge easel", "tabletop easel", "fixed angle easel", "photo easel stand",
+            "easel", "wedge easel", "tabletop easel", "fixed angle easel", "photo easel stand",
             "tile easel", "sign easel", "desktop easel wedge",
         ),
         library_file="dishes.scad",
@@ -1634,8 +1653,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
             ParamSpec(name="back_height", label="Back height", default=70.0, min=10.0, max=150.0, step=1.0,
                 dim_keys=("back_height", "height")),
             ParamSpec(name="base_depth", label="Base depth", default=60.0, dim_keys=("base_depth", "depth"), bbox_axis=1, **_FOOTPRINT),
-            ParamSpec(name="lip_height", label="Lip height", default=14.0, min=4.0, max=30.0, step=1.0,
-                dim_keys=("lip_height", "lip")),
+            ParamSpec(name="lip_height", label="Lip height", default=14.0, min=4.0, max=20.0, step=1.0,
+                dim_keys=("lip_height", "lip")),  # back_height(max150)+lip_height(max20)=170
             ParamSpec(name="lip_depth", label="Lip depth", default=10.0, min=4.0, max=40.0, step=1.0,
                 dim_keys=("lip_depth",)),
         ),
@@ -1682,8 +1701,9 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A weighted base block with an interior angled slot that holds a menu / price card at a readable backward tilt.",
         tier="baseline",
         object_types=(
-            "slanted sign holder", "card easel", "tabletop sign holder", "menu card holder",
-            "price card holder", "table card display", "sloped card holder", "angled sign base",
+            "slanted sign holder", "sign holder", "card easel", "tabletop sign holder",
+            "menu card holder", "price card holder", "table card display", "sloped card holder",
+            "angled sign base",
         ),
         library_file="dishes.scad",
         module="slanted_card_easel",
@@ -1711,8 +1731,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A low desk base with a rear leaning wedge: an engraved name strip drops into a near-vertical slot.",
         tier="baseline",
         object_types=(
-            "desk nameplate holder", "name plate holder", "name strip stand",
-            "desk name plate", "engraved nameplate holder", "name strip display",
+            "desk nameplate holder", "name plate", "nameplate", "name plate holder",
+            "name strip stand", "desk name plate", "engraved nameplate holder", "name strip display",
         ),
         library_file="dishes.scad",
         module="desk_nameplate_strip_stand",
@@ -1835,12 +1855,12 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         params=(
             ParamSpec(name="width", label="Hook width", default=60.0, min=10.0, max=120.0, step=1.0,
                 dim_keys=("width",), bbox_axis=0),
-            ParamSpec(name="back_height", label="Back tab height", default=70.0, min=20.0, max=150.0, step=1.0,
-                dim_keys=("back_height", "height"), bbox_axis=2),
+            ParamSpec(name="back_height", label="Back tab height", default=70.0, min=20.0, max=120.0, step=1.0,
+                dim_keys=("back_height", "height"), bbox_axis=2),  # +catch_rise(max45)=165 sliceable cap
             ParamSpec(name="reach", label="Hook reach", default=22.0, min=10.0, max=120.0, step=1.0,
                 dim_keys=("reach", "projection", "depth")),
-            ParamSpec(name="catch_rise", label="Catch rise", default=18.0, min=5.0, max=80.0, step=1.0,
-                dim_keys=("catch_rise", "catch")),
+            ParamSpec(name="catch_rise", label="Catch rise", default=18.0, min=5.0, max=45.0, step=1.0,
+                dim_keys=("catch_rise", "catch")),  # back_height capped 120 below; 120+45=165
             ParamSpec(name="thk", label="Profile thickness", default=5.0, min=3.0, max=12.0, step=0.5,
                 dim_keys=("thk", "thickness", "wall")),
         ),
@@ -2056,10 +2076,10 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
                       step=1.0, dim_keys=("base_w", "width"), bbox_axis=0),
             ParamSpec(name="base_t", label="Plate thickness", default=4.0, min=2.0, max=12.0,
                       step=0.5, dim_keys=("base_t", "thickness"), bbox_axis=1),
-            ParamSpec(name="base_h", label="Plate height", default=18.0, min=12.0, max=170.0,
+            ParamSpec(name="base_h", label="Plate height", default=18.0, min=12.0, max=100.0,
                       step=1.0, dim_keys=("base_h", "height")),
-            ParamSpec(name="loop_height", label="Loop height", default=22.0, min=10.0, max=120.0,
-                      step=1.0, dim_keys=("loop_height", "loop")),
+            ParamSpec(name="loop_height", label="Loop height", default=22.0, min=10.0, max=70.0,
+                      step=1.0, dim_keys=("loop_height", "loop")),  # base_h(100)+loop(70)=170
             ParamSpec(name="loop_thk", label="Loop thickness", default=4.0, min=1.5, max=12.0,
                       step=0.5),
         ),
@@ -2144,10 +2164,10 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
                       dim_keys=("width",), bbox_axis=0),
             ParamSpec(name="throat_depth", label="Throat depth", default=18.0, min=8.0, max=60.0,
                       step=1.0, dim_keys=("throat_depth", "rail_depth", "depth")),
-            ParamSpec(name="throat_gap", label="Throat height", default=22.0, min=10.0, max=80.0,
+            ParamSpec(name="throat_gap", label="Throat height", default=22.0, min=10.0, max=50.0,
                       step=1.0, dim_keys=("throat_gap", "rail_height", "gap")),
-            ParamSpec(name="body_height", label="Body drop", default=60.0, min=20.0, max=150.0,
-                      step=1.0, dim_keys=("body_height", "height", "drop")),
+            ParamSpec(name="body_height", label="Body drop", default=60.0, min=20.0, max=120.0,
+                      step=1.0, dim_keys=("body_height", "height", "drop")),  # +throat_gap(50)=170
             ParamSpec(name="thk", label="Thickness", default=5.0, min=3.0, max=8.0, step=0.5,
                       dim_keys=("thk", "thickness", "wall")),
         ),
@@ -2221,7 +2241,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
     dowel_pin = TemplateFamily(
         name="dowel_pin",
         summary="A solid alignment dowel pin — a plain cylinder (diameter x length).",
-        object_types=("dowel pin", "alignment pin", "locating pin", "dowel rod", "alignment dowel"),
+        object_types=("dowel pin", "dowel", "alignment pin", "locating pin", "dowel rod", "alignment dowel"),
         library_file="parts.scad",
         module="dowel_pin",
         params=(
@@ -2295,8 +2315,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         name="pierced_mount_pad",
         summary="A rectangular mounting pad with a single centered vertical through-hole.",
         object_types=(
-            "pierced mount pad", "drilled mount pad", "bored mount pad", "through hole pad",
-            "bolt down pad", "centered hole pad",
+            "plate", "mounting plate", "pierced mount pad", "drilled mount pad", "bored mount pad",
+            "through hole pad", "bolt down pad", "centered hole pad",
         ),
         library_file="parts.scad",
         module="pierced_mount_pad",
@@ -2504,9 +2524,10 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         tier="baseline",
         # Trims: "snap-fit box" normalizes to "snap fit box" (self-dup, dropped); "lidded box"
         # -> hinged_lid_box; "two part box" -> gift_box_lid. So every normalized alias is owned
-        # by exactly one family.
+        # by exactly one family. "box with lid" is the common typed phrase and is unowned, so the
+        # snap-fit base+lid family claims it (QA-19-01).
         object_types=(
-            "snap fit box", "friction fit box", "press fit box", "base and lid box",
+            "snap fit box", "box with lid", "friction fit box", "press fit box", "base and lid box",
         ),
         library_file="parts.scad",
         module="snap_fit_box",
@@ -2654,7 +2675,7 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         name="phone_dock",
         summary="A weighted desk dock for a phone or tablet: an angled back rest the device leans into (a slot of width slot_w) on a heavy base, with a front cable pass-through.",
         tier="baseline",
-        object_types=("phone dock", "tablet dock", "device dock", "charging dock"),
+        object_types=("phone dock", "phone stand", "tablet stand", "tablet dock", "device dock", "charging dock"),
         library_file="parts.scad",
         module="phone_dock",
         params=(
@@ -2797,8 +2818,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         ),
         tier="baseline",
         object_types=(
-            "hex nut blank", "nut blank", "hex blank", "threaded nut blank", "hex coupler blank",
-            "knurled nut blank",
+            "hex nut", "nut", "hex nut blank", "nut blank", "hex blank", "threaded nut blank",
+            "hex coupler blank", "knurled nut blank",
         ),
         library_file="parts.scad",
         module="hex_nut_blank",
@@ -2827,8 +2848,8 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         summary="A hex-head bolt blank: a hex head on a smooth cylindrical shaft. THREAD RELIEF ONLY — a smooth shaft, not a real thread.",
         tier="baseline",
         object_types=(
-            "hex bolt blank", "hex head bolt", "bolt blank", "hex cap screw blank",
-            "machine bolt blank", "hex head fastener blank",
+            "hex bolt", "bolt", "hex bolt blank", "hex head bolt", "bolt blank",
+            "hex cap screw blank", "machine bolt blank", "hex head fastener blank",
         ),
         library_file="parts.scad",
         module="threaded_bolt",

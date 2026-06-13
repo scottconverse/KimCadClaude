@@ -6,12 +6,16 @@ structured plan and, for anything off the beaten path, the OpenSCAD code; everyt
 that decides whether the result is dimensionally correct and printable is ordinary,
 testable code — not the model.
 
-For the common shapes (boxes, enclosures, tubes, hooks, clips, dividers) the geometry
-isn't model-written at all: a **deterministic template engine** (Stage 5) maps the plan's
-`object_type` to a parametric family over the proven module library and emits the OpenSCAD
-by pure substitution. That tier is what makes **live parameter sliders** real — dragging a
-slider re-renders locally in **well under a second with no model call** (measured per
-family in `docs/benchmarks/stage-5-template-families.md`). LLM-written OpenSCAD remains the
+For the common shapes the geometry isn't model-written at all: a **deterministic template
+engine** (Stage 5) maps the plan's `object_type` to one of **86 parametric families** —
+spanning boxes, enclosures, tubes, hooks, clips and dividers, a decor world of frames, dishes,
+planters, ornaments, stands and hangers, and a set of engineering hardware (washers, plates,
+brackets, standoffs, Gridfinity, fasteners) — over the proven module library, and emits the
+OpenSCAD by pure substitution. That tier is what makes **live parameter sliders** real —
+dragging a slider re-renders locally in **well under a second with no model call** (measured
+per family in `docs/benchmarks/stage-5-template-families.md`). Every family carries an honesty
+tier (`benchmarked` vs `baseline`) and is render-verified against its analytic bounding box;
+the full catalog is [`docs/templates.md`](docs/templates.md). LLM-written OpenSCAD remains the
 fallback for object types no template covers, never the live-slider path.
 
 ## The pipeline
@@ -85,7 +89,7 @@ refused cleanly with the validated mesh still exported as the download fallback.
 | `hardening.py` | Pre-slice mesh hardening: round-trips the oriented mesh through **Manifold3D** into a guaranteed 2-manifold before it is exported and sliced (watertight is necessary but not sufficient — a watertight mesh can still carry non-manifold edges a slicer mis-handles). Best-effort and optional at runtime: if Manifold3D is absent or rejects the mesh, the already-validated mesh is passed through unchanged with a note. Never raises. |
 | `slicer.py` | OrcaSlicer CLI integration: turns a validated mesh into a sliced, G-code-bearing 3MF. Resolves config profile *names* to the shipped on-disk profile JSONs (`resolve_slice_settings`, fail-loud on a missing/ambiguous name), runs OrcaSlicer as an argv list (no shell), and **proves** the result — the 3MF must carry a real motion-bearing toolpath (`prove_gcode_3mf`), which also yields the print estimate. Never called without confirmation (enforced upstream in the pipeline). |
 | `pipeline.py` | The orchestrator described above: wires every stage, owns the render/gate retry loop, builds the `PrintReport`, and enforces the confirm-before-slice rule. Tiered: a template-covered `object_type` builds deterministically in one shot (no model, no retry — a too-wrong part fails closed, fixed by a parameter not by regenerating); everything else falls back to LLM codegen. The LLM path itself has a **parallel backend** (Stage 8): OpenSCAD is primary, and when it can't produce a part that renders AND passes the gate, the pipeline falls back to CadQuery codegen (when an interpreter is available) and keeps the better result — different generators fail differently, so the union can only raise the pass rate (the fallback fires only on an OpenSCAD failure), never lower it. `rerender(base_plan, family, values, …)` is the live-slider path — re-emit + render + gate at new values with no model and no prompt, sharing the orient/harden/export/slice tail with `run`. |
-| `templates.py` | The **deterministic template engine** (Stage 5). A registry of seven parametric families (`snap_box`, `box`, `enclosure`, `tube`, `wall_hook`, `cable_clip`, `drawer_divider`) over the proven `library/` modules. Each family is pure data: a typed, range-bounded `ParamSpec` set (the live-slider schema), the library module to call, fixed args, and an analytic bounding box. `match(plan)` resolves an `object_type` (alias/plural/separator-normalized, collision-checked) to a family and derives its values from the plan; `emit_scad` produces OpenSCAD by **pure string substitution** — only clamped, finite numbers reach emit, so it's injection-safe and byte-deterministic. Values are clamped to range with ordering constraints (a tube's bore stays inside its wall). |
+| `templates.py` | The **deterministic template engine** (Stage 5; catalog grown to **86 families** in #19) over the proven `library/` modules (`library/dishes.scad` for the decor world — frames, hangers, dishes, holders, planters, ornaments, stands, joinery — and `library/parts.scad` for engineering hardware — washers, plates, brackets, standoffs, boxes, raceways, Gridfinity, fasteners). Each family is pure data: a typed, range-bounded `ParamSpec` set (the live-slider schema), the library module to call, fixed args, an analytic bounding box, and an **honesty `tier`** (`benchmarked` = what-you-set-is-what-you-get; `baseline` = real, gate-verified geometry with a real-world fit/load/pattern caveat to check before relying on it — e.g. a thread-relief nut/bolt, a Gridfinity-compatible footprint, a VESA hole pattern). `match(plan)` resolves an `object_type` (alias/plural/separator-normalized, collision-checked) to a family and derives its values from the plan; `emit_scad` produces OpenSCAD by **pure string substitution** — only clamped, finite numbers reach emit, so it's injection-safe and byte-deterministic. Values are clamped to range with ordering constraints (a tube's bore stays inside its wall). The tier is inert to the Printability Gate: **every** family, whatever its label, is render-verified against its declared analytic bounding box, with a trusted CadQuery `.STEP` twin. The catalog reference is [`docs/templates.md`](docs/templates.md). |
 | `template_bench.py` | The deterministic-template **proof/benchmark** — the counterpart to `benchmark.py`. Renders + re-renders every family through the real `Pipeline.rerender` path and measures it: watertight at the declared envelope, byte-deterministic emit, **no model call** (it wires a provider that *raises* if invoked), and the re-render time. `python -m kimcad.template_bench [--write PATH]` writes the markdown proof. |
 | `printer_connector.py` | The send-to-printer **abstraction**: the `PrinterConnector` `Protocol` (capabilities / status / send / job-status), the frozen `PrinterCapabilities` / `PrinterStatus` / `PrintJob` models, the `ConnectorError` family, and the shared `ensure_sendable()` gate — it sends only when `confirm is True` (not merely truthy) **and** the file proves out as a real motion-bearing slice, otherwise nothing is sent. Ships a thread-safe in-memory `LoopbackConnector` (the `mock` connector) so the whole path is testable with no hardware. |
 | `bambu_connector.py` (Stage 10) | The Bambu-native LAN connector (P2S / A1): MQTT-over-TLS for state/control + FTPS upload via the **optional** `bambulabs-api` package — absent package degrades to an actionable "pip install" config message, never a crash (the CadQuery graceful-absence posture). KimCad's sliced `.gcode.3mf` is Bambu's native format, so `send` uploads it whole (no G-code extraction) and starts plate 1; a running job is refused as a soft `busy`; sessions are short-lived MQTT connections (camera never started), always closed. The access code comes from an env var, never config. Wholly tested against an injected fake transport; first hardware run is the Stage 11 beta. |
@@ -124,7 +128,7 @@ geometry, and the same manifest drives the runner's auto-`use` injection, so the
 prompt and the runner can never drift on which modules exist. Each module documents an
 exact bounding box, which the gate then asserts against.
 
-Ten `.scad` files in all — five original, five added:
+The original modules — five seed files plus five early additions — back the first ten template families:
 
 - **box.scad** — hollow walled container (not a solid cube).
 - **bracket.scad** — L bracket with mounting holes.
@@ -136,6 +140,17 @@ Ten `.scad` files in all — five original, five added:
 - **containers.scad** — `snap_box`, `enclosure`, `tube`.
 - **holders.scad** — `spool_holder`.
 - **organizers.scad** — `drawer_divider`.
+
+The #19 catalog expansion to 86 families added two large theme libraries on top of these:
+
+- **dishes.scad** — Kim's decor world: frames, picture/art hangers, dishes & trays, candle and
+  plant holders, planters, ornaments & gift boxes, stands, ledges & rails, and frame joinery.
+- **parts.scad** — everyday engineering hardware: washers, dowel pins, plates & faceplates,
+  brackets & gussets, standoffs, boxes & raceways, a bar pull, a funnel, Gridfinity bin/baseplate,
+  and thread-relief nut/bolt blanks.
+
+The full per-family catalog — display name, honesty tier, and a one-line summary, grouped by
+theme — is in [`docs/templates.md`](docs/templates.md) (generated from the live registry).
 
 ## The web layer
 

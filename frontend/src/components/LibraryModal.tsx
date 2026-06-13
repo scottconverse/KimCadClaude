@@ -51,7 +51,9 @@ export default function LibraryModal({
         f.name.toLowerCase().includes(q) ||
         f.summary.toLowerCase().includes(q) ||
         f.examples.some((e) => e.toLowerCase().includes(q)) ||
-        f.tier.includes(q),
+        // Tier matches only as a whole word ("baseline"/"benchmarked") — a substring match
+        // polluted results with common letter runs like "ba"/"ne"/"in" (#19 audit UX-19-2).
+        ((q === 'baseline' || q === 'benchmarked') && f.tier === q),
     )
   }, [families, query])
 
@@ -83,6 +85,16 @@ export default function LibraryModal({
           Every part here is a measured, adjustable template — pick one and shape it with the
           sliders. Or just describe what you want in your own words.
         </p>
+        {families && !error && (
+          <p className="kc-muted-note kc-library-legend">
+            <span className="kc-library-count">
+              {query.trim() ? `${filtered.length} of ${families.length}` : families.length} parts
+            </span>{' '}
+            · most are <strong>benchmarked</strong> (what you set is what you get); a{' '}
+            <span className="kc-library-tier kc-library-tier-baseline">Verify before use</span>{' '}
+            tag marks a part with a real-world fit, load, or pattern to check first.
+          </p>
+        )}
         {error ? (
           <p className="kc-muted-note" role="alert">
             Couldn&rsquo;t load the library — the design box still works; just describe your part.

@@ -59,7 +59,14 @@ prompt → design plan (JSON) → OpenSCAD → render → mesh validation
 
 The engine is deterministic where it counts. Parametric CSG produces closed,
 manifold geometry by construction, so output is dimensionally meaningful — not
-lumpy neural meshes. For template-backed parts the browser UI shows **live
+lumpy neural meshes. The deterministic catalog is **86 parametric families** — from
+boxes, enclosures, hooks and clips through a decor world of frames, dishes, planters,
+ornaments, stands and hangers, to engineering hardware (washers, plates, brackets,
+standoffs, Gridfinity, fasteners). Every family carries an **honesty tier** —
+*benchmarked* (what-you-set-is-what-you-get) or *baseline* (real, gate-verified geometry
+with a real-world fit/load/pattern caveat to check first) — and each is render-verified
+against its analytic bounding box with a trusted CadQuery `.STEP` twin. The full catalog is
+[`docs/templates.md`](docs/templates.md). For template-backed parts the browser UI shows **live
 parameter sliders**: drag one and the part re-renders locally in well under a
 second with no model call (the `templates.py` engine; proof in
 `docs/benchmarks/stage-5-template-families.md`). You can also type exact values and
@@ -410,6 +417,7 @@ push only reaches CI if it already passed locally.
 |---|---|
 | **[User manual](docs/USER-MANUAL.md)** | the complete guide — everyday use, the CLI/power-user surface, and the architecture |
 | [FAQ](docs/FAQ.md) | quick answers — SmartScreen, the 9 GB download, printers, privacy, recovery |
+| [Part-library catalog](docs/templates.md) | every one of the 86 template families, grouped by theme, with its honesty tier |
 | [Install guide](docs/install-guide.md) | install the Windows beta (double-click, no terminal) |
 | [Troubleshooting](docs/troubleshooting.md) | fix a setup or runtime snag, symptom-first |
 | [Supported printers](docs/supported-printers.md) | the printer + connection matrix |

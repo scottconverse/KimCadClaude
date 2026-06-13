@@ -102,6 +102,35 @@ units. Check the numbers came through before continuing.
 
 Full details: **[Starting from a photo or sketch](guide-photo-onramp.md)**.
 
+## Browse the part library
+
+Not sure what to type? KimCad comes with a **library of ready-made parts** — about 90 of them
+— that you can browse instead of describing one from scratch. Open it from the start page,
+search by what you're after (*"tray"*, *"hook"*, *"planter"*, *"spacer"*), and pick the card
+that fits. KimCad designs it for you on the spot, then you shape it with the sliders just like
+any other part. There's everything from boxes, hooks, and brackets to picture frames, trinket
+dishes, plant pots, ornaments, candle holders, display stands, and everyday hardware like
+washers and standoffs.
+
+You don't *have* to use the library — describing a part in your own words works just as well,
+and KimCad can design plenty of things that aren't in the library. Think of it as a starting
+shelf, not a fence.
+
+### What the "Verify before use" tag means
+
+Most library parts are exactly what you set — change a number, get that number, no surprises.
+A few carry a small **Verify before use** tag. That isn't a warning that the part is broken;
+the shape is just as real and just as checked as any other. The tag means the part has to *fit
+something in the real world* — a screw, a glass tube, a phone, a Gridfinity drawer, a monitor's
+mounting holes — or carry a load, and only you can confirm that fit. For example, the printed
+"nut" and "bolt" have a smooth hole and shaft rather than real cut threads, and a "VESA plate"
+gives you the standard hole pattern to line up with your own device. So when you see the tag,
+just measure twice, or print a quick test, before you rely on it. Everything else in the
+library has no tag because there's nothing extra to check.
+
+(For the complete list of every part, its tag, and what it does, see the
+**[part-library catalog](templates.md)**.)
+
 ## Refining a part
 
 Once a part appears, you refine it by **talking** — there's no mode switch. In the
@@ -313,10 +342,12 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
 ```
 
 1. **DesignPlan.** The LLM produces a structured plan (Pydantic-validated IR), not raw
-   geometry. For common shapes a **deterministic template engine** (`templates.py`, seven
-   parametric families) emits OpenSCAD directly — no model — which is why live-slider
-   re-renders take under a second. For anything off-template, the LLM writes OpenSCAD (or, on
-   the parallel path, CadQuery).
+   geometry. For common shapes a **deterministic template engine** (`templates.py`, **86
+   parametric families** — see the [part-library catalog](templates.md)) emits OpenSCAD
+   directly — no model — which is why live-slider re-renders take under a second. Each family
+   is tier-labeled (*benchmarked* vs *baseline*) and render-verified against its analytic
+   bounding box. For anything off-template, the LLM writes OpenSCAD (or, on the parallel path,
+   CadQuery).
 2. **Render.** OpenSCAD renders manifold geometry; `cadquery_runner` shells out to a
    sandboxed worker for the parallel backend. Both return the same `RenderResult`, so the
    tail is backend-agnostic.

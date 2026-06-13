@@ -16,6 +16,7 @@ A map of what's current vs. historical, so the user-facing doc surface stays cle
 - **`design/`** — the controlling UI/UX design + the v3.0 product spec (`design/KimCad-Unified-Product-Spec-v3.0.md`). Build to this.
 - **`guide-my-designs.md`** — user-facing guide for the "My Designs" library.
 - **`guide-sliders-and-units.md`** — user-facing guide for the live parameter sliders + mm/inch units.
+- **`templates.md`** — the part-library catalog: all 86 template families grouped by theme, each with its honesty tier (benchmarked / baseline) and a one-line summary (generated from the live registry).
 - **`guide-photo-onramp.md`** — user-facing guide for starting a design from a photo or a dimensioned sketch (and the local-only promise).
 - **`guide-settings-and-cloud.md`** — user-facing guide for Settings, incl. exactly what the cloud opt-in sends and where the key is stored.
 - **`printproof3d-integration.md`** — how the PrintProof3D validation engine plugs in (arm's-length; bundled at Stage 11).

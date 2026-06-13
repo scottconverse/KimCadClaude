@@ -95,6 +95,14 @@ def test_family_emitter_renders_watertight_at_the_analytic_bbox(family, tmp_path
     assert mesh.is_watertight, family.name
     actual = tuple(float(v) for v in mesh.extents)
     expected = family.expected_bbox(values)
+    # TE-6: this 0.5 mm twin tolerance is deliberately ~50x looser than the 0.01 mm bound the
+    # OpenSCAD render test uses (tests/test_templates.py). The OpenSCAD mesh tessellates a CSG
+    # tree whose flat faces land on the exact analytic plane, so its envelope is essentially
+    # exact (0.01 mm is just float noise). The CadQuery twin instead tessellates an OCCT BREP:
+    # a curved/filleted face is approximated by a chord at the default linear/angular deflection,
+    # and that chord sits a fraction of a mm INSIDE the true surface — so a round or filleted
+    # envelope reads slightly under nominal. 0.5 mm comfortably covers that BREP tessellation
+    # chord while still catching a genuinely wrong-sized part. See cadquery_bench.BBOX_TOLERANCE_MM.
     for axis, (a, e) in enumerate(zip(actual, expected)):
         assert abs(a - e) <= BBOX_TOLERANCE_MM, (
             f"{family.name} axis {'XYZ'[axis]}: rendered {a:.2f} != analytic {e:.2f}"

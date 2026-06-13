@@ -36,15 +36,40 @@ describe('LibraryModal', () => {
 
   it('flags baseline families with a "verify before use" badge; benchmarked ones stay clean (#19)', async () => {
     getTemplates.mockResolvedValue({ families: FAMILIES })
-    render(<LibraryModal onPick={vi.fn()} onClose={vi.fn()} />)
-    // The baseline nut carries exactly one tier badge; the two benchmarked parts carry none.
-    const badges = await screen.findAllByText(/verify before use/i)
-    expect(badges).toHaveLength(1)
+    const { container } = render(<LibraryModal onPick={vi.fn()} onClose={vi.fn()} />)
+    await screen.findByRole('button', { name: /cylindrical spacer/i })
+    // Exactly one CARD carries the baseline badge (the legend has its own example, excluded).
+    const cardBadges = container.querySelectorAll('.kc-library-card .kc-library-tier-baseline')
+    expect(cardBadges).toHaveLength(1)
     const nutCard = screen.getByRole('button', { name: /hex nut/i })
     expect(nutCard.textContent).toMatch(/verify before use/i)
     expect(screen.getByRole('button', { name: /cylindrical spacer/i }).textContent).not.toMatch(
       /verify before use/i,
     )
+  })
+
+  it('shows an in-UI tier legend with the part count (#19 audit UX-19-1/3)', async () => {
+    getTemplates.mockResolvedValue({ families: FAMILIES })
+    const { container } = render(<LibraryModal onPick={vi.fn()} onClose={vi.fn()} />)
+    await screen.findByRole('button', { name: /cylindrical spacer/i })
+    const legend = container.querySelector('.kc-library-legend')
+    expect(legend?.textContent).toMatch(/3 parts/)
+    expect(legend?.textContent).toMatch(/benchmarked/i)
+    expect(legend?.textContent).toMatch(/verify before use/i) // the meaning is visible, not tooltip-only
+  })
+
+  it('tier search matches only the whole word, not substrings (#19 audit UX-19-2)', async () => {
+    getTemplates.mockResolvedValue({ families: FAMILIES })
+    render(<LibraryModal onPick={vi.fn()} onClose={vi.fn()} />)
+    await screen.findByRole('button', { name: /cylindrical spacer/i })
+    const box = screen.getByLabelText('Search the part library')
+    // "baseline" (whole word) filters to the baseline part only.
+    fireEvent.change(box, { target: { value: 'baseline' } })
+    expect(screen.getByRole('button', { name: /hex nut/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /cylindrical spacer/i })).toBeNull()
+    // "ba" (a substring of "baseline") must NOT match on tier — it pollutes nothing here.
+    fireEvent.change(box, { target: { value: 'ba' } })
+    expect(screen.getByText(/designs beyond the library/i)).toBeTruthy()
   })
 
   it('search filters by name, summary, and aliases', async () => {

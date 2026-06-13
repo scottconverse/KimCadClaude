@@ -10,6 +10,7 @@ Two layers, mirroring tests/test_library_modules.py:
 
 from __future__ import annotations
 
+import math
 import tempfile
 from pathlib import Path
 
@@ -18,6 +19,7 @@ import pytest
 from kimcad.config import Config
 from kimcad.ir import DesignPlan
 from kimcad.templates import (
+    _SLICEABLE_CAP_MM,
     BBoxTerm,
     ParamSpec,
     TemplateFamily,
@@ -160,6 +162,51 @@ def test_match_handles_es_plural_via_explicit_alias():
     # "boxes" can't be -s stripped to "box"; it's covered by an explicit alias (TPL-004).
     match = default_registry().match(_plan("boxes"))
     assert match is not None and match.family.name == "snap_box"
+
+
+def test_first_object_type_self_routes_to_its_own_family():
+    # TE-1 (#19 QA-19-01/02): a family's FIRST object_type is shown as the library-card label and
+    # the seed prompt, so typing it back MUST resolve to that same family. A first alias that
+    # singularizes onto (or is shadowed by) another family would mean clicking a card seeds a
+    # prompt that routes elsewhere — caught here for every built-in.
+    reg = default_registry()
+    for fam in reg.families():
+        first = fam.object_types[0]
+        match = reg.match(_plan(first))
+        assert match is not None and match.family.name == fam.name, (
+            f"family '{fam.name}' first object_type '{first}' routed to "
+            f"'{None if match is None else match.family.name}'"
+        )
+
+
+# TE-1 (#19 QA-19-01/02): the curated natural-phrase coverage table — common typed prompts that
+# previously fell through to the LLM codegen path must now route to the intended template family.
+@pytest.mark.parametrize(
+    "phrase,expected",
+    [
+        ("hex nut", "threaded_nut"),
+        ("nut", "threaded_nut"),
+        ("bolt", "threaded_bolt"),
+        ("plate", "pierced_mount_pad"),
+        ("vase", "bud_vase_sleeve"),
+        ("pot", "planter_pot"),
+        ("coaster", "coaster_with_rim"),
+        ("tealight", "tealight_holder"),
+        ("dowel", "dowel_pin"),
+        ("easel", "wedge_easel_stand"),
+        ("phone stand", "phone_dock"),
+        ("sign holder", "slanted_sign_holder"),
+        ("name plate", "desk_nameplate_holder"),
+        ("incense", "incense_stick_holder"),
+        ("ornament", "ornament_blank"),
+        ("candle", "taper_candle_holder"),
+    ],
+)
+def test_natural_phrase_routes_to_expected_family(phrase, expected):
+    match = default_registry().match(_plan(phrase))
+    assert match is not None and match.family.name == expected, (
+        f"'{phrase}' routed to {None if match is None else match.family.name}, expected {expected}"
+    )
 
 
 def test_registry_rejects_duplicate_alias():
@@ -338,6 +385,28 @@ def test_expected_bbox_matches_module_formulas():
     assert reg.family("wall_hook").expected_bbox({"plate_w": 25, "plate_h": 60, "arm_proj": 35}) == (25, 39, 60)
     assert reg.family("cable_clip").expected_bbox({"cable_d": 6, "width": 20}) == (20, 25, 9)
     assert reg.family("tube").expected_bbox({"od": 16, "id": 8, "height": 12}) == (16, 16, 12)
+
+
+# TE-2 + TE-3 (#19 ENG-1901/QA-502): an OFFLINE tripwire over EVERY family at both its defaults
+# and its all-MAX sliders. The analytic envelope must be finite, all-positive, and within the
+# sliceable cap on every axis — pinning the bbox-sanity AND the sliceable cap for all built-ins
+# without the OpenSCAD binary (the live render tests above are binary-gated). The all-MAX corner
+# is the worst case (auto-orient can put any axis on the bed), and is independently enforced at
+# registry construction; here it is asserted per-family so a future bbox-formula edit fails loudly.
+@pytest.mark.parametrize("name", [f.name for f in default_registry().families()])
+def test_bbox_is_finite_positive_and_within_the_sliceable_cap(name):
+    fam = default_registry().family(name)
+    at_defaults = clamp_values(fam, {})
+    at_max = clamp_values(fam, {p.name: p.max for p in fam.params})
+    for label, values in (("defaults", at_defaults), ("max", at_max)):
+        bbox = fam.expected_bbox(values)
+        for axis, value in zip("XYZ", bbox):
+            assert math.isfinite(value), f"{name} {axis} @{label}: non-finite ({value})"
+            assert value > 0.0, f"{name} {axis} @{label}: not positive ({value})"
+            assert value <= _SLICEABLE_CAP_MM + 0.01, (
+                f"{name} {axis} @{label}: {value:.2f} mm exceeds the "
+                f"{_SLICEABLE_CAP_MM:.0f} mm sliceable cap"
+            )
 
 
 def test_match_parameters_snapshot_is_in_range_and_typed():

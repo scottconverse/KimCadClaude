@@ -164,7 +164,10 @@ re-render in **<1 s with no LLM call** — which is what makes true live sliders
 - ✅ A `templates.py` engine of seven named parametric families (`snap_box`, `box`, `enclosure`,
   `tube`, `wall_hook`, `cable_clip`, `drawer_divider`) over the proven `library/` modules; the
   planner's `object_type` picks a family and its named parameters are filled from the plan;
-  re-render is a pure deterministic emit + render (no model in the loop).
+  re-render is a pure deterministic emit + render (no model in the loop). *(Post-Stage-5: the
+  catalog grew to **86 families** in #19, each with an honesty tier — `benchmarked`/`baseline` —
+  and a render-verified analytic bounding box; see the [catalog](docs/templates.md) and the
+  CHANGELOG `#19` entries.)*
 - ✅ **Named live sliders** wired to template parameters: drag → debounced `POST /api/render/<id>`
   → re-render locally, viewport reloads, gate/report/values update from server truth; stale
   slices invalidated. LLM-backed parts stay read-only.

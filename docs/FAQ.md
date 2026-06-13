@@ -136,3 +136,26 @@ printers, and the installer is verified on the real installed tree. What's *not*
 is metal: no physical print has been certified, printer connections are validated against
 conformance mocks, and the installer is unsigned. Treat it accordingly — and tell us what
 you find in [Discussions](../../discussions); that's what the beta is for.
+
+### 19. Do I have to describe everything from scratch? Is there a parts library?
+
+There is. KimCad ships a **library of about 90 ready-made part families** you can browse
+instead of typing a description — boxes, hooks, brackets, picture frames, trinket dishes,
+plant pots, ornaments, candle holders, display stands, and everyday hardware like washers,
+spacers, and standoffs. Open the library from the start page, search for what you want
+(*"tray"*, *"hook"*, *"planter"*), pick a card, and KimCad designs it on the spot — then you
+adjust it with the sliders like any other part. It's a starting shelf, not a limit: describing
+a part in your own words still works, and KimCad can design things the library doesn't list.
+The full catalog is in the [part-library reference](templates.md).
+
+### 20. Some library parts have a "Verify before use" tag. What does that mean?
+
+It means the part has to **fit something in the real world** — a screw, a glass tube, a phone,
+a Gridfinity drawer, a monitor's mounting holes — or carry a load, and only you can confirm
+that fit. It is *not* a warning that the part is broken: the geometry is just as real and just
+as checked (against its exact measured size) as any other part. KimCad labels these parts
+honestly so it never overpromises. A printed "nut" or "bolt", for instance, has a smooth hole
+and shaft rather than real cut threads; a "VESA plate" gives you the standard hole *pattern* to
+line up with your device. When you see the tag, measure twice — or print a quick test — before
+you rely on the fit. Parts without the tag are exactly what you set, with nothing extra to
+check. (Internally these are the *baseline* tier; untagged parts are *benchmarked*.)
