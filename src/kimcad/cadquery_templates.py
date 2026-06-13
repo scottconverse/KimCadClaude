@@ -747,6 +747,206 @@ def _succulent_pot(v: dict[str, float]) -> str:
     )
 
 
+# --- #19 slice 7: flat decor + ornaments (dishes.scad) -------------------------------
+
+
+def _coaster_with_rim(v: dict[str, float]) -> str:
+    # dishes.scad::coaster_with_rim — solid outer cylinder minus a shallow top pocket that
+    # leaves a rim_w-wide rim wall and a floor. The pocket floor sits at z = h - rim_h; the
+    # cut over-cuts UP by eps into the open air above the rim (never past h), so the envelope
+    # stays exactly [od, od, h] and the floor stays solid. Cylinders are XY-centered.
+    od, h = _f(v["od"]), _f(v["h"])
+    rim_w, rim_h = _f(v["rim_w"]), _f(v["rim_h"])
+    return (
+        f"eps = {_EPS}\n"
+        f"pocket_floor = {h} - {rim_h}\n"
+        f'body = cq.Workplane("XY").circle({od} / 2).extrude({h})\n'
+        f'pocket = (cq.Workplane("XY").circle(({od} - 2 * {rim_w}) / 2)'
+        f".extrude({rim_h} + eps).translate((0, 0, pocket_floor)))\n"
+        f"result = body.cut(pocket)\n"
+    )
+
+
+def _trivet(v: dict[str, float]) -> str:
+    # dishes.scad::hotplate_trivet — a square slab raised on four corner feet, with a FIXED
+    # grid x grid lattice of square through-slots. grid/foot_d/inset are fixed internals (the
+    # count is inert to the envelope, the drawer_divider precedent), so the bbox is exactly
+    # [size, size, plate_t + foot_h]. The plate sits on the feet (z = foot_h .. foot_h+plate_t);
+    # each slot over-cuts eps below AND above the plate into the open air on both open ends.
+    size, pt = _f(v["size"]), _f(v["plate_t"])
+    sw, fh = _f(v["slot_w"]), _f(v["foot_h"])
+    grid = 4
+    foot_d = 12.0
+    return (
+        f"eps = {_EPS}\n"
+        f"foot_r = {foot_d} / 2\n"
+        f"inset = foot_r + 4\n"
+        f"pitch = {size} / ({grid} + 1)\n"
+        f'result = (cq.Workplane("XY").box({size}, {size}, {pt}, {_CF})'
+        f".translate((0, 0, {fh})))\n"
+        f"for fx in (inset, {size} - inset):\n"
+        f"    for fy in (inset, {size} - inset):\n"
+        f'        foot = (cq.Workplane("XY").circle(foot_r).extrude({fh} + eps)'
+        f".translate((fx, fy, 0)))\n"
+        f"        result = result.union(foot)\n"
+        f"for i in range(1, {grid} + 1):\n"
+        f"    for j in range(1, {grid} + 1):\n"
+        f'        slot = (cq.Workplane("XY").box({sw}, {sw}, {pt} + 2 * eps, {_CF})'
+        f".translate((i * pitch - {sw} / 2, j * pitch - {sw} / 2, {fh} - eps)))\n"
+        f"        result = result.cut(slot)\n"
+    )
+
+
+def _bookend(v: dict[str, float]) -> str:
+    # dishes.scad::l_bookend — vertical upright slab + horizontal base foot, box union,
+    # corner-at-origin. The base over-spans the upright in X (overlap interior to the union),
+    # so the two slabs fuse with no z-fight gap and the envelope stays [base_len, width, height].
+    h, w = _f(v["height"]), _f(v["width"])
+    bl, ut, bt = _f(v["base_len"]), _f(v["upright_t"]), _f(v["base_t"])
+    return (
+        f'upright = cq.Workplane("XY").box({ut}, {w}, {h}, {_CF})\n'
+        f'base = cq.Workplane("XY").box({bl}, {w}, {bt}, {_CF})\n'
+        f"result = upright.union(base)\n"
+    )
+
+
+def _geometric_wall_tile(v: dict[str, float]) -> str:
+    # dishes.scad::geometric_wall_tile — flat backer (side x side x base_t) + a raised square
+    # border frame (border_w wide, border_h tall) rising from the backer top. The frame is the
+    # outer block minus an inner window; the inner cut over-cuts DOWN -eps into the backer (clean
+    # fuse) and UP +eps into the open air above the rim (never past a documented face), so the
+    # envelope is exactly [side, side, base_t + border_h].
+    side, base_t = _f(v["side"]), _f(v["base_t"])
+    bw, bh = _f(v["border_w"]), _f(v["border_h"])
+    return (
+        f"eps = {_EPS}\n"
+        f'backer = cq.Workplane("XY").box({side}, {side}, {base_t}, {_CF})\n'
+        f'frame = (cq.Workplane("XY").box({side}, {side}, {bh}, {_CF}).cut(\n'
+        f'    cq.Workplane("XY")'
+        f".box({side} - 2 * {bw}, {side} - 2 * {bw}, {bh} + 2 * eps, {_CF})"
+        f".translate(({bw}, {bw}, -eps)))"
+        f".translate((0, 0, {base_t})))\n"
+        f"result = backer.union(frame)\n"
+    )
+
+
+def _tile_connector_clip(v: dict[str, float]) -> str:
+    # dishes.scad::tile_connector_clip — a flat dogbone connector bar minus two side notches
+    # that narrow the central neck. Mirrors the library module corner-for-corner: the two end
+    # tongues keep the full width (so the Y envelope = width), and the notches over-cut OUTWARD
+    # past the side faces (never past the X/Z faces). bbox = [length, width, thick].
+    length, width = _f(v["length"]), _f(v["width"])
+    neck_w, thick, tongue_l = _f(v["neck_w"]), _f(v["thick"]), _f(v["tongue_l"])
+    return (
+        f"eps = {_EPS}\n"
+        f"side = ({width} - {neck_w}) / 2\n"
+        f"neck_l = {length} - 2 * {tongue_l}\n"
+        f'bar = cq.Workplane("XY").box({length}, {width}, {thick}, {_CF})\n'
+        # -Y side notch across the central span, over-cut down past the -Y face by eps
+        f'notch_lo = (cq.Workplane("XY").box(neck_l, side + eps, {thick} + 2 * eps, {_CF})'
+        f".translate(({tongue_l}, -eps, -eps)))\n"
+        # +Y side notch across the central span, over-cut up past the +Y face by eps
+        f'notch_hi = (cq.Workplane("XY").box(neck_l, side + eps, {thick} + 2 * eps, {_CF})'
+        f".translate(({tongue_l}, {width} - side, -eps)))\n"
+        f"result = bar.cut(notch_lo).cut(notch_hi)\n"
+    )
+
+
+def _ornament_blank(v: dict[str, float]) -> str:
+    # dishes.scad::medallion_blank — a solid disc (diameter x thick), XY-centered, with one
+    # vertical hanging hole bored through near the top edge. The hole center sits off +Y at
+    # y = diameter/2 - rim_margin - hole_d/2, so its top reaches only y = diameter/2 - rim_margin
+    # (inside the edge) and the footprint stays [diameter, diameter]. The disc extrudes z=0..thick;
+    # the bore over-cuts -eps below and +eps above into open air, so both faces are clean.
+    dia, t = _f(v["diameter"]), _f(v["thick"])
+    hd, rim = _f(v["hole_d"]), _f(v["rim_margin"])
+    return (
+        f"eps = {_EPS}\n"
+        f"hole_y = {dia} / 2 - {rim} - {hd} / 2\n"
+        f'disc = cq.Workplane("XY").circle({dia} / 2).extrude({t})\n'
+        f'hole = (cq.Workplane("XY").circle({hd} / 2).extrude({t} + 2 * eps)'
+        f".translate((0, hole_y, -eps)))\n"
+        f"result = disc.cut(hole)\n"
+    )
+
+
+def _ornament_cap(v: dict[str, float]) -> str:
+    # dishes.scad::ornament_cap — solid cap cylinder minus a bottom ornament-neck bore, plus a
+    # vertical hang-loop annulus standing on the cap top. Cylinders are XY-centered. The loop is
+    # the two-circle annulus idiom extruded along its thickness loop_t then stood vertical by
+    # rotating -90 about X (a +Z extrusion points +Y, ring plane -> XZ). It is centered in Y over
+    # the cap and embedded a hair (embed) into the crown so OCCT fuses cleanly; the ring TOP lands
+    # at ~cap_h + loop_od (within the 0.5 mm bench tol of the analytic [cap_d, cap_d, cap_h+loop_od]).
+    cap_d, cap_h, neck_d = _f(v["cap_d"]), _f(v["cap_h"]), _f(v["neck_d"])
+    loop_od, loop_t = _f(v["loop_od"]), _f(v["loop_t"])
+    return (
+        f"eps = {_EPS}\n"
+        f"loop_id = {loop_od} - 2 * {loop_t}\n"
+        f'body = cq.Workplane("XY").circle({cap_d} / 2).extrude({cap_h})\n'
+        # neck bore: open at the BOTTOM, over-cut DOWN by eps into open air below the base,
+        # leaving a >=2 mm solid crown (never reaches the cap top).
+        f'bore = (cq.Workplane("XY").circle({neck_d} / 2)'
+        f".extrude({cap_h} - 2 + eps).translate((0, 0, -eps)))\n"
+        f"cap = body.cut(bore)\n"
+        f"embed = 0.2\n"
+        f'loop = (cq.Workplane("XY").circle({loop_od} / 2).circle(loop_id / 2)'
+        f".extrude({loop_t})"
+        f".rotate((0, 0, 0), (1, 0, 0), -90)"
+        f".translate((0, {loop_t} / 2, {cap_h} + {loop_od} / 2 - embed)))\n"
+        f"result = cap.union(loop)\n"
+    )
+
+
+def _gift_box_lid(v: dict[str, float]) -> str:
+    # dishes.scad::gift_box_lid — a tray BASE + a taller shoulder LID, two open-top walled boxes
+    # side by side along X (gap apart). bbox = [2*width + gap, depth, lid_h]. Each is a corner-at-
+    # origin box (via _CF) cut by its cavity; the lid bore = base outer footprint + a slip-fit
+    # clearance, centered and STRICTLY inside the lid wall, then the lid is translated +X by
+    # width + gap. result is the union of the two disjoint shells (the propagation_station idiom).
+    w, d = _f(v["width"]), _f(v["depth"])
+    bh, lh = _f(v["base_h"]), _f(v["lid_h"])
+    t, gap = _f(v["wall"]), _f(v.get("gap", 8.0))
+    fit = _f(0.4)  # diametral slip-fit clearance, matches the module
+    return (
+        f"eps = {_EPS}\n"
+        f"fit = {fit}\n"
+        f'base = cq.Workplane("XY").box({w}, {d}, {bh}, {_CF})\n'
+        f'base_cav = (cq.Workplane("XY")'
+        f".box({w} - 2 * {t}, {d} - 2 * {t}, {bh} - {t} + eps, {_CF})"
+        f".translate(({t}, {t}, {t})))\n"
+        f"base = base.cut(base_cav)\n"
+        f"bore_w = {w} - 2 * {t} + fit\n"
+        f"bore_d = {d} - 2 * {t} + fit\n"
+        f'lid = cq.Workplane("XY").box({w}, {d}, {lh}, {_CF})\n'
+        f'lid_cav = (cq.Workplane("XY")'
+        f".box(bore_w, bore_d, {lh} - {t} + eps, {_CF})"
+        f".translate((({w} - bore_w) / 2, ({d} - bore_d) / 2, {t})))\n"
+        f"lid = lid.cut(lid_cav).translate(({w} + {gap}, 0, 0))\n"
+        f"result = base.union(lid)\n"
+    )
+
+
+def _jar_lid(v: dict[str, float]) -> str:
+    # dishes.scad::jar_lid — a top disc (outer_d x top_t) on top, with a concentric down-skirt
+    # annular ring (skirt_d OD, skirt_wall thick, skirt_h tall) hanging below it to cap a jar
+    # rim. Both the disc and the skirt are XY-centered (matches OpenSCAD's cylinder()); the skirt
+    # is the two-circle annulus idiom (OD skirt_d, bore skirt_d - 2*skirt_wall). The skirt over-
+    # cuts +eps UP into the disc solid so the two fuse without a z-fight gap. skirt_d is pinned
+    # <= outer_d (the disc is the widest part), so the envelope is exactly
+    # [outer_d, outer_d, top_t + skirt_h].
+    od, tt = _f(v["outer_d"]), _f(v["top_t"])
+    sd, sh, sw = _f(v["skirt_d"]), _f(v["skirt_h"]), _f(v["skirt_wall"])
+    return (
+        f"eps = {_EPS}\n"
+        f"skirt_id = {sd} - 2 * {sw}\n"
+        f'disc = (cq.Workplane("XY").circle({od} / 2)'
+        f".extrude({tt}).translate((0, 0, {sh})))\n"
+        f'skirt = (cq.Workplane("XY").circle({sd} / 2).circle(skirt_id / 2)'
+        f".extrude({sh} + eps))\n"
+        f"result = disc.union(skirt)\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -787,6 +987,17 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "planter_saucer": _planter_saucer,
     "bonsai_pot": _bonsai_pot,
     "succulent_pot": _succulent_pot,
+    # #19 slice 7: flat decor + ornaments (keyed by family name; trivet's module is hotplate_trivet,
+    # bookend's is l_bookend, ornament_blank's is medallion_blank)
+    "coaster_with_rim": _coaster_with_rim,
+    "trivet": _trivet,
+    "bookend": _bookend,
+    "geometric_wall_tile": _geometric_wall_tile,
+    "tile_connector_clip": _tile_connector_clip,
+    "ornament_blank": _ornament_blank,
+    "ornament_cap": _ornament_cap,
+    "gift_box_lid": _gift_box_lid,
+    "jar_lid": _jar_lid,
 }
 
 

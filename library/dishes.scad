@@ -21,6 +21,16 @@
 //   planter_saucer(od, h, wall, floor_t, rim_h, rim_w)                 bbox = [od, od, h]
 //   bonsai_pot(length, width, h, wall, drain_d)                        bbox = [length, width, h]
 //   succulent_pot(od, h, wall, facets, drain_d)                        bbox = [od, od, h]
+//   --- #19 slice 7: flat decor + ornaments ---
+//   coaster_with_rim(od, h, rim_w, rim_h, floor_t)                     bbox = [od, od, h]
+//   hotplate_trivet(size, plate_t, slot_w, foot_h)                     bbox = [size, size, plate_t + foot_h]
+//   l_bookend(height, width, base_len, upright_t, base_t)              bbox = [base_len, width, height]
+//   geometric_wall_tile(side, base_t, border_w, border_h)             bbox = [side, side, base_t + border_h]
+//   tile_connector_clip(length, width, neck_w, thick, tongue_l)        bbox = [length, width, thick]
+//   medallion_blank(diameter, thick, hole_d, rim_margin)        bbox = [diameter, diameter, thick]
+//   ornament_cap(cap_d, cap_h, neck_d, loop_od, loop_t)               bbox = [cap_d, cap_d, cap_h + loop_od]
+//   gift_box_lid(width, depth, base_h, lid_h, wall, gap)   bbox = [2*width + gap, depth, lid_h]  (lid_h>=base_h)
+//   jar_lid(outer_d, top_t, skirt_d, skirt_h, skirt_wall)        bbox = [outer_d, outer_d, top_t + skirt_h]  (skirt_d <= outer_d)
 
 module ring_dish(od = 70, h = 18, wall = 3, well_depth = 12, spike_h = 0, spike_d = 6, fn = 96) {
     eps = 0.05;
@@ -356,5 +366,201 @@ module succulent_pot(od = 80, h = 75, wall = 3, facets = 8, drain_d = 12, fn = 4
             cylinder(h = h - wall + eps, d = od - 2 * wall, $fn = facets);
         translate([0, 0, -eps])                                  // center drain through the floor
             cylinder(h = wall + 2 * eps, d = drain_d, $fn = fn);
+    }
+}
+
+// --- #19 slice 7: flat decor + ornaments -------------------------------------------
+
+module coaster_with_rim(od = 90, h = 6, rim_w = 4, rim_h = 3, floor_t = 2, fn = 96) {
+    eps = 0.05;
+    pocket_floor = h - rim_h;
+    difference() {
+        cylinder(h = h, d = od, $fn = fn);
+        translate([0, 0, pocket_floor])
+            cylinder(h = rim_h + eps, d = od - 2 * rim_w, $fn = fn);
+    }
+}
+
+module hotplate_trivet(size = 140, plate_t = 6, slot_w = 10, foot_h = 8, fn = 32) {
+    eps = 0.05;
+    grid = 4;                                                    // FIXED slot grid (grid x grid) — NOT in the bbox
+    foot_d = 12;                                                 // fixed corner-foot diameter
+    foot_r = foot_d / 2;
+    inset = foot_r + 4;                                          // feet tucked inside the corners
+    // Fixed grid x grid lattice of square through-slots, centered on a size/5 pitch so the slots
+    // scale WITH the plate and never reach an outer edge; the count is inert to the envelope.
+    pitch = size / (grid + 1);
+    union() {
+        // Four corner feet: solid round posts from the floor up INTO the plate (over-cut +eps up
+        // so they fuse without a z-fight gap, never past the plate solid). Inside [0,size], so
+        // they add nothing to the X/Y envelope.
+        for (x = [inset, size - inset], y = [inset, size - inset])
+            translate([x, y, 0])
+                cylinder(h = foot_h + eps, r = foot_r, $fn = fn);
+        // The square hot-pad slab, raised onto the feet: spans [0..size, 0..size] in X/Y and
+        // z = foot_h .. foot_h + plate_t (the Z top). The grid x grid square through-slots are
+        // cut clean through it — each over-cut by eps BELOW and ABOVE into the open air on both
+        // open ends of the slot (never past a solid outer face).
+        translate([0, 0, foot_h])
+            difference() {
+                cube([size, size, plate_t]);
+                for (i = [1 : grid], j = [1 : grid])
+                    translate([i * pitch - slot_w / 2, j * pitch - slot_w / 2, -eps])
+                        cube([slot_w, slot_w, plate_t + 2 * eps]);
+            }
+    }
+}
+
+module l_bookend(height = 150, width = 120, base_len = 110, upright_t = 6, base_t = 5) {
+    eps = 0.05;
+    // L-shaped bookend: a vertical upright slab joined to a horizontal base foot.
+    // Both solid, corner-at-origin. The base over-spans the upright by upright_t in X so the
+    // two slabs fuse with no z-fight gap (the overlap is interior to the union, never a face).
+    union() {
+        // vertical upright slab at the back: x in [0, upright_t], full width, full height.
+        // Carries the Z envelope; upright_t stays << base_len so it never touches the X extent.
+        cube([upright_t, width, height]);
+        // horizontal base foot at z=0: full base_len, full width, base_t thick.
+        // Carries the X envelope (base_len) and the Y envelope (width).
+        cube([base_len, width, base_t]);
+    }
+}
+
+module geometric_wall_tile(side = 100, base_t = 3, border_w = 6, border_h = 4, fn = 96) {
+    eps = 0.05;
+    // A square modular wall-art tile: a flat backer (side x side x base_t) plus a raised square
+    // border frame (border_w wide, border_h tall) rising from the backer top. The frame is the
+    // outer block minus an inner window; the inner cut over-cuts DOWN -eps into the backer (clean
+    // fuse) and UP +eps into open air above the rim, so the envelope is exactly
+    // [side, side, base_t + border_h].
+    union() {
+        cube([side, side, base_t]);                              // flat backer
+        translate([0, 0, base_t])
+            difference() {
+                cube([side, side, border_h]);                    // outer border block
+                translate([border_w, border_w, -eps])            // inner window
+                    cube([side - 2 * border_w, side - 2 * border_w, border_h + 2 * eps]);
+            }
+    }
+}
+
+module tile_connector_clip(length = 60, width = 24, neck_w = 12, thick = 4, tongue_l = 14) {
+    eps = 0.05;
+    // A flat dogbone / H connector clip: a bar [length, width, thick] whose two END tongues
+    // (each tongue_l long, full width) slot into grooves on two neighboring tiles, joined by a
+    // narrowed NECK in the middle (neck_w < width). The neck is formed by cutting a side notch
+    // off EACH Y edge across the central span between the tongues. Built corner-at-origin so the
+    // envelope is exact: the tongues keep the full width, so the Y bbox stays `width`; the cuts
+    // remove (width - neck_w)/2 from each side and over-cut OUTWARD past the side faces (into open
+    // air) by eps, never past the documented X/Z faces. bbox = [length, width, thick].
+    side = (width - neck_w) / 2;             // material removed off each Y edge to form the neck
+    neck_x0 = tongue_l;                      // neck spans [tongue_l .. length - tongue_l] in X
+    neck_l = length - 2 * tongue_l;
+    difference() {
+        cube([length, width, thick]);                       // full flat bar
+        // -Y side notch: from the bottom edge inward, over-cut DOWN past the -Y face by eps
+        translate([neck_x0, -eps, -eps])
+            cube([neck_l, side + eps, thick + 2 * eps]);
+        // +Y side notch: from the top edge inward, over-cut UP past the +Y face by eps
+        translate([neck_x0, width - side, -eps])
+            cube([neck_l, side + eps, thick + 2 * eps]);
+    }
+}
+
+module medallion_blank(diameter = 60, thick = 4, hole_d = 4, rim_margin = 5, fn = 96) {
+    eps = 0.05;
+    // A flat round medallion / ornament disc (diameter x thick), XY-centered, with one vertical
+    // hanging hole bored through near the top edge. The hole center sits off +Y at
+    // y = diameter/2 - rim_margin - hole_d/2, so its top reaches only y = diameter/2 - rim_margin
+    // (inside the edge) and the footprint stays [diameter, diameter]. The bore over-cuts -eps
+    // below and +eps above into open air, so both faces are clean. bbox = [diameter, diameter, thick].
+    hole_y = diameter / 2 - rim_margin - hole_d / 2;
+    difference() {
+        cylinder(h = thick, d = diameter, $fn = fn);
+        translate([0, hole_y, -eps])
+            cylinder(h = thick + 2 * eps, d = hole_d, $fn = fn);
+    }
+}
+
+module ornament_cap(cap_d = 22, cap_h = 12, neck_d = 14, loop_od = 14, loop_t = 4, fn = 96) {
+    eps = 0.05;
+    // A printed cap that plugs a glass/plastic sphere ornament: a short round cap body
+    // (cap_d x cap_h) with a bore (neck_d) up from the bottom to press-fit over the
+    // ornament neck, topped by a vertical hang loop (an annular ring, loop_od OD,
+    // loop_t thick) the hook/string threads through. Cylinders are XY-centered like
+    // OpenSCAD's cylinder(). loop_od is PINNED <= cap_d, so the loop never widens the
+    // footprint; the loop rises exactly loop_od above the cap top, so the envelope is
+    // exactly [cap_d, cap_d, cap_h + loop_od].
+    union() {
+        difference() {
+            cylinder(h = cap_h, d = cap_d, $fn = fn);            // solid cap body, base at z=0
+            // ornament-neck bore: open at the BOTTOM, over-cut DOWN by eps into the open
+            // air below the base (never past the cap top), leaving a solid >=2 mm crown.
+            translate([0, 0, -eps])
+                cylinder(h = cap_h - 2 + eps, d = neck_d, $fn = fn);
+        }
+        // vertical hang loop: an annulus (loop_od OD, loop_t wall thickness) extruded along
+        // its own thickness loop_t then stood vertical with rotate([90,0,0]) so its ring plane
+        // is the XZ plane. The loop center is placed so the ring TOP reaches exactly
+        // cap_h + loop_od; its bottom arc sits at cap_h, where the ring solid overlaps the cap
+        // crown and fuses without a z-fight gap (loop_od <= cap_d guarantees that overlap). The
+        // ring spans loop_od in X (<= cap_d) and loop_od in Z; thickness loop_t runs along Y.
+        loop_id = loop_od - 2 * loop_t;                          // inner bore of the ring
+        translate([0, loop_t / 2, cap_h + loop_od / 2])
+            rotate([90, 0, 0])
+                linear_extrude(height = loop_t, center = true)
+                    difference() {
+                        circle(d = loop_od, $fn = fn);
+                        circle(d = loop_id, $fn = fn);
+                    }
+    }
+}
+
+module gift_box_lid(width = 90, depth = 70, base_h = 35, lid_h = 40, wall = 2, gap = 8) {
+    eps = 0.05;
+    fit = 0.4;                  // diametral slip-fit clearance between lid bore and base outer
+
+    // --- tray BASE: an open-top walled box at the origin, floor = wall -------------------
+    translate([0, 0, 0])
+        difference() {
+            cube([width, depth, base_h]);                        // outer body
+            translate([wall, wall, wall])                        // cavity (open top, +eps into air)
+                cube([width - 2 * wall, depth - 2 * wall, base_h - wall + eps]);
+        }
+
+    // --- shoulder LID: an open-top cap at width+gap, taller (lid_h), floor = wall --------
+    // The lid bore = base outer footprint + fit, so it drops over the base. The bore stays
+    // strictly inside the lid's own outer wall (width footprint), so the X envelope is exactly
+    // 2*width + gap and the cavity never breaks the outer face.
+    bore_w = width - 2 * wall + fit;                             // lid cavity width  (< width)
+    bore_d = depth - 2 * wall + fit;                             // lid cavity depth  (< depth)
+    translate([width + gap, 0, 0])
+        difference() {
+            cube([width, depth, lid_h]);                         // outer cap body
+            translate([(width - bore_w) / 2, (depth - bore_d) / 2, wall]) // centered cavity
+                cube([bore_w, bore_d, lid_h - wall + eps]);      // open top, +eps into air
+        }
+}
+
+module jar_lid(outer_d = 70, top_t = 4, skirt_d = 64, skirt_h = 12, skirt_wall = 3, fn = 96) {
+    eps = 0.05;
+    // A round press/recess jar lid. The top disc (outer_d x top_t) sits on TOP, spanning
+    // z = skirt_h .. skirt_h + top_t. A concentric down-skirt ring (skirt_d OD, skirt_wall
+    // thick, skirt_h tall) hangs BELOW the disc, z = 0 .. skirt_h, and caps the jar rim — its
+    // inner bore (skirt_d - 2*skirt_wall) is the open mouth that drops over the jar neck.
+    // skirt_d is pinned <= outer_d (the disc is the widest part), so the envelope is exactly
+    // [outer_d, outer_d, top_t + skirt_h]. Both cylinders are XY-centered like OpenSCAD's
+    // cylinder(). The skirt rises +eps UP INTO the disc solid so the two fuse without a z-fight gap.
+    skirt_id = skirt_d - 2 * skirt_wall;            // open mouth that drops over the jar rim
+    union() {
+        // top disc, on top
+        translate([0, 0, skirt_h])
+            cylinder(h = top_t, d = outer_d, $fn = fn);
+        // down-skirt annular ring, hanging below the disc (over-cut +eps UP into the disc solid)
+        difference() {
+            cylinder(h = skirt_h + eps, d = skirt_d, $fn = fn);
+            translate([0, 0, -eps])
+                cylinder(h = skirt_h + 3 * eps, d = skirt_id, $fn = fn);
+        }
     }
 }

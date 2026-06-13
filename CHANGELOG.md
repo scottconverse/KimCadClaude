@@ -25,6 +25,12 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Flat decor & ornaments (#19, slice 7): rimmed coaster, hot-pad trivet, L-bookend,
+  geometric wall tile, tile connector clip, ornament blank, ornament cap, two-part gift box,
+  and jar lid.** Nine more families, each render-verified against its analytic bounding box with
+  a trusted CadQuery `.STEP` twin. Load/fit-sensitive parts (trivet, bookend, connector, cap,
+  gift-box lid, jar lid) are tier baseline; the coaster, wall tile, and ornament blank are
+  benchmarked. **The catalog is now 45 families.**
 - **Holders, cups & planters (#19, slice 6): tealight & taper-candle holders, luminary base,
   bud-vase sleeve, pencil cup, propagation station, tapered planter pot, planter saucer, bonsai
   pot, and succulent pot.** Ten more of Kim's design-world families, each render-verified against

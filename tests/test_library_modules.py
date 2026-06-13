@@ -172,6 +172,52 @@ NEW_MODULES = {
         "succulent_pot(od=80, h=75, wall=3, facets=8, drain_d=12);",
         [80, 80, 75],
     ),
+    # #19 slice 7: flat decor + ornaments (keys are MODULE names — the render test calls the module)
+    "coaster_with_rim": (
+        "dishes.scad",
+        "coaster_with_rim(od=90, h=6, rim_w=4, rim_h=3, floor_t=2);",
+        [90, 90, 6],
+    ),
+    "hotplate_trivet": (
+        "dishes.scad",
+        "hotplate_trivet(size=140, plate_t=6, slot_w=10, foot_h=8);",
+        [140, 140, 14],
+    ),
+    "l_bookend": (
+        "dishes.scad",
+        "l_bookend(height=150, width=120, base_len=110, upright_t=6, base_t=5);",
+        [110, 120, 150],
+    ),
+    "geometric_wall_tile": (
+        "dishes.scad",
+        "geometric_wall_tile(side=100, base_t=3, border_w=6, border_h=4);",
+        [100, 100, 7],
+    ),
+    "tile_connector_clip": (
+        "dishes.scad",
+        "tile_connector_clip(length=60, width=24, neck_w=12, thick=4, tongue_l=14);",
+        [60, 24, 4],
+    ),
+    "medallion_blank": (
+        "dishes.scad",
+        "medallion_blank(diameter=60, thick=4, hole_d=4, rim_margin=5);",
+        [60, 60, 4],
+    ),
+    "ornament_cap": (
+        "dishes.scad",
+        "ornament_cap(cap_d=22, cap_h=12, neck_d=14, loop_od=14, loop_t=4);",
+        [22, 22, 26],
+    ),
+    "gift_box_lid": (
+        "dishes.scad",
+        "gift_box_lid(width=90, depth=70, base_h=35, lid_h=40, wall=2, gap=8);",
+        [188, 70, 40],
+    ),
+    "jar_lid": (
+        "dishes.scad",
+        "jar_lid(outer_d=70, top_t=4, skirt_d=64, skirt_h=12, skirt_wall=3);",
+        [70, 70, 16],
+    ),
 }
 
 

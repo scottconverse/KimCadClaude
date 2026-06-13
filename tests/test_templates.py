@@ -77,6 +77,9 @@ EXPECTED_FAMILY_NAMES = frozenset(
         "tealight_holder", "taper_candle_holder", "luminary_base", "bud_vase_sleeve",
         "pencil_cup", "propagation_station", "planter_pot", "planter_saucer",
         "bonsai_pot", "succulent_pot",
+        # #19 slice 7: flat decor + ornaments
+        "coaster_with_rim", "trivet", "bookend", "geometric_wall_tile", "tile_connector_clip",
+        "ornament_blank", "ornament_cap", "gift_box_lid", "jar_lid",
     }
 )
 

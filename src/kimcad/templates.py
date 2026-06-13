@@ -1326,6 +1326,298 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("wall", "od", 4.0, 0.5), ("drain_d", "od", 8.0, 0.5)),
     )
 
+    # --- #19 slice 7: flat decor + ornaments — dishes.scad -----------------------------
+    # Authored + render-verified via the verified-authoring workflow (each module proven
+    # watertight at its analytic bbox; twins gate-checked at 0.5mm). All in dishes.scad.
+
+    coaster_with_rim = TemplateFamily(
+        name="coaster_with_rim",
+        summary="A round drink coaster with a shallow raised rim to contain condensation: a solid round body with a recessed top pocket inside a rim wall.",
+        object_types=(
+            "coaster with rim", "drink coaster", "round coaster", "rimmed coaster",
+            "condensation coaster", "cup coaster", "beverage coaster", "raised rim coaster",
+        ),
+        library_file="dishes.scad",
+        module="coaster_with_rim",
+        params=(
+            ParamSpec(name="od", label="Outer diameter", default=90.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("od", "outer_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="h", label="Height", default=6.0, min=4.0, max=40.0, step=0.5,
+                      dim_keys=("h", "height"), bbox_axis=2),
+            ParamSpec(name="rim_w", label="Rim width", default=4.0, min=2.0, max=20.0, step=0.5,
+                      dim_keys=("rim_w", "rim_width", "wall", "thickness")),
+            ParamSpec(name="rim_h", label="Rim height", default=3.0, min=1.0, max=30.0, step=0.5,
+                      dim_keys=("rim_h", "rim_height", "rim", "well_depth", "depth")),
+            ParamSpec(name="floor_t", label="Floor thickness", default=2.0, min=1.0, max=20.0, step=0.5,
+                      dim_keys=("floor_t", "floor", "base")),
+        ),
+        bbox_x=(BBoxTerm(ref="od"),),
+        bbox_y=(BBoxTerm(ref="od"),),
+        bbox_z=(BBoxTerm(ref="h"),),
+        # Keep the rim wall under half the OD (minus a 2 mm minimum pocket) so a wide rim on a
+        # small coaster can't collapse the recess into a solid puck; keep the rim height under the
+        # body height (minus a 2 mm minimum floor) so a >=2 mm solid, watertight floor always
+        # remains under the condensation pocket (the pocket floor sits at z = h - rim_h).
+        gaps=(("rim_w", "od", 2.0, 0.5), ("rim_h", "h", 2.0, 1.0)),
+    )
+
+    trivet = TemplateFamily(
+        name="trivet",
+        summary="A flat square hot-pad: a square slab with a fixed grid of square through-slots, raised on four short corner feet.",
+        object_types=("trivet", "hot pad trivet", "hotplate trivet", "pot trivet", "kitchen trivet", "hot pad", "pan rest"),
+        library_file="dishes.scad",
+        module="hotplate_trivet",
+        params=(
+            ParamSpec(
+                name="size", label="Size (square)", default=140, min=80, max=170, step=1,
+                dim_keys=("size", "length", "width", "side"), bbox_axis=0,
+            ),
+            ParamSpec(
+                name="plate_t", label="Plate thickness", default=6, min=2, max=12, step=0.5,
+                dim_keys=("plate_t", "thickness", "slab_t"),
+            ),
+            ParamSpec(
+                name="slot_w", label="Slot width", default=10, min=2, max=20, step=0.5,
+                dim_keys=("slot_w", "slot", "vent"),
+            ),
+            ParamSpec(
+                name="foot_h", label="Foot height", default=8, min=2, max=16, step=0.5,
+                dim_keys=("foot_h", "foot", "standoff", "clearance"),
+            ),
+        ),
+        fixed_args={"fn": 32},
+        bbox_x=(BBoxTerm(coef=1.0, ref="size"),),
+        bbox_y=(BBoxTerm(coef=1.0, ref="size"),),
+        bbox_z=(BBoxTerm(coef=1.0, ref="plate_t"), BBoxTerm(coef=1.0, ref="foot_h")),
+        # slot_w must stay under the fixed grid pitch (size/5 = 0.2*size) with a 2 mm web, so the
+        # grid x grid through-slots never overlap or reach an outer edge (keeps the slab watertight).
+        gaps=(("slot_w", "size", 2.0, 0.2),),
+        tier="baseline",
+    )
+
+    bookend = TemplateFamily(
+        name="bookend",
+        summary="An L-shaped bookend: a vertical upright slab joined to a horizontal base foot.",
+        tier="baseline",
+        object_types=("bookend", "book end", "book stop", "book support"),
+        library_file="dishes.scad",
+        module="l_bookend",
+        params=(
+            ParamSpec(name="height", label="Height", default=150.0, min=60.0, max=170.0, step=1.0,
+                      dim_keys=("height",), bbox_axis=2),
+            ParamSpec(name="width", label="Width", default=120.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("width", "depth"), bbox_axis=1),
+            ParamSpec(name="base_len", label="Base length", default=110.0, min=40.0, max=170.0, step=1.0,
+                      dim_keys=("base_len", "length", "base"), bbox_axis=0),
+            ParamSpec(name="upright_t", label="Upright thickness", default=6.0, min=3.0, max=20.0, step=0.5,
+                      dim_keys=("upright_t", "upright", "thickness", "wall")),
+            ParamSpec(name="base_t", label="Base thickness", default=5.0, min=3.0, max=20.0, step=0.5,
+                      dim_keys=("base_t", "base_thickness", "foot_t")),
+        ),
+        bbox_x=(BBoxTerm(ref="base_len"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="height"),),
+        # The upright thickness stays strictly inside the base length (X axis) and the base
+        # thickness strictly inside the height (Z axis), so neither slab thickness can reach the
+        # envelope it sits on — bbox stays exactly [base_len, width, height].
+        gaps=(("upright_t", "base_len", 2.0, 1.0), ("base_t", "height", 2.0, 1.0)),
+    )
+
+    geometric_wall_tile = TemplateFamily(
+        name="geometric_wall_tile",
+        summary="A square modular wall-art tile: a flat backer with a raised perimeter border so tiles register edge-to-edge.",
+        object_types=(
+            "geometric wall tile", "wall tile", "modular wall tile", "wall art tile",
+            "accent wall tile", "decorative wall tile", "bordered wall tile",
+        ),
+        library_file="dishes.scad",
+        module="geometric_wall_tile",
+        params=(
+            ParamSpec(name="side", label="Tile side", default=100.0, min=20.0, max=170.0, step=1.0,
+                      dim_keys=("side", "width", "length", "size"), bbox_axis=0),
+            ParamSpec(name="base_t", label="Backer thickness", default=3.0, min=1.5, max=20.0, step=0.5,
+                      dim_keys=("base_t", "base", "backer", "thickness")),
+            ParamSpec(name="border_w", label="Border width", default=6.0, min=2.0, max=30.0, step=0.5,
+                      dim_keys=("border_w", "border", "frame_width")),
+            ParamSpec(name="border_h", label="Border height", default=4.0, min=1.0, max=30.0, step=0.5,
+                      dim_keys=("border_h", "border_height", "rim_height", "height")),
+        ),
+        bbox_x=(BBoxTerm(ref="side"),),
+        bbox_y=(BBoxTerm(ref="side"),),
+        bbox_z=(BBoxTerm(ref="base_t"), BBoxTerm(ref="border_h")),
+        # The border frame must leave an inner window (border_w on each of two opposite edges),
+        # so keep border_w under half the side (minus a 2 mm minimum opening) — otherwise the
+        # inner square vanishes and the difference() leaves a solid block.
+        gaps=(("border_w", "side", 2.0, 0.5),),
+    )
+
+    tile_connector_clip = TemplateFamily(
+        name="tile_connector_clip",
+        summary="A flat dogbone connector clip whose two end tongues slot into grooves on two adjoining tiles.",
+        tier="baseline",
+        object_types=(
+            "tile connector clip", "tile clip", "tile connector", "dogbone clip", "tile joiner clip",
+            "panel connector clip", "tile bridge clip", "tile link clip",
+        ),
+        library_file="dishes.scad",
+        module="tile_connector_clip",
+        params=(
+            ParamSpec(name="length", label="Length", default=60.0, dim_keys=("length",), bbox_axis=0, **_FOOTPRINT),
+            ParamSpec(name="width", label="Width", default=24.0, min=10.0, max=80.0, step=1.0,
+                      dim_keys=("width", "depth"), bbox_axis=1),
+            ParamSpec(name="neck_w", label="Neck width", default=12.0, min=4.0, max=78.0, step=1.0,
+                      dim_keys=("neck_w", "neck")),
+            ParamSpec(name="thick", label="Thickness", default=4.0, min=2.0, max=12.0, step=0.5,
+                      dim_keys=("thick", "thickness"), bbox_axis=2),
+            ParamSpec(name="tongue_l", label="Tongue length", default=14.0, min=4.0, max=80.0, step=1.0,
+                      dim_keys=("tongue_l", "tongue")),
+        ),
+        bbox_x=(BBoxTerm(ref="length"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="thick"),),
+        # neck stays narrower than the width (>=2 mm shoulder each side, so neck_w < width and the
+        # tongues remain the Y envelope); the two tongues must leave a positive neck span.
+        gaps=(
+            ("neck_w", "width", 2.0, 1.0),
+            ("tongue_l", "length", 2.0, 0.5),
+        ),
+    )
+
+    ornament_blank = TemplateFamily(
+        name="ornament_blank",
+        summary="A flat round medallion / ornament disc with a top hanging hole, ready for a relief or engraving.",
+        object_types=(
+            "ornament blank", "ornament disc", "medallion blank", "medallion disc",
+            "round ornament", "hanging ornament", "christmas ornament blank",
+            "pendant blank", "engraving blank", "relief blank", "name medallion",
+        ),
+        library_file="dishes.scad",
+        module="medallion_blank",
+        params=(
+            ParamSpec(name="diameter", label="Diameter", default=60.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("diameter", "od", "outer_diameter", "width"), bbox_axis=0),
+            ParamSpec(name="thick", label="Thickness", default=4.0, min=2.0, max=20.0, step=0.5,
+                      dim_keys=("thick", "thickness", "height", "h")),
+            ParamSpec(name="hole_d", label="Hanging hole diameter", default=4.0, min=1.5, max=20.0,
+                      step=0.5, dim_keys=("hole_d", "hole_diameter", "hole")),
+            ParamSpec(name="rim_margin", label="Hole rim margin", default=5.0, min=2.0, max=40.0,
+                      step=0.5, dim_keys=("rim_margin", "margin", "edge_margin")),
+        ),
+        fixed_args={},
+        bbox_x=(BBoxTerm(ref="diameter"),),
+        bbox_y=(BBoxTerm(ref="diameter"),),
+        bbox_z=(BBoxTerm(ref="thick"),),
+        # Keep the hanging hole wholly inside the disc near the top edge: its top point reaches
+        # y = diameter/2 - rim_margin, so the bore + its rim margin must fit within the radius.
+        # hole_d <= diameter - 4 (coef 1.0, gap 4) guarantees a slim hole on a small blank can't
+        # span the disc; rim_margin <= diameter/2 - 2 (coef 0.5, gap 2) keeps the hole center on
+        # the +Y side of the disc center so it stays a top-edge hanging hole, never the middle.
+        gaps=(("hole_d", "diameter", 4.0, 1.0), ("rim_margin", "diameter", 2.0, 0.5)),
+        tier="benchmarked",
+    )
+
+    ornament_cap = TemplateFamily(
+        name="ornament_cap",
+        summary="A press-fit cap that plugs a sphere ornament, topped by a vertical hang loop.",
+        tier="baseline",
+        object_types=(
+            "ornament cap", "ornament topper", "bauble cap", "sphere ornament cap",
+            "ornament hanger cap", "christmas ornament cap",
+        ),
+        library_file="dishes.scad",
+        module="ornament_cap",
+        params=(
+            ParamSpec(name="cap_d", label="Cap diameter", default=22.0, min=12.0, max=120.0, step=1.0,
+                      dim_keys=("cap_d", "cap_diameter", "diameter", "width"), bbox_axis=0),
+            ParamSpec(name="cap_h", label="Cap height", default=12.0, min=6.0, max=60.0, step=1.0,
+                      dim_keys=("cap_h", "cap_height", "height")),
+            ParamSpec(name="neck_d", label="Ornament-neck bore", default=14.0, min=4.0, max=110.0, step=0.5,
+                      dim_keys=("neck_d", "neck_diameter", "bore")),
+            ParamSpec(name="loop_od", label="Hang-loop diameter", default=14.0, min=6.0, max=120.0, step=1.0,
+                      dim_keys=("loop_od", "loop_diameter", "loop")),
+            ParamSpec(name="loop_t", label="Hang-loop thickness", default=4.0, min=1.5, max=20.0, step=0.5,
+                      dim_keys=("loop_t", "loop_thickness")),
+        ),
+        bbox_x=(BBoxTerm(ref="cap_d"),),
+        bbox_y=(BBoxTerm(ref="cap_d"),),
+        bbox_z=(BBoxTerm(ref="cap_h"), BBoxTerm(ref="loop_od")),
+        gaps=(
+            ("neck_d", "cap_d", 2.0, 1.0),   # the neck bore stays inside the cap wall (neck_d <= cap_d - 2)
+            ("loop_od", "cap_d", 0.0, 1.0),  # PIN the loop OD <= cap_d so the X/Y footprint stays exactly cap_d
+            ("loop_t", "loop_od", 1.0, 0.5), # keep the ring bore positive: loop_t <= loop_od/2 - 1 (>=2 mm bore)
+        ),
+    )
+
+    gift_box_lid = TemplateFamily(
+        name="gift_box_lid",
+        summary="A telescoping two-part gift box printed side by side: a tray base and an overlapping shoulder lid.",
+        tier="baseline",
+        object_types=("gift box lid", "gift box", "telescoping box", "two part box",
+                      "shoulder lid box", "lidded gift box", "keepsake box lid"),
+        library_file="dishes.scad",
+        module="gift_box_lid",
+        params=(
+            # width is the per-PART footprint side; the two parts sit side by side along X, so the
+            # X envelope is 2*width + gap. Capped at 160 so each printed part stays inside the
+            # ~170 mm sliceable side (QA-502) — the composite X is two separate prints OrcaSlicer
+            # arranges, not one solid.
+            ParamSpec(name="width", label="Width", default=90.0, min=20.0, max=160.0, step=1.0,
+                      dim_keys=("width",), bbox_axis=0),
+            ParamSpec(name="depth", label="Depth", default=70.0, dim_keys=("depth",), bbox_axis=1, **_FOOTPRINT),
+            ParamSpec(name="base_h", label="Base height", default=35.0, min=10.0, max=160.0, step=1.0,
+                      dim_keys=("base_h", "base_height")),
+            ParamSpec(name="lid_h", label="Lid height", default=40.0, min=10.0, max=170.0, step=1.0,
+                      dim_keys=("lid_h", "lid_height", "height"), bbox_axis=2),
+            ParamSpec(name="wall", label="Wall thickness", default=2.0, min=0.8, max=8.0, step=0.2,
+                      dim_keys=("wall", "thickness")),
+        ),
+        fixed_args={"gap": 8.0},
+        bbox_x=(BBoxTerm(coef=2.0, ref="width"), BBoxTerm(ref="gap")),
+        bbox_y=(BBoxTerm(ref="depth"),),
+        bbox_z=(BBoxTerm(ref="lid_h"),),
+        # lid_h is PINNED >= base_h so the LID is the taller box and sets the linear Z envelope;
+        # the wall stays under half of EVERY box dimension (incl. both heights) so no cavity
+        # collapses into a silently-solid block.
+        gaps=(
+            ("base_h", "lid_h", 0.0, 1.0),
+            ("wall", "width", 1.0, 0.5),
+            ("wall", "depth", 1.0, 0.5),
+            ("wall", "base_h", 1.0, 0.5),
+            ("wall", "lid_h", 1.0, 0.5),
+        ),
+    )
+
+    jar_lid = TemplateFamily(
+        name="jar_lid",
+        summary="A round press/recess jar lid: a top disc with a down-skirt ring that caps a jar rim.",
+        tier="baseline",
+        object_types=(
+            "jar lid", "mason jar lid", "press lid", "recess lid", "jar cap",
+            "canister lid", "bottle cap lid", "vessel lid",
+        ),
+        library_file="dishes.scad",
+        module="jar_lid",
+        params=(
+            ParamSpec(name="outer_d", label="Lid diameter", default=70.0, min=20.0, max=170.0,
+                      step=1.0, dim_keys=("outer_d", "diameter", "lid_diameter", "width"), bbox_axis=0),
+            ParamSpec(name="top_t", label="Top thickness", default=4.0, min=1.5, max=12.0, step=0.5,
+                      dim_keys=("top_t", "top_thickness", "lid_thickness")),
+            ParamSpec(name="skirt_d", label="Skirt diameter", default=64.0, min=18.0, max=170.0,
+                      step=1.0, dim_keys=("skirt_d", "rim_diameter", "mouth_diameter")),
+            ParamSpec(name="skirt_h", label="Skirt height", default=12.0, min=3.0, max=60.0, step=1.0,
+                      dim_keys=("skirt_h", "skirt_height", "rim_height", "height")),
+            ParamSpec(name="skirt_wall", label="Skirt wall", default=3.0, min=1.0, max=8.0, step=0.5,
+                      dim_keys=("skirt_wall", "wall", "thickness")),
+        ),
+        bbox_x=(BBoxTerm(ref="outer_d"),),
+        bbox_y=(BBoxTerm(ref="outer_d"),),
+        bbox_z=(BBoxTerm(ref="top_t"), BBoxTerm(ref="skirt_h")),
+        # The disc is the widest part: pin the skirt OD <= the lid OD so the envelope stays
+        # [outer_d, outer_d, ...]. Keep the skirt wall under half the skirt radius (skirt_wall <=
+        # skirt_d/4 - 1) so the annular bore can never collapse into a solid puck.
+        gaps=(("skirt_d", "outer_d", 0.0, 1.0), ("skirt_wall", "skirt_d", 1.0, 0.25)),
+    )
+
     return (
         snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
         pegboard_hook, spool_holder, l_bracket,
@@ -1337,6 +1629,9 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         # #19 slice 6: holders/cups + planters
         tealight_holder, taper_candle_holder, luminary_base, bud_vase_sleeve, pencil_cup,
         propagation_station, planter_pot, planter_saucer, bonsai_pot, succulent_pot,
+        # #19 slice 7: flat decor + ornaments
+        coaster_with_rim, trivet, bookend, geometric_wall_tile, tile_connector_clip,
+        ornament_blank, ornament_cap, gift_box_lid, jar_lid,
     )
 
 
