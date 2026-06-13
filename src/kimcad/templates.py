@@ -503,7 +503,85 @@ def _build_default_families() -> tuple[TemplateFamily, ...]:
         gaps=(("compartments", "length", 0.0, 0.25),),
     )
 
-    return (snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider)
+    # --- #19 slice 2: three printable library modules that already shipped UNUSED ---------
+    # Their .scad geometry + analytic bbox are pinned by tests/test_library_modules.py; here we
+    # expose them as selectable families with trusted CadQuery twins (cadquery_templates.py).
+
+    pegboard_hook = TemplateFamily(
+        name="pegboard_hook",
+        summary="A hook with two rear pegs that seat into a standard pegboard.",
+        object_types=("pegboard hook", "peg hook", "peg board hook", "pegboard"),
+        library_file="hooks.scad",
+        module="pegboard_hook",
+        params=(
+            ParamSpec(name="plate_w", label="Plate width", default=30.0, min=16.0, max=120.0,
+                      step=1.0, dim_keys=("plate_w", "width"), bbox_axis=0),
+            ParamSpec(name="arm_length", label="Hook reach", default=45.0, min=15.0, max=120.0,
+                      step=1.0, dim_keys=("arm_length", "reach", "projection", "depth")),
+            ParamSpec(name="hole_spacing", label="Peg spacing", default=25.4, min=20.0, max=80.0,
+                      step=0.1, dim_keys=("hole_spacing", "spacing")),
+            ParamSpec(name="hole_d", label="Peg diameter", default=6.0, min=3.0, max=10.0,
+                      step=0.5, dim_keys=("hole_d", "peg_diameter")),
+        ),
+        # arm_size is fixed, so arm_z0 = max(2, (arm_size+8) - arm_size) = 8 is constant and the
+        # bbox stays linear; plate_t and peg_len ride as fixed Y-span terms.
+        fixed_args={"plate_t": 5.0, "peg_len": 12.0, "arm_rise": 15.0, "arm_size": 6.0},
+        bbox_x=(BBoxTerm(ref="plate_w"),),
+        bbox_y=(BBoxTerm(ref="peg_len"), BBoxTerm(ref="plate_t"), BBoxTerm(ref="arm_length")),
+        bbox_z=(BBoxTerm(ref="hole_spacing"), BBoxTerm(ref="arm_size", coef=2.0), BBoxTerm(coef=16.0)),
+    )
+
+    spool_holder = TemplateFamily(
+        name="spool_holder",
+        summary="A wall bracket a filament spool slides onto, with an end stop.",
+        object_types=("spool holder", "filament spool holder", "filament holder", "spool bracket"),
+        library_file="holders.scad",
+        module="spool_holder",
+        params=(
+            # plate_w min 34 keeps the end-stop flange (arm_d+12 = 32 wide) inside the plate so
+            # bbox_x stays exactly plate_w; plate_h min 40 keeps the arm seat above the bed.
+            ParamSpec(name="plate_w", label="Plate width", default=60.0, min=34.0, max=120.0,
+                      step=1.0, dim_keys=("plate_w", "width"), bbox_axis=0),
+            ParamSpec(name="spool_width", label="Spool width", default=70.0, min=20.0, max=120.0,
+                      step=1.0, dim_keys=("spool_width",)),
+            ParamSpec(name="plate_h", label="Plate height", default=120.0, min=40.0, max=170.0,
+                      step=1.0, dim_keys=("plate_h", "height"), bbox_axis=2),
+        ),
+        fixed_args={"spool_od": 200.0, "screw_d": 4.0, "plate_t": 8.0, "arm_d": 20.0},
+        bbox_x=(BBoxTerm(ref="plate_w"),),
+        bbox_y=(BBoxTerm(ref="plate_t"), BBoxTerm(ref="spool_width"), BBoxTerm(coef=15.0)),
+        bbox_z=(BBoxTerm(ref="plate_h"),),
+    )
+
+    l_bracket = TemplateFamily(
+        name="l_bracket",
+        summary="An L-shaped mounting bracket with screw holes through both arms.",
+        object_types=(
+            "l bracket", "bracket", "corner bracket", "angle bracket", "shelf bracket",
+            "right angle bracket",
+        ),
+        library_file="bracket.scad",
+        module="l_bracket",
+        params=(
+            # arm is both the X and Z envelope (like the tube's od on X and Y); thick stays well
+            # under arm across the ranges so bbox_x = max(arm, thick) = arm holds.
+            ParamSpec(name="arm", label="Arm length", default=40.0, min=20.0, max=120.0,
+                      step=1.0, dim_keys=("arm", "length"), bbox_axis=0),
+            ParamSpec(name="width", label="Width", default=30.0, min=20.0, max=120.0,
+                      step=1.0, dim_keys=("width",), bbox_axis=1),
+            ParamSpec(name="thick", label="Thickness", default=4.0, min=3.0, max=10.0,
+                      step=0.5, dim_keys=("thick", "thickness", "wall")),
+        ),
+        fixed_args={"screw": 4.0, "inset": 8.0},
+        bbox_x=(BBoxTerm(ref="arm"),),
+        bbox_y=(BBoxTerm(ref="width"),),
+        bbox_z=(BBoxTerm(ref="arm"),),
+    )
+
+    return (
+        snap_box, open_box, enclosure, tube, wall_hook, cable_clip, drawer_divider,
+        pegboard_hook, spool_holder, l_bracket,
+    )
 
 
 # Built eagerly at import: construction is cheap and deterministic, and the families are

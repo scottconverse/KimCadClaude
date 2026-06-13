@@ -162,6 +162,90 @@ def _drawer_divider(v: dict[str, float]) -> str:
     )
 
 
+def _pegboard_hook(v: dict[str, float]) -> str:
+    # hooks.scad::pegboard_hook — back plate + two rearward (-Y) pegs + an L arm out +Y and up.
+    pw, hs, al = _f(v["plate_w"]), _f(v["hole_spacing"]), _f(v["arm_length"])
+    pt, peg, rise, arm = _f(v["plate_t"]), _f(v["peg_len"]), _f(v["arm_rise"]), _f(v["arm_size"])
+    hd = _f(v["hole_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"plate_h = {hs} + 2 * {arm} + 16\n"
+        f"peg_d = max(2.0, {hd} - clear)\n"
+        f"z_lo = (plate_h - {hs}) / 2\n"
+        f"z_hi = z_lo + {hs}\n"
+        f"arm_x0 = ({pw} - {arm}) / 2\n"
+        f"arm_z0 = max(2.0, z_lo - {arm})\n"
+        f'body = cq.Workplane("XY").box({pw}, {pt}, plate_h, {_CF})\n'
+        # rearward pegs: a +Z cylinder rotated +90 about X points -Y (the scad rotate([90,0,0])).
+        f'peg = (cq.Workplane("XY").circle(peg_d / 2).extrude({peg} + eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), 90))\n"
+        f"for z in (z_lo, z_hi):\n"
+        f"    body = body.union(peg.translate(({pw} / 2, eps, z)))\n"
+        f'arm = (cq.Workplane("XY").box({arm}, {al} + eps, {arm}, {_CF})'
+        f".translate((arm_x0, {pt} - eps, arm_z0)))\n"
+        f'lip = (cq.Workplane("XY").box({arm}, {arm}, {rise}, {_CF})'
+        f".translate((arm_x0, {pt} + {al} - {arm}, arm_z0)))\n"
+        f"result = body.union(arm).union(lip)\n"
+    )
+
+
+def _spool_holder(v: dict[str, float]) -> str:
+    # holders.scad::spool_holder — back plate + horizontal axle arm (+Y) + end-stop flange,
+    # minus two wall screw holes drilled along Y.
+    pw, sw, ph = _f(v["plate_w"]), _f(v["spool_width"]), _f(v["plate_h"])
+    pt, sd, ad = _f(v["plate_t"]), _f(v["screw_d"]), _f(v["arm_d"])
+    return (
+        f"eps = {_EPS}\n"
+        f"clear = {_CLEAR}\n"
+        f"arm_len = {sw} + 15\n"
+        f"arm_z = {ph} - {ad} / 2 - 8\n"
+        f"stop_d = {ad} + 12\n"
+        f'plate = cq.Workplane("XY").box({pw}, {pt}, {ph}, {_CF})\n'
+        # +Z cylinder rotated -90 about X points +Y (the scad rotate([-90,0,0])).
+        f'arm = (cq.Workplane("XY").circle({ad} / 2).extrude(arm_len)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90).translate(({pw} / 2, {pt} - eps, arm_z)))\n"
+        f'stop = (cq.Workplane("XY").circle(stop_d / 2).extrude(3.0)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90).translate(({pw} / 2, {pt} + arm_len - 3.0, arm_z)))\n"
+        f"body = plate.union(arm).union(stop)\n"
+        f'drill = (cq.Workplane("XY").circle(({sd} + clear) / 2).extrude({pt} + 2 * eps)'
+        f".rotate((0, 0, 0), (1, 0, 0), -90))\n"
+        f"for z in ({ph} * 0.25, {ph} * 0.75):\n"
+        f"    body = body.cut(drill.translate(({pw} / 2, -eps, z)))\n"
+        f"result = body\n"
+    )
+
+
+def _l_bracket(v: dict[str, float]) -> str:
+    # bracket.scad::l_bracket — base arm (XY) + upright arm (rising Z), two clearance holes
+    # through each arm. screw clearance mirrors fasteners.scad::screw_clearance_dia.
+    arm, width, thick = _f(v["arm"]), _f(v["width"]), _f(v["thick"])
+    inset = _f(v.get("inset", 8.0))
+    screw = float(v.get("screw", 4.0))
+    clear_d = _f(
+        {2.0: 2.4, 2.5: 2.9, 3.0: 3.4, 4.0: 4.5, 5.0: 5.5, 6.0: 6.6, 8.0: 9.0}.get(
+            screw, screw * 1.12
+        )
+    )
+    return (
+        f"eps = {_EPS}\n"
+        f'base = cq.Workplane("XY").box({arm}, {width}, {thick}, {_CF})\n'
+        f'upright = cq.Workplane("XY").box({thick}, {width}, {arm}, {_CF})\n'
+        f"body = base.union(upright)\n"
+        # base holes through Z
+        f'zhole = (cq.Workplane("XY").circle({clear_d} / 2).extrude({thick} + 2 * eps)'
+        f".translate((0, 0, -eps)))\n"
+        f"for y in ({inset}, {width} - {inset}):\n"
+        f"    body = body.cut(zhole.translate(({arm} - {inset}, y, 0)))\n"
+        # upright holes through X: a +Z cylinder rotated +90 about Y points +X (scad rotate([0,90,0])).
+        f'xhole = (cq.Workplane("XY").circle({clear_d} / 2).extrude({thick} + 2 * eps)'
+        f".rotate((0, 0, 0), (0, 1, 0), 90).translate((-eps, 0, 0)))\n"
+        f"for y in ({inset}, {width} - {inset}):\n"
+        f"    body = body.cut(xhole.translate((0, y, {arm} - {inset})))\n"
+        f"result = body\n"
+    )
+
+
 # Keyed by TemplateFamily.name. A family absent here simply has no STEP twin yet —
 # test_every_shipped_family_has_a_step_emitter fails loud if a shipped family is missing.
 _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
@@ -172,6 +256,9 @@ _EMITTERS: dict[str, Callable[[dict[str, float]], str]] = {
     "wall_hook": _wall_hook,
     "cable_clip": _cable_clip,
     "drawer_divider": _drawer_divider,
+    "pegboard_hook": _pegboard_hook,
+    "spool_holder": _spool_holder,
+    "l_bracket": _l_bracket,
 }
 
 

@@ -155,16 +155,43 @@ Run → FAIL (key absent).
 
 ---
 
-## Slices 2–7 — family batches
+## Catalog scope (revised 2026-06-13 — Scott: "as many as you can find")
 
-Each slice applies the **RECIPE** to its table rows, then: audit-lite → `bash scripts/ci.sh` green → commit `#19 slice N: <batch> (<families>)` → push (fetch-rebase first). Batch families that share a `.scad` file and a twin helper to amortize authoring. After each push, update `EXPECTED_FAMILY_NAMES` is already done in R4. Keep `docs/supported-*`/CHANGELOG current per slice.
+The breadth target grew: the `frame-zen-family-discovery` workflow added **57 vetted
+frame/Zen/decor families** (full spec: `kc-19-frame-zen-catalog.md`) on top of the original 25
+generic ports. Combined target catalog ≈ **7 existing + ~79 net-new ≈ 86 families**, all held to
+the same honesty bar (real linear-bbox geometry + STEP twin + render-verified). Build order now
+**leads with Kim's frame/Zen world** (Scott's priority), then the generic ports, then close.
 
-- **Slice 2** — pegboard_hook, spool_holder, l_bracket (geometry exists; confirm `l_bracket`'s `use <fasteners.scad>` sibling include resolves at render cwd — the one open risk).
-- **Slice 3** — washer, dowel_pin, bumper_foot, mounting_flange (one `rings.scad`, one shared annulus twin helper).
-- **Slice 4** — plate_with_hole, faceplate, vesa_plate(baseline).
-- **Slice 5** — corner_gusset, pcb_standoff, french_cleat(baseline), heatset_pocket(baseline).
-- **Slice 6** — snap_fit_box, lidded_box, clamp_block, cable_raceway, handle_grip, stand_dock.
-- **Slice 7** — funnel, gridfinity_bin(baseline), gridfinity_baseplate(baseline), threaded_nut(baseline), threaded_bolt(baseline). Nut/bolt carry the explicit "thread RELIEF only, not certified threads" caveat in summary + docs.
+## Slices — family batches
+
+Each slice applies the **RECIPE** per family, then: audit-lite → `bash scripts/ci.sh` green →
+commit `#19 slice N: <batch>` → push (fetch-rebase first). Families that share a `.scad` file +
+twin helper batch together. `EXPECTED_FAMILY_NAMES` grows per slice (R4). CHANGELOG per slice.
+Any family that proves intractable in TDD (bbox won't linearize, twin won't match) is dropped
+with a documented note rather than forced — honesty over count.
+
+**DONE:** Slice 1 (tier scaffolding), Slice 2 (pegboard_hook, spool_holder, l_bracket).
+
+**Kim's frame/Zen world first** (specs in `kc-19-frame-zen-catalog.md`):
+- **S3 frames** (9): picture/floating/shadow-box/certificate/collage/mini/lithophane frame, mat_board, suncatcher_ring
+- **S4 hangers** (8): sawtooth, keyhole, d-ring strap, wire-loop, z-clip, art-cleat-pair, picture-rail-hook, hidden-rod-shelf-bracket
+- **S5 zen trays/dishes** (7): zen_garden_tray, incense stick/cone, ring_dish, catchall_tray, soap_dish, handled_tray
+- **S6 holders/cups** (6): tealight, taper-candle, luminary_base, bud_vase_sleeve, pencil_cup, propagation_station
+- **S7 planters** (4): planter_pot, planter_saucer, bonsai_pot, succulent_pot
+- **S8 flat decor** (5): coaster, trivet, bookend, geometric_wall_tile, tile_connector_clip
+- **S9 stands/easels** (6): wedge_easel, plate_display_stand, display_riser, slanted_sign_holder, desk_nameplate_holder, place_card_holder
+- **S10 ledges + ornaments + joinery** (3+4+5): picture_ledge_shelf, peg_hook_rail, j_decor_hook; ornament_blank, ornament_cap, gift_box_lid, jar_lid; canvas_stretcher_corner, frame_corner_clamp, frame_corner_joiner, frame_turn_button, frame_backing_clip
+
+**Generic ports** (original plan, specs in the table above):
+- **S11 rings** (4): washer, dowel_pin, bumper_foot, mounting_flange
+- **S12 plates** (3): plate_with_hole, faceplate, vesa_plate(baseline)
+- **S13 brackets** (4): corner_gusset, pcb_standoff, french_cleat(baseline), heatset_pocket(baseline)
+- **S14 boxes** (6): snap_fit_box, lidded_box, clamp_block, cable_raceway, handle_grip, stand_dock
+- **S15 specialty** (5): funnel, gridfinity_bin(baseline), gridfinity_baseplate(baseline), threaded_nut(baseline), threaded_bolt(baseline) — nut/bolt carry the explicit "thread RELIEF only, not certified threads" caveat.
+
+Coverage-gap families (clock_frame, mirror_frame, multi_tealight_tray, wind_chime_topper,
+photo_block) added opportunistically within the relevant batch if cheap.
 
 ## Slice 8 — Epic close
 

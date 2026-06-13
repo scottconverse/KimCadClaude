@@ -61,7 +61,11 @@ def _plan(object_type: str, *, dimensions=None, bbox=None) -> DesignPlan:
 # fails loud: a deliberate "declare your new family" tripwire, but DRY (one literal, not the
 # old scattered `== 7`s).
 EXPECTED_FAMILY_NAMES = frozenset(
-    {"snap_box", "box", "enclosure", "tube", "wall_hook", "cable_clip", "drawer_divider"}
+    {
+        "snap_box", "box", "enclosure", "tube", "wall_hook", "cable_clip", "drawer_divider",
+        # #19 slice 2: library modules that shipped unused, now selectable families
+        "pegboard_hook", "spool_holder", "l_bracket",
+    }
 )
 
 

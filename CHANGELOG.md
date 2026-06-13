@@ -25,6 +25,10 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Three new part families (#19, slice 2): pegboard hook, spool holder, L-bracket.** Three
+  printable library modules that shipped unused are now selectable templates — each with live
+  sliders, an analytic bounding box the gate verifies against a real render, and a trusted
+  CadQuery `.STEP` twin. All benchmarked.
 - **Template honesty tiers (#19, slice 1).** Every part-library family now carries a tier:
   **benchmarked** (what-you-set-is-what-you-get) or **baseline** (real, gate-verified geometry
   with a fitness caveat to check before real use — e.g. thread *relief* rather than certified

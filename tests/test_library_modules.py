@@ -30,6 +30,7 @@ NEW_MODULES = {
         "pegboard_hook(hole_d=6, hole_spacing=25.4, arm_length=45);",
         [30, 62, 53.4],
     ),
+    "l_bracket": ("bracket.scad", "l_bracket(arm=40, width=30, thick=4);", [40, 30, 40]),
     "cable_clip": ("clips.scad", "cable_clip(cable_d=6, width=20, screw_d=4);", [20, 25, 9.0]),
     "snap_box": ("containers.scad", "snap_box(width=80, depth=60, height=40, wall=2);", [80, 60, 40]),
     "enclosure": (
