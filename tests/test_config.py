@@ -226,4 +226,7 @@ def test_configured_build_volumes_match_the_shipped_orca_profiles():
             f"{profile_volume} ({p.orca_machine_profile!r})"
         )
         checked += 1
-    assert checked >= 3  # all three reference printers carry a sliceable profile today
+    # The 3 reference printers + the #22 curated catalog (popular current machines) all carry a
+    # build_volume gate-checked against their shipped Orca profile; this lower bound grows with the
+    # catalog and guards against a regression that drops the volume verification.
+    assert checked >= 25

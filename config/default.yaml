@@ -150,6 +150,294 @@ printers:
       # mapped to an incompatible (Bambu) generic. (Verified: no Elegoo TPU profile ships.)
     reference_hardware: true          # target hardware (validated in the final beta, not yet)
 
+  # ---- #22 curated catalog: popular current machines across the top makers. Each is
+  # build-volume-verified against its shipped OrcaSlicer machine profile (KC-7,
+  # test_configured_build_volumes_match_the_shipped_orca_profiles) and slice-proven — a 20 mm box
+  # was run through the REAL OrcaSlicer with the machine+process+filament profiles below, per
+  # scripts/build_printer_catalog.py --verify (re-run it to refresh from a newer profile tree).
+  # These are NOT reference_hardware (no native direct-send, not Kim's target box), so they take
+  # the default reference_hardware:false. A material absent from a printer's list has NO shipped
+  # filament profile that slices on it (honest "not available" — e.g. the A1 mini offers no ABS,
+  # the Elegoo Neptune family no TPU), never a silent cross-vendor fallback. Some entries use a
+  # vendor's shared family profile (e.g. Bambu P1S/X1E slice with @BBL X1C, Sovol SV06 with a
+  # shared filament) — that's the vendor's own shipped profile, verified to slice here. ----
+  bambu_p1p:
+    name: "Bambu Lab P1P"
+    build_volume: [256, 256, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab P1P 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL P1P"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL P1P"
+      petg: "Bambu PETG Basic @BBL X1C"
+      tpu: "Bambu TPU 95A @BBL P1P"
+      abs: "Bambu ABS @BBL P1P"
+  bambu_p1s:
+    name: "Bambu Lab P1S"
+    build_volume: [256, 256, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab P1S 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL X1C"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL X1C"
+      petg: "Bambu PETG Basic @BBL X1C"
+      tpu: "Bambu TPU 95A @BBL X1C"
+      abs: "Bambu ABS @BBL X1C"
+  bambu_x1c:
+    name: "Bambu Lab X1 Carbon"
+    build_volume: [256, 256, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab X1 Carbon 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL X1C"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL X1C"
+      petg: "Bambu PETG Basic @BBL X1C"
+      tpu: "Bambu TPU 95A @BBL X1C"
+      abs: "Bambu ABS @BBL X1C"
+  bambu_x1e:
+    name: "Bambu Lab X1E"
+    build_volume: [256, 256, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab X1E 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL X1C"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL X1C"
+      petg: "Bambu PETG Basic @BBL X1C"
+      tpu: "Bambu TPU 95A @BBL X1C"
+      abs: "Bambu ABS @BBL X1E"
+  bambu_a1_mini:
+    name: "Bambu Lab A1 mini"
+    build_volume: [180, 180, 180]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Bambu Lab A1 mini 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @BBL A1M"
+    orca_filament_profiles:
+      pla: "Bambu PLA Basic @BBL A1M"
+      petg: "Bambu PETG Basic @BBL A1M 0.4 nozzle"
+      tpu: "Bambu TPU 95A @BBL A1M"
+  creality_k1:
+    name: "Creality K1"
+    build_volume: [220, 220, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality K1 (0.4 nozzle)"
+    orca_process_profile: "0.20mm Standard @Creality K1 (0.4 nozzle)"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA"
+      petg: "Creality Generic PETG"
+      tpu: "Creality Generic TPU"
+      abs: "Creality Generic ABS"
+  creality_k1_max:
+    name: "Creality K1 Max"
+    build_volume: [300, 300, 300]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality K1 Max (0.4 nozzle)"
+    orca_process_profile: "0.20mm Standard @Creality K1Max (0.4 nozzle)"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA"
+      petg: "Creality Generic PETG"
+      tpu: "Creality Generic TPU"
+      abs: "Creality Generic ABS"
+  creality_k1c:
+    name: "Creality K1C"
+    build_volume: [220, 220, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality K1C 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Creality K1C 0.4 nozzle"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA @K1-all"
+      petg: "Creality Generic PETG @K1-all"
+      tpu: "Creality Generic TPU @K1-all"
+      abs: "Creality Generic ABS @K1-all"
+  creality_k2_plus:
+    name: "Creality K2 Plus"
+    build_volume: [350, 350, 350]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality K2 Plus 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Creality K2 Plus 0.4 nozzle"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA @K2-all"
+      petg: "Creality Generic PETG @K2-all"
+      tpu: "Creality Generic TPU @K2-all"
+      abs: "Creality Generic ABS @K2-all"
+  creality_ender3_v3:
+    name: "Creality Ender-3 V3"
+    build_volume: [220, 220, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality Ender-3 V3 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Creality Ender3V3 0.4 nozzle"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA @Ender-3V3-all"
+      petg: "Creality Generic PETG @Ender-3V3-all"
+      tpu: "Creality Generic TPU @Ender-3V3-all"
+      abs: "Creality Generic ABS @Ender-3V3-all"
+  creality_ender3_v3_ke:
+    name: "Creality Ender-3 V3 KE"
+    build_volume: [220, 220, 245]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality Ender-3 V3 KE 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Creality Ender3V3KE"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA @Ender-3V3-all"
+      petg: "Creality Generic PETG @Ender-3V3-all"
+      tpu: "Creality Generic TPU @Ender-3V3-all"
+      abs: "Creality Generic ABS @Ender-3V3-all"
+  creality_cr10_se:
+    name: "Creality CR-10 SE"
+    build_volume: [220, 220, 265]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Creality CR-10 SE 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Creality CR10SE 0.4"
+    orca_filament_profiles:
+      pla: "Creality Generic PLA"
+      petg: "Creality Generic PETG"
+      tpu: "Creality Generic TPU"
+      abs: "Creality Generic ABS"
+  prusa_mk4:
+    name: "Prusa MK4"
+    build_volume: [250, 210, 220]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Prusa MK4 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @MK4"
+    orca_filament_profiles:
+      pla: "Prusa Generic PLA @MK4"
+      petg: "Prusa Generic PETG @MK4"
+      tpu: "Prusa Generic TPU @MK4"
+      abs: "Prusa Generic ABS @MK4"
+  prusa_mini:
+    name: "Prusa MINI"
+    build_volume: [180, 180, 180]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Prusa MINI 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @MINI"
+    orca_filament_profiles:
+      pla: "Prusa Generic PLA"
+      petg: "Prusa Generic PETG"
+      tpu: "Prusa Generic TPU"
+      abs: "Prusa Generic ABS"
+  anycubic_kobra2:
+    name: "Anycubic Kobra 2"
+    build_volume: [220, 220, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Anycubic Kobra 2 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Anycubic Kobra2"
+    orca_filament_profiles:
+      pla: "Anycubic Generic PLA"
+      petg: "Anycubic Generic PETG"
+      tpu: "Anycubic Generic TPU"
+      abs: "Anycubic Generic ABS"
+  anycubic_kobra2_max:
+    name: "Anycubic Kobra 2 Max"
+    build_volume: [420, 420, 500]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Anycubic Kobra 2 Max 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Anycubic Kobra 2 Max 0.4 nozzle"
+    orca_filament_profiles:
+      pla: "Anycubic PLA @Anycubic Kobra 2 Max 0.4 nozzle"
+  anycubic_kobra_s1:
+    name: "Anycubic Kobra S1"
+    build_volume: [250, 250, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Anycubic Kobra S1 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Anycubic Kobra S1 0.4 nozzle"
+    orca_filament_profiles:
+      pla: "Anycubic PLA @Anycubic Kobra S1 0.4 nozzle"
+      petg: "Anycubic PETG @Anycubic Kobra S1 0.4 nozzle"
+      tpu: "Anycubic TPU @Anycubic Kobra S1 0.4 nozzle"
+      abs: "Anycubic ABS @Anycubic Kobra S1 0.4 nozzle"
+  elegoo_neptune4:
+    name: "Elegoo Neptune 4"
+    build_volume: [225, 225, 265]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Elegoo Neptune 4 (0.4 nozzle)"
+    orca_process_profile: "0.20mm Standard @Elegoo Neptune4 (0.4 nozzle)"
+    orca_filament_profiles:
+      pla: "Generic PLA @Elegoo"
+      petg: "Generic PETG @Elegoo"
+      abs: "Generic ABS @Elegoo"
+  elegoo_neptune4_pro:
+    name: "Elegoo Neptune 4 Pro"
+    build_volume: [235, 230, 265]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Elegoo Neptune 4 Pro (0.4 nozzle)"
+    orca_process_profile: "0.20mm Standard @Elegoo Neptune4Pro (0.4 nozzle)"
+    orca_filament_profiles:
+      pla: "Generic PLA @Elegoo"
+      petg: "Generic PETG @Elegoo"
+      abs: "Generic ABS @Elegoo"
+  elegoo_neptune4_plus:
+    name: "Elegoo Neptune 4 Plus"
+    build_volume: [320, 320, 385]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Elegoo Neptune 4 Plus (0.4 nozzle)"
+    orca_process_profile: "0.20mm Standard @Elegoo Neptune4 Plus (0.4 nozzle)"
+    orca_filament_profiles:
+      pla: "Generic PLA @Elegoo"
+      petg: "Generic PETG @Elegoo"
+      abs: "Generic ABS @Elegoo"
+  qidi_q1_pro:
+    name: "Qidi Q1 Pro"
+    build_volume: [245, 245, 240]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Qidi Q1 Pro 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Qidi Q1 Pro"
+    orca_filament_profiles:
+      pla: "QIDI PLA Basic @Qidi Q1 Pro 0.4 nozzle"
+      petg: "QIDI PETG Basic @Qidi Q1 Pro 0.4 nozzle"
+      tpu: "Qidi TPU 95A-HF @Qidi Q1 Pro 0.4 nozzle"
+      abs: "Bambu ABS @Qidi Q1 Pro 0.4 nozzle"
+  qidi_xmax3:
+    name: "Qidi X-Max 3"
+    build_volume: [325, 325, 315]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Qidi X-Max 3 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Qidi XMax3"
+    orca_filament_profiles:
+      pla: "QIDI PLA Basic"
+      petg: "QIDI PETG Basic"
+      tpu: "Qidi TPU 95A-HF"
+      abs: "HATCHBOX ABS @Qidi"
+  qidi_xplus3:
+    name: "Qidi X-Plus 3"
+    build_volume: [280, 280, 270]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Qidi X-Plus 3 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Qidi XPlus3"
+    orca_filament_profiles:
+      pla: "QIDI PLA Basic"
+      petg: "QIDI PETG Basic"
+      tpu: "Qidi TPU 95A-HF"
+      abs: "HATCHBOX ABS @Qidi"
+  sovol_sv06:
+    name: "Sovol SV06"
+    build_volume: [220, 220, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Sovol SV06 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Sovol SV06"
+    orca_filament_profiles:
+      pla: "Sovol Zero PLA Basic"
+      petg: "SUNLU PETG @Sovol SV08 MAX"
+      tpu: "Generic TPU @Sovol SV08 MAX"
+      abs: "Generic ABS @Sovol SV08 MAX"
+  sovol_sv07:
+    name: "Sovol SV07"
+    build_volume: [220, 220, 250]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Sovol SV07 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Sovol SV07"
+    orca_filament_profiles:
+      pla: "Sovol SV07 PLA"
+  sovol_sv08:
+    name: "Sovol SV08"
+    build_volume: [350, 350, 345]
+    nozzle_diameter: 0.4
+    orca_machine_profile: "Sovol SV08 0.4 nozzle"
+    orca_process_profile: "0.20mm Standard @Sovol SV08 0.4 nozzle"
+    orca_filament_profiles:
+      pla: "Sovol SV08 PLA"
+      petg: "Sovol SV08 PETG"
+      tpu: "Sovol SV08 TPU"
+      abs: "Sovol SV08 ABS"
+
 # Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
 # unless a material overrides it. Temps are nozzle/bed in °C.
 #

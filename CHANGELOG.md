@@ -25,6 +25,22 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Printer catalog broadened 3 → 29, slice-proven + honestly tiered (#22, KC-17).** The picker
+  now offers a curated catalog of popular current machines across the top makers — Bambu (P1P/
+  P1S/X1 Carbon/X1E/A1 mini), Creality (K1/K1 Max/K1C/K2 Plus/Ender-3 V3/Ender-3 V3 KE/CR-10 SE),
+  Prusa (MK4/MINI), Anycubic (Kobra 2/Kobra 2 Max/Kobra S1), Elegoo (Neptune 4/Pro/Plus), Qidi
+  (Q1 Pro/X-Max 3/X-Plus 3), and Sovol (SV06/SV07/SV08) — drawn from the bundled ~1,400-profile
+  OrcaSlicer tree. Every entry's build volume is verified against its shipped Orca machine profile
+  on each CI run (KC-7), and each was **slice-proven**: a 20 mm box run through the real
+  OrcaSlicer with its machine + process + filament profiles, per material (only materials whose
+  shipped profile actually slices are offered — e.g. the A1 mini lists no ABS, the Elegoo Neptune
+  family no TPU — an honest "not available" over a silent mis-map). The three reference printers
+  (P2S, A1, Neptune 4 Max) keep their tier (also native direct-send). A new build tool,
+  `scripts/build_printer_catalog.py --verify`, resolves volumes + compatible profiles from the
+  tree and re-proves the catalog by slicing; the per-vendor live-slice smoke runs in CI while the
+  full catalog is the recorded proof. Machines whose shipped profile fails a headless slice (a few
+  Prusa input-shaper / Klipper relative-extruder ones) are honestly left in the profile-shipped
+  tier until fixed. Docs: `docs/supported-printers.md` rewritten with the four-tier honesty key.
 - **#19 catalog epic-gate hardening (5-role audit → 0/0/0/0/0).** Closing the 7→86 catalog
   expansion, a full audit-team pass drove every finding to zero: a construction-time guard now
   rejects any family whose envelope could exceed the ~170 mm sliceable cap at its maximum

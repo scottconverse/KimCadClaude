@@ -562,14 +562,23 @@ def _binary_and_profiles_present() -> bool:
 @pytest.mark.skipif(
     not _binary_and_profiles_present(), reason="OrcaSlicer binary/profiles not present"
 )
-@pytest.mark.parametrize("printer_key", ["bambu_p2s", "bambu_a1", "elegoo_neptune_4_max"])
+@pytest.mark.parametrize("printer_key", [
+    # The 3 reference printers, PLUS one representative per #22 curated vendor: a per-vendor slice
+    # smoke that catches profile-format / G-code-header regressions across the makers without
+    # slicing all 29 catalogued printers on every push. The FULL curated catalog is slice-proven
+    # (each machine + each material) by scripts/build_printer_catalog.py --verify, the recorded
+    # proof of record; KC-7 re-verifies every printer's build volume on every run.
+    "bambu_p2s", "bambu_a1", "elegoo_neptune_4_max",
+    "bambu_p1s", "creality_k1", "prusa_mk4", "anycubic_kobra2", "elegoo_neptune4",
+    "qidi_q1_pro", "sovol_sv06",
+])
 def test_live_slice_box_produces_proven_gcode(tmp_path, printer_key):
-    """The whole chain, live, for EACH of Kim's printers: resolve the configured profiles,
-    slice a real 20 mm box through the bundled OrcaSlicer, and prove the exported 3MF
-    carries a real motion-bearing toolpath WITH a parsed estimate (time + layers +
-    filament). No mocks, real binary, real profiles, real mesh — the high-altitude
-    regression anchor for slicing, including the Elegoo whose G-code header uses a
-    different time/profile-naming convention than Bambu's."""
+    """The whole chain, live, for the reference printers + a representative of each curated
+    vendor: resolve the configured profiles, slice a real 20 mm box through the bundled
+    OrcaSlicer, and prove the exported 3MF carries a real motion-bearing toolpath WITH a parsed
+    estimate (time + layers + filament). No mocks, real binary, real profiles, real mesh — the
+    high-altitude regression anchor for slicing, across vendors whose G-code headers use
+    different time/profile-naming conventions."""
     import trimesh
 
     cfg = Config.load()
