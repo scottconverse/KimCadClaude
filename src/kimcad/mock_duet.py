@@ -26,7 +26,8 @@ def _status_payload(status_type: int, state: dict[str, Any]) -> dict[str, Any]:
         state["fraction"] = min(100.0, state["fraction"] + state["step"])
         if state["fraction"] >= 100.0:
             state["printing"] = False
-            state["status"] = "I"  # RRF returns to idle when the print completes
+            state["status"] = "I"  # RRF returns to idle when the print completes...
+            state["fraction"] = 0.0  # ...and clears fractionPrinted (faithful — drives the latch)
     printing = state["printing"]
     out: dict[str, Any] = {
         "status": state["status"],
@@ -59,10 +60,10 @@ def _make_handler(state: dict[str, Any], password: str | None) -> type[BaseHTTPR
             self.wfile.write(body)
 
         def _authorized(self) -> bool:
-            # On a password-protected board, the protected endpoints require a prior successful
-            # /rr_connect (RRF tracks the session by client; the mock tracks one `connected` flag).
-            # A 403 here surfaces in the connector as AuthError, distinct from offline.
-            if password and not state["connected"]:
+            # On a password-protected board, the protected endpoints require an OPEN session
+            # (a prior /rr_connect that hasn't been /rr_disconnect'd). A 403 here surfaces in the
+            # connector as AuthError, distinct from offline.
+            if password and state["sessions"] <= 0:
                 self._json(403, {"err": 1})
                 return False
             return True
@@ -71,13 +72,22 @@ def _make_handler(state: dict[str, Any], password: str | None) -> type[BaseHTTPR
             parts = urlsplit(self.path)
             query = parse_qs(parts.query, keep_blank_values=True)
             if parts.path == "/rr_connect":
-                # err 0 ok, err 1 wrong password. A board with no password ignores the value.
+                # err 0 ok, err 1 wrong password, err 2 no free sessions. No password -> open board.
                 if password and (query.get("password", [""])[0] != password):
                     self._json(200, {"err": 1})
-                else:
-                    with lock:
-                        state["connected"] = True
-                    self._json(200, {"err": 0, "sessionTimeout": 8000})
+                    return
+                with lock:
+                    if state["session_cap"] and state["sessions"] >= state["session_cap"]:
+                        self._json(200, {"err": 2})  # session table full
+                        return
+                    state["sessions"] += 1
+                    state["max_sessions_seen"] = max(state["max_sessions_seen"], state["sessions"])
+                self._json(200, {"err": 0, "sessionTimeout": 8000})
+                return
+            if parts.path == "/rr_disconnect":
+                with lock:
+                    state["sessions"] = max(0, state["sessions"] - 1)
+                self._json(200, {"err": 0})
                 return
             if not self._authorized():
                 return
@@ -131,6 +141,7 @@ def _make_handler(state: dict[str, Any], password: str | None) -> type[BaseHTTPR
                 with lock:
                     state["files"].append(name)
                     state["uploaded_bytes"] = len(body)
+                    state["uploaded_body"] = body  # capture for an exact-content test
                 self._json(200, {"err": 0})
                 return
             self._json(404, {"err": 1})
@@ -142,11 +153,15 @@ def _initial_state(
     step: float,
     axis_mins: list[float] | None = None,
     axis_maxes: list[float] | None = None,
+    session_cap: int = 0,
 ) -> dict[str, Any]:
     return {
         "files": [],
         "uploaded_bytes": 0,
-        "connected": False,
+        "uploaded_body": b"",
+        "sessions": 0,
+        "session_cap": session_cap,
+        "max_sessions_seen": 0,
         "printing": False,
         "status": "I",
         "fraction": 0.0,
@@ -163,13 +178,16 @@ def serve_mock_duet(
     step: float = 40.0,
     axis_mins: list[float] | None = None,
     axis_maxes: list[float] | None = None,
+    session_cap: int = 0,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """Run the mock on an ephemeral 127.0.0.1 port. Yields ``(base_url, state)``.
 
     ``step`` is the percent a single type-3 status poll advances the print (40 → done by the 3rd
     poll). ``password=None`` runs open (the common Duet LAN case). ``axis_mins``/``axis_maxes``
-    override the reported travel (defaults model a 230×210×200 bed at origin)."""
-    state = _initial_state(step, axis_mins, axis_maxes)
+    override the reported travel (defaults model a 230×210×200 bed at origin). ``session_cap``>0
+    models a finite RRF session table (err 2 when full) so a test can prove the connector
+    disconnects and never exhausts it."""
+    state = _initial_state(step, axis_mins, axis_maxes, session_cap)
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(state, password))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:

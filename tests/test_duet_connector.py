@@ -90,6 +90,16 @@ def test_send_uploads_to_gcodes_and_starts_then_job_flows_to_done(tmp_path):
         assert last.state is JobState.done and last.progress == 1.0
 
 
+def test_malicious_job_name_is_sanitized_before_the_m32_command(tmp_path):
+    # A job name with a quote/newline/slash must NOT break the M32 "0:…" quoting or inject a
+    # second rr_gcode command — the upload name is reduced to safe chars.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_duet(step=40.0) as (base, state):
+        job = _connector(base).send(g, confirm=True, job_name='evil"\nM112 /../boom')
+        assert job.job_id == "evilM112boom.gcode"  # quotes/newlines/slashes/dots stripped
+        assert state["files"] == ["/gcodes/evilM112boom.gcode"]
+
+
 def test_job_status_reports_paused():
     with serve_mock_duet() as (base, state):
         state["status"] = "S"  # stopped/paused
@@ -186,3 +196,83 @@ def test_status_5xx_reports_not_online(monkeypatch):
     monkeypatch.setattr(c, "_request", _boom)
     st = c.status()
     assert st.online is False and st.state is PrinterState.error
+
+
+# --- KC-21 audit remediation (#26) --------------------------------------------
+
+def test_send_uploads_the_exact_gcode_bytes(tmp_path):
+    gcode = "G28\nG1 X10 Y10 E1\nG1 X20 Y20 E2\n"
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf", gcode=gcode)
+    with serve_mock_duet() as (base, state):
+        _connector(base).send(g, confirm=True)
+    assert state["uploaded_body"] == gcode.encode()  # TE-06: the real bytes, not just "an upload"
+
+
+def test_session_is_released_so_repeated_polls_never_exhaust(tmp_path):
+    # ENG-003/QA-4: with a password the connector opens AND closes a session per op, so a finite
+    # session table (cap 2) is never exhausted across many polls — no false "busy".
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_duet(password="pw", session_cap=2) as (base, state):
+        c = DuetConnector(base, "pw", name="mock-duet")
+        c.send(g, confirm=True)
+        for _ in range(10):
+            assert c.status().online is True
+            c.job_status("x")
+    assert state["sessions"] == 0          # every session was released
+    assert state["max_sessions_seen"] <= 1  # never more than one open at a time
+
+
+def test_upload_without_err0_is_a_failure_not_a_silent_start(monkeypatch, tmp_path):
+    # ENG-007: a 200 with no `err` key (or err!=0) must be treated as a FAILED upload — never start.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_duet() as (base, _state):
+        c = _connector(base)
+        monkeypatch.setattr(c, "_post_upload", lambda *a, **k: {})  # no err key
+        with pytest.raises(ConnectorError, match="rejected the upload"):
+            c.send(g, confirm=True)
+
+
+def test_m32_failure_is_not_reported_as_a_printing_job(monkeypatch, tmp_path):
+    # QA-1: if rr_gcode/M32 returns a non-zero err, the start was refused — don't report printing.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_duet() as (base, _state):
+        c = _connector(base)
+        orig = c._get_json
+        monkeypatch.setattr(
+            c, "_get_json", lambda path: {"err": 1} if "rr_gcode" in path else orig(path)
+        )
+        with pytest.raises(ConnectorError, match="refused the print start"):
+            c.send(g, confirm=True)
+
+
+def test_temps_parsing_tolerates_rrf_shape_variance():
+    # ENG-006: bed may be a dict, a number, or a list; current is [bed, tool0, ...].
+    assert DuetConnector._temps({"temps": {"bed": {"current": 55.0}, "current": [55.0, 205.0]}}) == (205.0, 55.0)
+    assert DuetConnector._temps({"temps": {"bed": 50.0, "current": [50.0, 200.0]}}) == (200.0, 50.0)
+    assert DuetConnector._temps({"temps": {"current": [48.0, 198.0]}}) == (198.0, 48.0)
+    assert DuetConnector._temps({"temps": {}}) == (None, None)
+
+
+@pytest.mark.parametrize("char,expected", [("S", JobState.paused), ("A", JobState.paused),
+                                           ("H", JobState.error), ("F", JobState.error)])
+def test_job_status_maps_paused_and_halted_states(char, expected):
+    with serve_mock_duet() as (base, state):
+        state["status"] = char
+        job = _connector(base).job_status("x")
+    assert job.state is expected
+
+
+def test_done_is_latched_after_progress_then_idle(tmp_path):
+    # ENG-004/TE-01/TE-02: RRF clears fractionPrinted on completion, so done is detected by the
+    # LATCH (progress seen -> later idle == done), and a poll past done never regresses to queued.
+    g = _write_gcode_3mf(tmp_path / "p.gcode.3mf")
+    with serve_mock_duet(step=40.0) as (base, _state):
+        c = _connector(base)
+        job = c.send(g, confirm=True)
+        last = None
+        for _ in range(6):
+            last = c.job_status(job.job_id)
+            if last.state is JobState.done:
+                break
+        assert last.state is JobState.done and last.progress == 1.0
+        assert c.job_status(job.job_id).state is JobState.done  # poll past done stays done

@@ -131,6 +131,31 @@ def test_default_config_ships_a_duet_connector():
     assert "duet" in Config.load().connectors()
 
 
+# --- Marlin-serial (KC-21, #26) -----------------------------------------------
+
+def test_build_marlin_connector_from_target():
+    from kimcad.marlin_connector import MarlinConnector
+
+    cfg = _config({"m": {"type": "marlin", "base_url": "192.168.0.70:8080"}})
+    c = build_connector(cfg, "m")
+    assert isinstance(c, MarlinConnector) and c.name == "m"
+
+
+def test_build_marlin_without_target_errors():
+    cfg = _config({"m": {"type": "marlin"}})
+    with pytest.raises(ConnectorError, match="target"):
+        build_connector(cfg, "m")
+
+
+def test_marlin_is_not_simulated():
+    cfg = _config({"m": {"type": "marlin", "base_url": "COM3"}})
+    assert connector_is_simulated(cfg.connector_config("m")) is False
+
+
+def test_default_config_ships_a_marlin_connector():
+    assert "marlin" in Config.load().connectors()
+
+
 def test_build_prusalink_connector_with_key(monkeypatch):
     monkeypatch.setenv("PRUSA_KEY", "secret")
     cfg = _config(

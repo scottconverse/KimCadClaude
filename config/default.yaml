@@ -500,6 +500,13 @@ connectors:
     type: duet
     base_url:                       # the board's IP, e.g. http://192.168.0.60
     api_key_env: DUET_PASSWORD      # optional; the board's password if one is set
+  # Marlin firmware (Ender-class + most consumer FDM) over its raw M-code line protocol (KC-21).
+  # The target (base_url) is EITHER a serial port (COM3, /dev/ttyUSB0 — needs `pip install
+  # pyserial`) OR a host:port for a serial-over-network bridge (ser2net/ESP3D/an OctoPrint relay).
+  # KimCad uploads to the printer's SD card and starts the print; the printer prints from SD.
+  marlin:
+    type: marlin
+    base_url:                       # e.g. COM3, /dev/ttyUSB0, or 192.168.0.70:8080
   # Bambu Lab printers (P2S / A1 family), native LAN mode (Stage 10). Needs the OPTIONAL
   # bambulabs-api package (pip install bambulabs-api). On the printer: enable LAN/Developer
   # mode, note the Access Code (Settings -> WLAN) and Serial (Settings -> Device). The access

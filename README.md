@@ -307,7 +307,21 @@ hardware-verified.
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper via Moonraker — Creality-Klipper, Voron, RatRig, Mainsail/Fluidd | `base_url`, optional `api_key_env` (Moonraker often runs unauthenticated on a trusted LAN) |
 | `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
+| `duet` | RepRapFirmware / Duet 2/3 boards | `base_url` (board IP), optional `api_key_env` (the board password if one is set) |
+| `marlin` | Marlin firmware — Ender-class + most consumer FDM | `base_url` = a USB serial port (`COM3`, `/dev/ttyUSB0`) **or** a `host:port` serial-over-network bridge |
 | `bambu` | Bambu Lab, native LAN mode — P2S / A1 family (Stage 10) | `base_url` (printer IP), `serial`, `api_key_env` (the LAN access code), optional `use_ams` (default `true`) |
+
+> **Duet / Marlin setup (KC-21):** `duet` drives RepRapFirmware boards over the classic `/rr_*`
+> HTTP interface (no extra dependency; set the board password's env var only if one is configured).
+> `marlin` drives Marlin firmware over its M-code line protocol — it uploads to the printer's SD
+> card and starts the print from SD. A **`host:port`** target (a ser2net/ESP3D/relay bridge) needs
+> nothing; a **USB serial port** target needs the **optional** `pyserial` package
+> (`pip install pyserial` or `pip install "kimcad[serial]"`; without it a serial target reports
+> that exact hint, never a crash). *Both are validated against conformance mocks; the first
+> real-hardware run is the beta (#11). Job completion over the classic RRF/Marlin status surface is
+> inferred from the print returning to idle after progress (not a per-file query), so treat the
+> first terminal state as final; Marlin SD names are truncated to 8 characters, so designs sharing
+> the first 8 alphanumerics reuse the same SD file.*
 
 > **Bambu setup (Stage 10):** the `bambu` connector drives the printer natively — MQTT-over-TLS
 > for control, FTPS for the upload — via the **optional** `bambulabs-api` package
@@ -344,7 +358,8 @@ labels a no-hardware connection honestly rather than narrating a mock send as a 
 - **Agent / MCP:** `python -m kimcad.mcp_server` exposes the printer as MCP tools (list
   connections, status, capabilities, and a confirmation-gated `send_print`) so an agent can drive
   it. Runnable mock servers back each connector for offline testing: `python -m kimcad.mock_printer`
-  (OctoPrint), `python -m kimcad.mock_moonraker`, and `python -m kimcad.mock_prusalink`.
+  (OctoPrint), `python -m kimcad.mock_moonraker`, `python -m kimcad.mock_prusalink`,
+  `python -m kimcad.mock_duet`, and `python -m kimcad.mock_marlin`.
 
 **Materials are per-printer-honest.** A printer is only offered the materials it has a verified
 filament profile for — e.g. the Elegoo Neptune 4 Max ships no TPU profile, so TPU is *not* offered

@@ -112,6 +112,17 @@ shows both codes under **Settings → WLAN** (access code) and **Settings → De
 (serial), with LAN mode enabled. Without all four pieces the connection stays listed as
 "not set up yet" and tells you which piece is missing.
 
+## A Marlin printer over USB needs the optional pyserial package
+
+The `marlin` connection talks to the printer over a serial line. If you point its `base_url`
+at a **USB serial port** (`COM3`, `/dev/ttyUSB0`), KimCad needs the optional `pyserial`
+package — run `pip install pyserial` (or `pip install "kimcad[serial]"`), restart KimCad, and
+the serial path is available. If it isn't installed, sending to a serial-port target tells you
+exactly that. A **network** Marlin target (a `host:port` ser2net/ESP3D/relay bridge) needs
+nothing extra. KimCad uploads the print to the printer's SD card and starts it from there; the
+SD filename is shortened to 8 characters, so two designs whose names share the first 8
+letters/digits land on the same SD file.
+
 ## "OpenSCAD isn't installed at …" or "OrcaSlicer isn't installed at …"
 
 **Cause:** the CAD tools were never fetched (or the download was interrupted), so

@@ -25,6 +25,16 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **RepRapFirmware/Duet + Marlin-serial printer connectors (#26, KC-21).** Two new send-to-printer
+  protocols, each with a faithful conformance mock and full tests (the project's mock-twin pattern):
+  `duet` drives Duet 2/3 boards (RRF 2/3) over the classic `/rr_*` HTTP interface (upload to the SD
+  `gcodes` folder, `M32`-start, `rr_status` progress; optional board password); `marlin` drives
+  Marlin firmware — the huge Ender-class installed base — over its raw M-code line protocol (SD
+  upload via `M28`/`M29`, `M23`/`M24` start, `M27` progress), over either a USB serial port (needs
+  the optional `pyserial`) or a `host:port` serial-over-network bridge. Both surface automatically in
+  the send picker and ship as fill-in templates in Settings → Printer connections. API-validated
+  against the mocks; metal validation folds into the beta (#11). No external runtime dependency for
+  the HTTP/TCP paths.
 - **macOS/Linux supported from source; cross-platform installer path scoped (#13, KC-8).** KimCad's
   browser UI (`kimcad web` — server, SPA, design plan/codegen, CadQuery) is supported on macOS and
   Linux from a source install, and this release makes that path first-class. (Code-verified

@@ -80,7 +80,16 @@ headless slice and are intentionally left in the profile-shipped tier until fixe
 | `octoprint` | any OctoPrint box | API-validated against a real OctoPrint REST mock |
 | `moonraker` | Klipper (Voron, Creality-Klipper, …) | API-validated (conformance mock); ships as a fill-in template in Settings → Printer connections |
 | `prusalink` | MK4 / MK3.9 / MINI / XL | API-validated (conformance mock); ships as a fill-in template in Settings → Printer connections |
+| `duet` | Duet 2/3 boards (RepRapFirmware 2/3) | API-validated (conformance mock) over the classic `/rr_*` HTTP interface; optional board password; ships as a fill-in template |
+| `marlin` | Marlin firmware (Ender-class + most consumer FDM) | API-validated (conformance mock) over the raw M-code line protocol; uploads to SD and prints from SD. Target is a USB serial port (`COM3`/`/dev/ttyUSB0`, needs `pip install pyserial`) or a `host:port` serial-over-network bridge |
 | `mock` | none (built-in test connection) | proves the send path, drives nothing |
+
+> **`duet` / `marlin` limitations (honest):** over the classic RRF `/rr_status` and Marlin `M27`
+> surfaces there is no per-file "is this job done?" query — completion is *inferred* from the print
+> returning to idle after progress was seen, so a caller should treat the first terminal state as
+> final. `marlin` uploads to the SD card under a conservative **8-character** filename, so two
+> designs whose names share the first 8 alphanumerics reuse the same SD file. Both are resolved by
+> metal validation (#11), which exercises a real board/serial line the conformance mocks can't.
 
 The curated (non-reference) printers have **no direct-send connection** — their path is export
 the `.gcode.3mf` (or `.stl`) and load it via USB/SD/your printer's own software. A Klipper-based

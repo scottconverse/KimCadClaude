@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from kimcad.bambu_connector import BAMBU_INSTALL_HINT, BambuConnector, bambulabs_api_available
 from kimcad.duet_connector import DuetConnector
+from kimcad.marlin_connector import MarlinConnector
 from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
@@ -32,6 +33,7 @@ _CONNECTOR_CLASSES: dict[str, type] = {
     "moonraker": MoonrakerConnector,
     "prusalink": PrusaLinkConnector,
     "duet": DuetConnector,
+    "marlin": MarlinConnector,
     "bambu": BambuConnector,
 }
 
@@ -172,6 +174,17 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         # just sends no rr_connect password. A password (env var) is used only when configured.
         password = os.environ.get(cc.api_key_env) if cc.api_key_env else None
         return DuetConnector(cc.base_url, password, name=name)
+
+    if cc.type == "marlin":
+        # base_url is the M-code TARGET: a `host:port` (TCP / serial-over-network) or a serial
+        # port (COM3, /dev/ttyUSB0 — needs the optional pyserial). No auth (raw firmware).
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (marlin) has no target configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address or serial port configured.",
+            )
+        return MarlinConnector(cc.base_url, name=name)
 
     if cc.type == "prusalink":
         if not cc.base_url:
