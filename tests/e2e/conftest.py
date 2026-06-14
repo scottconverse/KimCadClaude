@@ -17,6 +17,7 @@ localStorage — the first-run flag, saved designs, settings — starts clean ev
 
 from __future__ import annotations
 
+import base64
 import os
 import socket
 import subprocess
@@ -28,6 +29,13 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import Page, expect
+
+# A minimal valid 1x1 PNG. The photo/sketch on-ramp accepts any image and, in demo mode, ignores
+# its content (DemoProvider.describe_photo/sketch return a canned seed) — so this stand-in is all
+# the upload journeys need.
+_PNG_1x1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -134,6 +142,14 @@ def landing(page: Page, live_server: str, console_errors: list[str]) -> Page:
     page.add_init_script(_FIRST_RUN_DONE)
     page.goto(live_server)
     return page
+
+
+@pytest.fixture
+def sample_image(tmp_path: Path) -> str:
+    """A real on-disk image for the photo/sketch upload journeys (content is ignored in demo)."""
+    p = tmp_path / "sample.png"
+    p.write_bytes(_PNG_1x1)
+    return str(p)
 
 
 @pytest.fixture
