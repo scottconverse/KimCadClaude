@@ -371,7 +371,12 @@ export default function App() {
         }
         return next
       })
-      applyResult(r)
+      // #32 (KC-27) refine-failure parity: a follow-up that comes back WITHOUT a mesh (the model
+      // asked a clarifying question, or couldn't fulfil the refine) must NOT wipe the part already
+      // on screen — keep the current design and just surface the message above. Swap the active
+      // result in only for a real new mesh, or when there's nothing to preserve (a first design,
+      // whose clarification SHOULD show). Mirrors "return the existing plan + one clarification".
+      if (r.has_mesh || resultRef.current === null) applyResult(r)
       // UX-001: the words made it into a real design — the landing draft has done its job.
       setLandingDraft('')
     } catch (err) {

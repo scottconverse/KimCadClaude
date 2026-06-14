@@ -151,6 +151,12 @@ All notable changes to KimCad are documented here. Format follows
   is OpenSCAD-only; CadQuery now runs exclusively KimCad's own template twins.
 
 ### Fixed
+- **A refine that returns no mesh no longer wipes the current part (#32, KC-27).** When a
+  follow-up turn comes back without a mesh — the model asked a clarifying question, or couldn't
+  fulfil the refine — the part already on screen now stays put and the message is simply added to
+  the conversation, instead of the viewport going blank. Only a real new mesh (or a first design,
+  whose clarification *should* show) swaps the active result. A pinning test drives a refine that
+  returns `clarification_needed` and asserts the prior mesh, version count, and thread are intact.
 - **UI-v2 epic close hardening (#23).** The final walkthrough/full-audit pass tightened
   browser-console hygiene (`/favicon.ico` now returns a clean 204), made mobile link-style
   controls meet the same touch-target floor as the rest of the app chrome, corrected the API

@@ -353,6 +353,36 @@ describe('App refinement thread (Stage 8.5 Slice 2)', () => {
     expect(screen.getByTestId('compare-card').textContent).toBe('yes')
   })
 
+  it('a refine that returns no mesh (clarifying question / model failure) keeps the current part — #32 (KC-27)', async () => {
+    const api = await import('./api')
+    ;(api.postDesign as Mock)
+      .mockResolvedValueOnce(templateResult('/api/mesh/1')) // first design: a real part
+      .mockResolvedValueOnce({
+        // the refine comes back WITHOUT a mesh — the model asked a clarifying question (or
+        // couldn't fulfil the follow-up). Per the reference pattern it returns the existing
+        // plan + one clarification, and must NOT wipe the part already on screen.
+        status: 'clarification_needed',
+        has_mesh: false,
+        clarification: 'Wider base or taller body?',
+        parameters: [],
+      } as unknown as DesignResponse)
+
+    render(<App />)
+    await designFrom('a box')
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/1')
+    expect(screen.getByTestId('version-count').textContent).toBe('1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'do-refine' }))
+    await waitFor(() => expect(api.postDesign).toHaveBeenCalledTimes(2))
+
+    // The part the user already had is STILL on screen (the mesh-less refine result did not
+    // replace the active result), and no spurious extra version was pushed…
+    expect(screen.getByTestId('mesh-url').textContent).toBe('/api/mesh/1')
+    expect(screen.getByTestId('version-count').textContent).toBe('1')
+    // …while the clarifying question still reaches the conversation (user + assistant added).
+    expect(screen.getByTestId('msg-count').textContent).toBe('4')
+  })
+
   it('resets the thread on new design', async () => {
     const api = await import('./api')
     ;(api.postDesign as Mock)
