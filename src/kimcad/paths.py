@@ -14,6 +14,7 @@ set in one place, testable by setting one env var.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 _ENV = "KIMCAD_INSTALL_ROOT"
@@ -33,12 +34,31 @@ def install_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def writable_root() -> Path:
-    """Where the app may WRITE: ``%LOCALAPPDATA%\\KimCad`` when installed (Program Files
-    is read-only), the repo root in dev (output/ next to the code, as always)."""
-    if is_installed():
+def _per_user_data_root() -> Path:
+    """KimCad's per-user app-data dir (design output, the webview profile), resolved to the
+    platform-idiomatic location so an installed app writes where each OS expects:
+
+    - Windows: ``%LOCALAPPDATA%\\KimCad`` (or ``~/AppData/Local/KimCad`` if the env var is unset);
+    - macOS:   ``~/Library/Application Support/KimCad``;
+    - Linux/other: ``$XDG_DATA_HOME/KimCad`` (or ``~/.local/share/KimCad`` per the XDG default).
+
+    KC-8 (#13): the previous Windows-only ``~/AppData/Local`` fallback produced a Windows-shaped
+    path on macOS/Linux. The Windows branch is byte-identical to before; the mac/Linux branches are
+    new (only reachable off-Windows, where installed mode / the pywebview shell can actually run)."""
+    if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / "KimCad"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "KimCad"
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "KimCad"
+
+
+def writable_root() -> Path:
+    """Where the app may WRITE: the per-user app-data dir when installed (the install root is
+    read-only — Program Files on Windows), the repo root in dev (output/ next to the code)."""
+    if is_installed():
+        return _per_user_data_root()
     return install_root()
 
 
@@ -60,6 +80,5 @@ def user_config_path() -> Path:
 def webview_profile_dir() -> Path:
     """The app window's WebView2 profile (SHELL-005) — uninstaller-visible, ours alone.
     ALWAYS per-user (browser profiles are user state, not repo artifacts — a dev-tree
-    profile would pollute the checkout)."""
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    return Path(base) / "KimCad" / "webview"
+    profile would pollute the checkout), under the platform-idiomatic app-data dir."""
+    return _per_user_data_root() / "webview"

@@ -422,11 +422,22 @@ push only reaches CI if it already passed locally.
 
 ## Platform notes
 
+**Windows** ships the zero-terminal installer (the beta). **macOS and Linux run from source** —
+`pip install`, then `kimcad web` for the browser UI. You install OpenSCAD/OrcaSlicer yourself and
+point `config/local.yaml` at them (only rendering and slicing need them — the UI runs without).
+*The from-source cross-platform path is code-verified (guarded imports, the cross-platform test
+design) but not yet exercised on real mac/Linux hardware.* Zero-terminal **installers** for
+macOS/Linux are scoped and deferred to a post-beta packaging lane: see
+**[cross-platform packaging](docs/dev/cross-platform-packaging.md)** for the decision, the per-OS
+recipe (briefcase `.app` / AppImage), and what's left to build.
+
 | | Windows | macOS | Linux |
 |---|---|---|---|
 | Python | 3.13 | 3.13 | 3.13 |
-| OpenSCAD | portable `.zip` in `tools/` | `.app` payload | AppImage |
-| OrcaSlicer | portable `.zip` in `tools/` | `.app` payload | AppImage |
+| Runs from source (`kimcad web`) | ✅ | ✅ | ✅ |
+| Zero-terminal installer | ✅ (beta) | scoped, deferred | scoped, deferred |
+| OpenSCAD | portable `.zip` in `tools/` (auto-fetched) | install + set `config/local.yaml` | install + set `config/local.yaml` |
+| OrcaSlicer | portable `.zip` in `tools/` (auto-fetched) | install + set `config/local.yaml` | install + set `config/local.yaml` |
 
 ## Documentation
 

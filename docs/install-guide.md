@@ -49,6 +49,15 @@ Windows 11 (or Windows 10 with the WebView2 Runtime — Microsoft ships it autom
 via Edge — and .NET Framework 4.7.2+, in-box since Windows 10 1803), about **20 GB free disk space** (mostly the AI models), 16 GB+ RAM
 recommended. No graphics card needed.
 
+## macOS / Linux
+
+The double-click installer is Windows-only for the beta. On **macOS and Linux**, KimCad runs
+**from a source install** — `pip install`, then `kimcad web` opens the same UI in your browser.
+See the [README Setup section](../README.md#setup) for the steps (you install OpenSCAD/OrcaSlicer
+yourself and point `config/local.yaml` at them). *This cross-platform path is code-verified but
+not yet exercised on real mac/Linux hardware.* Zero-terminal installers for macOS/Linux are scoped
+and deferred — see [cross-platform packaging](dev/cross-platform-packaging.md).
+
 ## If something goes wrong
 
 [`docs/troubleshooting.md`](troubleshooting.md) covers every known snag, symptom-first.

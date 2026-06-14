@@ -25,6 +25,20 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **macOS/Linux supported from source; cross-platform installer path scoped (#13, KC-8).** KimCad's
+  browser UI (`kimcad web` — server, SPA, design plan/codegen, CadQuery) is supported on macOS and
+  Linux from a source install, and this release makes that path first-class. (Code-verified
+  cross-platform — guarded imports + the cross-platform test design — but not yet exercised on real
+  mac/Linux hardware; the dev box is Windows.) Per-user data dirs now resolve
+  to the platform-idiomatic location (`~/Library/Application Support/KimCad` on macOS,
+  `$XDG_DATA_HOME`/`~/.local/share/KimCad` on Linux) instead of a Windows-shaped `~/AppData/Local`
+  fallback; `scripts/fetch_tools.py` gives an actionable "install it and set `config/local.yaml`"
+  message off-Windows instead of a bare error; and `config/default.yaml` documents the macOS/Linux
+  binary paths. You install OpenSCAD/OrcaSlicer yourself and point config at them (only rendering and
+  slicing need them — the UI runs without). Zero-terminal **installers** for macOS/Linux are scoped
+  with a decision and deferred to a post-beta hosted-runner packaging lane (the macOS `.dmg` is gated
+  on an Apple Developer certificate) — see `docs/dev/cross-platform-packaging.md` for the decision,
+  the per-OS recipe, and what's left.
 - **Session-token guard on state-changing requests (#31, KC-26).** The local server now issues a
   fresh random token each boot, injects it into the page shell (`<meta name="kimcad-session-token">`),
   and the SPA returns it as the `X-KimCad-Session` header on every POST. A state-changing request

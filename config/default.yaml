@@ -5,6 +5,14 @@
 binaries:
   # Paths are relative to the project root unless absolute.
   # Populated by the tools/ fetch step; override here for a system install.
+  # KC-8 (#13): these defaults are the Windows-bundled .exe paths. On macOS/Linux the
+  # auto-fetch step can't provision these yet — install OpenSCAD/OrcaSlicer yourself and set
+  # absolute paths in config/local.yaml, e.g.:
+  #   macOS:  openscad: /Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD
+  #           orcaslicer: /Applications/OrcaSlicer.app/Contents/MacOS/OrcaSlicer
+  #   Linux:  openscad: /usr/bin/openscad      (or the OpenSCAD .AppImage)
+  #           orcaslicer: /usr/bin/orca-slicer  (or the OrcaSlicer .AppImage)
+  # The browser UI (`kimcad web`) runs without either; only rendering and slicing need them.
   openscad: tools/openscad/openscad.exe
   orcaslicer: tools/orcaslicer/orca-slicer.exe
   # Stage 7 validation engine (PrintProof3D, owner's MIT Rust binary, invoked at arm's length).

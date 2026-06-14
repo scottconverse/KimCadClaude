@@ -59,3 +59,35 @@ def test_orcaslicer_win_pin_is_verified_and_checksummed():
     assert pin.verified is True
     assert pin.sha256 and len(pin.sha256) == 64
     assert pin.archive == "zip"
+
+
+# --- KC-8 (#13): off-Windows failures must be actionable, not a bare SystemExit -----------------
+
+def test_missing_pin_off_windows_gives_an_actionable_install_hint(monkeypatch):
+    # OrcaSlicer has no mac/Linux pin; on those platforms fetch must name the official download
+    # + the config override + the browser fallback, not just 'No pin for ... on platform'.
+    monkeypatch.setattr(ft, "_platform_key", lambda: "mac")
+    with pytest.raises(SystemExit) as ei:
+        ft.fetch_tool("orcaslicer", force=False)
+    msg = str(ei.value)
+    assert "config/local.yaml" in msg
+    assert ft._OFFICIAL_DOWNLOADS["orcaslicer"] in msg
+    assert "kimcad web" in msg  # the no-tools browser fallback is surfaced
+
+
+def test_unverified_or_nonzip_pin_gives_the_same_hint_with_the_source(monkeypatch):
+    # OpenSCAD's mac pin is a dmg + verified=False; the hint names the asset it tried.
+    monkeypatch.setattr(ft, "_platform_key", lambda: "mac")
+    with pytest.raises(SystemExit) as ei:
+        ft.fetch_tool("openscad", force=False)
+    msg = str(ei.value)
+    assert ft._OFFICIAL_DOWNLOADS["openscad"] in msg
+    assert ft.PINS["openscad"]["mac"].url in msg  # the auto-fetch source it tried
+    assert "binaries.openscad" in msg
+
+
+def test_unknown_tool_still_reports_a_usage_error(monkeypatch):
+    # A genuine bad tool name stays a plain usage error (not the platform hint).
+    monkeypatch.setattr(ft, "_platform_key", lambda: "linux")
+    with pytest.raises(SystemExit, match="Unknown tool"):
+        ft.fetch_tool("nope", force=False)

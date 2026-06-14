@@ -42,6 +42,32 @@ def test_installed_mode_without_localappdata_still_lands_per_user(monkeypatch, t
     assert str(Path.home()) in str(w)  # per-user, never the install dir
 
 
+def test_macos_installed_writes_land_in_application_support(monkeypatch, tmp_path):
+    # KC-8 (#13): on macOS the per-user app-data dir is ~/Library/Application Support/KimCad,
+    # not the Windows-shaped ~/AppData/Local. monkeypatch sys.platform so the branch is
+    # exercised on the Windows CI box too.
+    monkeypatch.setattr(paths.sys, "platform", "darwin")
+    monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    monkeypatch.setenv("KIMCAD_INSTALL_ROOT", str(tmp_path / "app"))
+    appsupport = tmp_path / "home" / "Library" / "Application Support" / "KimCad"
+    assert paths.writable_root() == appsupport
+    assert paths.output_dir() == appsupport / "output"
+    assert paths.webview_profile_dir() == appsupport / "webview"
+
+
+def test_linux_installed_writes_follow_xdg_data_home(monkeypatch, tmp_path):
+    # KC-8 (#13): on Linux writes follow $XDG_DATA_HOME, falling back to ~/.local/share.
+    monkeypatch.setattr(paths.sys, "platform", "linux")
+    monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    monkeypatch.setenv("KIMCAD_INSTALL_ROOT", str(tmp_path / "app"))
+    # Explicit XDG_DATA_HOME is honored.
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+    assert paths.writable_root() == tmp_path / "xdg" / "KimCad"
+    # Without it, the XDG default ~/.local/share applies.
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    assert paths.writable_root() == tmp_path / "home" / ".local" / "share" / "KimCad"
+
+
 def test_config_read_paths_follow_the_install_root(monkeypatch, tmp_path):
     """The yaml templates + tools resolve under the INSTALL root in installed mode —
     Config caches PROJECT_ROOT at import, so this exercises the same resolution rule

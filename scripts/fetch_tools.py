@@ -172,6 +172,27 @@ def _install_zip(pin: ToolPin, archive_path: Path) -> Path:
     return dest_dir / pin.exe_name
 
 
+# KC-8 (#13): OpenSCAD/OrcaSlicer are auto-fetched only on Windows today (the verified, pinned
+# zip builds). On macOS/Linux from source there is no verified pin / the asset is a dmg/AppImage we
+# don't extract yet — so point the user at the official download + the config override instead of a
+# bare SystemExit. The browser UI runs without these; only rendering and slicing need them.
+_OFFICIAL_DOWNLOADS = {
+    "openscad": "https://openscad.org/downloads.html",
+    "orcaslicer": "https://github.com/OrcaSlicer/OrcaSlicer/releases",
+}
+
+
+def _manual_install_hint(name: str, plat: str, pin: ToolPin | None) -> str:
+    src = _OFFICIAL_DOWNLOADS.get(name, "the project's official downloads page")
+    tried = f" (auto-fetch source: {pin.url})" if pin is not None else ""
+    return (
+        f"{name} can't be auto-fetched on {plat!r} yet{tried}.\n"
+        f"Install it from {src}, then set binaries.{name} in config/local.yaml to its path "
+        f"(or put the executable on your PATH).\n"
+        f"KimCad's browser UI (`kimcad web`) runs without it — only rendering and slicing need it."
+    )
+
+
 def fetch_tool(name: str, *, force: bool) -> Path:
     plat = _platform_key()
     by_platform = PINS.get(name)
@@ -179,24 +200,17 @@ def fetch_tool(name: str, *, force: bool) -> Path:
         raise SystemExit(f"Unknown tool {name!r}. Known: {', '.join(PINS)}")
     pin = by_platform.get(plat)
     if pin is None:
-        raise SystemExit(f"No pin for {name!r} on platform {plat!r}.")
+        raise SystemExit(_manual_install_hint(name, plat, None))
 
     dest_exe = TOOLS_DIR / pin.dest_subdir / pin.exe_name
     if dest_exe.exists() and not force:
         print(f"{name}: already present at {dest_exe} (use --force to refresh).")
         return dest_exe
 
-    if not pin.verified:
-        raise SystemExit(
-            f"{name} ({plat}) is not yet a verified pin (URL: {pin.url}).\n"
-            "Confirm the release/asset against spec §7.5, set verified=True in "
-            "scripts/fetch_tools.py, then re-run."
-        )
-    if pin.archive != "zip":
-        raise SystemExit(
-            f"{name} ({plat}) ships as a {pin.archive}; only zip extraction is "
-            "automated today. Install it manually and point config/local.yaml at it."
-        )
+    # Not auto-fetchable on this platform: no verified pin, or an asset format we don't extract
+    # (mac dmg / Linux AppImage). Either way, give the actionable manual-install path.
+    if not pin.verified or pin.archive != "zip":
+        raise SystemExit(_manual_install_hint(name, plat, pin))
 
     print(f"{name}: fetching for {plat} ...")
     TOOLS_DIR.mkdir(parents=True, exist_ok=True)
