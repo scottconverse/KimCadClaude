@@ -74,6 +74,11 @@ fi
 #   .venv/Scripts/python -m pytest -q --cov=kimcad --cov-report=xml \
 #     && .venv/Scripts/python scripts/check_diff_coverage.py coverage.xml --compare-branch origin/main
 # (scripts/check_diff_coverage.py is the portable, unit-tested gate — see tests/test_check_diff_coverage.py.)
+# KC-20 (#25): the Playwright e2e browser suite (tests/e2e/) runs as part of the pytest invocation
+# above — it drives the real `kimcad web --demo` SPA in headless Chromium. It is gated by the
+# `needs_browser` marker: where Chromium is installed (the provisioned gate box; ci.yml runs
+# `playwright install chromium`) it RUNS; elsewhere (a fresh clone, the hosted fork-PR smoke) it
+# SKIPS cleanly. Playwright is intentionally NOT in requirements.lock (test-only browser tooling).
 # Frontend unit tests (vitest) + build-reproducibility check. The committed SPA build is what
 # ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
 # KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a

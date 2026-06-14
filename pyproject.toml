@@ -51,6 +51,12 @@ dev = [
     "pytest-cov>=5.0",  # `pytest --cov=kimcad --cov-branch` to spot un-entered branches
     "ruff>=0.5",
     "diff-cover>=9.0",  # KC-22 (#27): the changed-line coverage gate (scripts/check_diff_coverage.py)
+    # KC-20 (#25): the Playwright e2e browser suite. Deliberately NOT in requirements.lock — it's
+    # test-only browser tooling that must never enter the user-facing installer's dependency set;
+    # the gate provisions it explicitly (ci.yml) + `playwright install chromium` for the browser
+    # binary (which a pip lock can't express). Tests skip cleanly where it's absent (needs_browser).
+    "playwright>=1.52",
+    "pytest-playwright>=0.7",
 ]
 
 [project.scripts]
@@ -84,6 +90,9 @@ markers = [
     "real_tool: needs a fetched OpenSCAD/OrcaSlicer binary; skipped when absent",
     "needs_manifold: needs manifold3d installed; skipped when absent",
     "needs_cadquery: needs a discoverable CadQuery interpreter; skipped when absent",
+    # KC-20 (#25): the Playwright e2e browser suite.
+    "needs_browser: needs Playwright Chromium (run `playwright install chromium`); skipped when absent",
+    "browser_serial: e2e browser test serialized around one localhost server (Windows socket churn)",
 ]
 # KC-16: surface accidental unmarked-marker typos as errors, not silent no-ops.
 filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]

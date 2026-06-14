@@ -55,6 +55,7 @@ The authoritative gate runs on the Windows target with the fetched binaries, so 
 | `windows_only` | not on Windows (e.g. exclusive socket bind) | `pytest -m "not windows_only"` |
 | `needs_manifold` | `manifold3d` isn't installed | `pytest -m "not needs_manifold"` |
 | `needs_cadquery` | no CadQuery interpreter is discoverable | `pytest -m "not needs_cadquery"` |
+| `needs_browser` | Playwright Chromium isn't installed (`playwright install chromium`) | `pytest -m "not needs_browser"` |
 
 A fast cross-platform inner loop:
 `pytest -m "not live and not real_tool and not windows_only"`. The gate on the target box
@@ -89,6 +90,27 @@ there's nothing to diff, so it doesn't run diff-coverage itself):
 ```
 
 The threshold logic is unit-tested in `tests/test_check_diff_coverage.py`.
+
+### End-to-end browser tests (KC-20)
+
+`tests/e2e/` is a Playwright suite that drives the **real** KimCad SPA in a real headless Chromium
+against a real `kimcad web --demo` server (deterministic without Ollama or the slicer) — no DOM
+mocks, no stubbed APIs. Each test also asserts the browser console stayed clean (no errors / uncaught
+exceptions), so it proves the SPA is *wired*, not just that the right text rendered.
+
+The browser tooling is **not** in `requirements.lock` (it's test-only and must never enter the
+shipped installer). To run the suite locally:
+
+```
+pip install -e ".[dev]"        # pulls in playwright + pytest-playwright
+playwright install chromium     # downloads the browser binary (a pip lock can't express this)
+pytest tests/e2e -q
+```
+
+Where Chromium isn't installed (a fresh clone, the hosted fork-PR smoke), the suite **skips
+cleanly** via the `needs_browser` marker. The provisioned self-hosted gate installs Chromium, so
+there the e2e tests run with no green-by-skip. Each e2e module carries
+`pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser]`.
 
 ## Setup for development
 

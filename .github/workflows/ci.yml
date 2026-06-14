@@ -60,6 +60,19 @@ jobs:
           .\.venv\Scripts\python.exe -m pip install --quiet --no-deps -e .
           if ($LASTEXITCODE -ne 0) { throw "editable install failed" }
 
+      - name: Provision Playwright + Chromium (KC-20 #25; e2e suite — NOT in requirements.lock)
+        # Browser test tooling is deliberately out of the lock (it must never enter the user-facing
+        # installer's dependency set), so the gate installs it here, pinned, plus the Chromium
+        # binary a pip lock can't express. With Chromium present the e2e tests RUN under STRICT
+        # (no green-by-skip); without it they'd skip via the needs_browser marker.
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\.venv\Scripts\python.exe -m pip install --quiet "playwright==1.60.0" "pytest-playwright==0.8.0"
+          if ($LASTEXITCODE -ne 0) { throw "playwright install failed" }
+          .\.venv\Scripts\python.exe -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw "chromium download failed" }
+
       - name: Provision CAD/slicer tools (cached; checksum-pinned fetch)
         shell: powershell
         run: |

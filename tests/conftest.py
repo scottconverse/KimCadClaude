@@ -74,6 +74,21 @@ def _cadquery_available() -> bool:
     return _cached("cadquery", lambda: find_cadquery_interpreter() is not None)
 
 
+def _browser_available() -> bool:
+    # KC-20 (#25): the Playwright e2e suite needs both pytest-playwright importable AND a
+    # downloaded Chromium. The browser is provisioned out-of-band (`playwright install chromium`),
+    # never via requirements.lock — so a fresh clone / the hosted fork-PR smoke skips these
+    # cleanly. On the provisioned gate box Chromium is present, so they RUN (no green-by-skip).
+    def probe() -> bool:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            path = p.chromium.executable_path
+            return bool(path) and Path(path).exists()
+
+    return _cached("browser", probe)
+
+
 def pytest_runtest_setup(item: pytest.Item) -> None:
     """Skip env-dependent tests off their environment (KC-16). Keyed by marker so the WHY of a
     skip is explicit and selectable (e.g. ``pytest -m "not real_tool"`` for a fast inner loop)."""
@@ -85,6 +100,8 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         pytest.skip("needs_manifold: manifold3d not installed")
     if item.get_closest_marker("needs_cadquery") and not _cadquery_available():
         pytest.skip("needs_cadquery: no CadQuery interpreter discoverable")
+    if item.get_closest_marker("needs_browser") and not _browser_available():
+        pytest.skip("needs_browser: Playwright Chromium not installed (run: playwright install chromium)")
 
 from kimcad.config import Material, Printer  # noqa: E402
 from kimcad.ir import DesignPlan  # noqa: E402
