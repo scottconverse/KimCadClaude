@@ -165,3 +165,16 @@ def design(landing: Page):  # noqa: ANN201 - returns a callable
         return landing
 
     return _design
+
+
+@pytest.fixture
+def design_prompt(landing: Page):  # noqa: ANN201 - returns a callable
+    """Submit a prompt from the landing WITHOUT waiting for the design route — for flows that
+    don't go straight to a part (e.g. demo:gatefail, which first offers the experimental
+    generator in the conversation). Returns the page for the caller to assert on."""
+    def _submit(prompt: str) -> Page:
+        landing.get_by_label("Describe the part you want").fill(prompt)
+        landing.get_by_role("button", name="Design it").click()
+        return landing
+
+    return _submit

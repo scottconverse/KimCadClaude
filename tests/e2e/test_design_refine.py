@@ -18,7 +18,9 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser]
+# real_tool too: demo mode renders the part with the actual OpenSCAD binary (the snap_box family),
+# so these journeys need it — they skip cleanly where it's absent, like the rest of the suite.
+pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser, pytest.mark.real_tool]
 
 _PREVIEW = re.compile(r"^3D preview")
 _PARAMS = ("Width", "Depth", "Height", "Wall thickness")

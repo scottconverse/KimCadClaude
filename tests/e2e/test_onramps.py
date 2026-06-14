@@ -14,7 +14,9 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser]
+# real_tool too: the on-ramp seed feeds the same design flow, which renders via the real OpenSCAD
+# binary — so these skip cleanly where it's absent, like the rest of the design journeys.
+pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser, pytest.mark.real_tool]
 
 
 def test_photo_onramp_reads_a_seed_then_starts_a_design(
