@@ -75,15 +75,25 @@ def _free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def live_server() -> Iterator[str]:
+def live_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     """Spawn a real `kimcad web --demo` server on a free loopback port and yield its base URL.
 
     Demo mode makes the design path deterministic without Ollama (the template engine renders),
     and the per-boot session-token guard (#31) is live — so the e2e exercises the genuine
-    token-injection + SPA-header flow, not a bypass."""
+    token-injection + SPA-header flow, not a bypass.
+
+    The server's home is redirected to a throwaway dir so the suite's designs/history/settings
+    land in an ISOLATED ~/.kimcad, never the real user store (Path.home() resolves via USERPROFILE
+    on Windows, HOME elsewhere)."""
+    home = tmp_path_factory.mktemp("kimcad_home")
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
-    env = {**os.environ, "PYTHONPATH": str(_REPO_ROOT / "src")}
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(_REPO_ROOT / "src"),
+        "USERPROFILE": str(home),
+        "HOME": str(home),
+    }
     process = subprocess.Popen(
         [sys.executable, "-m", "kimcad.cli", "web", "--host", "127.0.0.1",
          "--port", str(port), "--demo"],
@@ -161,7 +171,9 @@ def design(landing: Page):  # noqa: ANN201 - returns a callable
         landing.get_by_label("Describe the part you want").fill(prompt)
         landing.get_by_role("button", name="Design it").click()
         landing.wait_for_url("**/design/**", timeout=30_000)
-        expect(landing.get_by_role("tab", name="Parameters")).to_be_visible()
+        # The Parameters tab appears only once the real OpenSCAD render lands — a generous timeout
+        # so a cold/under-load render (the gate box thermally throttles) never flakes the suite.
+        expect(landing.get_by_role("tab", name="Parameters")).to_be_visible(timeout=30_000)
         return landing
 
     return _design
