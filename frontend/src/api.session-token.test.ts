@@ -18,7 +18,7 @@ function setMeta(content: string) {
 async function freshApiWithMockedFetch() {
   vi.resetModules()
   const api = await import('./api')
-  const fetchMock = vi.fn(async () => ({
+  const fetchMock = vi.fn(async (_input: string, _init?: RequestInit) => ({
     ok: true,
     status: 200,
     json: async () => ({ status: 'completed', has_mesh: false }),
@@ -32,23 +32,23 @@ describe('session token header (#31 / KC-26)', () => {
     setMeta('tok-abc-123')
     const { api, fetchMock } = await freshApiWithMockedFetch()
     await api.postDesign('a box')
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect((init.headers as Record<string, string>)['X-KimCad-Session']).toBe('tok-abc-123')
+    const init = fetchMock.mock.calls[0][1]
+    expect((init?.headers as Record<string, string> | undefined)?.['X-KimCad-Session']).toBe('tok-abc-123')
   })
 
   it('sends NO token header when the placeholder was never substituted (vite dev / no backend)', async () => {
     setMeta('__KIMCAD_SESSION_TOKEN__')
     const { api, fetchMock } = await freshApiWithMockedFetch()
     await api.postDesign('a box')
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect((init.headers as Record<string, string>)['X-KimCad-Session']).toBeUndefined()
+    const init = fetchMock.mock.calls[0][1]
+    expect((init?.headers as Record<string, string> | undefined)?.['X-KimCad-Session']).toBeUndefined()
   })
 
   it('sends NO token header when the shell has no token meta at all', async () => {
     document.head.innerHTML = ''
     const { api, fetchMock } = await freshApiWithMockedFetch()
     await api.postDesign('a box')
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect((init.headers as Record<string, string>)['X-KimCad-Session']).toBeUndefined()
+    const init = fetchMock.mock.calls[0][1]
+    expect((init?.headers as Record<string, string> | undefined)?.['X-KimCad-Session']).toBeUndefined()
   })
 })
