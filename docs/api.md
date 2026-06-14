@@ -155,13 +155,15 @@ pulled yet), never a 500.
 
 ## My Designs (saved designs)
 
-### GET `/api/designs` · POST `/api/designs/save` · GET/DELETE `/api/designs/<id>` · POST `/api/designs/import`
+### GET `/api/designs` · POST `/api/designs/save` · GET `/api/designs/<id>` · POST `/api/designs/<id>/{rename,delete,duplicate}` · POST `/api/designs/import`
 
 The persistent store (`~/.kimcad/designs/`). `save` takes `{"design_id": <rid>, "name":
 "...", "thumb": "<dataURL>", "saved_id": "optional — overwrite an existing save"}` and
 returns the stable `saved_id`. `GET /api/designs/<id>` returns the saved snapshot (the SPA
 reopens it through the normal design flow, re-validating against the current printer);
-`/thumb` serves the thumbnail. `import` accepts a previously exported design file.
+`/thumb` serves the thumbnail. `import` accepts a previously exported design file. Mutating a
+saved design is a **POST** sub-route — `POST /api/designs/<id>/rename`, `/delete`, `/duplicate`
+(there is no `DELETE` verb; the SPA's `deleteDesign` calls `POST .../delete`).
 
 ---
 
@@ -239,9 +241,20 @@ processes. Full detail: [`SECURITY.md`](../SECURITY.md) and
 each boot, injects it into the page shell (`<meta name="kimcad-session-token">`), and the SPA
 returns it as the `X-KimCad-Session` header on every POST. A state-changing request without the
 matching token (constant-time compared) is refused `403`. This blocks a drive-by **cross-origin**
-POST from a malicious web page: it can reach loopback, but — being cross-origin — cannot *read*
-this same-origin token, and the custom header forces a CORS preflight it can't satisfy. This is
-deliberate defense-in-depth, **not** full CSRF protection: KimCad is a single-user loopback app
-with no cookie-based session to forge, so a constant per-boot bearer the attacker can't read is
-the proportionate measure — per-request form nonces and `SameSite` cookies would add machinery
-without a matching threat. GET requests are never gated.
+POST from a malicious web page, in that order of weight: it cannot *read* this same-origin token
+(so it can't supply a valid header at all); a request that simply omits the header is refused
+outright (empty ≠ token); and trying to *fake* the header forces a CORS preflight the server
+doesn't satisfy. A few **side-effecting GETs** that can't carry the token because they're
+navigations/reads — the lazy STEP build (`/api/step/<id>`) and the health re-probe
+(`/api/health?recheck=1`) — instead refuse a cross-origin request via the browser's
+`Sec-Fetch-Site` header. Ordinary GETs are never gated.
+
+This is deliberate defense-in-depth, **not** full CSRF protection, and **not authentication**:
+KimCad is a single-user loopback app with no cookie-based session to forge, so a constant per-boot
+bearer the attacker can't read is the proportionate measure (per-request form nonces and
+`SameSite` cookies would add machinery without a matching threat). Note it does **not** authenticate
+a *remote* client on `--allow-remote`: any client that can load the page over HTTP reads the token
+from the shell, so `--allow-remote` remains unauthenticated (the CLI warns of this) — the token only
+stops a blind cross-origin POST. Because the token rotates per boot, a tab left open across a server
+restart will `403`; the SPA detects this (`reason:"session"`) and shows a one-click **Reload**
+banner — reloading re-fetches the freshly injected token.

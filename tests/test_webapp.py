@@ -566,19 +566,27 @@ def test_session_token_guard_blocks_state_changing_posts_without_the_token(tmp_p
     httpd = _serve_with_token(pipe, tmp_path, "s3cret-token")
     host, port = "127.0.0.1", httpd.server_address[1]
 
-    def _post_status(headers):
+    def _post_status(path, headers):
         conn = http.client.HTTPConnection(host, port, timeout=10)
         try:
-            conn.request("POST", "/api/settings", body=b"{}",
+            conn.request("POST", path, body=b"{}",
                          headers={"Content-Type": "application/json", **headers})
             return conn.getresponse().status
         finally:
             conn.close()
 
     try:
-        assert _post_status({}) == 403                                   # no token
-        assert _post_status({"X-KimCad-Session": "wrong"}) == 403         # wrong token
-        assert _post_status({"X-KimCad-Session": "s3cret-token"}) != 403  # correct -> routes through
+        # The guard sits ABOVE route dispatch, so a tokenless POST must 403 on EVERY state-changing
+        # route — assert it across a representative spread (a plain route, a path-prefixed route,
+        # and an upload route), not just /api/settings, so a future refactor that moved the check
+        # below a dispatch couldn't silently unguard most endpoints with a green suite.
+        for path in ("/api/settings", "/api/design", "/api/slice/1", "/api/designs/import",
+                     "/api/model-pull", "/api/connections"):
+            assert _post_status(path, {}) == 403, f"{path} not guarded without a token"
+        assert _post_status("/api/settings", {"X-KimCad-Session": "wrong"}) == 403  # wrong token
+        # Correct token routes THROUGH to a working handler — assert the positive 200 (an empty {}
+        # settings POST is a deterministic 200), not merely "!= 403", so the good path is proven too.
+        assert _post_status("/api/settings", {"X-KimCad-Session": "s3cret-token"}) == 200
         conn = http.client.HTTPConnection(host, port, timeout=10)
         try:
             conn.request("GET", "/api/options")
@@ -622,6 +630,39 @@ def test_no_session_token_leaves_posts_open(tmp_path):
         conn.request("POST", "/api/settings", body=b"{}", headers={"Content-Type": "application/json"})
         assert conn.getresponse().status != 403
         conn.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_cross_origin_get_cannot_trigger_side_effecting_builds_or_reprobes(tmp_path):
+    """#31 (KC-26): the side-effecting GETs that can't carry the POST token — the lazy STEP build
+    (/api/step/<id>) and the health re-probe (/api/health?recheck=1) — refuse a cross-origin
+    drive-by (Sec-Fetch-Site: cross-site) so a malicious page can't make the server spawn CadQuery
+    builds or repeated CPU-bound probes. A same-origin (or headerless non-browser) request is
+    unaffected. No token needed: the cross-site guard is on the GET, independent of the POST token."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(pipe, tmp_path))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    host, port = "127.0.0.1", httpd.server_address[1]
+
+    def _get(path, headers=None):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("GET", path, headers=headers or {})
+            return conn.getresponse().status
+        finally:
+            conn.close()
+
+    try:
+        # A cross-site STEP GET is refused (it would otherwise trigger a CadQuery build).
+        assert _get("/api/step/1", {"Sec-Fetch-Site": "cross-site"}) == 403
+        # Same-origin / headerless STEP GET runs normally -> 404 for an unregistered id (no build,
+        # but NOT refused for being cross-origin).
+        assert _get("/api/step/1", {"Sec-Fetch-Site": "same-origin"}) == 404
+        assert _get("/api/step/1") == 404
+        # The health re-probe still ANSWERS cross-site (a read); it only skips the re-probe side effect.
+        assert _get("/api/health?recheck=1", {"Sec-Fetch-Site": "cross-site"}) == 200
     finally:
         httpd.shutdown()
         httpd.server_close()

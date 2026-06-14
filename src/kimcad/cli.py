@@ -469,6 +469,9 @@ def _cmd_web(args: argparse.Namespace) -> int:
 
     # ENG-002 (stage-C): refuse a silent non-loopback bind. The server is unauthenticated
     # by design (single trusted user on loopback); exposing it is an explicit, warned act.
+    # #31 (KC-26): the per-boot session token is a same-origin CSRF mitigation, NOT remote auth —
+    # any client that can load the page over HTTP reads the token from the shell — so the
+    # "NO authentication" warnings below remain accurate for a non-loopback bind.
     if not _is_loopback_host(args.host) and not args.allow_remote:
         print(
             f"Error: refusing to bind non-loopback host {args.host!r} without --allow-remote.\n"
@@ -481,7 +484,8 @@ def _cmd_web(args: argparse.Namespace) -> int:
     if not _is_loopback_host(args.host):
         print(
             f"WARNING: serving on {args.host} with NO authentication - anyone on this "
-            "network can use this KimCad, including sending prints.",
+            "network can use this KimCad, including sending prints. (The per-boot session "
+            "token is anti-cross-origin only; a remote client that loads the page reads it.)",
             file=sys.stderr,
         )
     serve(host=args.host, port=args.port, demo=args.demo, backend=args.backend)

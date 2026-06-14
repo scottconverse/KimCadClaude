@@ -4334,3 +4334,34 @@ input {
     padding: 12px 20px;
   }
 }
+
+/* #31 (KC-26): the session-expired recovery banner. A fixed, prominent, non-dismissable strip at
+   the very top so it's visible over any view and the Reload button is reachable even in the
+   chrome-less WebView2 shell. */
+.kc-session-banner {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--kc-accent-strong);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+.kc-session-banner button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 16px;
+  background: #fff;
+  color: var(--kc-accent-deep);
+  font-weight: 700;
+  cursor: pointer;
+}
+.kc-session-banner button:hover {
+  background: #f4eee2;
+}

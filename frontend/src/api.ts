@@ -185,11 +185,39 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-function throwIfNotOk(res: Response, data: unknown): void {
-  if (!res.ok) {
-    const msg = (data as { error?: string } | null)?.error
-    throw new Error(msg || `Request failed (HTTP ${res.status}).`)
+/** Thrown when the server rejects a state-changing request because the SPA's session token is
+ * stale or missing (#31 / KC-26). The per-boot token rotates on every server restart, so a tab
+ * left open across a restart hits this; recovery is a reload, which re-fetches the freshly
+ * injected token. Distinct type so callers don't narrate a misleading domain cause. */
+export class SessionExpiredError extends Error {
+  constructor(msg: string) {
+    super(msg)
+    this.name = 'SessionExpiredError'
   }
+}
+
+export function isSessionExpired(err: unknown): boolean {
+  return err instanceof SessionExpiredError
+}
+
+// App registers a handler so a session-token 403 from ANY request surfaces ONE app-level recovery
+// (a reload banner), regardless of which caller's catch ran — so no caller shows misleading domain
+// copy ("couldn't reach the printer", "didn't stick — try again") for what is really "reload".
+let onSessionExpired: (() => void) | null = null
+export function setSessionExpiredHandler(fn: (() => void) | null): void {
+  onSessionExpired = fn
+}
+
+function throwIfNotOk(res: Response, data: unknown): void {
+  if (res.ok) return
+  const msg = (data as { error?: string } | null)?.error
+  // #31: a 403 with reason:"session" is a stale per-boot token, not an app error — surface the
+  // app-level reload recovery and throw a typed error so callers can skip their domain copy.
+  if (res.status === 403 && (data as { reason?: string } | null)?.reason === 'session') {
+    onSessionExpired?.()
+    throw new SessionExpiredError(msg || 'Your KimCad session expired — reload to reconnect.')
+  }
+  throw new Error(msg || `Request failed (HTTP ${res.status}).`)
 }
 
 // #31 (KC-26): the per-boot session token KimCad's local server injected into the page shell
@@ -207,10 +235,12 @@ const SESSION_TOKEN: string = (() => {
  * POST/PUT/DELETE; plain GETs can keep using `fetch`. */
 function apiFetch(input: string, init: RequestInit): Promise<Response> {
   if (!SESSION_TOKEN) return fetch(input, init)
-  return fetch(input, {
-    ...init,
-    headers: { ...(init.headers as Record<string, string> | undefined), 'X-KimCad-Session': SESSION_TOKEN },
-  })
+  // new Headers() normalizes every RequestInit header form (record, Headers, array, or undefined)
+  // and preserves an explicit Content-Type (e.g. an upload's image/png) while we add the token —
+  // so no caller can silently drop the session header by passing a non-record headers value.
+  const headers = new Headers(init.headers)
+  headers.set('X-KimCad-Session', SESSION_TOKEN)
+  return fetch(input, { ...init, headers })
 }
 
 async function getJson<T>(url: string): Promise<T> {

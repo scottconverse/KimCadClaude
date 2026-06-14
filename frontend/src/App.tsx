@@ -3,10 +3,12 @@ import {
   designIdFromMeshUrl,
   getDesignProgress,
   isAbortError,
+  isSessionExpired,
   postDesign,
   postRender,
   reopenDesign,
   saveDesign,
+  setSessionExpiredHandler,
   type ChatTurn,
   type CompareMessage,
   type DesignResponse,
@@ -122,6 +124,14 @@ export default function App() {
   // (or hard failure) that lands the user back on the Landing re-seeds their words instead of
   // erasing them. Cleared on a successful design AND on an explicit "start over" (UX-103).
   const [landingDraft, setLandingDraft] = useState('')
+  // #31 (KC-26): set when any request is rejected for a stale session token (the per-boot token
+  // rotated under a tab left open across a server restart). Drives a single app-level reload
+  // banner — the one guaranteed recovery, since reloading re-fetches the freshly injected token.
+  const [sessionExpired, setSessionExpired] = useState(false)
+  useEffect(() => {
+    setSessionExpiredHandler(() => setSessionExpired(true))
+    return () => setSessionExpiredHandler(null)
+  }, [])
   // UX-101 (stage-BCD gate): the styled new-design confirm (replaces window.confirm).
   const [confirmNewDesign, setConfirmNewDesign] = useState(false)
   const [rerendering, setRerendering] = useState(false)
@@ -266,8 +276,11 @@ export default function App() {
             navigate(`design/${saved.id}`, { replace: true })
           }
           setSaveState('saved')
-        } catch {
+        } catch (err) {
           setSaveState('error')
+          // #31 (KC-26): a stale-session 403 can NEVER succeed on retry (the token only refreshes
+          // on reload) — don't hammer it every 1.5s; the app-level reload banner is the recovery.
+          if (isSessionExpired(err)) return
           if (retryRef.current === null) {
             retryRef.current = window.setTimeout(() => {
               retryRef.current = null
@@ -617,6 +630,17 @@ export default function App() {
       <a className="kc-skip-link" href="#kimcad-main">
         Skip to main content
       </a>
+      {sessionExpired && (
+        // #31 (KC-26): the per-boot session token rotated (KimCad restarted) — every action now
+        // 403s until the page reloads to pick up the new token. One prominent, non-dismissable
+        // recovery surface with the only fix, since the WebView2 shell has no refresh chrome.
+        <div className="kc-session-banner" role="alert">
+          <span>KimCad restarted in another window — reload to reconnect.</span>
+          <button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      )}
       {showWizard && <FirstRunWizard onClose={dismissWizard} />}
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       {confirmNewDesign && (

@@ -715,7 +715,10 @@ def make_handler(
     # ENG-404: a per-path static cache so the content-hash ETag (which guarantees the SPA is never
     # stale after a rebuild) doesn't force a fresh read + SHA-256 of every asset on every request.
     # Keyed by path -> (mtime, size, etag, body); a rebuild changes mtime/size and re-reads. The
-    # asset set is small and fixed, so the cache is naturally bounded.
+    # asset set is small and fixed (and the index-shell key includes the constant per-boot token),
+    # so the cache is naturally bounded. Intentionally LOCK-FREE under ThreadingHTTPServer (#31
+    # audit): a given key always maps to the same value for a given mtime/size, so the worst a race
+    # does is recompute one identical SHA-256 — last-writer-wins on an equal value, never corruption.
     static_cache: dict[str, tuple[float, int, str, bytes]] = {}
     # UI-v2 epic close: print-outcome feedback is intentionally accepted only after a real
     # hardware send in this server process. The SPA already asks at the right time; this closes
@@ -920,10 +923,14 @@ def make_handler(
                 # KC-2 (#8): the Settings card's explicit "check again" — drop the cached
                 # CadQuery probe and discover fresh (the user may have just installed it).
                 # Only this deliberate query pays the re-probe; plain /api/health stays cached.
-                try:
-                    get_config().recheck_cadquery_interpreter()
-                except Exception:  # noqa: BLE001 - a broken probe reads "not present"
-                    pass
+                # #31 (KC-26): the re-probe is a side effect on a GET, so skip it for a cross-origin
+                # drive-by (it would otherwise let a malicious page force repeated CPU-bound probes);
+                # the read itself still answers with the cached health.
+                if not self._is_cross_site():
+                    try:
+                        get_config().recheck_cadquery_interpreter()
+                    except Exception:  # noqa: BLE001 - a broken probe reads "not present"
+                        pass
                 self._handle_health()
                 return
             if self.path == "/api/connectors":
@@ -1024,11 +1031,27 @@ def make_handler(
             ctype = _MESH_CONTENT_TYPES.get(gcode_path.suffix.lower(), "application/octet-stream")
             self._send_download(gcode_path.read_bytes(), ctype, gcode_path.name)
 
+        def _is_cross_site(self) -> bool:
+            """True when a modern browser tells us this request came from a DIFFERENT origin.
+            Browsers stamp Sec-Fetch-Site on every request; 'cross-site'/'cross-origin' is a
+            drive-by from another page. Absent (a non-browser client, an old browser) -> treated as
+            same-origin (fail-open: a non-browser caller on loopback is a different threat model
+            than the cross-origin CSRF this guards). #31 (KC-26): used to refuse the side-effecting
+            GETs (the lazy STEP build, the health re-probe) that can't carry the POST token because
+            they're plain navigations/reads, so the do_POST guard can't cover them."""
+            return self.headers.get("Sec-Fetch-Site", "") in ("cross-site", "cross-origin")
+
         def _serve_step(self, raw_id: str) -> None:
             # Stage 8 Slice 4: the editable-CAD (STEP) export. KC-2 (#8): template-built
             # parts get theirs LAZILY — built here on first request from the design's
             # trusted CadQuery twin (kimcad.cadquery_templates), then cached. 404 when the
             # id is unknown or the part has no STEP path (an LLM-OpenSCAD part).
+            # #31 (KC-26): this GET can SPAWN a CadQuery build (side effect) and can't carry the
+            # POST token (it's a browser download nav), so refuse a cross-origin drive-by here —
+            # a malicious page can't read the result anyway and has no business triggering builds.
+            if self._is_cross_site():
+                self._json(403, {"error": "Cross-origin request refused."})
+                return
             try:
                 sid = int(raw_id)
             except ValueError:
@@ -1294,7 +1317,13 @@ def make_handler(
             if session_token and not hmac.compare_digest(
                 self.headers.get("X-KimCad-Session", ""), session_token
             ):
-                self._json(403, {"error": "Missing or invalid session token. Reload KimCad."})
+                # reason:"session" lets the SPA distinguish a stale-token 403 (recover by reloading
+                # — the per-boot token rotates on restart) from an application 403, so it can show a
+                # reload affordance instead of a misleading domain error.
+                self._json(403, {
+                    "error": "Missing or invalid session token. Reload KimCad.",
+                    "reason": "session",
+                })
                 return
             if self.path == "/api/design":
                 self._handle_design()

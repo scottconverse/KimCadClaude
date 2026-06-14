@@ -33,7 +33,13 @@ All notable changes to KimCad are documented here. Format follows
   being cross-origin, can't *read* the same-origin token (and the custom header forces a CORS
   preflight it can't satisfy). Deliberately **not** full CSRF protection: KimCad is a single-user
   loopback app with no cookie session to forge, so a per-boot bearer the attacker can't read is the
-  proportionate measure (documented in `docs/api.md`). GETs are never gated.
+  proportionate measure (documented in `docs/api.md` + `SECURITY.md`). GETs are never gated. A
+  5-role audit hardened it: the two side-effecting GETs that can't carry the token (the lazy STEP
+  build, the health re-probe) now refuse a cross-origin drive-by via `Sec-Fetch-Site`; and because
+  the token rotates per boot, a tab left open across a restart `403`s — the 403 carries
+  `reason:"session"` so the SPA shows a one-click **Reload** recovery banner (and stops the autosave
+  retry loop) instead of misleading domain errors. Both production server-start paths (`kimcad web`
+  and the WebView2 desktop shell) enforce the guard.
 - **Printer catalog broadened 3 → 29, slice-proven + honestly tiered (#22, KC-17).** The picker
   now offers a curated catalog of popular current machines across the top makers — Bambu (P1P/
   P1S/X1 Carbon/X1E/A1 mini), Creality (K1/K1 Max/K1C/K2 Plus/Ender-3 V3/Ender-3 V3 KE/CR-10 SE),

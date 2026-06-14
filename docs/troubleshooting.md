@@ -67,6 +67,16 @@ from the install folder, or just reinstall after updating Windows.
 If the window opens but shows nothing, the install may be damaged — re-run the installer
 (your designs and settings are not touched by reinstalls).
 
+## "Missing or invalid session token. Reload KimCad." / actions suddenly fail
+
+This is **expected and harmless** after KimCad restarts while an older window/tab is still
+open. KimCad uses a fresh security token each time it starts (a defense against malicious web
+pages quietly poking the local server), so a page left open from a previous run holds the old
+token and its actions are refused. KimCad shows a **Reload** banner at the top of the window —
+click it (or press **Ctrl+R** / **F5**, or reopen the app window). Viewing existing designs keeps
+working; only actions (design, save, slice, send) are blocked until you reload. Reloading fixes
+it instantly.
+
 ## (Installed app) "Windows protected your PC" when running the installer
 
 That's SmartScreen reacting to an unsigned open-source installer — expected for the beta.

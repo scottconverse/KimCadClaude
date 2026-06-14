@@ -11,6 +11,10 @@ vi.mock('./api', () => ({
   reopenDesign: vi.fn(),
   saveDesign: vi.fn().mockResolvedValue({ id: 'x', name: 'n' }),
   designIdFromMeshUrl: () => 1,
+  // #31 (KC-26): App registers/clears the session-expiry handler and checks isSessionExpired in the
+  // autosave catch — give the mock both so the mount effect doesn't call undefined.
+  setSessionExpiredHandler: vi.fn(),
+  isSessionExpired: () => false,
   // MS-3: the busy-screen phase poll. Resolve to a null phase (== the initial state, so no extra
   // re-render/act churn) — these tests assert the busy lifecycle, not the live phase itself.
   getDesignProgress: vi.fn().mockResolvedValue({ phase: null }),
@@ -729,5 +733,21 @@ describe('App keyboard shortcuts (Slice 11)', () => {
     // The help closed; the design is STILL running — Esc dismissed the overlay, not the run.
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('busy').textContent).toBe('true')
+  })
+})
+
+describe('App session-expiry recovery (#31 / KC-26)', () => {
+  it('shows a reload banner when a session-token 403 fires the recovery handler', async () => {
+    const api = await import('./api')
+    render(<App />)
+    // App registered a handler on mount; invoke the latest-registered one (what a real
+    // session-token 403 in api.ts would call) and assert the recovery banner + Reload button.
+    const calls = (api.setSessionExpiredHandler as Mock).mock.calls
+    const fns = calls.map((c) => c[0]).filter(Boolean) as Array<() => void>
+    const handler = fns[fns.length - 1]
+    expect(typeof handler).toBe('function')
+    act(() => handler())
+    expect(await screen.findByText(/reload to reconnect/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /reload/i })).toBeTruthy()
   })
 })
