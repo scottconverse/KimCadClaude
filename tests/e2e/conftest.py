@@ -27,8 +27,14 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from playwright.sync_api import Page, expect
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# The localStorage flag App.tsx reads to decide whether to show the first-run wizard (App.tsx:90:
+# `localStorage.getItem('kc-first-run-done') !== '1'`). Seeding it pre-navigation suppresses the
+# wizard so the design/refine/slider journeys reach the workspace; the onboarding journey omits it.
+_FIRST_RUN_DONE = "window.localStorage.setItem('kc-first-run-done', '1')"
 
 # Serialize browser_serial-marked tests around the one shared localhost server. Inert under the
 # default single-process runner, but it makes the marker's contract explicit and keeps the suite
@@ -119,3 +125,27 @@ def console_errors(page) -> list[str]:  # noqa: ANN001 - `page` is pytest-playwr
     )
     page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
     return errors
+
+
+@pytest.fixture
+def landing(page: Page, live_server: str, console_errors: list[str]) -> Page:
+    """A page at the landing with the first-run wizard suppressed and the console watcher already
+    attached (it depends on console_errors, so the watcher is in place BEFORE navigation)."""
+    page.add_init_script(_FIRST_RUN_DONE)
+    page.goto(live_server)
+    return page
+
+
+@pytest.fixture
+def design(landing: Page):  # noqa: ANN201 - returns a callable
+    """A helper that submits a prompt from the landing and waits for the design workspace to
+    render (the demo template engine renders deterministically, no model needed). Returns the
+    designed page so journeys can assert on / interact with the result."""
+    def _design(prompt: str = "a 40 mm desk cable clip") -> Page:
+        landing.get_by_label("Describe the part you want").fill(prompt)
+        landing.get_by_role("button", name="Design it").click()
+        landing.wait_for_url("**/design/**", timeout=30_000)
+        expect(landing.get_by_role("tab", name="Parameters")).to_be_visible()
+        return landing
+
+    return _design
