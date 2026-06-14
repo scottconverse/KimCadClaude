@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- #31 (KC-26): KimCad's local server replaces this placeholder with a per-boot session
+         token at serve time; api.ts reads it and sends it on state-changing requests. Under the
+         vite dev server (no backend) it stays the placeholder, which api.ts treats as "no token". -->
+    <meta name="kimcad-session-token" content="__KIMCAD_SESSION_TOKEN__" />
     <title>KimCad</title>
   </head>
   <body>

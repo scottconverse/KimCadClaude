@@ -83,6 +83,38 @@ def test_shell_binds_a_stable_loopback_port_and_serves_the_real_app(fake_webview
         _shutdown(httpd)
 
 
+def test_shell_server_enforces_the_session_token_guard(fake_webview):
+    """#31 (KC-26): the desktop shell is the primary distribution, so it must enforce the SAME
+    per-boot session-token guard as `kimcad web`. A state-changing POST without the injected token
+    is refused 403; the served shell carries a real token (placeholder substituted); supplying the
+    token makes the POST pass. Pins that the guard isn't silently off in the packaged app."""
+    import http.client
+    import re
+
+    httpd = shell.build_shell(demo=True, start_gui=False)
+    try:
+        port = httpd.server_address[1]
+        # A tokenless state-changing POST is refused.
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("POST", "/api/settings", body=b"{}", headers={"Content-Type": "application/json"})
+        assert conn.getresponse().status == 403
+        conn.close()
+        # The served shell carries a REAL per-boot token (the placeholder was substituted).
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=10) as r:
+            html = r.read().decode("utf-8")
+        assert "__KIMCAD_SESSION_TOKEN__" not in html
+        m = re.search(r'name="kimcad-session-token" content="([^"]+)"', html)
+        assert m and m.group(1), "no session token injected into the shell"
+        # With the token, the same POST is no longer 403.
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("POST", "/api/settings", body=b"{}",
+                     headers={"Content-Type": "application/json", "X-KimCad-Session": m.group(1)})
+        assert conn.getresponse().status != 403
+        conn.close()
+    finally:
+        _shutdown(httpd)
+
+
 def test_a_second_shell_takes_the_next_stable_port(fake_webview):
     """Two windows coexist (each on its own stable port); when the whole range is taken
     the failure is one friendly line, not a bind traceback."""

@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import math
 import re
+import secrets
 import shutil
 import sys
 import threading
@@ -672,7 +674,8 @@ def slice_registered_mesh(
 
 
 def make_handler(
-    pipeline: Any, web_root: Path, *, config: Any = None, pull_job: Any = None
+    pipeline: Any, web_root: Path, *, config: Any = None, pull_job: Any = None,
+    session_token: str = "",
 ) -> type[BaseHTTPRequestHandler]:
     """Build a request handler bound to a pipeline and an output directory.
 
@@ -860,7 +863,10 @@ def make_handler(
             if self.path in ("/", "/index.html"):
                 # ENG-405: serve the SPA shell fresh (via the freshness-cached static path) so a
                 # rebuilt index.html is picked up without a server restart, and carries an ETag.
-                self._serve_static(WEB_DIR / "index.html", "text/html; charset=utf-8")
+                # #31 (KC-26): inject the per-boot session token into the shell's meta tag so the
+                # SPA can read it and send it on state-changing requests. Done at serve time (the
+                # committed build carries only the placeholder), so the build stays reproducible.
+                self._serve_index_shell(WEB_DIR / "index.html")
                 return
             if urlsplit(self.path).path == "/favicon.ico":
                 # Browsers request this automatically even though the SPA doesn't ship a brand
@@ -1131,6 +1137,42 @@ def make_handler(
             if not getattr(self, "_head_only", False):
                 self.wfile.write(body)
 
+        def _serve_index_shell(self, path: Path) -> None:
+            """Serve the SPA shell (#31) with the per-boot session token substituted into its
+            ``__KIMCAD_SESSION_TOKEN__`` placeholder. The token is constant for the process, so the
+            (etag, body) cache stays valid for the server's life (keyed by the token); a rebuild
+            changes the file's mtime/size and refreshes it. Mirrors ``_serve_static``'s caching +
+            ETag revalidation, just on the token-substituted body."""
+            try:
+                stat = path.stat()
+            except OSError:
+                self._json(404, {"error": "Not found."})
+                return
+            key = f"index-shell:{path}:{session_token}"
+            cached = static_cache.get(key)
+            if cached is not None and cached[0] == stat.st_mtime and cached[1] == stat.st_size:
+                etag, body = cached[2], cached[3]
+            else:
+                html = path.read_text(encoding="utf-8")
+                body = html.replace("__KIMCAD_SESSION_TOKEN__", session_token).encode("utf-8")
+                etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+                static_cache[key] = (stat.st_mtime, stat.st_size, etag, body)
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            if not getattr(self, "_head_only", False):
+                self.wfile.write(body)
+
         def _serve_asset(self, name: str) -> None:
             # Built SPA static assets (JS/CSS/fonts/images) served from web/assets/. Only a plain
             # filename is allowed — any path separator or traversal is rejected before touching the
@@ -1239,6 +1281,21 @@ def make_handler(
             return obj
 
         def do_POST(self) -> None:
+            # #31 (KC-26): a per-boot session token (injected into index.html, sent by the SPA as
+            # the X-KimCad-Session header) is required on EVERY state-changing request when the
+            # server is configured with one. A drive-by cross-origin POST from a malicious web page
+            # can reach loopback, but — being cross-origin — cannot READ this same-origin token, so
+            # it's refused 403. Constant-time compare so a wrong token leaks no timing. An empty
+            # token (the tests'/dev default) leaves the guard off. Full CSRF (per-request nonces,
+            # SameSite cookies) is deliberately out of scope: KimCad is a single-user loopback app
+            # with no cookie-based auth to forge, so a constant per-boot bearer the attacker cannot
+            # read is the proportionate defense-in-depth (a custom header also forces a CORS
+            # preflight that a cross-origin POST can't satisfy).
+            if session_token and not hmac.compare_digest(
+                self.headers.get("X-KimCad-Session", ""), session_token
+            ):
+                self._json(403, {"error": "Missing or invalid session token. Reload KimCad."})
+                return
             if self.path == "/api/design":
                 self._handle_design()
                 return
@@ -2522,8 +2579,16 @@ def serve(
     from kimcad.paths import output_dir
 
     web_root = out_root if out_root is not None else output_dir() / "web"
+    # #31 (KC-26): a fresh, unguessable session token per server boot. The SPA reads it from the
+    # shell (injected into index.html) and sends it on state-changing requests; a drive-by
+    # cross-origin POST can't read it, so it's refused. Per-boot (not persisted) so a token can't
+    # leak across restarts.
+    session_token = secrets.token_urlsafe(32)
     try:
-        httpd = _ExclusiveBindServer((host, port), make_handler(pipeline, web_root, config=config))
+        httpd = _ExclusiveBindServer(
+            (host, port),
+            make_handler(pipeline, web_root, config=config, session_token=session_token),
+        )
     except OSError as e:
         # QA-006: a second `kimcad web` (or anything else on the port) must end in one
         # actionable line, not a bind traceback.

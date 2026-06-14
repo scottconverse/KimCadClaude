@@ -192,6 +192,27 @@ function throwIfNotOk(res: Response, data: unknown): void {
   }
 }
 
+// #31 (KC-26): the per-boot session token KimCad's local server injected into the page shell
+// (index.html). Every state-changing request carries it as the X-KimCad-Session header, so a
+// drive-by cross-origin POST from a malicious page — which can't read this same-origin token —
+// is refused 403 by the server. GETs don't need it. Empty (and the un-substituted dev
+// placeholder, e.g. under the vite dev server) → no header, which the server treats as off.
+const SESSION_TOKEN: string = (() => {
+  if (typeof document === 'undefined') return ''
+  const v = document.querySelector('meta[name="kimcad-session-token"]')?.getAttribute('content') ?? ''
+  return v && v !== '__KIMCAD_SESSION_TOKEN__' ? v : ''
+})()
+
+/** `fetch`, but stamping the session token on a state-changing request. Use it for every
+ * POST/PUT/DELETE; plain GETs can keep using `fetch`. */
+function apiFetch(input: string, init: RequestInit): Promise<Response> {
+  if (!SESSION_TOKEN) return fetch(input, init)
+  return fetch(input, {
+    ...init,
+    headers: { ...(init.headers as Record<string, string> | undefined), 'X-KimCad-Session': SESSION_TOKEN },
+  })
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
   const data = await readJson(res)
@@ -200,7 +221,7 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -261,7 +282,7 @@ export async function postDesign(
   if (jobId) body.job_id = jobId
   // Own fetch (not postJson) so the caller can pass an AbortSignal — a design can run the local
   // model for minutes, so the user must be able to cancel and escape the "Designing…" screen.
-  const res = await fetch('/api/design', {
+  const res = await apiFetch('/api/design', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -362,7 +383,7 @@ export interface ModelPullSnapshot {
 }
 
 export async function startModelPull(): Promise<ModelPullSnapshot> {
-  const res = await fetch('/api/model-pull', { method: 'POST' })
+  const res = await apiFetch('/api/model-pull', { method: 'POST' })
   const data = await readJson(res)
   if (!res.ok && (data as ModelPullSnapshot).status !== 'not_local') throwIfNotOk(res, data)
   return data as ModelPullSnapshot
@@ -424,7 +445,7 @@ export async function uploadPhoto(file: File, signal?: AbortSignal): Promise<Pho
   }
   let res: Response
   try {
-    res = await fetch('/api/photo-seed', {
+    res = await apiFetch('/api/photo-seed', {
       method: 'POST',
       headers: { 'Content-Type': file.type || 'image/jpeg' },
       body: file,
@@ -453,7 +474,7 @@ export async function uploadSketch(file: File, signal?: AbortSignal): Promise<Ph
   }
   let res: Response
   try {
-    res = await fetch('/api/sketch-seed', {
+    res = await apiFetch('/api/sketch-seed', {
       method: 'POST',
       headers: { 'Content-Type': file.type || 'image/jpeg' },
       body: file,
@@ -511,7 +532,7 @@ export interface SendResponse {
 }
 
 export async function sendDesign(designId: number, connector: string): Promise<SendResponse> {
-  const res = await fetch(`/api/send/${designId}`, {
+  const res = await apiFetch(`/api/send/${designId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ connector }),
@@ -527,7 +548,7 @@ export async function recordPrintOutcome(
   designId: number,
   outcome: PrintOutcome,
 ): Promise<{ recorded: boolean; outcome: PrintOutcome }> {
-  const res = await fetch(`/api/print-outcome/${designId}`, {
+  const res = await apiFetch(`/api/print-outcome/${designId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ outcome }),
@@ -565,7 +586,7 @@ export async function saveConnection(
   name: string,
   updates: { base_url?: string; serial?: string; use_ams?: boolean },
 ): Promise<{ saved: boolean }> {
-  const res = await fetch('/api/connections', {
+  const res = await apiFetch('/api/connections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, ...updates }),
@@ -656,7 +677,7 @@ export async function importDesign(file: File, signal?: AbortSignal): Promise<{ 
   }
   let res: Response
   try {
-    res = await fetch('/api/designs/import', {
+    res = await apiFetch('/api/designs/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/zip' },
       body: file,

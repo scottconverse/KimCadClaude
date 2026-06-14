@@ -25,6 +25,15 @@ All notable changes to KimCad are documented here. Format follows
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
 ### Added
+- **Session-token guard on state-changing requests (#31, KC-26).** The local server now issues a
+  fresh random token each boot, injects it into the page shell (`<meta name="kimcad-session-token">`),
+  and the SPA returns it as the `X-KimCad-Session` header on every POST. A state-changing request
+  without the matching token (constant-time compared) is refused `403`. This is defense-in-depth
+  against a **drive-by cross-origin POST** from a malicious web page — it can reach loopback but,
+  being cross-origin, can't *read* the same-origin token (and the custom header forces a CORS
+  preflight it can't satisfy). Deliberately **not** full CSRF protection: KimCad is a single-user
+  loopback app with no cookie session to forge, so a per-boot bearer the attacker can't read is the
+  proportionate measure (documented in `docs/api.md`). GETs are never gated.
 - **Printer catalog broadened 3 → 29, slice-proven + honestly tiered (#22, KC-17).** The picker
   now offers a curated catalog of popular current machines across the top makers — Bambu (P1P/
   P1S/X1 Carbon/X1E/A1 mini), Creality (K1/K1 Max/K1C/K2 Plus/Ender-3 V3/Ender-3 V3 KE/CR-10 SE),

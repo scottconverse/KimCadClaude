@@ -549,6 +549,84 @@ def test_web_options_lists_per_printer_available_materials():
     assert "tpu" not in by_key["elegoo_neptune_4_max"]["materials"]
 
 
+def _serve_with_token(pipe, root, token):
+    """A server booted WITH a session token (production injects a per-boot one); tests/dev default
+    to an empty token, so the guard is opt-in here."""
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(pipe, root, session_token=token))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
+
+
+def test_session_token_guard_blocks_state_changing_posts_without_the_token(tmp_path):
+    """#31 (KC-26): with a session token configured, a state-changing POST WITHOUT the matching
+    X-KimCad-Session header is refused 403 — a drive-by cross-origin POST from a malicious page can
+    reach loopback but can't read the same-origin token. A wrong token is also 403 (constant-time
+    compared); the correct token routes through; GETs are never gated."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    httpd = _serve_with_token(pipe, tmp_path, "s3cret-token")
+    host, port = "127.0.0.1", httpd.server_address[1]
+
+    def _post_status(headers):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("POST", "/api/settings", body=b"{}",
+                         headers={"Content-Type": "application/json", **headers})
+            return conn.getresponse().status
+        finally:
+            conn.close()
+
+    try:
+        assert _post_status({}) == 403                                   # no token
+        assert _post_status({"X-KimCad-Session": "wrong"}) == 403         # wrong token
+        assert _post_status({"X-KimCad-Session": "s3cret-token"}) != 403  # correct -> routes through
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("GET", "/api/options")
+            assert conn.getresponse().status == 200  # GETs are never gated
+        finally:
+            conn.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_session_token_is_injected_into_the_served_shell(tmp_path):
+    """#31: GET / serves the SPA shell with the per-boot token substituted into the meta-tag
+    placeholder, so the SPA reads + sends it; the literal placeholder never reaches the client."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    httpd = _serve_with_token(pipe, tmp_path, "tok-XYZ-123")
+    host, port = "127.0.0.1", httpd.server_address[1]
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        conn.request("GET", "/")
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8")
+        conn.close()
+        assert resp.status == 200
+        assert "tok-XYZ-123" in body
+        assert "__KIMCAD_SESSION_TOKEN__" not in body
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_no_session_token_leaves_posts_open(tmp_path):
+    """The default (no token — tests, or an embedding that doesn't configure one) leaves the guard
+    OFF, so a POST isn't 403'd for lack of a token. Guards the opt-in contract the suite relies on."""
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(pipe, tmp_path))  # no session_token
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    host, port = "127.0.0.1", httpd.server_address[1]
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        conn.request("POST", "/api/settings", body=b"{}", headers={"Content-Type": "application/json"})
+        assert conn.getresponse().status != 403
+        conn.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 class _NoProcessConfig:
     """A config stand-in whose printer has no process profile, to drive the web-layer
     refusal path without depending on a specific shipped printer."""

@@ -234,3 +234,14 @@ explicit `--allow-remote` acknowledgment (it then prints a no-auth warning). Sec
 pipeline's generated code runs through static sanitizers and arm's-length worker
 processes. Full detail: [`SECURITY.md`](../SECURITY.md) and
 [`cadquery-backend.md`](cadquery-backend.md).
+
+**Session token on state-changing requests (KC-26).** The server issues a fresh random token
+each boot, injects it into the page shell (`<meta name="kimcad-session-token">`), and the SPA
+returns it as the `X-KimCad-Session` header on every POST. A state-changing request without the
+matching token (constant-time compared) is refused `403`. This blocks a drive-by **cross-origin**
+POST from a malicious web page: it can reach loopback, but — being cross-origin — cannot *read*
+this same-origin token, and the custom header forces a CORS preflight it can't satisfy. This is
+deliberate defense-in-depth, **not** full CSRF protection: KimCad is a single-user loopback app
+with no cookie-based session to forge, so a constant per-boot bearer the attacker can't read is
+the proportionate measure — per-request form nonces and `SameSite` cookies would add machinery
+without a matching threat. GET requests are never gated.

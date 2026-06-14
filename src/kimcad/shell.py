@@ -21,6 +21,7 @@ CadQuery posture).
 
 from __future__ import annotations
 
+import secrets
 import threading
 import webbrowser
 from http.server import ThreadingHTTPServer
@@ -90,7 +91,12 @@ def build_shell(
     from kimcad.paths import output_dir
 
     web_root = output_dir() / "web"  # SHELL-006 closed: routed through the 11.4 seam
-    handler = make_handler(pipeline, web_root, config=config)
+    # #31 (KC-26): the desktop shell is the primary distribution, so it gets the SAME per-boot
+    # session-token guard as `kimcad web` (serve()). The WebView2 navigates to the loopback HTTP
+    # URL below, so the server injects this token into the served shell and the SPA returns it on
+    # state-changing requests — a drive-by cross-origin POST (which can't read it) is refused.
+    session_token = secrets.token_urlsafe(32)
+    handler = make_handler(pipeline, web_root, config=config, session_token=session_token)
     httpd: ThreadingHTTPServer | None = None
     for candidate in SHELL_PORTS:
         try:
