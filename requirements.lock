@@ -4,15 +4,18 @@ bambulabs-api==2.6.6
 bottle==0.13.4
 certifi==2026.5.20
 cffi==2.0.0
+chardet==7.4.3
 clr-loader==0.3.1
 colorama==0.4.6
 coverage==7.14.1
+diff-cover==10.3.0
 distro==1.9.0
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.18
 iniconfig==2.3.0
+Jinja2==3.1.6
 jaraco.classes==3.4.0
 jaraco.context==6.1.2
 jaraco.functools==4.5.0
@@ -20,6 +23,7 @@ jiter==0.15.0
 keyring==25.7.0
 lxml==6.1.1
 manifold3d==3.5.1
+MarkupSafe==3.0.3
 more-itertools==11.1.0
 networkx==3.6.1
 numpy==2.2.6

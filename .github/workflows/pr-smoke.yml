@@ -27,26 +27,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # KC-22 (#27): full history so diff-cover can diff the PR's changed lines vs the base.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
-      - name: Install Python deps (runtime + lint/test tools)
+      - name: Install Python deps (runtime + lint/test/coverage tools)
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install ruff pytest
+          pip install ruff pytest pytest-cov diff-cover
 
       - name: Ruff (lint)
         run: ruff check src tests
 
-      - name: Pytest (hermetic unit subset)
+      - name: Pytest (hermetic unit subset, with coverage)
         # `not live` drops the real-OrcaSlicer tests; the real_tool / needs_cadquery tests
         # auto-skip on a runner without the binaries/interpreter. -ra surfaces those skips so a
-        # green run here is never mistaken for the full self-hosted live-tool gate.
-        run: pytest -q -m "not live" -ra
+        # green run here is never mistaken for the full self-hosted live-tool gate. --cov=kimcad
+        # produces coverage.xml for the diff-coverage gate below (scoped to shipped library code).
+        run: pytest -q -m "not live" -ra --cov=kimcad --cov-report=xml
+
+      - name: Diff-coverage gate (KC-22 / #27)
+        # Changed kimcad lines in this PR must be >= 80% covered overall, and >= 70% for any module
+        # with >= 20 changed lines. Note coverage here is the HERMETIC subset (the live-tool tests
+        # are skipped), so a line only exercised by a live test counts as uncovered — keep
+        # diff-coverable logic unit-testable. The full live gate stays self-hosted.
+        run: python scripts/check_diff_coverage.py coverage.xml --compare-branch "origin/${{ github.base_ref }}"
 
       - name: Set up Node
         uses: actions/setup-node@v4

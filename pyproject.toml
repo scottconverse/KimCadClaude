@@ -50,6 +50,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",  # `pytest --cov=kimcad --cov-branch` to spot un-entered branches
     "ruff>=0.5",
+    "diff-cover>=9.0",  # KC-22 (#27): the changed-line coverage gate (scripts/check_diff_coverage.py)
 ]
 
 [project.scripts]

@@ -71,6 +71,25 @@ frontend vitest suite** — a fast green/red signal without exposing the self-ho
 **not** prove the live OpenSCAD/OrcaSlicer/CadQuery contract or byte-exact SPA build
 reproducibility; a maintainer runs the full self-hosted gate on the branch before merge.
 
+### Diff-coverage gate (KC-22)
+
+Incoming PRs must keep **changed lines covered**: the PR smoke runs `pytest --cov=kimcad` and then
+`scripts/check_diff_coverage.py`, which fails the PR if the lines this PR changes in `src/kimcad`
+are **< 80% covered overall**, or if any single module with **≥ 20 changed lines** is **< 70%
+covered**. Coverage is scoped to shipped library code (changed `tests/`, `scripts/`, and docs don't
+count). Note the PR smoke measures the *hermetic* subset (live-tool tests are skipped there), so a
+line reachable only by a live test reads as uncovered — keep diff-coverable logic unit-testable.
+
+To self-check a branch before opening a PR (this self-hosted gate runs on push to `main`, where
+there's nothing to diff, so it doesn't run diff-coverage itself):
+
+```
+.venv/Scripts/python -m pytest -q --cov=kimcad --cov-report=xml
+.venv/Scripts/python scripts/check_diff_coverage.py coverage.xml --compare-branch origin/main
+```
+
+The threshold logic is unit-tested in `tests/test_check_diff_coverage.py`.
+
 ## Setup for development
 
 From-source setup is in the [README's Setup section](README.md#setup): a Python **3.13**

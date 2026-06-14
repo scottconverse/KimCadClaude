@@ -67,6 +67,13 @@ if [ "$PYTEST_RC" -ne 0 ]; then
     echo "[ci] FAIL: pytest exited ${PYTEST_RC} — the gate blocks the push."
     exit "${PYTEST_RC}"
 fi
+# KC-22 (#27): the DIFF-COVERAGE gate (changed kimcad lines >=80% overall, >=70% per module of
+# >=20 changed lines) runs on incoming PRs in the hosted PR smoke (.github/workflows/pr-smoke.yml),
+# which has the PR base to diff against — this self-hosted gate runs on push to main (where
+# main already == HEAD, so there is nothing to diff). To self-check a branch locally before a PR:
+#   .venv/Scripts/python -m pytest -q --cov=kimcad --cov-report=xml \
+#     && .venv/Scripts/python scripts/check_diff_coverage.py coverage.xml --compare-branch origin/main
+# (scripts/check_diff_coverage.py is the portable, unit-tested gate — see tests/test_check_diff_coverage.py.)
 # Frontend unit tests (vitest) + build-reproducibility check. The committed SPA build is what
 # ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
 # KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a
