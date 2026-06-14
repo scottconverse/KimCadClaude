@@ -1,4 +1,12 @@
 #!/bin/sh
 # Local CI gate: block the push if lint or tests fail.
 # Activated with: git config core.hooksPath .githooks
-exec sh "$(git rev-parse --show-toplevel)/scripts/ci.sh"
+# Gate-integrity 2026-06-13: run the gate under bash with `-o pipefail` when available, matching the
+# CI workflow (.github/workflows/ci.yml) exactly so a local push is never weaker than CI — a pipe in
+# the gate must not mask a failure. ci.sh also self-protects (it captures pytest's real exit code),
+# so the plain-`sh` fallback stays correct on a box without bash.
+root="$(git rev-parse --show-toplevel)"
+if command -v bash >/dev/null 2>&1; then
+    exec bash --noprofile --norc -eo pipefail "$root/scripts/ci.sh"
+fi
+exec sh "$root/scripts/ci.sh"

@@ -40,7 +40,15 @@ echo "[ci] pytest..."
 # tests aren't `live`-marked, so the live-subset assertion alone can't see them). Local
 # dev runs stay lenient (a fresh clone legitimately skips tool-gated tests).
 PYTEST_OUT="$(mktemp)"
-"$PY" -m pytest -q -ra | tee "$PYTEST_OUT"
+# Gate-integrity 2026-06-13: a bare `pytest | tee` reports tee's exit (always 0), so under POSIX sh
+# (no pipefail — and the pre-push hook can invoke this with plain `sh`) a FAILING suite would sail
+# through and the push go GREEN (this masked a real failure on 2026-06-13). Run pytest with NO pipe
+# in the critical path — redirect output to a file and capture its real exit status via
+# `|| PYTEST_RC=$?` (which also keeps `set -e` from aborting before we record it) — then print the
+# output. Correct under sh and bash alike; no pipefail required.
+PYTEST_RC=0
+"$PY" -m pytest -q -ra >"$PYTEST_OUT" 2>&1 || PYTEST_RC=$?
+cat "$PYTEST_OUT"
 if [ "${KIMCAD_CI_STRICT:-}" = "1" ] && grep -qE '[0-9]+ skipped' "$PYTEST_OUT"; then
     echo "[ci] STRICT GATE: tests were SKIPPED on a provisioned runner — coverage silently lost:"
     grep -E '^SKIPPED' "$PYTEST_OUT" || true
@@ -48,6 +56,10 @@ if [ "${KIMCAD_CI_STRICT:-}" = "1" ] && grep -qE '[0-9]+ skipped' "$PYTEST_OUT";
     exit 1
 fi
 rm -f "$PYTEST_OUT"
+if [ "$PYTEST_RC" -ne 0 ]; then
+    echo "[ci] FAIL: pytest exited ${PYTEST_RC} — the gate blocks the push."
+    exit "${PYTEST_RC}"
+fi
 # Frontend unit tests (vitest) + build-reproducibility check. The committed SPA build is what
 # ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
 # KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a
@@ -64,9 +76,12 @@ if [ -d frontend/node_modules ] && command -v npm >/dev/null 2>&1; then
     npm --prefix frontend run test
     echo "[ci] frontend build reproducibility (committed output == fresh build)..."
     npm --prefix frontend run build >/dev/null
-    if ! git diff --quiet -- src/kimcad/web; then
+    # Gate-integrity 2026-06-13: `git diff --quiet` sees only TRACKED changes — a fresh build that
+    # ADDS a net-new asset/chunk (untracked) would slip through. `git status --porcelain` also lists
+    # untracked ('??') entries, so this catches additive drift too.
+    if ! git diff --quiet -- src/kimcad/web || [ -n "$(git status --porcelain -- src/kimcad/web)" ]; then
         echo "[ci] FAIL: src/kimcad/web differs from a fresh build — rebuild + commit the SPA output:"
-        git --no-pager diff --stat -- src/kimcad/web
+        git --no-pager status --porcelain -- src/kimcad/web
         exit 1
     fi
 else

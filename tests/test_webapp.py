@@ -301,6 +301,22 @@ def test_oversize_content_length_rejected_with_413(tmp_path):
     assert b"too large" in body.lower()
 
 
+def test_oversize_json_body_streamed_gets_a_clean_413_not_a_reset(tmp_path):
+    """Gate-integrity 2026-06-13: an oversized JSON POST that actually STREAMS its body
+    (not just an oversized Content-Length with an empty body, as the test above does) must
+    still get a clean, typed 413 — never a Windows connection reset. The server has to drain
+    the inbound body before closing; an undrained close RSTs the client's read of the 413
+    (ConnectionAbortedError). A 2 MiB body exceeds the loopback socket buffer so the
+    previously-unguarded race is deterministic, and the loop hardens it further."""
+    big = b'{"prompt":"' + b"a" * (2 * 1024 * 1024) + b'"}'  # > MAX_BODY_BYTES (1 MiB), streamed
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        for _ in range(5):
+            status, body = _post_with_raw_length(host, port, len(big), body=big)
+            assert status == 413
+            assert b"too large" in body.lower()
+
+
 def test_malformed_content_length_is_clean_400(tmp_path):
     """A non-numeric Content-Length yields a clean 400, not a connection reset or a
     crash on the request thread (QA-003)."""
@@ -2990,6 +3006,22 @@ def test_photo_seed_oversized_is_413(tmp_path):
         # Declare an oversized Content-Length; the body is never read.
         st, _ = _post_photo(host, port, b"", content_length=MAX_PHOTO_BYTES + 1)
         assert st == 413
+
+
+def test_photo_seed_oversized_streamed_gets_a_clean_413_not_a_reset(tmp_path):
+    """Gate-integrity 2026-06-13: the raw-upload guard (_read_raw_body) must also drain an
+    over-cap body before closing, or a streaming client gets a Windows RST instead of the
+    typed 413. The photo cap is 12 MiB; a 13 MiB streamed body exceeds both the cap and the
+    socket buffer, making the previously-unguarded reset deterministic. Two iterations keep
+    the test's wall-cost modest while still catching a regression."""
+    from kimcad.webapp import MAX_PHOTO_BYTES
+
+    big = b"x" * (MAX_PHOTO_BYTES + 1_048_576)  # ~13 MiB: over the 12 MiB cap, over the buffer
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        for _ in range(2):
+            st, _d = _post_photo(host, port, big, content_length=len(big))
+            assert st == 413
 
 
 def test_photo_seed_empty_upload_is_400(tmp_path):

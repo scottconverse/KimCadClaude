@@ -151,6 +151,25 @@ All notable changes to KimCad are documented here. Format follows
   is OpenSCAD-only; CadQuery now runs exclusively KimCad's own template twins.
 
 ### Fixed
+- **Gate integrity: the pre-push gate can no longer go green on a failing test (2026-06-13).**
+  `scripts/ci.sh` ran `pytest | tee`, and a pipeline's exit status is the last command's (`tee`,
+  always 0) — so under POSIX `sh` (the pre-push hook's interpreter, which lacks `pipefail`) a
+  failing or erroring suite was silently masked and the push proceeded. pytest now runs without a
+  pipe and its real exit status gates the push. Two adjacent holes closed in the same pass: the
+  build-reproducibility check used `git diff --quiet`, which is blind to *untracked* build output
+  (an additive new chunk would slip through) — it now also fails on `git status --porcelain`
+  entries; and the pre-push hook runs the gate under `bash -o pipefail` when available (matching the
+  CI workflow exactly), with a correct plain-`sh` fallback since the script is now self-protecting.
+  Surfaced when the flaky 413 test below failed inside the gate yet the push still went green.
+- **Oversized request bodies get a clean 413, never a Windows connection reset (2026-06-13).** When
+  the server rejected an over-limit body it closed the socket without draining the inbound bytes; on
+  Windows, closing a connection with unread data emits a TCP RST, so a client *streaming* the body
+  got a `ConnectionAbortedError` instead of the typed 413. A shared `_reject_oversized_body()` now
+  drains a bounded, time-limited prefix before answering, across all three web-layer sites (JSON
+  bodies, the model-pull route, and raw photo/sketch/import uploads); the three printer mocks
+  (OctoPrint/Moonraker/PrusaLink) get the same hardening for oracle fidelity. Pinned by
+  streaming-body tests at 2–13 MiB — the previous 100 KB body fit the socket buffer, so the reset
+  stayed latent and flaky (and slipped a real failure past the gate, per the entry above).
 - **A refine that returns no mesh no longer wipes the current part (#32, KC-27).** When a
   follow-up turn comes back without a mesh — the model asked a clarifying question, or couldn't
   fulfil the refine — the part already on screen now stays put and the message is simply added to

@@ -1166,6 +1166,43 @@ def make_handler(
             )
             self._send(200, mesh_path.read_bytes(), content_type)
 
+        def _reject_oversized_body(self, declared: int, message: str) -> None:
+            """Send a typed 413 for an over-limit request body WITHOUT leaving undrained bytes
+            on the socket. On Windows, closing a connection that still holds unread inbound data
+            emits a TCP RST, which turns the client's read of our 413 into a ConnectionAbortedError
+            instead of the clean status (gate-integrity 2026-06-13: this surfaced as a flaky test
+            that, combined with a ci.sh pipe masking pytest's exit, slipped a real failure past the
+            push gate). Drain a bounded prefix of the body first, mark the connection for close,
+            then answer — so the client reliably reads the 413. A hostile/huge Content-Length can't
+            make us read forever: past the cap we stop draining and close (a reset is acceptable
+            only for that pathological multi-megabyte case)."""
+            drain_cap = 64 * 1024 * 1024  # clears any plausible just-over-limit upload (max cap 32 MiB)
+            self.close_connection = True
+            remaining = min(declared, drain_cap) if declared and declared > 0 else 0
+            if remaining > 0:
+                # Time-bound the drain: consume the body that's actually in flight, but DON'T hang
+                # waiting on bytes a client merely DECLARED and never sent (an oversized
+                # Content-Length with an empty body is a legitimate up-front rejection — there's
+                # nothing to drain, so closing is clean regardless). TimeoutError subclasses
+                # OSError, so the one except covers a stall, a short body, and a vanished peer.
+                sock = self.connection
+                prev_timeout = sock.gettimeout()
+                sock.settimeout(1.5)
+                try:
+                    while remaining > 0:
+                        chunk = self.rfile.read(min(remaining, 65536))
+                        if not chunk:
+                            break  # EOF — client stopped early; nothing left to RST on
+                        remaining -= len(chunk)
+                except OSError:
+                    pass  # stalled / short body / peer gone — close is still clean on our side
+                finally:
+                    try:
+                        sock.settimeout(prev_timeout)
+                    except OSError:
+                        pass
+            self._json(413, {"error": message})
+
         def _read_json_body(self) -> dict[str, Any] | None:
             """Read + parse the JSON request body behind the size guard. Returns the
             parsed dict, or None after having already sent a 413/400 response."""
@@ -1176,11 +1213,10 @@ def make_handler(
             except (ValueError, TypeError):
                 declared = -1  # malformed header -> treat as bad request below
             if declared > MAX_BODY_BYTES:
-                # QA-004: we reject without draining the oversized upload, so tell the client to
-                # close rather than treat this as a keep-alive turn (a client still streaming the
-                # body would otherwise hit a connection-abort reading the response).
-                self.close_connection = True
-                self._json(413, {"error": "Request body too large."})
+                # QA-004 / gate-integrity 2026-06-13: reject the oversized upload, but DRAIN a
+                # bounded prefix first and close — a client still streaming the body would
+                # otherwise hit a Windows connection-abort reading the 413 (see helper).
+                self._reject_oversized_body(declared, "Request body too large.")
                 return None
             try:
                 # Parse length inside the try so a bad header yields a clean 400,
@@ -1404,7 +1440,10 @@ def make_handler(
             except ValueError:
                 clen = 0
             if clen > 65536:
-                self._json(413, {"error": "This endpoint takes no request body."})
+                # Over-cap: drain a bounded prefix and close before answering, so the client
+                # reads the typed 413 instead of a Windows RST (gate-integrity 2026-06-13 — this
+                # branch previously neither drained nor closed, the worst of the three variants).
+                self._reject_oversized_body(clen, "This endpoint takes no request body.")
                 return
             if clen:
                 self.rfile.read(clen)
@@ -2211,8 +2250,9 @@ def make_handler(
             except (ValueError, TypeError):
                 declared = -1
             if declared > max_bytes:
-                self.close_connection = True
-                self._json(413, {"error": "File too large."})
+                # Drain a bounded prefix and close before answering, so a streaming over-cap
+                # upload reads the typed 413 rather than a Windows RST (gate-integrity 2026-06-13).
+                self._reject_oversized_body(declared, "File too large.")
                 return None
             if declared <= 0:
                 self._json(400, {"error": "Empty upload."})

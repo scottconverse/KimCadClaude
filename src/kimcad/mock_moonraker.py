@@ -114,6 +114,17 @@ def _make_handler(state: dict[str, Any], api_key: str | None) -> type[BaseHTTPRe
                 self._json(400, {"error": {"message": "bad content-length"}})
                 return
             if length > MAX_BODY_BYTES:
+                # Drain a bounded prefix + close so the 413 isn't a Windows RST on a streaming
+                # client (mirrors webapp._reject_oversized_body; keeps this mock a faithful
+                # oracle). Time-bounded so a declared-but-unsent body can't hang the thread.
+                self.close_connection = True
+                self.connection.settimeout(1.5)
+                rem = min(length, 64 * 1024 * 1024)
+                try:
+                    while rem > 0 and (c := self.rfile.read(min(rem, 65536))):
+                        rem -= len(c)
+                except OSError:
+                    pass
                 self._json(413, {"error": {"message": "request body too large"}})
                 return
             body = self.rfile.read(length) if length else b""

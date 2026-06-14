@@ -307,18 +307,25 @@ def test_pull_ignores_an_attacker_named_model_in_the_body(tmp_path, monkeypatch)
 
 
 def test_pull_refuses_an_absurd_body_with_a_typed_413(tmp_path):
-    """QA-1003 (stage-10 gate): a giant body gets a clean 413, not a connection reset."""
+    """QA-1003 (stage-10 gate) + gate-integrity 2026-06-13: a giant body gets a clean, typed
+    413 — NOT a Windows connection reset. The handler must drain the inbound body before
+    closing; an undrained close RSTs the client's read of the 413 (ConnectionAbortedError).
+    The original 100 KB body fit the loopback socket buffer, so the reset stayed latent/flaky
+    (it slipped a real failure past the gate on 2026-06-13). A 2 MiB body exceeds the buffer,
+    making the race deterministic; the loop hardens it."""
+    big = b"x" * (2 * 1024 * 1024)  # > the socket buffer -> a no-drain close surfaces the RST
     with _serve(tmp_path, _cfg()) as (host, port):
-        conn = http.client.HTTPConnection(host, port, timeout=20)
-        try:
-            conn.request("POST", "/api/model-pull", body=b"x" * 100_000,
-                         headers={"Content-Type": "application/octet-stream"})
-            resp = conn.getresponse()
-            data = json.loads(resp.read())
-        finally:
-            conn.close()
-    assert resp.status == 413
-    assert "no request body" in data["error"]
+        for _ in range(5):
+            conn = http.client.HTTPConnection(host, port, timeout=20)
+            try:
+                conn.request("POST", "/api/model-pull", body=big,
+                             headers={"Content-Type": "application/octet-stream"})
+                resp = conn.getresponse()
+                data = json.loads(resp.read())
+            finally:
+                conn.close()
+            assert resp.status == 413
+            assert "no request body" in data["error"]
 
 
 def test_concurrent_starts_never_fork_a_second_pull():
