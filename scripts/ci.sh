@@ -32,6 +32,13 @@ echo "[ci] geometry backends..."
 # pin bumped without a review.
 echo "[ci] binary advisories..."
 "$PY" scripts/check_binary_advisories.py
+# Gate-integrity 2026-06-13: the CadQuery worker's cold OCP/OCCT import is slow, and this old
+# self-hosted runner thermal-throttles under a sustained full-gate load — the production-default
+# 120 s render / 90 s discovery-probe timeouts then flake on the FIRST (cold) CadQuery render
+# (box/tube exceeded 120 s on a 30-min throttled run). Grant the gate generous headroom; runtime,
+# with these unset, keeps the tight production defaults. Hosted runners (#16) retire this box.
+export KIMCAD_CQ_TIMEOUT_S="${KIMCAD_CQ_TIMEOUT_S:-360}"
+export KIMCAD_CQ_PROBE_TIMEOUT_S="${KIMCAD_CQ_PROBE_TIMEOUT_S:-240}"
 echo "[ci] pytest..."
 # -ra surfaces skip reasons so a green run without the bundled OrcaSlicer binary can't be
 # mistaken for one that proved the real slicer contract (TEST-002).

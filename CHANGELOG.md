@@ -166,7 +166,10 @@ All notable changes to KimCad are documented here. Format follows
   contract), which fails on a slow/loaded CI box. It is now a **load-invariant** check (the median
   family must render within a small multiple of the fast-family floor, so box speed cancels out);
   the hard correctness gate remains the per-family 5 s ceiling, and the <1 s headline stays
-  validated on reference hardware in the committed benchmark doc.
+  validated on reference hardware in the committed benchmark doc. Likewise, the CadQuery worker's
+  render and interpreter-discovery timeouts are now env-configurable (`KIMCAD_CQ_TIMEOUT_S` /
+  `KIMCAD_CQ_PROBE_TIMEOUT_S`) so the gate can grant the cold OCP/OCCT import generous headroom on
+  the thermal-throttled self-hosted box — runtime keeps the tight 120 s / 90 s production defaults.
 - **Oversized request bodies get a clean 413, never a Windows connection reset (2026-06-13).** When
   the server rejected an over-limit body it closed the socket without draining the inbound bytes; on
   Windows, closing a connection with unread data emits a TCP RST, so a client *streaming* the body

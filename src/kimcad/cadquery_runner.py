@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import subprocess
 import sys
 import time
@@ -171,6 +172,20 @@ def sanitize_cadquery(code: str) -> SanitizeResult:
     return SanitizeResult(code=code, blocked=unique)
 
 
+def _env_timeout(name: str, default: int) -> int:
+    """A positive integer timeout from ``name``, or ``default``. The CadQuery worker's cold start
+    (importing cadquery -> loading the OCP/OCCT binaries while Defender scans them) is slow, and
+    slower still on a loaded/thermal-throttled box. These timeouts default to production-safe
+    values but are env-overridable so the local CI gate on the old self-hosted runner can grant the
+    cold first render generous headroom WITHOUT changing runtime behaviour (the env vars are unset
+    in production, so a real user-facing render keeps the tight default). See scripts/ci.sh."""
+    try:
+        v = int(os.environ.get(name, ""))
+    except (ValueError, TypeError):
+        return default
+    return v if v > 0 else default
+
+
 def render_cadquery(
     code: str,
     *,
@@ -178,7 +193,7 @@ def render_cadquery(
     out_dir: Path,
     basename: str = "part",
     emit_step: bool = False,
-    timeout_s: int = 120,
+    timeout_s: int | None = None,
     max_output_bytes: int = 209_715_200,
     tessellation_mm: float = 0.1,
 ) -> RenderResult:
@@ -191,6 +206,8 @@ def render_cadquery(
     :class:`OversizeOutput`. ``interpreter`` is the resolved <=3.13 ``python`` that has
     cadquery installed (see :meth:`kimcad.config.Config.cadquery_interpreter`).
     """
+    if timeout_s is None:
+        timeout_s = _env_timeout("KIMCAD_CQ_TIMEOUT_S", 120)
     sanitized = sanitize_cadquery(code)
     if not sanitized.safe:
         raise BlockedCodeError(sanitized.blocked)
@@ -323,7 +340,8 @@ def find_cadquery_interpreter(
             # discovered result so the cost is paid once.
             # Scrub secrets from the probe env too (the probe needs none) — ENG-002.
             proc = subprocess.run(
-                [*cmd, "-c", _PROBE], capture_output=True, text=True, timeout=90,
+                [*cmd, "-c", _PROBE], capture_output=True, text=True,
+                timeout=_env_timeout("KIMCAD_CQ_PROBE_TIMEOUT_S", 90),
                 env=_worker_env(),
             )
         except (OSError, subprocess.SubprocessError):
