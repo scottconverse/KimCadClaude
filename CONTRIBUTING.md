@@ -61,6 +61,16 @@ A fast cross-platform inner loop:
 still asserts the live-tool contract executed with **zero skips** — markers give contributors
 a clean signal, they do not weaken the gate.
 
+### Fork pull requests (hosted smoke)
+
+The self-hosted gate is **push + manual only** — a self-hosted runner must never execute
+untrusted fork code. So fork PRs get a separate hosted check, `.github/workflows/pr-smoke.yml`
+(KC-12): on a throwaway GitHub-hosted Ubuntu runner it runs **ruff + the hermetic `pytest`
+subset** (`-m "not live"`; the binary/interpreter/Windows-only tests auto-skip there) **+ the
+frontend vitest suite** — a fast green/red signal without exposing the self-hosted box. It does
+**not** prove the live OpenSCAD/OrcaSlicer/CadQuery contract or byte-exact SPA build
+reproducibility; a maintainer runs the full self-hosted gate on the branch before merge.
+
 ## Setup for development
 
 From-source setup is in the [README's Setup section](README.md#setup): a Python **3.13**

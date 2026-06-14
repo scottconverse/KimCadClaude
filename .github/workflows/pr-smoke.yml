@@ -1,0 +1,59 @@
+name: PR smoke (hosted)
+
+# KC-12 (#16). HOSTED lint + unit smoke for pull requests — including FORK PRs, which the
+# self-hosted gate (ci.yml) deliberately never runs (a self-hosted runner must never execute
+# untrusted fork code; ci.yml is push + workflow_dispatch only). This gives an outside
+# contributor a fast green/red signal on a throwaway GitHub-hosted Ubuntu runner WITHOUT
+# exposing the self-hosted box.
+#
+# What it proves: ruff lint, the hermetic Python unit subset (the live OpenSCAD/OrcaSlicer
+# tests are deselected with `-m "not live"`, and the binary/interpreter-gated tests auto-SKIP
+# on a runner without them — see conftest.pytest_runtest_setup), and the frontend vitest suite.
+# What it does NOT prove (stays self-hosted, run by a maintainer after review): the live Windows
+# tool contract (real OpenSCAD/OrcaSlicer/CadQuery) and byte-exact SPA build reproducibility.
+# Merging still requires the self-hosted gate to be green on the branch.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (runtime + lint/test tools)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install ruff pytest
+
+      - name: Ruff (lint)
+        run: ruff check src tests
+
+      - name: Pytest (hermetic unit subset)
+        # `not live` drops the real-OrcaSlicer tests; the real_tool / needs_cadquery tests
+        # auto-skip on a runner without the binaries/interpreter. -ra surfaces those skips so a
+        # green run here is never mistaken for the full self-hosted live-tool gate.
+        run: pytest -q -m "not live" -ra
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Frontend unit tests (vitest)
+        run: |
+          npm ci --prefix frontend
+          npm --prefix frontend run test
