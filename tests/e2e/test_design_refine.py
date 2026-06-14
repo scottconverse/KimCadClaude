@@ -52,19 +52,33 @@ def test_the_inspector_quality_tab_shows_the_readiness_score(design, console_err
     assert console_errors == [], f"unexpected browser console errors: {console_errors}"
 
 
-def test_a_parameter_slider_re_renders_the_preview_locally(design, console_errors: list[str]) -> None:  # noqa: ANN001
+_DIMS = re.compile(r"\d+ by \d+ by \d+")
+
+
+def test_a_parameter_slider_re_renders_the_preview_with_a_larger_width(design, console_errors: list[str]) -> None:  # noqa: ANN001
     page: Page = design()
     preview = page.get_by_label(_PREVIEW)
-    before = preview.get_attribute("aria-label")  # e.g. "3D preview — 80 by 60 by 40 millimetres"
+
+    # Wait for the DIMENSIONED label to land first (the initial mesh framing resolves async, after
+    # the Parameters tab) — so the change we assert is attributable to the slider, not to the
+    # initial render arriving late (TEST-2, audit-team 2026-06-14).
+    expect(preview).to_have_attribute("aria-label", _DIMS, timeout=30_000)
+    before_label = preview.get_attribute("aria-label")  # "3D preview — 80 by 60 by 40 millimetres"
+    before_w = int(re.search(r"(\d+) by", before_label).group(1))
 
     # Nudge the Width slider (the exact "Width" aria-label is the range input; the click-to-edit
-    # label is "Width: N mm…"). Arrow keys move it by its step — a purely local re-render, no model.
+    # label is "Width: N mm…"). Arrow keys move it by its step, then a real /api/render re-renders.
     width = page.get_by_label("Width", exact=True)
     width.focus()
     for _ in range(6):
         width.press("ArrowRight")
 
-    expect(preview).not_to_have_attribute("aria-label", before)
+    # The preview re-renders — wait for the label to change (a real render round-trip; generous
+    # timeout for the throttling box, QA-4), then assert the WIDTH specifically increased, tying the
+    # pass to the slider rather than to render timing.
+    expect(preview).not_to_have_attribute("aria-label", before_label, timeout=30_000)
+    after_w = int(re.search(r"(\d+) by", preview.get_attribute("aria-label")).group(1))
+    assert after_w > before_w, f"slider should increase the preview width: {before_w} -> {after_w}"
     assert console_errors == [], f"unexpected browser console errors: {console_errors}"
 
 
@@ -77,6 +91,9 @@ def test_a_quick_refine_chip_is_recorded_in_the_conversation(design, console_err
     # The refinement is echoed into the conversation and the demo server answers it.
     expect(log).to_contain_text("Make it bigger")
     expect(log).to_contain_text(re.compile(r"Demo part for: Make it bigger"))
+    # And it pushed a new version — the version rail now shows v2, proving the refine→version-push
+    # wiring landed, not just the conversation echo (TEST-6, audit-team 2026-06-14).
+    expect(page.get_by_text("v2", exact=True)).to_be_visible()
     assert console_errors == [], f"unexpected browser console errors: {console_errors}"
 
 

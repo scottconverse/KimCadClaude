@@ -76,17 +76,41 @@ def _cadquery_available() -> bool:
 
 def _browser_available() -> bool:
     # KC-20 (#25): the Playwright e2e suite needs both pytest-playwright importable AND a
-    # downloaded Chromium. The browser is provisioned out-of-band (`playwright install chromium`),
-    # never via requirements.lock — so a fresh clone / the hosted fork-PR smoke skips these
-    # cleanly. On the provisioned gate box Chromium is present, so they RUN (no green-by-skip).
-    def probe() -> bool:
-        from playwright.sync_api import sync_playwright
+    # downloaded, LAUNCHABLE Chromium. The browser is provisioned out-of-band (`playwright install
+    # chromium`), never via requirements.lock — so a fresh clone / the hosted fork-PR smoke skips
+    # these cleanly. On the provisioned gate box Chromium is present, so they RUN (no green-by-skip).
+    #
+    # We actually launch+close Chromium (not just check the executable exists), so a present-but-
+    # non-launchable browser is diagnosed here as unavailable rather than as a confusing mid-test
+    # crash (ENG-6). And we retry once: a transient driver-start hiccup (Defender scanning the cold
+    # browser, a file lock) must NOT become a permanent skip that STRICT then converts to a baffling
+    # whole-gate red (ENG-5). If both attempts error, we cache "unavailable" but print the reason so
+    # a provisioned-box failure is visible, not a silent green-by-skip. (audit-team 2026-06-14.)
+    if "browser" in _MARKER_CACHE:
+        return _MARKER_CACHE["browser"]
+    import time as _time
 
-        with sync_playwright() as p:
-            path = p.chromium.executable_path
-            return bool(path) and Path(path).exists()
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            from playwright.sync_api import sync_playwright
 
-    return _cached("browser", probe)
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                browser.close()
+            _MARKER_CACHE["browser"] = True
+            return True
+        except Exception as e:  # noqa: BLE001 - any launch failure means "can't run e2e here"
+            last_exc = e
+            if attempt == 0:
+                _time.sleep(0.5)
+    _MARKER_CACHE["browser"] = False
+    print(
+        f"[conftest] Playwright Chromium probe failed twice ({type(last_exc).__name__}: "
+        f"{last_exc}); e2e tests will SKIP.",
+        file=sys.stderr,
+    )
+    return False
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:

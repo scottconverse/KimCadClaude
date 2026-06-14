@@ -68,7 +68,9 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          .\.venv\Scripts\python.exe -m pip install --quiet "playwright==1.60.0" "pytest-playwright==0.8.0"
+          # -c requirements.lock: install playwright + its transitives WITHOUT moving any
+          # lock-pinned version, so the post-lock install can't perturb the audited tree (ENG-4).
+          .\.venv\Scripts\python.exe -m pip install --quiet -c requirements.lock "playwright==1.60.0" "pytest-playwright==0.8.0"
           if ($LASTEXITCODE -ne 0) { throw "playwright install failed" }
           .\.venv\Scripts\python.exe -m playwright install chromium
           if ($LASTEXITCODE -ne 0) { throw "chromium download failed" }
@@ -154,3 +156,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "pip-audit install failed" }
           .\.venv\Scripts\python.exe -m pip_audit -r requirements.lock --strict
           if ($LASTEXITCODE -ne 0) { throw "pip-audit found vulnerabilities or failed" }
+          # KC-20 (#25 / ENG-3): the lock audit above doesn't see the e2e browser tooling
+          # (playwright/pytest-playwright + transitives), which is installed out-of-lock and runs a
+          # real browser on this box. Audit it explicitly. (A full-env `pip-audit` chokes on the
+          # editable kimcad install, so derive the pin list from what's actually installed — it
+          # can't drift from the gate's pinned tooling.)
+          .\.venv\Scripts\python.exe -m pip freeze |
+            Select-String -Pattern '^(playwright|pytest-playwright|pyee|greenlet|pytest-base-url|python-slugify|text-unidecode)==' |
+            ForEach-Object { $_.Line } | Out-File -Encoding ascii pw-tools.txt
+          .\.venv\Scripts\python.exe -m pip_audit -r pw-tools.txt --strict
+          if ($LASTEXITCODE -ne 0) { throw "pip-audit (e2e browser tooling) found vulnerabilities or failed" }

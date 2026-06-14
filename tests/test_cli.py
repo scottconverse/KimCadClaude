@@ -11,6 +11,27 @@ def test_normalize_bare_prompt_becomes_design():
     assert _normalize_argv(["a 20mm block"]) == ["design", "a 20mm block"]
 
 
+def test_web_out_flag_passes_a_web_subdir_out_root_to_serve(monkeypatch, tmp_path):
+    # KC-20 (#25): `kimcad web --out X` lets a test/side-by-side instance isolate its render
+    # artifacts; it routes to serve(out_root=resolve(out)/"web").
+    import kimcad.webapp as webapp
+
+    captured: dict = {}
+    monkeypatch.setattr(webapp, "serve", lambda **kw: captured.update(kw))
+    assert main(["web", "--out", str(tmp_path), "--demo"]) == 0
+    assert captured["out_root"] == tmp_path / "web"
+
+
+def test_web_without_out_leaves_serve_at_its_default(monkeypatch):
+    # No --out -> out_root is None, so serve() uses the app's output/ tree (unchanged behavior).
+    import kimcad.webapp as webapp
+
+    captured: dict = {}
+    monkeypatch.setattr(webapp, "serve", lambda **kw: captured.update(kw))
+    assert main(["web", "--demo"]) == 0
+    assert captured["out_root"] is None
+
+
 def test_normalize_leaves_subcommands_alone():
     assert _normalize_argv(["design", "x"]) == ["design", "x"]
     assert _normalize_argv(["bench"]) == ["bench"]

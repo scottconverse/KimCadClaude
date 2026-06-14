@@ -6,13 +6,25 @@ template engine) — no DOM mocks, no stubbed APIs. The architecture is harveste
 kimcadcodex e2e suite (live-server fixture + console-error watcher + the browser_serial marker),
 rebuilt for this repo's stdlib `kimcad web` server (vs the codex uvicorn app).
 
-Every e2e module sets `pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser]`:
-- `needs_browser` (root conftest) SKIPS the test when Chromium isn't installed, so a fresh clone
-  or the hosted fork-PR smoke never hard-fails; the provisioned gate box runs them for real.
-- `browser_serial` serializes them around the one shared localhost server.
+Markers: the harness/UI modules (test_smoke, test_wizard) carry
+`[browser_serial, needs_browser]`; the design-TRIGGERING modules
+(test_design_refine, test_onramps, test_export_gate, and the design tests in
+test_settings_designs) ADD `real_tool` because demo mode still renders with the real OpenSCAD
+binary (and slices with OrcaSlicer) — so they skip cleanly where the binaries are absent.
+- `needs_browser` (root conftest) SKIPS when Chromium isn't installed (fresh clone / fork-PR smoke);
+  the provisioned gate runs them for real.
+- `real_tool` SKIPS when OpenSCAD/OrcaSlicer aren't fetched.
+- `browser_serial` serializes the tests; it is an in-process lock and so requires SINGLE-PROCESS
+  runs (it does NOT serialize across xdist workers — see the marker note).
 
-The `page` fixture is pytest-playwright's built-in (a fresh browser context per test, so
-localStorage — the first-run flag, saved designs, settings — starts clean every time).
+SCOPE: the suite always runs `--demo`, so the LLM→plan path and the cloud-routing
+_SettingsAwareProvider are deliberately OUT of e2e scope (the template render + slice plumbing IS
+in scope). The real model path is covered by the unit/benchmark suites, not here.
+
+The pytest-playwright `page` fixture resets BROWSER state (localStorage/cookies) per test. But the
+`live_server` is session-scoped, so SERVER-side state — saved designs, settings — PERSISTS across
+the session in the isolated home; journeys that care use a distinctive/unique prompt or restore
+the setting they changed (see the per-test notes).
 """
 
 from __future__ import annotations
@@ -58,12 +70,13 @@ def _serialize_browser_serial_tests(request: pytest.FixtureRequest) -> Iterator[
         with _BROWSER_SERIAL_LOCK:
             yield
 
-# Console messages that are environment noise, not SPA defects — a 4xx/5xx the SPA handles in its
-# UI (e.g. a demo-mode endpoint returning 404) still surfaces as a browser "Failed to load
-# resource" console error, and headless Chromium emits GL driver chatter. Anything else is a real
-# console error/warning and fails the test.
+# Headless Chromium emits GL-driver perf chatter as console warnings — genuine environment noise.
+# Everything else (incl. a "Failed to load resource" from a 4xx/5xx) is treated as a real defect:
+# demo mode serves every route the journeys hit (favicon is a 204), so a resource-load error means
+# either a masked broken API call the SPA swallowed or a missing committed asset — exactly what an
+# e2e should catch (TEST-1 / QA-7, audit-team 2026-06-14). The deliberately-mocked 500s in the
+# error-recovery journeys are client-fulfilled and those tests don't assert console_errors == [].
 _BENIGN_CONSOLE = (
-    "Failed to load resource: the server responded",
     "GL Driver Message",
 )
 
@@ -82,9 +95,13 @@ def live_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     and the per-boot session-token guard (#31) is live — so the e2e exercises the genuine
     token-injection + SPA-header flow, not a bypass.
 
-    The server's home is redirected to a throwaway dir so the suite's designs/history/settings
-    land in an ISOLATED ~/.kimcad, never the real user store (Path.home() resolves via USERPROFILE
-    on Windows, HOME elsewhere)."""
+    FULLY ISOLATED state: the server's home is redirected to a throwaway dir (designs/history/
+    settings land there, never the real ~/.kimcad — Path.home() resolves via USERPROFILE on
+    Windows, HOME elsewhere), AND `--out <home>/output` redirects the render artifacts (meshes/
+    slices) there too, never the developer's repo `output/` tree. The dir is discarded with the
+    session. NOTE the server is SESSION-scoped, so server-side state (settings, the designs store)
+    persists ACROSS the session's journeys — see the per-test notes for the unique-prompt /
+    restore-the-setting workarounds."""
     home = tmp_path_factory.mktemp("kimcad_home")
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
@@ -94,30 +111,46 @@ def live_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "USERPROFILE": str(home),
         "HOME": str(home),
     }
+    # Capture the child's stdout+stderr to a file (a PIPE could deadlock on a long-lived server) so
+    # a genuine startup failure carries the real traceback / the friendly 'port in use' line, not a
+    # bare exit code (QA-2 / ENG-8, audit-team 2026-06-14).
+    log_path = home / "server.log"
+    log = log_path.open("w", encoding="utf-8")
     process = subprocess.Popen(
         [sys.executable, "-m", "kimcad.cli", "web", "--host", "127.0.0.1",
-         "--port", str(port), "--demo"],
+         "--port", str(port), "--demo", "--out", str(home / "output")],
         cwd=str(_REPO_ROOT),
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
     )
-    deadline = time.time() + 45
-    while time.time() < deadline:
-        exit_code = process.poll()
-        if exit_code is not None:
-            raise RuntimeError(
-                f"`kimcad web --demo` exited before startup (code {exit_code})."
-            )
+
+    def _server_log() -> str:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                break
+            tail = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-15:]
+            return ("\n  " + "\n  ".join(tail)) if tail else " (no server output captured)"
         except OSError:
-            time.sleep(0.2)
-    else:
-        process.terminate()
-        raise RuntimeError("`kimcad web --demo` did not start within 45s.")
+            return " (server log unavailable)"
+
     try:
+        deadline = time.time() + 45
+        while time.time() < deadline:
+            exit_code = process.poll()
+            if exit_code is not None:
+                raise RuntimeError(
+                    f"`kimcad web --demo` exited before startup (code {exit_code}). "
+                    f"Server output:{_server_log()}"
+                )
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                    break
+            except OSError:
+                time.sleep(0.2)
+        else:
+            process.terminate()
+            raise RuntimeError(
+                f"`kimcad web --demo` did not start within 45s. Server output:{_server_log()}"
+            )
         yield base_url
     finally:
         process.terminate()
@@ -125,6 +158,8 @@ def live_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill()
+            process.wait(timeout=5)  # reap the hard-killed process (ENG-7)
+        log.close()
 
 
 @pytest.fixture

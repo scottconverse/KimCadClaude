@@ -55,8 +55,10 @@ dev = [
     # test-only browser tooling that must never enter the user-facing installer's dependency set;
     # the gate provisions it explicitly (ci.yml) + `playwright install chromium` for the browser
     # binary (which a pip lock can't express). Tests skip cleanly where it's absent (needs_browser).
-    "playwright>=1.52",
-    "pytest-playwright>=0.7",
+    # PINNED to the exact versions the gate runs (ci.yml) so a contributor's `pip install -e .[dev]`
+    # matches CI — Playwright's auto-wait/selector behavior shifts across minors (ENG-4/DOC-4).
+    "playwright==1.60.0",
+    "pytest-playwright==0.8.0",
 ]
 
 [project.scripts]

@@ -101,6 +101,13 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--port", type=int, default=8765, help="Bind port (default: 8765).")
     w.add_argument("--backend", default=None, help="LLM backend key (default from config).")
     w.add_argument(
+        "--out",
+        default=None,
+        help="Render-output directory (default: the app's output/ tree). A relative path in the "
+        "installed app routes to the per-user writable tree; absolute paths are used as-is. "
+        "Lets a test or a side-by-side instance keep its render artifacts isolated.",
+    )
+    w.add_argument(
         "--demo",
         action="store_true",
         help="Serve a fixed sample part with no LLM call (fast UI demo).",
@@ -488,7 +495,10 @@ def _cmd_web(args: argparse.Namespace) -> int:
             "token is anti-cross-origin only; a remote client that loads the page reads it.)",
             file=sys.stderr,
         )
-    serve(host=args.host, port=args.port, demo=args.demo, backend=args.backend)
+    # --out (optional): a custom render-output root, e.g. a test's throwaway dir. When omitted,
+    # serve() uses the app's output/ tree (the paths seam), preserving the default behavior.
+    out_root = _resolve_out(args.out) / "web" if args.out else None
+    serve(host=args.host, port=args.port, demo=args.demo, backend=args.backend, out_root=out_root)
     return 0
 
 

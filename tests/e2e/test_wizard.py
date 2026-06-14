@@ -14,19 +14,25 @@ from playwright.sync_api import Page, expect
 pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser]
 
 
+# The documented onboarding sequence, by a unique heading substring per step (apostrophes avoided).
+_WIZARD_STEPS = ("Welcome", "Set up your AI", "Pick your printer", "Direct printing", "all set")
+
+
 def test_the_first_run_wizard_walks_through_to_the_landing(
     page: Page, live_server: str, console_errors: list[str]
 ) -> None:
     page.goto(live_server)  # no first-run seed -> the wizard shows
 
-    expect(page.get_by_role("heading", name="Welcome to KimCad")).to_be_visible()
-    # Advance through the steps (a default printer is pre-selected) to the final step.
-    start = page.get_by_role("button", name="Start designing")
-    for _ in range(6):
-        if start.is_visible():
-            break
-        page.get_by_role("button", name="Continue").click()
-    start.click()
+    # Step through asserting each heading in order, so the journey proves the actual documented
+    # sequence rendered — not just "some number of Continues reached the end" — and fails with a
+    # clear "which step" message if a step is added or its Continue is unexpectedly disabled
+    # (QA-6 / TEST-8, audit-team 2026-06-14). A default printer is pre-selected, so Continue advances.
+    for heading in _WIZARD_STEPS:
+        expect(page.get_by_role("heading", name=heading)).to_be_visible()
+        if heading == _WIZARD_STEPS[-1]:
+            page.get_by_role("button", name="Start designing").click()
+        else:
+            page.get_by_role("button", name="Continue").click()
 
     # The wizard is gone and the landing's primary on-ramp is ready.
     expect(page.get_by_role("dialog")).to_have_count(0)

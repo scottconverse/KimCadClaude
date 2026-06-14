@@ -56,6 +56,7 @@ The authoritative gate runs on the Windows target with the fetched binaries, so 
 | `needs_manifold` | `manifold3d` isn't installed | `pytest -m "not needs_manifold"` |
 | `needs_cadquery` | no CadQuery interpreter is discoverable | `pytest -m "not needs_cadquery"` |
 | `needs_browser` | Playwright Chromium isn't installed (`playwright install chromium`) | `pytest -m "not needs_browser"` |
+| `browser_serial` | — (not an env gate; serializes the e2e tests around the one shared localhost server — inert under the default single-process runner, matters only under xdist) | not a `-m "not ..."` selector |
 
 A fast cross-platform inner loop:
 `pytest -m "not live and not real_tool and not windows_only"`. The gate on the target box
@@ -94,23 +95,30 @@ The threshold logic is unit-tested in `tests/test_check_diff_coverage.py`.
 ### End-to-end browser tests (KC-20)
 
 `tests/e2e/` is a Playwright suite that drives the **real** KimCad SPA in a real headless Chromium
-against a real `kimcad web --demo` server (deterministic without Ollama or the slicer) — no DOM
-mocks, no stubbed APIs. Each test also asserts the browser console stayed clean (no errors / uncaught
-exceptions), so it proves the SPA is *wired*, not just that the right text rendered.
+against a real `kimcad web --demo` server — no DOM mocks, no stubbed APIs. Demo mode stubs only the
+*model* (the LLM→plan path), so the suite is deterministic without Ollama; but it still renders with
+the real **OpenSCAD** binary (and the export journey slices with **OrcaSlicer**), so most journeys
+need those binaries. Each test also asserts the browser console stayed clean (no errors / uncaught
+exceptions), so it proves the SPA is *wired*, not just that the right text rendered. (The real model
+path — LLM→plan and cloud routing — is deliberately **out of e2e scope**; it's covered by the
+unit/benchmark suites.)
 
 The browser tooling is **not** in `requirements.lock` (it's test-only and must never enter the
-shipped installer). To run the suite locally:
+shipped installer); the gate pins it to the same versions `pip install -e ".[dev]"` resolves, so
+local and CI match. To run the suite locally:
 
 ```
-pip install -e ".[dev]"        # pulls in playwright + pytest-playwright
-playwright install chromium     # downloads the browser binary (a pip lock can't express this)
+pip install -e ".[dev]"            # playwright + pytest-playwright, pinned to the gate's versions
+playwright install chromium         # the browser binary (a pip lock can't express this)
+python scripts/fetch_tools.py       # OpenSCAD + OrcaSlicer — most journeys render/slice with them
 pytest tests/e2e -q
 ```
 
 Where Chromium isn't installed (a fresh clone, the hosted fork-PR smoke), the suite **skips
-cleanly** via the `needs_browser` marker. The provisioned self-hosted gate installs Chromium, so
-there the e2e tests run with no green-by-skip. Each e2e module carries
-`pytestmark = [pytest.mark.browser_serial, pytest.mark.needs_browser]`.
+cleanly** via the `needs_browser` marker; without the binaries, the design/on-ramp/export journeys
+skip via `real_tool` (so only the smoke + wizard journeys run). The provisioned self-hosted gate has
+both, so there the e2e tests run with no green-by-skip. The harness modules (smoke, wizard) carry
+`pytestmark = [browser_serial, needs_browser]`; the design-triggering modules add `real_tool`.
 
 ## Setup for development
 

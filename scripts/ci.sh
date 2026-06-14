@@ -54,7 +54,9 @@ PYTEST_OUT="$(mktemp)"
 # `|| PYTEST_RC=$?` (which also keeps `set -e` from aborting before we record it) — then print the
 # output. Correct under sh and bash alike; no pipefail required.
 PYTEST_RC=0
-"$PY" -m pytest -q -ra >"$PYTEST_OUT" 2>&1 || PYTEST_RC=$?
+# --durations=15 surfaces the slowest tests so the e2e browser journeys' wall-clock on this
+# thermally-throttling box is visible + bounded, not an invisible tax on the gate (KC-20 QA-3).
+"$PY" -m pytest -q -ra --durations=15 >"$PYTEST_OUT" 2>&1 || PYTEST_RC=$?
 cat "$PYTEST_OUT"
 if [ "${KIMCAD_CI_STRICT:-}" = "1" ] && grep -qE '[0-9]+ skipped' "$PYTEST_OUT"; then
     echo "[ci] STRICT GATE: tests were SKIPPED on a provisioned runner — coverage silently lost:"
@@ -79,6 +81,10 @@ fi
 # `needs_browser` marker: where Chromium is installed (the provisioned gate box; ci.yml runs
 # `playwright install chromium`) it RUNS; elsewhere (a fresh clone, the hosted fork-PR smoke) it
 # SKIPS cleanly. Playwright is intentionally NOT in requirements.lock (test-only browser tooling).
+# Coupling note (DOC-5): the design/on-ramp/export journeys ALSO carry `real_tool` because demo
+# mode renders with the real OpenSCAD binary and the export journey slices with OrcaSlicer — so on
+# a Chromium-present / binaries-absent box those journeys SKIP (and the print-path e2e goes
+# unproven), the same live-tool contract the OrcaSlicer warning below covers.
 # Frontend unit tests (vitest) + build-reproducibility check. The committed SPA build is what
 # ships, so a toolchain-less environment doesn't fail the gate — it skips with a note (unless
 # KIMCAD_RELEASE=1, which hard-fails so a release tag is never cut without the SPA gate). On a
