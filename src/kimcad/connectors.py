@@ -12,6 +12,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from kimcad.bambu_connector import BAMBU_INSTALL_HINT, BambuConnector, bambulabs_api_available
+from kimcad.duet_connector import DuetConnector
 from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
@@ -30,6 +31,7 @@ _CONNECTOR_CLASSES: dict[str, type] = {
     "octoprint": OctoPrintConnector,
     "moonraker": MoonrakerConnector,
     "prusalink": PrusaLinkConnector,
+    "duet": DuetConnector,
     "bambu": BambuConnector,
 }
 
@@ -158,6 +160,18 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         # error here — it just sends no X-Api-Key. A key is used only when configured.
         api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
         return MoonrakerConnector(cc.base_url, api_key, name=name)
+
+    if cc.type == "duet":
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (duet) has no base_url configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address configured.",
+            )
+        # RepRapFirmware/Duet runs open on many LANs, so a missing password is NOT an error — it
+        # just sends no rr_connect password. A password (env var) is used only when configured.
+        password = os.environ.get(cc.api_key_env) if cc.api_key_env else None
+        return DuetConnector(cc.base_url, password, name=name)
 
     if cc.type == "prusalink":
         if not cc.base_url:

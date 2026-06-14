@@ -96,6 +96,41 @@ def test_moonraker_is_not_simulated():
     assert connector_is_simulated(cfg.connector_config("klip")) is False
 
 
+# --- Duet / RepRapFirmware (KC-21, #26) ---------------------------------------
+
+def test_build_duet_connector_open_board():
+    # RRF runs open on many LANs -> a missing password is NOT an error.
+    from kimcad.duet_connector import DuetConnector
+
+    cfg = _config({"d": {"type": "duet", "base_url": "http://host"}})
+    c = build_connector(cfg, "d")
+    assert isinstance(c, DuetConnector) and c.name == "d"
+
+
+def test_build_duet_with_optional_password(monkeypatch):
+    from kimcad.duet_connector import DuetConnector
+
+    monkeypatch.setenv("DUET_PW", "reprap")
+    cfg = _config({"d": {"type": "duet", "base_url": "http://host", "api_key_env": "DUET_PW"}})
+    c = build_connector(cfg, "d")
+    assert isinstance(c, DuetConnector) and c._password == "reprap"
+
+
+def test_build_duet_without_base_url_errors():
+    cfg = _config({"d": {"type": "duet"}})
+    with pytest.raises(ConnectorError, match="base_url"):
+        build_connector(cfg, "d")
+
+
+def test_duet_is_not_simulated():
+    cfg = _config({"d": {"type": "duet", "base_url": "http://host"}})
+    assert connector_is_simulated(cfg.connector_config("d")) is False
+
+
+def test_default_config_ships_a_duet_connector():
+    assert "duet" in Config.load().connectors()
+
+
 def test_build_prusalink_connector_with_key(monkeypatch):
     monkeypatch.setenv("PRUSA_KEY", "secret")
     cfg = _config(

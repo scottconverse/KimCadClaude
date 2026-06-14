@@ -1,0 +1,311 @@
+"""RepRapFirmware / Duet send-to-printer connector (KC-21, #26).
+
+A concrete :class:`~kimcad.printer_connector.PrinterConnector` for Duet boards (Duet 2/3) and
+other RepRapFirmware controllers, over RRF's classic HTTP interface (stdlib HTTP only — no new
+dependency):
+
+- ``GET  /rr_connect?password=…`` — optional session auth (RRF runs open on many LANs);
+- ``GET  /rr_status?type=N``      — status (1 basic, 2 adds axis limits, 3 adds print progress);
+- ``POST /rr_upload?name=/gcodes/…`` — upload the G-code (raw body, NOT multipart);
+- ``GET  /rr_gcode?gcode=M32 "0:/gcodes/…"`` — select + start the SD print.
+
+``send`` extracts the printable G-code from KimCad's ``*.gcode.3mf`` and uploads-then-starts,
+but only after the shared :func:`~kimcad.printer_connector.ensure_sendable` gate (explicit
+confirmation + a proven, motion-bearing slice). A password-protected board that rejects the
+password surfaces as :class:`~kimcad.printer_connector.AuthError`, distinct from offline.
+
+Tested against :mod:`kimcad.mock_duet` (a mock RRF HTTP server); no real hardware is driven
+until metal validation (#11). The status/temperature JSON shape this connector reads is the
+subset the mock emits faithfully; real-board field variance across RRF versions is a
+metal-validation concern.
+"""
+
+from __future__ import annotations
+
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+from kimcad.printer_connector import (
+    AuthError,
+    ConnectorError,
+    JobState,
+    PrinterCapabilities,
+    PrinterOffline,
+    PrinterState,
+    PrinterStatus,
+    PrintJob,
+    ensure_sendable,
+    extract_single_plate_gcode,
+    read_error_body,
+)
+
+_ERR_BODY_CAP = 300
+
+# RRF status character -> our normalized PrinterState. Unrecognized (non-empty) beats wrong:
+# it reports as `error` (needs attention), like the Moonraker connector.
+_RRF_STATE = {
+    "I": PrinterState.operational,  # idle
+    "O": PrinterState.operational,  # off (reachable, idle)
+    "B": PrinterState.operational,  # busy (homing / running a macro) — transient
+    "C": PrinterState.operational,  # running config
+    "T": PrinterState.operational,  # changing tool
+    "P": PrinterState.printing,
+    "R": PrinterState.printing,  # resuming
+    "M": PrinterState.printing,  # simulating a print
+    "D": PrinterState.printing,  # pausing (decelerating — still moving)
+    "S": PrinterState.paused,  # stopped / paused
+    "A": PrinterState.paused,  # paused (idle after a pause)
+    "H": PrinterState.error,  # halted (emergency stop)
+    "F": PrinterState.error,  # flashing firmware
+}
+
+
+class DuetConnector:
+    """A :class:`~kimcad.printer_connector.PrinterConnector` for RepRapFirmware / Duet.
+
+    Holds no per-request state (only the base URL + optional password), so one instance is safe
+    to share across the threaded web server's request handlers. When a password is configured it
+    opens a fresh ``/rr_connect`` session per operation (stateless, like the Moonraker connector's
+    per-request key)."""
+
+    drives_hardware = True  # a real send reaches a real printer
+
+    def __init__(
+        self,
+        base_url: str,
+        password: str | None = None,
+        *,
+        name: str = "duet",
+        timeout_s: float = 15.0,
+    ):
+        self.name = name
+        self._base = base_url.rstrip("/")
+        self._password = password or None
+        self._timeout = timeout_s
+
+    # --- HTTP plumbing ------------------------------------------------------
+    def _request(
+        self, method: str, path: str, *, data: bytes | None = None
+    ) -> tuple[int, bytes]:
+        req = urllib.request.Request(self._base + path, data=data, method=method)
+        if data is not None:
+            req.add_header("Content-Type", "application/octet-stream")
+        with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+            return resp.status, resp.read()
+
+    def _get_json(self, path: str) -> dict[str, Any]:
+        _status, raw = self._request("GET", path)
+        try:
+            parsed = json.loads(raw.decode("utf-8", "replace") or "{}")
+        except ValueError as e:
+            raise ConnectorError(
+                f"{self.name} returned a non-JSON RRF response",
+                reason="bad_response",
+                user_message=f"The printer '{self.name}' returned an unexpected response — it may "
+                "not be a RepRapFirmware/Duet endpoint.",
+            ) from e
+        if not isinstance(parsed, dict):
+            raise ConnectorError(
+                f"{self.name} returned a non-object RRF response",
+                reason="bad_response",
+                user_message=f"The printer '{self.name}' returned an unexpected response — it may "
+                "not be a RepRapFirmware/Duet endpoint.",
+            )
+        return parsed
+
+    def _connect(self) -> None:
+        """Open an RRF session when a password is configured. ``err`` 1 = wrong password,
+        2 = no free sessions; 0 = ok. A board with no password set ignores the call."""
+        if not self._password:
+            return
+        data = self._get_json(
+            "/rr_connect?password=" + urllib.parse.quote(self._password)
+        )
+        err = data.get("err")
+        if err == 1:
+            raise AuthError(
+                f"{self.name} rejected the password (rr_connect err 1)",
+                user_message=f"The printer '{self.name}' rejected the password — check that it's "
+                "correct.",
+            )
+        if err == 2:
+            raise ConnectorError(
+                f"{self.name} has no free sessions (rr_connect err 2)",
+                reason="busy",
+                user_message=f"The printer '{self.name}' has no free connection slots right now. "
+                "Close another session and try again.",
+            )
+
+    def _status_json(self, status_type: int) -> dict[str, Any]:
+        return self._get_json(f"/rr_status?type={status_type}")
+
+    @staticmethod
+    def _rrf_error_detail(e: urllib.error.HTTPError) -> str:
+        text = " ".join(read_error_body(e, cap=_ERR_BODY_CAP).split())
+        return f" — {text[:_ERR_BODY_CAP]}" if text else ""
+
+    # --- connector contract -------------------------------------------------
+    def capabilities(self) -> PrinterCapabilities:
+        try:
+            self._connect()
+            status = self._status_json(2)
+        except (AuthError, ConnectorError):
+            raise
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                raise AuthError(
+                    f"{self.name} rejected the request (HTTP {e.code})",
+                    user_message=f"The printer '{self.name}' rejected the connection — it may need "
+                    "a password.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} status query failed (HTTP {e.code}){self._rrf_error_detail(e)}"
+            ) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
+                "and connected?",
+            ) from e
+        mins = status.get("axisMins")
+        maxes = status.get("axisMaxes")
+        build_volume = None
+        if (
+            isinstance(mins, (list, tuple))
+            and isinstance(maxes, (list, tuple))
+            and len(maxes) >= 3
+            and len(mins) >= 3
+        ):
+            build_volume = tuple(float(maxes[i]) - float(mins[i]) for i in range(3))
+        return PrinterCapabilities(
+            name=self.name,
+            build_volume_mm=build_volume,
+            nozzle_diameter_mm=None,  # RRF rr_status doesn't report the nozzle diameter
+        )
+
+    @staticmethod
+    def _temps(status: dict[str, Any]) -> tuple[float | None, float | None]:
+        """(nozzle_temp, bed_temp) from the RRF temps block — the subset the mock emits."""
+        temps = status.get("temps") or {}
+        bed = None
+        bed_obj = temps.get("bed")
+        if isinstance(bed_obj, dict):
+            bed = bed_obj.get("current")
+        current = temps.get("current")
+        nozzle = None
+        if isinstance(current, (list, tuple)) and len(current) >= 2:
+            # RRF `temps.current` is [bed, tool0, tool1, …]; the first tool is the nozzle.
+            nozzle = current[1]
+            if bed is None and current:
+                bed = current[0]
+        return (
+            float(nozzle) if nozzle is not None else None,
+            float(bed) if bed is not None else None,
+        )
+
+    def status(self) -> PrinterStatus:
+        try:
+            self._connect()
+            status = self._status_json(3)
+        except AuthError:
+            return PrinterStatus(
+                online=True, state=PrinterState.error, detail="authentication failed"
+            )
+        except urllib.error.HTTPError as e:
+            # A 5xx means the board itself is faulted, not "reachable but rejected".
+            return PrinterStatus(
+                online=e.code < 500, state=PrinterState.error, detail=f"request rejected (HTTP {e.code})"
+            )
+        except (urllib.error.URLError, OSError):
+            return PrinterStatus(online=False, state=PrinterState.offline, detail="could not connect")
+        except ConnectorError:
+            return PrinterStatus(
+                online=True, state=PrinterState.error, detail="unexpected response from printer"
+            )
+        raw = str(status.get("status") or "")
+        state = _RRF_STATE.get(raw, PrinterState.error if raw else PrinterState.operational)
+        nozzle, bed = self._temps(status)
+        return PrinterStatus(
+            online=True, state=state, detail=raw, nozzle_temp_c=nozzle, bed_temp_c=bed
+        )
+
+    def send(self, gcode_path: Path, *, confirm: bool, job_name: str | None = None) -> PrintJob:
+        ensure_sendable(gcode_path, confirm=confirm)
+        gcode = extract_single_plate_gcode(gcode_path)
+        base = job_name or gcode_path.name.removesuffix(".gcode.3mf")
+        upload_name = base + ".gcode"
+        remote_path = "/gcodes/" + upload_name
+        try:
+            self._connect()
+            # 1) Upload the G-code (raw body) to the SD `/gcodes` folder.
+            up = self._post_upload(remote_path, gcode)
+            if up.get("err"):
+                raise ConnectorError(
+                    f"{self.name} rejected the upload (rr_upload err {up.get('err')})",
+                    user_message=f"The printer '{self.name}' refused the file — it may be busy or "
+                    "out of SD space. Try again when it's idle.",
+                )
+            # 2) Select + start the SD print (M32 selects a file and begins printing).
+            gcode_cmd = f'M32 "0:{remote_path}"'
+            self._get_json("/rr_gcode?gcode=" + urllib.parse.quote(gcode_cmd))
+        except (AuthError, ConnectorError):
+            raise
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                raise AuthError(
+                    f"{self.name} rejected the request (HTTP {e.code})",
+                    user_message=f"The printer '{self.name}' rejected the connection — it may need "
+                    "a password.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} rejected the job (HTTP {e.code}){self._rrf_error_detail(e)}",
+                user_message=f"The printer '{self.name}' refused the job — it may be busy. "
+                "Try again when it's idle.",
+            ) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'. Is it powered on "
+                "and connected?",
+            ) from e
+        return PrintJob(job_id=upload_name, state=JobState.printing, progress=0.0, detail="started")
+
+    def _post_upload(self, remote_path: str, gcode: bytes) -> dict[str, Any]:
+        _status, raw = self._request(
+            "POST", "/rr_upload?name=" + urllib.parse.quote(remote_path), data=gcode
+        )
+        try:
+            parsed = json.loads(raw.decode("utf-8", "replace") or "{}")
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def job_status(self, job_id: str) -> PrintJob:
+        try:
+            self._connect()
+            status = self._status_json(3)
+        except AuthError:
+            return PrintJob(job_id=job_id, state=JobState.error, detail="authentication failed")
+        except urllib.error.HTTPError as e:
+            return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
+        except (urllib.error.URLError, OSError) as e:
+            return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
+        except ConnectorError:
+            return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
+        raw = str(status.get("status") or "")
+        frac = status.get("fractionPrinted")
+        progress = max(0.0, min(1.0, float(frac) / 100.0)) if frac is not None else 0.0
+        if raw in ("P", "R", "M", "D"):
+            return PrintJob(job_id=job_id, state=JobState.printing, progress=round(progress, 4))
+        if raw in ("S", "A"):
+            return PrintJob(job_id=job_id, state=JobState.paused, progress=round(progress, 4))
+        if raw in ("H", "F"):
+            return PrintJob(job_id=job_id, state=JobState.error, progress=round(progress, 4))
+        # Idle: a print that ran to ~100% then returned to idle reads as done; otherwise queued.
+        if progress >= 0.999:
+            return PrintJob(job_id=job_id, state=JobState.done, progress=1.0)
+        return PrintJob(job_id=job_id, state=JobState.queued, progress=round(progress, 4))
