@@ -161,6 +161,12 @@ All notable changes to KimCad are documented here. Format follows
   entries; and the pre-push hook runs the gate under `bash -o pipefail` when available (matching the
   CI workflow exactly), with a correct plain-`sh` fallback since the script is now self-protecting.
   Surfaced when the flaky 413 test below failed inside the gate yet the push still went green.
+  Fixing the gate then exposed a *second* masked flake — the template benchmark's absolute
+  `median re-render < 1 s` assertion (added in violation of its own constant's "not the hard gate"
+  contract), which fails on a slow/loaded CI box. It is now a **load-invariant** check (the median
+  family must render within a small multiple of the fast-family floor, so box speed cancels out);
+  the hard correctness gate remains the per-family 5 s ceiling, and the <1 s headline stays
+  validated on reference hardware in the committed benchmark doc.
 - **Oversized request bodies get a clean 413, never a Windows connection reset (2026-06-13).** When
   the server rejected an over-limit body it closed the socket without draining the inbound bytes; on
   Windows, closing a connection with unread data emits a TCP RST, so a client *streaming* the body
