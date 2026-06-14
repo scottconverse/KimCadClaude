@@ -1,29 +1,46 @@
 # KimCad
 
-**AI-assisted parametric design for functional 3D prints.**
+**Describe a functional 3D-printable part in plain English — or a photo, or a sketch — and get a checked, print-ready file, entirely on your own machine. No CAD skills, no account, no cloud.**
 
-Describe a functional or mechanical part in plain English; KimCad turns it into a
-printer-ready file through a conversation. For common shapes a **deterministic template
-engine** emits parametric [OpenSCAD](https://openscad.org/) directly — no model — and an
-LLM writes the OpenSCAD for anything a template doesn't cover. OpenSCAD renders manifold
-geometry, a validation-and-printability pipeline checks it against your printer and
-material, and [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) produces the output.
-No CAD skills required, and the core path runs CPU-only — no discrete GPU. An optional
-[CadQuery](https://cadquery.readthedocs.io/) engine adds an **editable `.STEP` CAD export**
-for template-built parts — see *Optional: the CadQuery engine*, below.
+![beta](https://img.shields.io/badge/beta-0.9.0b1-2563eb)
+![platform](https://img.shields.io/badge/platform-Windows-0078D6)
+![python](https://img.shields.io/badge/python-3.13-3776AB)
+![license](https://img.shields.io/badge/license-Apache--2.0-1d7a4e)
+![local-first](https://img.shields.io/badge/local--first-no%20account%20%C2%B7%20no%20cloud-1d7a4e)
+![templates](https://img.shields.io/badge/templates-86%20families-c8623a)
 
-> **Status: Windows beta — `0.9.0b1`.** All eleven build stages are complete and gate-passed at
-> 0/0/0/0/0; `KimCad-Setup-0.9.0b1.exe` installs a complete KimCad — app window, AI wiring, CAD
-> tools, and the PrintProof3D validation engine — with **zero terminal use**. The installer
-> bundles the **full OrcaSlicer profile library — ~65 printer brands, 1,400+ machine profiles**;
-> three reference printers (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max) are wired end-to-end
-> with the slice **proven in CI on every push**, and the rest of the library is being surfaced
-> in the picker ([supported printers](docs/supported-printers.md)). The one thing left is
-> **real-hardware print validation** — that is the beta's own job (see the [ROADMAP](ROADMAP.md)
-> and [first-hardware-contact](docs/beta/first-hardware-contact.md)).
->
-> **▶ [Download the installer](../../releases/latest)** &nbsp;·&nbsp; [Install guide](docs/install-guide.md)
-> &nbsp;·&nbsp; [User manual](docs/USER-MANUAL.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+<div align="center">
+
+### ▶ [**Download KimCad for Windows**](../../releases/latest) &nbsp;—&nbsp; `0.9.0b1` beta
+
+[Install guide](docs/install-guide.md) &nbsp;·&nbsp; [User manual](docs/USER-MANUAL.md) &nbsp;·&nbsp; [FAQ](docs/FAQ.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+
+</div>
+
+### Why it's different
+
+- **Local-first & private** — runs entirely on your computer; no account, no cloud, no API key required. Prompts, photos, and sketches never leave the machine unless you opt into a cloud model. The core path is CPU-only — no discrete GPU.
+- **Deterministic geometry** — common shapes come from a parametric template engine ([86 families](docs/templates.md)), *not* a neural net, so the output is solid, watertight, and dimensionally meaningful. Drag a slider and the part re-renders locally in under a second.
+- **Real printability** — every part is validated against your printer and material *before* it can be sliced; the bundled PrintProof3D engine adds overhang / bridge / bed-adhesion analysis and a 0–100 readiness score.
+- **Slice & print** — download a print-ready file or send it straight to your printer (Bambu LAN, OctoPrint, Moonraker, PrusaLink), always behind an explicit confirmation.
+- **Editable CAD out** — with the optional [CadQuery](https://cadquery.readthedocs.io/) engine, template-built parts also export an editable `.STEP` you can keep modeling in Fusion / FreeCAD / SolidWorks.
+
+### What the installer puts on your machine
+
+`KimCad-Setup-0.9.0b1.exe` — one double-click, **zero terminal use**:
+
+- The app window (WebView2) + the full KimCad app and AI wiring
+- An **embedded CPython 3.13** — KimCad never touches your system Python
+- **OpenSCAD + OrcaSlicer** (with the full **~65-brand / 1,400+ machine-profile** library) + the **PrintProof3D** validation engine, on by default
+- Per-user data under `%LOCALAPPDATA%\KimCad`; your saved designs live in `~/.kimcad` — the uninstaller never touches them
+
+### Beta notes — honest status
+
+- **It's a beta.** All eleven build stages are complete and gate-passed at 0/0/0/0/0, but **real-hardware print validation is the beta's own job** — connectors are proven against each printer's real software protocol with runnable mock servers, not yet on physical metal. If you have a printer, [your report](docs/beta/first-hardware-contact.md) is the most valuable thing you can give.
+- **The installer is unsigned** (no code-signing cert yet), so Windows **SmartScreen** will show a blue *"Windows protected your PC"* warning. That's expected — click **More info → Run anyway**; the [install guide](docs/install-guide.md) walks it through and shows how to verify the SHA-256 checksum + the signed attestation attached to the release.
+- **Three reference printers** (Bambu P2S, Bambu A1, Elegoo Neptune 4 Max) are wired end-to-end with the slice **proven in CI on every push**; the rest of the 1,400-profile library is surfaced in the picker ([supported printers](docs/supported-printers.md)).
+
+> **For beta testers — the fastest path:** [Download](../../releases/latest) → run the installer (SmartScreen → *More info* → *Run anyway*) → open KimCad → describe a part → slice it → if you have a printer, send it and [tell us what happened](../../discussions/2).
 
 <details>
 <summary><b>Stage-by-stage history</b> (0 → 11, each tagged)</summary>
