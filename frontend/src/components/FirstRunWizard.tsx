@@ -305,7 +305,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     {/* UX-011: lead with the friendly name; the raw slug is a secondary detail. */}
                     <span className="kc-wiz-model-name">
                       KimCad local AI{' '}
-                      <span className="kc-mono kc-wiz-model-slug">{model?.model ?? 'gemma4:e4b'}</span>
+                      <span className="kc-mono kc-wiz-model-slug">{model?.model ?? 'qwen2.5:7b'}</span>
                     </span>
                     {modelState === 'checking' ? (
                       <span className="kc-wiz-model-stat" role="status">
@@ -590,7 +590,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   <div className="kc-wiz-recap-row">
                     <dt>Model</dt>
                     <dd className="kc-mono">
-                      {model?.model ?? 'gemma4:e4b'}
+                      {model?.model ?? 'qwen2.5:7b'}
                       {/* Only claim "+ OpenRouter" when it's actually usable — cloud routes only
                           with a key AND a model; a key alone is saved but stays inactive. */}
                       {cloudOn && keyDraft.trim() && cloudModelDraft.trim() ? ' + OpenRouter' : ''}

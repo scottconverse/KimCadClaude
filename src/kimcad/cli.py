@@ -628,7 +628,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 return Config.load().llm_backend(getattr(args, "backend", None)).model_name
             except Exception:  # noqa: BLE001 - advice fallback only; never mask the real error
-                return "gemma4:e4b"
+                return "qwen2.5:7b"
 
         if _is_model_unreachable(e):
             print(f"Error: {MODEL_UNAVAILABLE_MESSAGE}", file=sys.stderr)

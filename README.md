@@ -167,13 +167,14 @@ builds are not yet verified (spec §7.5); install those manually and point
 `config/local.yaml` at them.
 
 Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
-`localhost:11434`, running `gemma4:e4b` — a small (~4B-effective) model picked because
-it fits the target machine (a 32 GB box with a 780M iGPU — the v3.0 spec's reference box is the
-slightly stronger Beelink 890M, so anything that runs here runs on the spec reference too) and stays
-fast and stable there:
+`localhost:11434`, running `qwen2.5:7b` — the on-device planner that won the on-machine
+bake-off (4/4 vs the alternatives; ~4.7 GB, ~6 GB RAM) on the target machine (a 32 GB box
+with a 780M iGPU — the v3.0 spec's reference box is the slightly stronger Beelink 890M, so
+anything that runs here runs on the spec reference too). Smaller boxes downshift — run
+`kimcad models` for a hardware-matched pick:
 
 ```
-ollama pull gemma4:e4b
+ollama pull qwen2.5:7b
 ollama pull qwen2.5vl:3b
 ```
 
@@ -199,9 +200,10 @@ model tags change, and the shipped defaults are examples, not guaranteed-live ta
 Not sure which model fits your machine? `kimcad models` examines your hardware (RAM,
 CPU, a discrete GPU if present) and which models Ollama has pulled, then recommends one
 — it only advises, it never changes your config. The model stays choosable via
-`config/local.yaml` or `--backend`. (`gemma4:e4b` is the default; a `qwen2.5-coder:1.5b`
-candidate was evaluated with the `kimcad bakeoff` comparison and rejected — it can't
-produce a design plan on this pipeline — so gemma stays.)
+`config/local.yaml` or `--backend`. (`qwen2.5:7b` is the default planner — it planned the
+bake-off prompts 4/4; `gemma4:e4b` is the non-China fallback and still hosts the vision model.
+The earlier "Qwen rejected" result tested `qwen2.5-coder`, a *code* model — the general
+**instruct** model is the right tool. Origin no longer factors in: KimCad runs fully offline.)
 
 ### Optional: the CadQuery engine (editable `.STEP` CAD export)
 

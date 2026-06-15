@@ -63,10 +63,13 @@ llm:
     local:
       provider: openai_compatible
       base_url: http://localhost:11434/v1   # Ollama default; LM Studio uses :1234
-      model_name: gemma4:e4b                # on-device model (~4B effective) sized for the
-                                            # 32 GB / 780M-iGPU target — fast + stable there.
-                                            # gemma3:12b is too big/slow for the target;
-                                            # override in local.yaml per machine
+      model_name: qwen2.5:7b                # the on-device PLANNER. On-machine bake-off 2026-06-15
+                                            # (16-thread CPU / 780M iGPU): qwen2.5:7b planned 4/4 vs
+                                            # gemma4:e4b 1/4 and llama3.1:8b 0/4; the native
+                                            # schema-constrained plan path keeps output parseable.
+                                            # ~6 GB RAM; the advisor downshifts smaller boxes.
+                                            # qwen3:8b rejected (too slow/empty on CPU). Override
+                                            # in local.yaml per machine.
       api_key_env: null
       temperature: 0.2
       max_tokens: 8192

@@ -2647,23 +2647,23 @@ def test_model_status_local_running_with_model(tmp_path, monkeypatch):
     from kimcad import model_advisor as ma
     from kimcad.model_advisor import InstalledModel
 
-    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (True, [InstalledModel(name="gemma4:e4b")]))
+    monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (True, [InstalledModel(name="qwen2.5:7b")]))
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
     with _serve(pipe, tmp_path) as (host, port):
         st, s = _jreq(host, port, "GET", "/api/model-status")
         assert st == 200
         assert s["backend"] == "local"
-        assert s["model"] == "gemma4:e4b"
+        assert s["model"] == "qwen2.5:7b"
         assert s["running"] is True and s["model_present"] is True
 
 
 def test_model_status_matches_quantized_variant(tmp_path, monkeypatch):
-    """A quantized install (gemma4:e4b-it-q4_K_M) still counts as the model being present."""
+    """A quantized install (qwen2.5:7b-instruct-q4_K_M) still counts as the model being present."""
     from kimcad import model_advisor as ma
     from kimcad.model_advisor import InstalledModel
 
     monkeypatch.setattr(ma, "probe_ollama",
-                        lambda base_url, timeout=3.0: (True, [InstalledModel(name="gemma4:e4b-it-q4_K_M")]))
+                        lambda base_url, timeout=3.0: (True, [InstalledModel(name="qwen2.5:7b-instruct-q4_K_M")]))
     pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
     with _serve(pipe, tmp_path) as (host, port):
         st, s = _jreq(host, port, "GET", "/api/model-status")

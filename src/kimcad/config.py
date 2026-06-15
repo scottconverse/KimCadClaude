@@ -71,7 +71,10 @@ class Material:
 
 # ENG-1009 (stage-10 gate): THE fallback model names, defined once — the webapp's
 # model-status/model-pull handlers and the backend default below all read these.
-DEFAULT_CHAT_MODEL = "gemma4:e4b"
+# PLANNER = qwen2.5:7b: on-machine bake-off (2026-06-15, 16-thread CPU / 780M iGPU, no CUDA) it
+# planned the prompt set 4/4 where gemma4:e4b managed 1/4 and llama3.1:8b 0/4; the
+# grammar-constrained plan path (llm_provider._complete_plan) keeps small-model output parseable.
+DEFAULT_CHAT_MODEL = "qwen2.5:7b"
 DEFAULT_VISION_MODEL = "qwen2.5vl:3b"
 
 

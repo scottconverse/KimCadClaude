@@ -303,7 +303,7 @@ def test_pull_ignores_an_attacker_named_model_in_the_body(tmp_path, monkeypatch)
     assert resp.status == 200 and data["status"] == "ok"
     names = [n for n, _ in started["missing"]]
     assert "evil/backdoored:latest" not in names and "evil:1" not in names
-    assert names == ["gemma4:e4b", "qwen2.5vl:3b"]  # config's models, nothing else
+    assert names == ["gemma4:e4b", "qwen2.5vl:3b"]  # the CONFIGURED model (_cfg) + vision, nothing else
 
 
 def test_pull_refuses_an_absurd_body_with_a_typed_413(tmp_path):

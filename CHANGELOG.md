@@ -24,6 +24,18 @@ All notable changes to KimCad are documented here. Format follows
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
+### Changed
+- **Default on-device planner is now `qwen2.5:7b`** (was `gemma4:e4b`), and design-plan calls to a
+  local Ollama backend are **schema-constrained at the token level** (Ollama's native `format`), so
+  a model that wraps its JSON in prose / `//` comments / fences still yields a parseable plan. On-machine
+  bake-off (2026-06-15, 16-thread CPU / 780M iGPU, no CUDA): `qwen2.5:7b` planned the prompt set
+  **4/4** vs `gemma4:e4b` 1/4 and `llama3.1:8b` 0/4; `qwen3:8b` was rejected (too slow / empty output
+  on CPU). The model advisor now ranks by **measured merit, not origin** — the prior "avoid Chinese
+  models" stance is dropped for this fully-offline app (nothing leaves the machine via Ollama), and
+  the stale "Qwen rejected 0/10" verdict is corrected (it tested `qwen2.5-coder`, a *code* model —
+  never the general instruct model that wins here). `gemma4:e4b` stays as the non-China fallback and
+  still hosts the vision reader; vision remains `qwen2.5vl:3b`. The advisor downshifts smaller boxes.
+
 ## [0.9.0b2] — 2026-06-14
 
 The second Windows beta build, cut from `main` after the `0.9.0b1` tag (`beta`). It collects the

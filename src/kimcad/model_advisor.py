@@ -96,31 +96,35 @@ class ModelSpec:
 
 # The choosable catalog. Local-first; cloud entries are opt-in alternatives (need a key).
 # RAM floors are conservative heuristics (see module docstring). Tiers are relative.
-# ENG-006 (stage-8.5 gate remediation): gemma4:e4b is THE model. It is now the highest LOCAL tier,
-# so the advisor NEVER recommends a Chinese model over it, and if a user has manually pulled Qwen the
-# non-China escape surfaces gemma4 as the alternative — the "gemma4 is THE model" rule, enforced.
-# Qwen was evaluated via the live Stage-6 bake-off and REJECTED (0/10); it's kept here only as a
-# hard-deprioritized, never-recommended-over-gemma4 entry (the `local_qwen` config backend remains
-# selectable via `--backend` for power users re-running the bake-off — separate from this advisor).
+# Catalog ranked by MEASURED merit on the target box (on-machine bake-off 2026-06-15), NOT by
+# origin. KimCad is local-first and runs fully offline through Ollama, so a model's origin carries
+# no data-governance weight here (nothing leaves the machine) — Scott dropped the "avoid Chinese
+# models" stance for this app. The ``non_china`` flag is retained as INFORMATIONAL only (some
+# deployers still like to see a non-China option surfaced); it no longer deprioritizes a model.
+# Bake-off result: qwen2.5:7b planned the prompt set 4/4 (THE planner); gemma4:e4b 1/4 (but hosts
+# the working vision model and is the non-China small-box fallback); llama3.1:8b 0/4 (it produced
+# correct plans wrapped in prose the parser rejected — the grammar-constrained plan path now
+# mitigates that, but it isn't the default); qwen3:8b was rejected (too slow / empty output on this
+# CPU). The earlier "Qwen rejected 0/10" verdict tested qwen2.5-CODER (a code model) — never the
+# general instruct model that wins here. RAM floors are conservative q4 heuristics.
 MODEL_CATALOG: tuple[ModelSpec, ...] = (
-    ModelSpec("gemma4:e4b", "Gemma E4B", 4.0, min_ram_gb=8, tier=7,
+    ModelSpec("qwen2.5:7b", "Qwen2.5 7B", 7.0, min_ram_gb=8, tier=8,
+              origin="Alibaba", non_china=False,
+              notes="THE planner: 4/4 on the bake-off — the strongest on-device planner that fits a "
+                    "typical box. General INSTRUCT model (not the qwen2.5-coder variant the old "
+                    "Stage-6 bake-off wrongly rejected)."),
+    ModelSpec("qwen2.5:3b", "Qwen2.5 3B", 3.0, min_ram_gb=5, tier=6,
+              origin="Alibaba", non_china=False,
+              notes="Small-box planner fallback — lower RAM than the 7B, same family as THE planner."),
+    ModelSpec("gemma4:e4b", "Gemma E4B", 4.0, min_ram_gb=8, tier=5,
               origin="Google", non_china=True,
-              notes="THE model: the local default — text, codegen, AND vision. Always recommended."),
-    ModelSpec("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B", 1.5, min_ram_gb=6, tier=1,
-              origin="Alibaba", non_china=False,
-              notes="REJECTED in the Stage-6 bake-off (0/10); never recommended over gemma4:e4b."),
-    ModelSpec("qwen2.5-coder:3b", "Qwen2.5-Coder 3B", 3.0, min_ram_gb=10, tier=1,
-              origin="Alibaba", non_china=False,
-              notes="Deprioritized below gemma4:e4b (not bench-tested; the 1.5B sibling failed the "
-                    "Stage-6 bake-off 0/10, and gemma4 is THE model regardless)."),
-    ModelSpec("qwen2.5-coder:7b", "Qwen2.5-Coder 7B", 7.0, min_ram_gb=18, tier=2,
-              origin="Alibaba", non_china=False,
-              notes="Deprioritized below gemma4:e4b (not bench-tested; the 1.5B sibling failed the "
-                    "Stage-6 bake-off 0/10, and gemma4 is THE model regardless)."),
+              notes="Hosts the working vision model and is the non-China planner fallback; weaker at "
+                    "planning (1/4) but usable via the grammar-constrained plan path."),
     ModelSpec("llama3.1:8b", "Llama 3.1 8B", 8.0, min_ram_gb=18, tier=4,
               origin="Meta", non_china=True,
-              notes="Non-China general model for a roomy box (alternative, not the default)."),
-    ModelSpec("cloud_deepseek", "DeepSeek (cloud)", 0.0, min_ram_gb=0, tier=6,
+              notes="Non-China general model; planned 0/4 (correct plans wrapped in prose) — the "
+                    "grammar-constrained path mitigates, but it is not the default."),
+    ModelSpec("cloud_deepseek", "DeepSeek (cloud)", 0.0, min_ram_gb=0, tier=7,
               origin="DeepSeek", non_china=False, location="cloud",
               notes="Opt-in cloud fallback -- needs DEEPSEEK_API_KEY; not local-first."),
 )

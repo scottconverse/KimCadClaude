@@ -306,7 +306,7 @@ export default function SettingsPanel() {
             ) : (
               <p className="kc-set-sub">
                 {/* UX-105 (stage-BCD gate): the friendly name leads; the slug is the detail. */}
-                KimCad’s local AI (<code className="kc-mono">{model?.model ?? 'gemma4:e4b'}</code>).
+                KimCad’s local AI (<code className="kc-mono">{model?.model ?? 'qwen2.5:7b'}</code>).
                 Runs on your machine, on your CPU. No internet required; nothing leaves your computer.
               </p>
             )}

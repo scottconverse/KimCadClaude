@@ -151,6 +151,27 @@ def _strip_fences(text: str) -> str:
     return _FENCE.sub("", text).strip()
 
 
+def _native_chat_url(base_url: str) -> str:
+    """Map an OpenAI-compatible base_url (.../v1) to Ollama's native ``/api/chat`` endpoint,
+    preserving scheme+host and discarding the path tail (mirrors the vision read's derivation)."""
+    parts = urlsplit(base_url)
+    if parts.scheme and parts.netloc:
+        return urlunsplit((parts.scheme, parts.netloc, "/api/chat", "", ""))
+    return base_url.rstrip("/").removesuffix("/v1") + "/api/chat"
+
+
+def _is_ollama_backend(backend: LLMBackend) -> bool:
+    """True for a local Ollama-style backend, where the native ``/api/chat`` ``format`` field
+    (token-level JSON-schema constraint) is available: the provider declares ``ollama``, the
+    endpoint is the Ollama port, or it's a loopback host (the local-first default). Cloud backends
+    (OpenRouter/DeepSeek) are False — they keep the standard OpenAI-compatible json-mode call."""
+    base = backend.base_url or ""
+    if getattr(backend, "provider", "") == "ollama" or "11434" in base:
+        return True
+    host = (urlsplit(base).hostname or "").lower()
+    return host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+
+
 def build_constraints_block(printer: Printer, material: Material) -> str:
     lines = [f"- Printer: {printer.name}"]
     bv = printer.build_volume
@@ -293,6 +314,49 @@ class LLMProvider:
         except OSError:
             return False
 
+    def _complete_plan(self, messages: list[dict[str, str]]) -> str:
+        """The design-plan completion. For a local Ollama backend, constrain the output to the
+        plan JSON schema at the TOKEN LEVEL via Ollama's native ``/api/chat`` ``format`` field, so
+        a model that would otherwise wrap its JSON in prose, ``//`` comments, or ``` fences still
+        yields a parseable object (KC model-robustness: on-target, gemma/llama produced
+        correct-but-wrapped plans that ``json.loads`` rejected; the schema constraint fixes that).
+        Cloud / non-Ollama backends keep the standard OpenAI-compatible json-mode call."""
+        if _is_ollama_backend(self.backend):
+            return self._complete_native_schema(messages, design_plan_schema())
+        return self._complete(messages, json_mode=True)
+
+    def _complete_native_schema(self, messages: list[dict[str, str]], schema: dict) -> str:
+        """Ollama-native ``/api/chat`` with grammar-constrained ``format`` (a JSON schema). Reuses
+        the same connect-retry / fail-fast policy as :meth:`_complete` (a never-up local server
+        fails fast; a mid-run drop keeps the retry budget)."""
+        chat_url = _native_chat_url(self.backend.base_url)
+        body = json.dumps({
+            "model": self.backend.model_name,
+            "messages": messages,
+            "stream": False,
+            "format": schema,
+            "options": {
+                "temperature": self.backend.temperature,
+                "num_predict": self.backend.max_tokens,
+            },
+        }).encode()
+        last_err: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                req = urllib.request.Request(
+                    chat_url, data=body, headers={"Content-Type": "application/json"}
+                )
+                with urllib.request.urlopen(req, timeout=self.backend.timeout_s) as r:
+                    data = json.load(r)
+                return (data.get("message") or {}).get("content") or ""
+            except (urllib.error.URLError, OSError, TimeoutError) as e:
+                last_err = e
+                if attempt == 1 and not self._server_reachable():
+                    raise
+                if attempt < self.max_attempts:
+                    time.sleep(self.retry_wait_s)
+        raise last_err if last_err is not None else RuntimeError("LLM plan call failed")
+
     def generate_design_plan(
         self,
         prompt: str,
@@ -308,8 +372,9 @@ class LLMProvider:
         messages = [{"role": "system", "content": system}]
         messages.extend(history or [])
         messages.append({"role": "user", "content": prompt})
-        # _complete is the network call; its connection/timeout errors propagate as-is.
-        raw = self._complete(messages, json_mode=True)
+        # The network call; its connection/timeout errors propagate as-is. Local Ollama backends
+        # go through the native schema-constrained path (_complete_plan); cloud uses json-mode.
+        raw = self._complete_plan(messages)
         # Only the PARSE is wrapped, so a bug elsewhere in this method can't be masked as a
         # plan failure -- only genuinely unparseable model output raises PlanParseError.
         try:

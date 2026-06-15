@@ -7,27 +7,35 @@ number below stays re-checkable.
 
 | Role | Model | Ollama tag | Size | Why this one |
 |---|---|---|---|---|
-| **Chat / design planning** — your words → a validated design plan, and the (opt-in) experimental geometry | Gemma 4 E4B | `gemma4:e4b` | ~9 GB | Won the Stage-6 bake-off outright (below) |
+| **Chat / design planning** — your words → a validated design plan, and the (opt-in) experimental geometry | Qwen 2.5 7B | `qwen2.5:7b` | ~4.7 GB | Planned the prompt set 4/4 on the on-machine bake-off (below) |
 | **Vision** — reads photos and dimensioned sketches into editable seeds | Qwen 2.5 VL 3B | `qwen2.5vl:3b` | ~3 GB | The dedicated vision reader; the chat model's vision path produces empty output on this stack (measured, Stage 9) |
 
 The setup wizard downloads both with live progress; everything afterward runs offline.
 
-## The chat-model decision (the Stage-6 bake-off, run live on the target box)
+## The chat-model decision (on-machine bake-off, 2026-06-15)
 
-The question was whether `qwen2.5-coder:1.5b` — much smaller, much faster — should replace
-`gemma4:e4b` as the default. Measured over the 10-prompt Appendix-B benchmark, end to end:
+The planner is chosen by **measured merit on the target box, not by origin** — KimCad runs
+fully offline through Ollama, so a model's origin carries no data-governance weight (nothing
+leaves the machine). Each candidate ran the real `kimcad design` pipeline on the same prompts:
 
-| Backend | Completed | Plan→object match | Mean time |
-|---|---|---|---|
-| `gemma4:e4b` (default) | **8/10** | 9/9 | ~600 s/case |
-| `qwen2.5-coder:1.5b` | **0/10** | n/a | n/a |
+| Backend | Planned (renders + passes the gate) | Notes |
+|---|---|---|
+| **`qwen2.5:7b`** (default) | **4/4** | the strongest on-device planner that fits a typical box |
+| `gemma4:e4b` | 1/4 | simple template prompts only; hosts the vision model + non-China fallback |
+| `llama3.1:8b` | 0/4 | correct plans wrapped in prose the parser rejected (see the grammar fix) |
+| `qwen3:8b` | rejected | thinking mode too slow on CPU; `/no_think` returns empty |
+| `gemma4:12b` | flaky / ~2× slower | not a drop-in |
 
-The small coder model fails the *first* step — it echoes the JSON schema back instead of
-producing a plan instance (confirmed not a config artifact), so its coding ability never
-gets exercised: it's a code-completion model, the wrong tool for natural-language →
-structured-plan work. A larger Qwen wouldn't help the premise either — at 3B/7B it's bigger
-than Gemma's ~4B-effective and therefore slower on the CPU target. **`gemma4:e4b` stays.**
-Full write-up: [stage-6-model-bakeoff.md](benchmarks/stage-6-model-bakeoff.md).
+Two findings drove the change. **First, the failures were mostly a JSON-*format* problem, not
+raw incapability** — `llama3.1:8b` and `gemma4:e4b` produced *correct* plans but wrapped them in
+prose, `//` comments, or fences that broke `json.loads`. The fix: design-plan calls to a local
+Ollama backend are now **schema-constrained at the token level** (Ollama's native `format`),
+which rescues weaker models on simpler prompts and makes the whole path robust. **Second, the
+earlier "Qwen rejected 0/10" verdict tested `qwen2.5-coder`** — a *code-completion* model that
+echoes the schema instead of planning. The general **instruct** model (`qwen2.5:7b`) is the right
+tool and wins outright. `gemma4:e4b` stays as the non-China fallback (and still hosts the vision
+reader); the advisor downshifts smaller boxes to `qwen2.5:3b`. Earlier write-up (superseded for
+the chat model): [stage-6-model-bakeoff.md](benchmarks/stage-6-model-bakeoff.md).
 
 ## The vision-model decision (Stage 9)
 

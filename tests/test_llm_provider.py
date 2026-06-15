@@ -1,3 +1,4 @@
+import io
 import json
 from types import SimpleNamespace
 
@@ -45,6 +46,27 @@ class FakeChatClient:
         return SimpleNamespace(choices=[choice])
 
 
+class _NativeResp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _mock_native_chat(monkeypatch, content, capture=None):
+    """Stub Ollama's native /api/chat — the LOCAL design-plan transport (schema-constrained
+    `format`). Returns `content` as the assistant message; optionally captures the request body."""
+    import kimcad.llm_provider as lp
+
+    def _urlopen(req, timeout=None):
+        if capture is not None:
+            capture["body"] = json.loads(req.data)
+        return _NativeResp(json.dumps({"message": {"content": content}}).encode())
+
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _urlopen)
+
+
 def test_constraints_block_mentions_printer_and_min_wall():
     block = build_constraints_block(BAMBU, PLA)
     assert "Bambu Lab P2S" in block
@@ -60,7 +82,7 @@ def test_library_manifest_lists_modules_and_signatures():
     assert "l_bracket(" in manifest
 
 
-def test_generate_design_plan_parses_json_through_fences():
+def test_generate_design_plan_parses_json_through_fences(monkeypatch):
     plan_json = {
         "object_type": "bracket",
         "summary": "A simple L bracket.",
@@ -73,9 +95,12 @@ def test_generate_design_plan_parses_json_through_fences():
         "assumptions": [],
         "open_questions": [],
     }
+    # BACKEND is a loopback host -> a local Ollama backend -> the plan goes through the native
+    # /api/chat schema-constrained `format` path. The parser still tolerates stray fences.
     fenced = "```json\n" + json.dumps(plan_json) + "\n```"
-    client = FakeChatClient(fenced)
-    provider = LLMProvider(BACKEND, client=client)
+    cap: dict = {}
+    _mock_native_chat(monkeypatch, fenced, cap)
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"))
 
     plan = provider.generate_design_plan("an L bracket", BAMBU, PLA)
 
@@ -83,25 +108,24 @@ def test_generate_design_plan_parses_json_through_fences():
     assert plan.object_type == "bracket"
     assert plan.bounding_box_mm == [40.0, 30.0, 40.0]
 
-    # json_mode + supports_structured_output -> response_format requested
-    call = client.calls[0]
-    assert call["response_format"] == {"type": "json_object"}
-    assert call["model"] == "test-model"
-    # system prompt carries the constraints block
-    assert call["messages"][0]["role"] == "system"
-    assert "Bambu Lab P2S" in call["messages"][0]["content"]
-    assert call["messages"][-1] == {"role": "user", "content": "an L bracket"}
+    # local backend -> native /api/chat with the plan JSON schema as the token-level `format`
+    body = cap["body"]
+    assert "properties" in body["format"]  # the DesignPlan JSON schema
+    assert body["model"] == "test-model"
+    assert body["messages"][0]["role"] == "system"
+    assert "Bambu Lab P2S" in body["messages"][0]["content"]
+    assert body["messages"][-1] == {"role": "user", "content": "an L bracket"}
 
 
-def test_generate_design_plan_raises_plan_parse_error_on_schema_echo():
+def test_generate_design_plan_raises_plan_parse_error_on_schema_echo(monkeypatch):
     # A too-small model echoing the JSON schema back: valid JSON, wrong shape. The parse
     # boundary must raise PlanParseError (carrying the underlying ValidationError), not let
     # a raw pydantic error escape.
     from kimcad.ir import design_plan_schema
     from kimcad.llm_provider import PlanParseError
 
-    client = FakeChatClient(json.dumps(design_plan_schema()))
-    provider = LLMProvider(BACKEND, client=client)
+    _mock_native_chat(monkeypatch, json.dumps(design_plan_schema()))
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"))
     try:
         provider.generate_design_plan("a box", BAMBU, PLA)
         raise AssertionError("expected PlanParseError")
@@ -109,11 +133,13 @@ def test_generate_design_plan_raises_plan_parse_error_on_schema_echo():
         assert type(e.original).__name__ == "ValidationError"
 
 
-def test_generate_design_plan_raises_plan_parse_error_on_bad_json():
+def test_generate_design_plan_raises_plan_parse_error_on_bad_json(monkeypatch):
     from kimcad.llm_provider import PlanParseError
 
-    client = FakeChatClient("this is not json at all")
-    provider = LLMProvider(BACKEND, client=client)
+    # Even with the schema-constrained `format`, a model can return empty/garbage; the parse
+    # boundary still raises PlanParseError carrying the JSONDecodeError.
+    _mock_native_chat(monkeypatch, "this is not json at all")
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"))
     try:
         provider.generate_design_plan("a box", BAMBU, PLA)
         raise AssertionError("expected PlanParseError")
@@ -121,29 +147,29 @@ def test_generate_design_plan_raises_plan_parse_error_on_bad_json():
         assert isinstance(e.original, json.JSONDecodeError)
 
 
-def test_generate_design_plan_does_not_wrap_a_connection_error_as_plan_parse_error():
-    # The network call (_complete) sits OUTSIDE the parse try, so a transport error must
+def test_generate_design_plan_does_not_wrap_a_connection_error_as_plan_parse_error(monkeypatch):
+    # The network call (_complete_plan) sits OUTSIDE the parse try, so a transport error must
     # escape as itself, NOT be wrapped as PlanParseError (which would mask an outage as a
-    # "model too small" plan failure and stop the fallback chain from firing).
-    import httpx
-    from openai import APIConnectionError
+    # "model too small" plan failure and stop the fallback chain from firing). On the local
+    # native path that transport error is a urllib URLError.
+    import urllib.error
 
+    import kimcad.llm_provider as lp
     from kimcad.llm_provider import PlanParseError
 
-    class _ConnDownClient:
-        def __init__(self):
-            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+    def _down(req, timeout=None):
+        raise urllib.error.URLError("connection refused")
 
-        def _create(self, **kwargs):
-            raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434/v1"))
-
-    provider = LLMProvider(BACKEND, client=_ConnDownClient(), max_attempts=2, retry_wait_s=0)
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _down)
+    # First-attempt failure + an unreachable probe -> raise now (don't burn the retry budget).
+    monkeypatch.setattr(LLMProvider, "_server_reachable", lambda self, timeout_s=2.0: False)
+    provider = LLMProvider(BACKEND, client=FakeChatClient("unused"), max_attempts=2, retry_wait_s=0)
     try:
         provider.generate_design_plan("a box", BAMBU, PLA)
-        raise AssertionError("expected APIConnectionError")
+        raise AssertionError("expected URLError")
     except PlanParseError as e:  # noqa: TRY203 - we are asserting this does NOT happen
         raise AssertionError("connection error was wrongly wrapped as PlanParseError") from e
-    except APIConnectionError:
+    except urllib.error.URLError:
         pass  # correct: the transport error escaped un-wrapped
 
 
@@ -248,12 +274,16 @@ def test_complete_raises_after_exhausting_retries(monkeypatch):
     assert client.calls == 3
 
 
-def test_structured_output_suppressed_when_backend_lacks_support():
+def test_local_ollama_backend_uses_native_schema_constrained_format(monkeypatch):
+    # A local Ollama backend plans via the NATIVE /api/chat path with the DesignPlan JSON schema
+    # as the token-level `format` constraint (so a model that wraps JSON in prose/fences/comments
+    # still yields a parseable object), NOT the OpenAI-compatible client. The OpenAI client is left
+    # untouched for this call.
     backend = LLMBackend(
         key="local",
         provider="ollama",
         base_url="http://localhost:11434/v1",
-        model_name="qwen3:8b",
+        model_name="qwen2.5:7b",
         api_key_env=None,
         temperature=0.2,
         max_tokens=4096,
@@ -267,12 +297,16 @@ def test_structured_output_suppressed_when_backend_lacks_support():
         "printer": "bambu_p2s",
         "material": "pla",
     }
+    cap: dict = {}
+    _mock_native_chat(monkeypatch, json.dumps(plan_json), cap)
     client = FakeChatClient(json.dumps(plan_json))
     provider = LLMProvider(backend, client=client)
 
     provider.generate_design_plan("a cube", BAMBU, PLA)
 
-    assert "response_format" not in client.calls[0]
+    assert client.calls == []  # the OpenAI client was NOT used for a local plan
+    assert "properties" in cap["body"]["format"]  # native schema-constrained `format`
+    assert cap["body"]["model"] == "qwen2.5:7b"
 
 
 def test_describe_image_targets_the_dedicated_vision_model(monkeypatch):

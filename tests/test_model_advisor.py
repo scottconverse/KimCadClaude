@@ -37,7 +37,7 @@ def _installed(*names):
 # --- fits() ----------------------------------------------------------------------
 
 def test_fits_gates_on_ram_for_local_and_always_true_for_cloud():
-    spec = next(s for s in MODEL_CATALOG if s.name == "qwen2.5-coder:7b")  # 18 GB floor
+    spec = next(s for s in MODEL_CATALOG if s.name == "llama3.1:8b")  # 18 GB floor
     assert spec.fits(_hw(ram_gb=32)) is True
     assert spec.fits(_hw(ram_gb=8)) is False
     assert spec.fits(_hw(ram_gb=None)) is False  # unknown RAM is never a claimed fit
@@ -48,20 +48,22 @@ def test_fits_gates_on_ram_for_local_and_always_true_for_cloud():
 # --- recommend(): the pure decision ----------------------------------------------
 
 def test_recommends_the_best_installed_model_that_fits():
-    # ENG-006: gemma4:e4b is THE model (top local tier), so even with a rejected Qwen installed
-    # alongside it, gemma4 is the pick — the advisor never recommends Qwen over gemma4.
-    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b", "gemma4:e4b"))
-    assert rec.primary.name == "gemma4:e4b"
+    # qwen2.5:7b is the top local tier (the bake-off planner). With it and gemma4 both installed,
+    # the advisor picks qwen2.5:7b on measured merit — origin no longer deprioritizes a model.
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5:7b", "gemma4:e4b"))
+    assert rec.primary.name == "qwen2.5:7b"
     assert rec.installed is True
-    assert rec.upgrade is None  # gemma4 is the top local tier; nothing higher to pull
+    assert rec.upgrade is None  # qwen2.5:7b is the top local tier; nothing higher to pull
 
 
 def test_recommends_installed_model_and_names_an_upgrade_the_box_could_run():
-    # Box fits the 7B, but only the 1.5B is installed -> use the 1.5B now, suggest pulling 7B.
-    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:1.5b"))
-    assert rec.primary.name == "qwen2.5-coder:1.5b"
+    # Box fits qwen2.5:7b, but only the lower-tier gemma4:e4b is installed -> use gemma now,
+    # name the better qwen2.5:7b as the upgrade to pull.
+    rec = recommend(_hw(ram_gb=32), _installed("gemma4:e4b"))
+    assert rec.primary.name == "gemma4:e4b"
     assert rec.installed is True
-    assert rec.upgrade is not None and rec.upgrade.tier > rec.primary.tier
+    assert rec.upgrade is not None and rec.upgrade.name == "qwen2.5:7b"
+    assert rec.upgrade.tier > rec.primary.tier
 
 
 def test_recommends_a_pull_when_nothing_installed_fits():
@@ -72,8 +74,8 @@ def test_recommends_a_pull_when_nothing_installed_fits():
 
 
 def test_small_box_falls_back_to_cloud():
-    # Below every local floor (smallest is 6 GB) -> the opt-in cloud backend is the fallback.
-    rec = recommend(_hw(ram_gb=4), _installed("qwen2.5-coder:1.5b"))
+    # Below every local floor (smallest is qwen2.5:3b @ 5 GB) -> the opt-in cloud backend.
+    rec = recommend(_hw(ram_gb=4), _installed("gemma4:e4b"))
     assert rec.primary is not None and rec.primary.location == "cloud"
     assert rec.installed is False
 
@@ -85,9 +87,9 @@ def test_unknown_ram_falls_back_to_cloud_not_a_guessed_local():
 
 
 def test_surfaces_a_non_china_alternative_when_primary_is_china_origin():
-    # The 7B (Alibaba) is the pick; the advisor surfaces a non-China escape (none installed
-    # here, so the best-fitting one to pull).
-    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b"))
+    # qwen2.5:7b (Alibaba) is the pick; a non-China option is surfaced as INFO (no longer a
+    # deprioritization) — the best-fitting non-China one to pull when none is installed.
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5:7b"))
     assert rec.primary.non_china is False
     assert rec.non_china_alternative is not None and rec.non_china_alternative.non_china is True
     assert rec.non_china_installed is False  # flagged as not-yet-installed
@@ -100,13 +102,12 @@ def test_no_non_china_alternative_when_primary_is_already_non_china():
     assert rec.non_china_alternative is None
 
 
-def test_non_china_escape_names_gemma_when_only_a_china_model_is_installed():
-    # ENG-006: with gemma4:e4b the top tier, a China model is the primary ONLY if it's the lone
-    # install. In that case the non-China escape steers the user to gemma4:e4b — THE model — as the
-    # alternative to pull. (Installing gemma alongside Qwen instead makes gemma the primary; see
-    # test_recommends_the_best_installed_model_that_fits.)
-    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5-coder:7b"))
-    assert rec.primary.non_china is False  # only the deprioritized Qwen is installed
+def test_non_china_escape_names_gemma_when_primary_is_a_china_model():
+    # qwen2.5:7b is the (China-origin) primary; the informational non-China option is the
+    # highest-tier non-China local that fits — gemma4:e4b (tier 5) over llama3.1:8b (tier 4) —
+    # flagged not-installed here.
+    rec = recommend(_hw(ram_gb=32), _installed("qwen2.5:7b"))
+    assert rec.primary.non_china is False
     assert rec.non_china_alternative is not None
     assert rec.non_china_alternative.name == "gemma4:e4b"
     assert rec.non_china_installed is False
@@ -207,7 +208,8 @@ def test_probe_installed_models_tolerates_a_malformed_body(monkeypatch, body):
 @pytest.mark.parametrize("installed,expected", [
     ("gemma4:e4b", "Gemma E4B"),
     ("gemma4:e4b-it-q4_K_M", "Gemma E4B"),                       # quant/variant suffix
-    ("qwen2.5-coder:1.5b", "Qwen2.5-Coder 1.5B"),
+    ("qwen2.5:7b", "Qwen2.5 7B"),
+    ("qwen2.5:3b", "Qwen2.5 3B"),
     ("novaforgeai/deepseek-coder:6.7b-optimized", None),         # not a catalog family
     ("totally-unknown:1b", None),
 ])
@@ -226,7 +228,7 @@ def test_recommend_returns_no_primary_when_nothing_fits_and_no_cloud():
 
 
 def test_fits_and_summary_with_a_discrete_gpu_present():
-    spec = next(s for s in MODEL_CATALOG if s.name == "qwen2.5-coder:7b")  # 18 GB floor
+    spec = next(s for s in MODEL_CATALOG if s.name == "llama3.1:8b")  # 18 GB floor
     hw = HardwareProfile(os_label="Linux", cpu_count=16, ram_gb=None, gpu_name="RTX 4090", vram_gb=24.0)
     # RAM gates the fit; unknown RAM is never a claimed fit even with a big discrete GPU.
     assert spec.fits(hw) is False
