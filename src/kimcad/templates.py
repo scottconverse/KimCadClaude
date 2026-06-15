@@ -321,14 +321,39 @@ class TemplateRegistry:
         return next((f for f in self._families if f.name == name), None)
 
     def match(self, plan: DesignPlan) -> TemplateMatch | None:
-        """Pick a family for the plan's ``object_type`` (exact normalized alias, then a
-        conservative singular form), and derive its parameter values. Returns ``None``
-        when nothing matches — the caller then falls back to the LLM codegen path."""
+        """Pick a family for the plan's ``object_type``: exact normalized alias, then a
+        conservative singular form, then a conservative multi-word *containment* fallback
+        so a qualified natural phrasing ("desk cable clip", "wall mounted spool holder")
+        still reaches the right family instead of dead-ending at the experimental-codegen
+        offer. Returns ``None`` when nothing matches — the caller then offers that path."""
         norm = _normalize(plan.object_type)
-        fam = self._index.get(norm) or self._index.get(_singular(norm))
+        fam = self._index.get(norm) or self._index.get(_singular(norm)) or self._contains_alias(norm)
         if fam is None:
             return None
         return TemplateMatch(family=fam, values=derive_values(fam, plan))
+
+    def _contains_alias(self, norm: str) -> TemplateFamily | None:
+        """ENG-002 / UX-001: a conservative containment fallback for qualified phrasings.
+        A *multi-word* alias that appears as a contiguous whole-word run inside the
+        object_type wins (so ``"desk cable clip"`` → the ``cable clip`` family, and
+        ``"wall mounted spool holder"`` → ``spool holder``); the LONGEST such alias is
+        chosen, so a more specific family beats a generic one. **Single-word aliases
+        ("box", "hook", "tube") are deliberately exact-only** — matching them by substring
+        would let "matchbox"/"boombox" hijack ``box``. Returns ``None`` when no multi-word
+        alias is contained, so an unknown phrase still flows to the codegen offer."""
+        words = norm.split()
+        if len(words) < 2:
+            return None  # a single word already had its exact + singular shot
+        best_len = 0
+        best_fam: TemplateFamily | None = None
+        for alias, fam in self._index.items():
+            alias_words = alias.split()
+            n = len(alias_words)
+            if n < 2 or n <= best_len:
+                continue  # single-word aliases stay exact-only; keep the longest contiguous hit
+            if any(words[i : i + n] == alias_words for i in range(len(words) - n + 1)):
+                best_len, best_fam = n, fam
+        return best_fam
 
     def match_family(self, name: str, values: dict[str, float]) -> TemplateMatch | None:
         """Build a match for a named family from an explicit (live-slider) value set."""

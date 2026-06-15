@@ -227,7 +227,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
               The <strong>.STL</strong> opens in other slicers and CAD tools, and once you slice
               you&rsquo;ll get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
               Want an editable, precision CAD file (<strong>.STEP</strong>) of this part too?{' '}
-              <a className="kc-link-btn" href="#settings">
+              <a className="kc-link-btn" href="#/settings">
                 Enable the CAD export engine in Settings
               </a>{' '}
               — a one-time setup.

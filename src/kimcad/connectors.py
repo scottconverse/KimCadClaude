@@ -111,6 +111,38 @@ def _saved_connector_overrides(config: Any) -> dict[str, Any] | None:
         return None
 
 
+def validate_printer_base_url(url: str) -> str:
+    """Guard an HTTP printer's ``base_url`` before it reaches ``urllib``/``socket`` (ENG-005). The
+    value comes from the user's own config / Connections card (behind the session token), so this is
+    input validation, not anti-SSRF — but ``urllib`` honours ``file://``/``ftp://`` and a hand-edited
+    (or future less-trusted) address shouldn't resolve to an unintended scheme or local path. Allow
+    only ``http``/``https`` with a host and no embedded credentials; raise :class:`ConnectorError`
+    otherwise. Returns ``url`` unchanged when valid, so callers can wrap inline. Marlin's serial/TCP
+    target is NOT an HTTP url and is deliberately not run through this."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https"):
+        raise ConnectorError(
+            f"printer base_url must be http:// or https:// (got {parts.scheme or 'no'} scheme): {url!r}",
+            reason="config",
+            user_message="The printer address must start with http:// or https://.",
+        )
+    if not parts.hostname:
+        raise ConnectorError(
+            f"printer base_url has no host: {url!r}",
+            reason="config",
+            user_message="The printer address is missing a host name or IP.",
+        )
+    if parts.username or parts.password:
+        raise ConnectorError(
+            "printer base_url must not embed a username or password",
+            reason="config",
+            user_message="Remove the username/password from the printer address; use the key field instead.",
+        )
+    return url
+
+
 def build_connector(config: Any, name: str) -> PrinterConnector:
     """Construct the connector named ``name`` from ``config``'s ``connectors:`` section,
     with the user's saved Connections-card values overlaid (Slice 11.2) — so the card,
@@ -149,7 +181,7 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
                 user_message=f"The '{name}' printer needs an API key that isn't set up yet. "
                 "See the README's send-to-printer setup.",
             )
-        return OctoPrintConnector(cc.base_url, api_key, name=name)
+        return OctoPrintConnector(validate_printer_base_url(cc.base_url), api_key, name=name)
 
     if cc.type == "moonraker":
         if not cc.base_url:
@@ -161,7 +193,7 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         # Moonraker often runs unauthenticated on a trusted LAN, so a missing key is NOT an
         # error here — it just sends no X-Api-Key. A key is used only when configured.
         api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
-        return MoonrakerConnector(cc.base_url, api_key, name=name)
+        return MoonrakerConnector(validate_printer_base_url(cc.base_url), api_key, name=name)
 
     if cc.type == "duet":
         if not cc.base_url:
@@ -173,7 +205,7 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         # RepRapFirmware/Duet runs open on many LANs, so a missing password is NOT an error — it
         # just sends no rr_connect password. A password (env var) is used only when configured.
         password = os.environ.get(cc.api_key_env) if cc.api_key_env else None
-        return DuetConnector(cc.base_url, password, name=name)
+        return DuetConnector(validate_printer_base_url(cc.base_url), password, name=name)
 
     if cc.type == "marlin":
         # base_url is the M-code TARGET: a `host:port` (TCP / serial-over-network) or a serial
@@ -201,7 +233,7 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
                 user_message=f"The '{name}' printer needs an API key that isn't set up yet. "
                 "See the README's send-to-printer setup.",
             )
-        return PrusaLinkConnector(cc.base_url, api_key, name=name, storage=cc.storage or "usb")
+        return PrusaLinkConnector(validate_printer_base_url(cc.base_url), api_key, name=name, storage=cc.storage or "usb")
 
     if cc.type == "bambu":
         # Stage 10 — Bambu LAN mode. Needs: the printer's IP (base_url), its serial, the

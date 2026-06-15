@@ -576,6 +576,42 @@ export class KCViewport {
     if (!on) this.clearMeasure()
   }
 
+  /** UX-003 (WCAG 2.1.1): keyboard orbit/zoom so the 3D preview isn't pointer-only. Arrow keys
+   * orbit; `+`/`-` zoom — the same theta/phi/radius fields and clamps the drag + wheel handlers
+   * use. Pauses auto-rotate (like a drag does) so a keyed nudge isn't fought by the idle spin;
+   * the rAF loop renders the new pose. Returns true when `key` is one it handles, so the caller
+   * can preventDefault the page scroll/zoom. */
+  handleKey(key: string): boolean {
+    const ORBIT = 0.18
+    const ZOOM = 60
+    switch (key) {
+      case 'ArrowLeft':
+        this.theta -= ORBIT
+        break
+      case 'ArrowRight':
+        this.theta += ORBIT
+        break
+      case 'ArrowUp':
+        this.phi = Math.max(0.2, Math.min(Math.PI - 0.12, this.phi - ORBIT))
+        break
+      case 'ArrowDown':
+        this.phi = Math.max(0.2, Math.min(Math.PI - 0.12, this.phi + ORBIT))
+        break
+      case '+':
+      case '=':
+        this.radius = Math.max(60, Math.min(2000, this.radius - ZOOM))
+        break
+      case '-':
+      case '_':
+        this.radius = Math.max(60, Math.min(2000, this.radius + ZOOM))
+        break
+      default:
+        return false
+    }
+    this.autoRotate = false
+    return true
+  }
+
   private clearMeasure(): void {
     for (const child of [...this.measureGroup.children]) {
       this.measureGroup.remove(child)

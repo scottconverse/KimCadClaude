@@ -40,6 +40,21 @@ def test_no_source_file_carries_a_version_literal():
     assert offenders == [], f"version literals outside pyproject: {offenders}"
 
 
+def test_readme_beta_badge_matches_the_declared_version():
+    """TEST-002 (audit-team 2026-06-14): the README's canonical current-version marker — the
+    shields.io beta badge — must track pyproject, so a stale badge (the 0.9.0b1-badge-on-a-
+    0.9.0b2-build drift that misdirected testers) fails the gate. Prose/history references are
+    deliberately NOT scanned: the Stage-by-stage history block legitimately names prior releases."""
+    declared = _declared()
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    m = re.search(r"img\.shields\.io/badge/beta-([0-9][^-\s)]*)-", text)
+    assert m, "README must carry the shields.io beta-<version> badge"
+    assert m.group(1) == declared, (
+        f"README beta badge is {m.group(1)!r} but pyproject declares {declared!r} — "
+        "bump the badge (audit DOC-001 version-drift guard)"
+    )
+
+
 def test_frontend_package_version_is_in_lockstep():
     """11.3-audit FINDING-001/002: package.json AND its lock carry the npm-semver twin of
     pyproject's PEP 440 version (0.9.0b1 <-> 0.9.0-beta.1) — enforced, not promised."""

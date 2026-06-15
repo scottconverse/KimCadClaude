@@ -22,7 +22,7 @@ available strictly as an **opt-in** for hard prompts (see Q9).
 
 ### 3. Which AI model does KimCad use?
 
-Two local models via [Ollama](https://ollama.com): a chat model (`gemma4:e4b`) that turns
+Two local models via [Ollama](https://ollama.com): a chat model (`qwen2.5:7b`) that turns
 your words into a structured design plan, and a small vision model that reads photos and
 sketches. The chat model won a measured bake-off against alternatives — KimCad ships the
 benchmark harness (`kimcad bench`, `kimcad bakeoff`) so that decision stays re-checkable
@@ -139,7 +139,7 @@ you find in [Discussions](../../discussions); that's what the beta is for.
 
 ### 19. Do I have to describe everything from scratch? Is there a parts library?
 
-There is. KimCad ships a **library of about 90 ready-made part families** you can browse
+There is. KimCad ships a **library of 86 ready-made part families** you can browse
 instead of typing a description — boxes, hooks, brackets, picture frames, trinket dishes,
 plant pots, ornaments, candle holders, display stands, and everyday hardware like washers,
 spacers, and standoffs. Open the library from the start page, search for what you want

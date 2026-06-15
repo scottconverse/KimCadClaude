@@ -120,6 +120,26 @@ skip via `real_tool` (so only the smoke + wizard journeys run). The provisioned 
 both, so there the e2e tests run with no green-by-skip. The harness modules (smoke, wizard) carry
 `pytestmark = [browser_serial, needs_browser]`; the design-triggering modules add `real_tool`.
 
+### Regenerating `requirements.lock`
+
+`requirements.lock` is the single pinned set the installer, CI, and the from-source path all consume
+(`scripts/build_installer.py` installs it, then strips the dev/build toolchain via `RELEASE_STRIP_NAMES`
+so only runtime deps ship). The policy is **batteries-included**: the lock pins the base runtime deps,
+the gate's dev tooling, **and both** optional connector extras (`bambu` + `serial`) so the official
+installer drives every supported printer — including a USB Marlin/Ender — out of the box, with no manual
+`pip` step (ENG-001). To regenerate after a dependency change:
+
+1. In a clean Python **3.13** venv: `pip install -e ".[dev,bambu,serial]"`.
+2. Freeze, excluding the editable project itself and the Playwright browser tooling (test-only — it must
+   never enter the installer, and a pip lock can't express its browser binary anyway):
+
+   ```
+   pip freeze --exclude-editable | grep -viE '^(playwright|pytest-playwright)==' > requirements.lock
+   ```
+
+3. Re-run the gate: `tests/test_build_installer.py` asserts every runtime dep **and** both connector
+   extras are in the lock, and CI's `pip-audit -r requirements.lock` must stay clean.
+
 ## Setup for development
 
 From-source setup is in the [README's Setup section](README.md#setup): a Python **3.13**

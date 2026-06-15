@@ -8,11 +8,11 @@ This manual has three parts, each for a different reader. Start wherever you fit
 
 | Part | For | Covers |
 |---|---|---|
-| **[1 · Everyday use](#part-1--everyday-use)** | anyone who wants to make a part | install, the three ways to start, refining, checking, printing |
-| **[2 · The technical surface](#part-2--the-technical-surface)** | CLI users, tinkerers, integrators | commands, config, connectors, the MCP server, the CadQuery engine |
+| **[1 · Everyday use](#part-1--everyday-use)** | anyone who wants to make a part | install, the three ways to start, refining, checking, printing, a glossary, and what to do when things go wrong |
+| **[2 · The technical surface](#part-2--the-technical-surface)** | CLI users, tinkerers, integrators | commands, config layering, the printer connectors, the MCP server, the CadQuery/STEP engine |
 | **[3 · Architecture](#part-3--architecture)** | developers and the curious | the pipeline, the modules, the trust boundaries, how it's built |
 
-> **Version:** this manual tracks the `0.9.0b1` Windows beta. KimCad's version shows in
+> **Version:** this manual tracks the current Windows beta (`0.9.0b2`). KimCad's version shows in
 > **Settings → About** and from `kimcad --version`.
 
 ---
@@ -33,7 +33,9 @@ explicitly turn on the optional cloud feature.
 KimCad is best at single mechanical parts. It is *not* a freeform artistic modeler and not
 a multi-part assembly tool.
 
-## Installing (Windows)
+## Installing
+
+### Windows — the double-click installer (no terminal)
 
 The easiest path is the **double-click installer** — no terminal, no Python, no developer
 tools.
@@ -53,17 +55,33 @@ Full details, including the checksum check and exactly what goes where, are in t
 automatically, plus .NET Framework 4.7.2+, in-box since Windows 10 1803), about 20 GB free
 disk (mostly the AI models), 16 GB+ RAM recommended. **No graphics card needed.**
 
-> Prefer to run from source? See the [README's Setup section](../README.md#setup).
+### macOS and Linux — run from source
+
+The zero-terminal installer is **Windows-only for now**. On **macOS and Linux you run KimCad
+from source** today: install the package and launch the browser UI with `kimcad web` (full
+steps are in [Part 2 → From a source checkout](#from-a-source-checkout-all-platforms) and the
+[README Setup section](../README.md#setup)). You install OpenSCAD and OrcaSlicer yourself and
+point `config/local.yaml` at them — only rendering and slicing need them; the UI itself runs
+without. Your saved designs and settings land in the platform-idiomatic spot
+(`~/Library/Application Support/KimCad` on macOS, `$XDG_DATA_HOME` / `~/.local/share/KimCad`
+on Linux).
+
+> The cross-platform from-source path is code-verified (guarded imports, the cross-platform
+> test design) but **not yet exercised on real Mac/Linux hardware** — the dev box is Windows.
+> Zero-terminal installers for macOS/Linux are scoped and deferred to a post-beta packaging
+> lane.
 
 ## First run
 
-Launch KimCad from the Start-Menu shortcut. A setup wizard walks you through three things:
+Launch KimCad from the Start-Menu shortcut (Windows) or with `kimcad web` (Mac/Linux). A
+setup wizard walks you through three things:
 
 1. **The AI.** KimCad's design intelligence runs locally through **Ollama** (free). If you
    don't have Ollama, the wizard's **Get Ollama** button takes you to the download; install
    it and click *check again*. Then the wizard's **Download now** button fetches KimCad's
-   two AI models (about 13 GB total) with a progress bar. Designing in words works the
-   moment the first one finishes.
+   two AI models (about 8 GB total) with a progress bar. Designing in words works the
+   moment the first one finishes. The two models are **`qwen2.5:7b`** (the design planner)
+   and **`qwen2.5vl:3b`** (the photo/sketch reader); both run **fully offline**.
 2. **Your printer.** Pick the printer your parts will be checked and sliced against. You can
    change it any time in Settings.
 3. **Direct printing** (optional). You can always download a file; connecting a printer to
@@ -104,8 +122,8 @@ Full details: **[Starting from a photo or sketch](guide-photo-onramp.md)**.
 
 ## Browse the part library
 
-Not sure what to type? KimCad comes with a **library of ready-made parts** — about 90 of them
-— that you can browse instead of describing one from scratch. Open it from the start page,
+Not sure what to type? KimCad comes with a **library of ready-made parts** — **86 of them** —
+that you can browse instead of describing one from scratch. Open it from the start page,
 search by what you're after (*"tray"*, *"hook"*, *"planter"*, *"spacer"*), and pick the card
 that fits. KimCad designs it for you on the spot, then you shape it with the sliders just like
 any other part. There's everything from boxes, hooks, and brackets to picture frames, trinket
@@ -118,18 +136,19 @@ shelf, not a fence.
 
 ### What the "Verify before use" tag means
 
-Most library parts are exactly what you set — change a number, get that number, no surprises.
-A few carry a small **Verify before use** tag. That isn't a warning that the part is broken;
-the shape is just as real and just as checked as any other. The tag means the part has to *fit
-something in the real world* — a screw, a glass tube, a phone, a Gridfinity drawer, a monitor's
-mounting holes — or carry a load, and only you can confirm that fit. For example, the printed
-"nut" and "bolt" have a smooth hole and shaft rather than real cut threads, and a "VESA plate"
-gives you the standard hole pattern to line up with your own device. So when you see the tag,
-just measure twice, or print a quick test, before you rely on it. Everything else in the
-library has no tag because there's nothing extra to check.
+Most library parts are exactly what you set — change a number, get that number, no surprises
+(the library calls these **benchmarked**). A few carry a small **Verify before use** tag (the
+**baseline** tier). That isn't a warning that the part is broken; the shape is just as real
+and just as checked as any other. The tag means the part has to *fit something in the real
+world* — a screw, a glass tube, a phone, a Gridfinity drawer, a monitor's mounting holes — or
+carry a load, and only you can confirm that fit. For example, the printed "nut" and "bolt"
+have a smooth hole and shaft rather than real cut threads, and a "VESA plate" gives you the
+standard hole pattern to line up with your own device. So when you see the tag, just measure
+twice, or print a quick test, before you rely on it. Everything else in the library has no tag
+because there's nothing extra to check.
 
 (For the complete list of every part, its tag, and what it does, see the
-**[part-library catalog](templates.md)**.)
+**[part-library catalog](templates.md)** — all 86 families, 39 benchmarked and 47 baseline.)
 
 ## Refining a part
 
@@ -153,7 +172,9 @@ Every part gets a **Smart Mesh readiness** card: a 0–100 score, a plain verdic
 (overhangs, thin walls, poor bed contact), and concrete recommendations. In the installed
 beta this is backed by the bundled **PrintProof3D** validation engine, which adds real
 overhang/bridge/bed-adhesion analysis on top of KimCad's own Printability Gate. The card
-shows its **confidence** honestly and never claims an analysis ran when it didn't.
+shows its **confidence** honestly — **High** when the engine ran and returned a usable
+report, **Medium** on the gate alone, **Low** when the engine ran but couldn't fully analyse
+the mesh — and never claims an analysis ran when it didn't.
 
 The **Printability Gate** is the authority: a part that fails it (too big for the printer,
 un-manifold, walls too thin) **cannot be sliced or sent** — you can still download the model
@@ -173,9 +194,15 @@ When a part passes the gate, you can:
   KimCad's own dialog (it never auto-starts a print), and watch the live status. A built-in
   **test connection** (`mock`) proves the whole send path without any hardware.
 
+KimCad's picker offers a **curated catalog of ~29 popular current machines** across the top
+makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each build-volume-checked and
+slice-proven, on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send today
+covers six connection types — Bambu native LAN, OctoPrint, Moonraker (Klipper), PrusaLink,
+and the new **Duet** and **Marlin** connectors.
+
 > **Beta status:** connections are validated against the printers' real software protocols
-> but **not yet on physical hardware** — that's the beta's job. See
-> [supported printers](supported-printers.md).
+> (against a faithful conformance mock) but **not yet on physical hardware** — that's the
+> beta's job. See [supported printers](supported-printers.md).
 
 ## My Designs, Settings, and privacy
 
@@ -190,21 +217,78 @@ When a part passes the gate, you can:
   default) — if you turn it on and add an OpenRouter key, your *text* design prompts can be
   sent to a cloud model for hard requests. **Your photos and sketches always stay local**,
   read by the on-device vision model, even with cloud on. Your cloud key is kept in the
-  Windows Credential Manager and shown only masked.
+  Windows Credential Manager (or the OS credential store) and shown only masked.
+
+## Glossary — the words KimCad uses
+
+Plain-language definitions of the recurring terms in this manual and on screen.
+
+| Term | What it means |
+|---|---|
+| **manifold** | A "watertight" solid — a mesh with no holes, gaps, or self-intersections, so it has a real inside and outside. Only manifold parts slice cleanly; KimCad guarantees this before slicing. |
+| **mesh** | The triangle skin that describes a 3D shape. The preview and the slicer both work on the mesh. |
+| **fillet** | A rounded internal/external edge (the opposite of a sharp corner). "Add a 5 mm fillet" rounds an edge to a 5 mm radius — stronger and nicer to handle. |
+| **chamfer** | A flat, angled cut across a corner (a bevel), versus a fillet's curve. |
+| **overhang** | Part of the print that leans out past what's below it. Steep overhangs (past ~45°) droop without support; KimCad's readiness card flags them. |
+| **bridge** | A flat span of plastic printed across open air between two supports (e.g. the top of a doorway). Long bridges can sag; the readiness card flags them. |
+| **bed adhesion** | How well the first layer sticks to the printer bed. Too little bed contact and the print pops loose; the readiness card scores it. |
+| **wall thickness** | How thick a wall is. Walls thinner than the nozzle can lay down won't print solidly; the Printability Gate checks this against your nozzle. |
+| **the (Printability) Gate** | KimCad's pass/warn/fail check that decides whether a part is printable on *your* printer. A failed part cannot be sliced or sent — it's the authority, not advice. |
+| **slice / slicer** | Converting a 3D model into the layer-by-layer toolpath a printer actually follows. KimCad slices with OrcaSlicer. The output is the print file. |
+| **G-code** | The plain-text motion language a printer executes (move here, extrude this much). The end product of slicing. |
+| **`.gcode.3mf`** | KimCad's print-ready output: G-code wrapped in a 3MF container (the modern print package). This is what you download or send. |
+| **`.STL`** | A universal 3D-model file (just the mesh, no editability). Always downloadable for every part. |
+| **`.STEP`** | A precision, *editable* CAD model you can reopen in Fusion 360 / FreeCAD / SolidWorks. Offered for template parts when the optional CadQuery engine is installed. |
+| **`.kimcad`** | KimCad's own portable design backup (re-importable on another machine) — *not* a printable file. |
+| **AMS** | Bambu's Automatic Material System — the multi-spool unit that auto-feeds filament. The Bambu connector has a `use_ams` option. |
+| **Ollama** | The free local AI runtime KimCad talks to. It hosts the two models on your machine; nothing leaves the computer. |
+| **manifold (the verb) / harden** | The final "make it watertight" step (using the Manifold3D library) that guarantees a 2-manifold mesh before slicing. |
 
 ## When something goes wrong
 
-**[Troubleshooting](troubleshooting.md)** is symptom-first and covers every known snag — the
-AI not running, a model not downloaded, the app window not opening, SmartScreen, where your
-files live, and more.
+A symptom-first list of the most common snags. The full, exhaustive version is
+**[Troubleshooting](troubleshooting.md)**.
+
+| What you see | What to do |
+|---|---|
+| **"Windows protected your PC" (SmartScreen)** at install | Expected — the beta isn't code-signed. Click **More info → Run anyway**. You can verify the `.sha256` checksum from the release first if you like. |
+| **The setup wizard can't find the AI** | Ollama isn't installed or isn't running. Click **Get Ollama**, install it, then **check again**. On Windows, Ollama runs as a background service after install. |
+| **A model won't download / download stalls** | Re-open the wizard and press **Download now** again — it resumes. You can also pull them yourself: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`. You need ~8 GB free. |
+| **A design takes a minute or two** | Normal for the first design after a cold start (the model is loading into memory). Template parts re-render from sliders instantly afterward. |
+| **"This part can't be sliced"** | The Printability Gate failed it — usually too big for the selected printer, too-thin walls, or a non-manifold result. The card names the reason. Make it smaller / thicker, or pick a bigger printer, then retry. You can still download the model to inspect it. |
+| **A photo's sizes are wrong** | A photo can't convey scale — the numbers are estimates. Edit them in the description (or use a *dimensioned sketch* instead, which carries real sizes). |
+| **"Printer offline / not reachable"** when sending | The printer couldn't be reached. The G-code is left on disk to download. Check the IP/`base_url`, that the printer is on, and (for Bambu) that LAN/Developer mode is enabled. |
+| **"Not set up" / credential rejected** when sending | The connection's API key / access code env var is missing or wrong. Re-check it in **Settings → Printer connections** (each shows the exact env-var name). |
+| **A "Reload" banner appears after the app was left open** | The per-boot session token rotated when the server restarted. Click **Reload** once — it re-fetches a fresh token. (Harmless; see Trust boundaries.) |
+| **Where are my files?** | Designs: `~/.kimcad/designs/`. App data: `%LOCALAPPDATA%\KimCad` (Windows) / `~/Library/Application Support/KimCad` (macOS) / `~/.local/share/KimCad` (Linux). The uninstaller never touches `~/.kimcad`. |
+| **The app window won't open** | On Windows 10, ensure the WebView2 Runtime is installed (Edge installs it). See [Troubleshooting](troubleshooting.md). |
 
 ---
 
 # Part 2 · The technical surface
 
 This part assumes you're comfortable with a terminal. Everything here also works from a
-source checkout (see the [README Setup](../README.md#setup)); the installed app bundles it
-all.
+source checkout; the installed app bundles it all.
+
+## From a source checkout (all platforms)
+
+KimCad runs from source on **Windows, macOS, and Linux** (Python 3.13):
+
+```
+python -m venv .venv
+# Windows:      .venv\Scripts\activate
+# macOS/Linux:  source .venv/bin/activate
+pip install -e ".[dev]"
+python scripts/fetch_tools.py     # OpenSCAD + OrcaSlicer (Windows: auto; macOS/Linux: see below)
+ollama pull qwen2.5:7b            # the design planner
+ollama pull qwen2.5vl:3b          # the photo/sketch vision reader
+kimcad web                        # the browser UI on http://127.0.0.1:8765
+```
+
+On Windows `fetch_tools.py` provisions OpenSCAD and OrcaSlicer as checksum-pinned portable
+builds. On **macOS/Linux** it can't auto-provision them yet — install OpenSCAD/OrcaSlicer
+yourself and set absolute paths in `config/local.yaml` (`config/default.yaml` documents the
+per-OS paths). The browser UI runs without either; only rendering and slicing need them.
 
 ## The command line
 
@@ -220,7 +304,7 @@ and hardens the part, and writes the model plus a plain-text report under `outpu
 | Command | What it does |
 |---|---|
 | `kimcad design "<prompt>"` | design a part. Flags: `--printer`, `--material`, `--backend`, `--out`, `--slice`, `--send <connector>`, `--proceed-anyway` |
-| `kimcad web [--port N] [--demo]` | the browser UI on `http://127.0.0.1:8765` (loopback only) |
+| `kimcad web [--port N] [--host H] [--demo]` | the browser UI on `http://127.0.0.1:8765` (loopback only) |
 | `kimcad shell [--demo]` | the **windowed app** (WebView2) — what the installer's shortcut runs |
 | `kimcad models` | examine your hardware + installed models and recommend one (advisory only) |
 | `kimcad bench [--min-success-rate R]` | run the 10-prompt benchmark (the done-gate; exits non-zero below the threshold) |
@@ -245,39 +329,77 @@ installed app it lives under `%LOCALAPPDATA%\KimCad`). Override the model, print
 materials, binary paths, and connectors there. Run `kimcad models` for a hardware-matched
 model recommendation — it only advises, it never edits your config.
 
-**The AI model.** KimCad defaults to **Ollama** on `localhost:11434` running `gemma4:e4b`
-for design and `qwen2.5vl:3b` for reading photos/sketches. Both are local; images never
-leave the machine. To use a different local model or a cloud backend, set the active backend
-in `config/local.yaml`.
+**The AI model.** KimCad defaults to **Ollama** on `localhost:11434` running **`qwen2.5:7b`**
+for design planning and **`qwen2.5vl:3b`** for reading photos/sketches. Both are local and the
+app runs **fully offline**; images never leave the machine. `qwen2.5:7b` won the on-machine
+bake-off (planned the prompt set 4/4 vs `gemma4:e4b` 1/4 and `llama3.1:8b` 0/4); design-plan
+calls are schema-constrained at the token level (Ollama's native `format`) so a model that
+wraps its JSON in prose still yields a parseable plan. **`gemma4:e4b` is only a fallback**
+now (and still hosts the vision reader). The advisor downshifts smaller boxes (e.g. to
+`qwen2.5:3b`). To use a different local model or a cloud backend, set the active backend in
+`config/local.yaml`. (See the [model guide](MODEL-GUIDE.md) for the measured rationale.)
 
 **Cloud (optional, off by default).** Turn on Cloud acceleration in Settings (or configure a
-cloud backend in files) to route *text* prompts through [OpenRouter](https://openrouter.ai/)
-or any OpenAI-compatible endpoint. The key is read from the OS credential store (or a
-disclosed file fallback) and never logged. Verify the cloud model name against your
+cloud backend in files) to route *text* prompts through [OpenRouter](https://openrouter.ai/),
+DeepSeek, or any OpenAI-compatible endpoint. The key is read from the OS credential store (or
+a disclosed file fallback) and never logged. Verify the cloud model name against your
 provider's current list before relying on it.
 
 ## Printers and direct send
 
 A sliced job can be sent to a **printer connection** through a swappable connector. Every
-send requires explicit confirmation and refuses anything that isn't a proven slice.
+send requires explicit confirmation and refuses anything that isn't a proven slice. The
+printer **picker** offers a curated **~29-machine catalog** (build-volume-gated, slice-proven
+in CI) on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send covers seven
+connectors:
 
 | Connector | Printers | Config |
 |---|---|---|
 | `loopback` | the built-in `mock` test connection | — |
-| `bambu` | Bambu Lab P2S / A1 (native LAN) | `base_url` (IP), `serial`, access-code env var, `use_ams` |
+| `bambu` | Bambu Lab P2S / A1 (native LAN) | `base_url` (IP), `serial`, access-code env var, `use_ams`; optional `bambulabs-api` pkg |
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
-| `moonraker` | Klipper (Voron, Creality-Klipper, …) | `base_url`, optional `api_key_env` |
-| `prusalink` | Prusa MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` |
+| `moonraker` | Klipper (Voron, Creality-Klipper, RatRig …) | `base_url`, optional `api_key_env` |
+| `prusalink` | Prusa MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
+| `duet` | RepRapFirmware / Duet 2/3 boards | `base_url` (board IP), optional `api_key_env` (board password if one is set) |
+| `marlin` | Marlin firmware (Ender-class + most consumer FDM) | `base_url` = USB serial port **or** `host:port` bridge |
 
 Credentials are **always** read from an environment variable (named by `api_key_env`), never
-stored in config and never logged. The shipped `bambu_p2s`, `bambu_a1`, `moonraker`, and
-`prusalink` entries are visible fill-in templates — set them up in **Settings → Printer
-connections** (fields + the env-var name with a `setx` line), or edit `config/default.yaml`.
+stored in config and never logged. The shipped `bambu_p2s`, `bambu_a1`, `moonraker`,
+`prusalink`, `duet`, and `marlin` entries are visible fill-in templates — set them up in
+**Settings → Printer connections** (fields + the env-var name with a `setx` line), or edit
+`config/default.yaml`.
+
+**Bambu setup.** Enable LAN/Developer mode on the printer; note the **Access Code**
+(*Settings → WLAN*) and **Serial** (*Settings → Device*). Fill `base_url` + `serial`, put the
+access code in the named env var. Native MQTT-over-TLS control + FTPS upload via the optional
+`bambulabs-api` package (`pip install bambulabs-api`); without it the connection reports "not
+set up" with that exact hint — never a crash.
+
+**Duet setup.** The `duet` connector drives RepRapFirmware boards over the classic `/rr_*`
+HTTP interface (stdlib HTTP, **no extra dependency**): `rr_upload` to the SD `gcodes` folder,
+`M32` start, `rr_status` progress. Set the board-password env var **only if** one is
+configured; the connector opens a session per operation and always `rr_disconnect`s it.
+
+**Marlin setup.** The `marlin` connector drives Marlin firmware over its raw M-code line
+protocol — it uploads to the SD card (`M28`/`M29`, with line-number + checksum integrity) and
+starts the print from SD (`M23`/`M24`, `M27` progress). The target is either:
+- a **`host:port`** serial-over-network bridge (ser2net / ESP3D / OctoPrint serial relay) →
+  stdlib TCP, **no extra dependency**; or
+- a **USB serial port** (`COM3`, `/dev/ttyUSB0`) → needs the **optional `pyserial`** package
+  (`pip install pyserial` or `pip install "kimcad[serial]"`). Without it a serial target
+  reports that exact hint, never a crash.
+
+> **Honest limits (Duet / Marlin).** Over the classic RRF `/rr_status` and Marlin `M27`
+> surfaces there is **no per-file "is this job done?" query** — completion is *inferred* from
+> the print returning to idle after progress was seen, so treat the first terminal state as
+> final. Marlin truncates SD filenames to **8 characters**, so two designs sharing the first 8
+> alphanumerics reuse the same SD file. Both connectors are **validated against a conformance
+> mock**, not yet on physical metal — the first real-hardware run is the beta (#11).
 
 Send from the CLI (`--send <connector>`), the web/app UI (pick → confirm → live status), or
 an agent over MCP. Each connector has a **runnable mock server** for offline testing:
-`python -m kimcad.mock_printer` (OctoPrint), `mock_moonraker`, `mock_prusalink`. Full matrix
-and validation status: **[supported printers](supported-printers.md)**.
+`python -m kimcad.mock_printer` (OctoPrint), `mock_moonraker`, `mock_prusalink`, `mock_duet`,
+`mock_marlin`. Full matrix and validation status: **[supported printers](supported-printers.md)**.
 
 **Response reasons.** A send or status check carries a typed `reason` (`config`, `unknown`,
 `offline`, `busy`, `auth`, `gate_failed`, `bad_response`, `error`) plus a plain `note`, so
@@ -343,11 +465,11 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
 
 1. **DesignPlan.** The LLM produces a structured plan (Pydantic-validated IR), not raw
    geometry. For common shapes a **deterministic template engine** (`templates.py`, **86
-   parametric families** — see the [part-library catalog](templates.md)) emits OpenSCAD
-   directly — no model — which is why live-slider re-renders take under a second. Each family
-   is tier-labeled (*benchmarked* vs *baseline*) and render-verified against its analytic
-   bounding box. For anything off-template, the LLM writes OpenSCAD (or, on the parallel path,
-   CadQuery).
+   parametric families** — 39 benchmarked, 47 baseline; see the
+   [part-library catalog](templates.md)) emits OpenSCAD directly — no model — which is why
+   live-slider re-renders take under a second. Each family is tier-labeled (*benchmarked* vs
+   *baseline*) and render-verified against its analytic bounding box. For anything
+   off-template, the LLM writes OpenSCAD (or, on the parallel path, CadQuery).
 2. **Render.** OpenSCAD renders manifold geometry; `cadquery_runner` shells out to a
    sandboxed worker for the parallel backend. Both return the same `RenderResult`, so the
    tail is backend-agnostic.
@@ -373,10 +495,10 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
 | `validation.py` / `printability.py` / `orientation.py` / `hardening.py` | the validation → gate → orient → harden stack |
 | `slicer.py` | the OrcaSlicer CLI integration |
 | `pipeline.py` | the orchestrator that wires it all and builds the report |
-| `printer_connector.py` + `*_connector.py` | the send abstraction + leaf connectors (incl. `bambu_connector.py`) |
-| `webapp.py` / `shell.py` | the local web layer and the WebView2 app window |
+| `printer_connector.py` + `*_connector.py` | the send abstraction + leaf connectors (`bambu_`, `octoprint_`, `moonraker_`, `prusalink_`, `duet_`, `marlin_`) |
+| `webapp.py` / `shell.py` | the local web layer (incl. the session-token guard) and the WebView2 app window |
 | `design_registry.py` | per-design server state + its locking protocols |
-| `paths.py` | the dev↔installed path seam (read root vs writable root) |
+| `paths.py` | the dev↔installed + per-OS path seam (read root vs writable root) |
 | `model_pull.py` | in-app model downloads with progress |
 | `mcp_server.py` | the agent-facing MCP surface |
 
@@ -387,8 +509,20 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
   separate processes — CadQuery additionally behind a geometry-only facade with restricted
   builtins and env/cwd isolation.
 - **The web server is loopback-only** by default; binding elsewhere requires an explicit
-  `--allow-remote` and a warning, because the server is unauthenticated by design (one
-  trusted local user).
+  `--host`/`--allow-remote` and a warning, because the server is unauthenticated by design
+  (one trusted local user).
+- **A per-boot session token guards state-changing requests.** The server mints a fresh
+  random token each boot, injects it into the page shell
+  (`<meta name="kimcad-session-token">`), and the SPA returns it as the **`X-KimCad-Session`**
+  header on every POST. A state-changing request without the matching token (constant-time
+  compared) is refused **`403`**. This is defense-in-depth against a **drive-by cross-origin
+  POST** from a malicious web page — it can reach loopback but, being cross-origin, can't
+  *read* the same-origin token (and the custom header forces a CORS preflight it can't
+  satisfy). It is deliberately **not** full CSRF protection and **not** authentication: a
+  single-user loopback app has no cookie session to forge. Because the token rotates per boot,
+  a tab left open across a restart `403`s with `reason:"session"`, and the SPA shows a
+  **one-click Reload** banner that re-fetches the fresh token. Both production start paths
+  (`kimcad web` and the WebView2 shell) enforce the guard.
 - **Secrets never touch disk or logs.** The cloud key lives in the OS credential store (with
   a disclosed file fallback); connector credentials live in environment variables; the
   subprocess environment is scrubbed before any tool runs.
@@ -402,20 +536,24 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
 In a dev checkout everything lives under the repo root. The installer ships a different
 shape, and `paths.py` is the single switch between them (set by the launcher's
 `KIMCAD_INSTALL_ROOT`): **reads** (config templates, the bundled tools, the SPA) come from
-the read-only install dir; **writes** (design output, the app's browser profile) go to
-`%LOCALAPPDATA%\KimCad`; user designs and settings stay in `~/.kimcad`. The installer bundles
-an embeddable CPython 3.13, the app + its pinned dependencies, the committed SPA, OpenSCAD,
+the read-only install dir; **writes** (design output, the app's browser profile) go to the
+per-user data dir — `%LOCALAPPDATA%\KimCad` on Windows,
+`~/Library/Application Support/KimCad` on macOS, `$XDG_DATA_HOME` / `~/.local/share/KimCad`
+on Linux; user designs and settings stay in `~/.kimcad`. The Windows installer bundles an
+embeddable CPython 3.13, the app + its pinned dependencies, the committed SPA, OpenSCAD,
 OrcaSlicer, and the PrintProof3D engine — pinned by SHA-256 and proven by an automated
-staging smoke (`verify_install.py`) on every push.
+staging smoke (`verify_install.py`) on every push. (The zero-terminal installer is Windows
+only for now; macOS/Linux run from source and provide their own OpenSCAD/OrcaSlicer.)
 
 ## How it's verified
 
 One authoritative gate, `scripts/ci.sh`, runs identically in the pre-push hook and on the
 self-hosted CI runner: `ruff`, the full `pytest` suite (including the **live** OrcaSlicer
-slice and the CadQuery sandbox tests), the frontend **Vitest** suite, a committed-SPA
-build-reproducibility check, and the installer-staging smoke. Every build stage passed a
-multi-role audit at zero findings across all severities before it was tagged; the audit trail
-lives under [`docs/audits/`](audits/). The design rationale is in
+slice, the CadQuery sandbox tests, and the connector conformance mocks), the frontend
+**Vitest** suite, a **Playwright** end-to-end browser suite, a committed-SPA
+build-reproducibility check, a diff-coverage gate, and the installer-staging smoke. Every
+build stage passed a multi-role audit at zero findings across all severities before it was
+tagged; the audit trail lives under [`docs/audits/`](audits/). The design rationale is in
 [ARCHITECTURE.md](../ARCHITECTURE.md) and the v3.0 spec under
 [`docs/design/`](design/).
 
@@ -423,3 +561,5 @@ lives under [`docs/audits/`](audits/). The design rationale is in
 
 *KimCad is open source under Apache-2.0. Questions and ideas:
 [Discussions](../../discussions). The road ahead: [ROADMAP.md](../ROADMAP.md).*
+</content>
+</invoke>

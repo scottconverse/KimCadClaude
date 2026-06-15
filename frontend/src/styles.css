@@ -701,6 +701,13 @@ input {
   cursor: grabbing;
 }
 
+/* UX-003 (WCAG 2.1.1): a visible focus ring so keyboard users can see the viewport is focused for
+   arrow-key orbit / ± zoom. Inset (negative offset) so the HiDPI overflow cap above can't clip it. */
+.kc-viewport-canvas:focus-visible {
+  outline: 2px solid var(--kc-accent);
+  outline-offset: -3px;
+}
+
 .kc-viewport-overlay {
   position: absolute;
   inset: 0;

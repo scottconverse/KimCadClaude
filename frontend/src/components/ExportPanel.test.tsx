@@ -92,7 +92,7 @@ describe('ExportPanel gate-awareness', () => {
     render(<ExportPanel result={r} />)
     expect(screen.queryByText(/download editable cad/i)).toBeNull()
     const enable = screen.getByText(/enable the CAD export engine in Settings/i) as HTMLAnchorElement
-    expect(enable.getAttribute('href')).toBe('#settings')
+    expect(enable.getAttribute('href')).toBe('#/settings')
   })
 
   it('lets the user cancel an in-flight slice and return to the button — never stuck (escape)', async () => {

@@ -1,5 +1,7 @@
 # Stage 6 — Model bake-off (Qwen vs gemma): the verdict + how to reproduce it
 
+> **⚠ SUPERSEDED for the default-model choice (2026-06-15).** This Stage 6 verdict was specifically about `qwen2.5-coder:1.5b` — a *code-completion* model that can't emit a valid `DesignPlan` (0/10). A later head-to-head ([`docs/MODEL-GUIDE.md`](../MODEL-GUIDE.md)) evaluated the *instruct* model `qwen2.5:7b` with the grammar-`format` provider fix, and it now plans 4/4 and is **the default chat model.** `gemma4:e4b` remains a defined, vision-capable alternative. The reproduction harness below is still valid; only the "keep gemma4:e4b as default" conclusion is replaced.
+
 ## Verdict (settled 2026-06-02)
 
 The Stage 6 model swap asked whether `qwen2.5-coder:1.5b` should replace `gemma4:e4b` as the default

@@ -2,7 +2,7 @@
 
 **Describe a functional 3D-printable part in plain English — or a photo, or a sketch — and get a checked, print-ready file, entirely on your own machine. No CAD skills, no account, no cloud.**
 
-![beta](https://img.shields.io/badge/beta-0.9.0b1-2563eb)
+![beta](https://img.shields.io/badge/beta-0.9.0b2-2563eb)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![python](https://img.shields.io/badge/python-3.13-3776AB)
 ![license](https://img.shields.io/badge/license-Apache--2.0-1d7a4e)
@@ -11,7 +11,7 @@
 
 <div align="center">
 
-### ▶ [**Download KimCad for Windows**](../../releases/latest) &nbsp;—&nbsp; `0.9.0b1` beta
+### ▶ [**Download KimCad for Windows**](../../releases/latest) &nbsp;—&nbsp; the current Windows beta
 
 [Install guide](docs/install-guide.md) &nbsp;·&nbsp; [User manual](docs/USER-MANUAL.md) &nbsp;·&nbsp; [FAQ](docs/FAQ.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
@@ -27,7 +27,7 @@
 
 ### What the installer puts on your machine
 
-`KimCad-Setup-0.9.0b1.exe` — one double-click, **zero terminal use**:
+The installer (`KimCad-Setup-<version>.exe`) — one double-click, **zero terminal use**:
 
 - The app window (WebView2) + the full KimCad app and AI wiring
 - An **embedded CPython 3.13** — KimCad never touches your system Python

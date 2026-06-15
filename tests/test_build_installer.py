@@ -88,6 +88,24 @@ def test_every_runtime_dep_is_in_the_lock():
     assert missing == [], f"pyproject runtime deps missing from requirements.lock: {missing}"
 
 
+def test_lock_bundles_both_connector_extras_symmetrically():
+    """ENG-001: the installer is batteries-included — it must ship BOTH optional connector
+    extras so every supported printer works out of the box, not Bambu-only. The lock once
+    carried `bambulabs-api` (the `bambu` extra) but not `pyserial` (the `serial` extra), so a
+    Marlin/Ender USB user — installing the SAME official build — hit a "pip install pyserial"
+    wall the app's own framing says shouldn't exist. This tripwire fails if either extra's
+    top-level package drops out of requirements.lock, locking the symmetry in."""
+    lock_names = {
+        line.split("==")[0].strip().lower().replace("_", "-")
+        for line in (ROOT / "requirements.lock").read_text(encoding="utf-8").splitlines()
+        if "==" in line
+    }
+    for pkg in ("bambulabs-api", "pyserial"):
+        assert pkg in lock_names, (
+            f"{pkg} missing from requirements.lock — the connector-extra asymmetry is back (ENG-001)"
+        )
+
+
 def test_verify_install_covers_the_five_contracts():
     text = (ROOT / "scripts" / "verify_install.py").read_text(encoding="utf-8")
     for marker in ("--version", "/api/health", "openscad", "/api/design", "LOCALAPPDATA"):

@@ -30,10 +30,10 @@ wording is the terminal's; the second is the web page's — same cause, same fix
 **Fix:**
 
 ```
-ollama pull gemma4:e4b
+ollama pull qwen2.5:7b
 ```
 
-Then try again. `ollama list` should show `gemma4:e4b`.
+Then try again. `ollama list` should show `qwen2.5:7b`.
 
 ## "KimCad's vision model isn't pulled yet"
 
@@ -100,7 +100,7 @@ failure there is almost always one of three things:
   partial download, so pressing **try again** continues rather than starting over.
 
 The wizard downloads only KimCad's own two models; you never need to pick one. You can
-always pull manually instead: `ollama pull gemma4:e4b` and `ollama pull qwen2.5vl:3b`.
+always pull manually instead: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`.
 
 ## A Bambu printer connection needs the optional bambulabs-api package
 

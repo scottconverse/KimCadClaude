@@ -165,6 +165,29 @@ def test_build_prusalink_connector_with_key(monkeypatch):
     assert isinstance(c, PrusaLinkConnector) and c.name == "prusa"
 
 
+# ENG-005: an HTTP connector's base_url is scheme-allowlisted before it reaches urllib — a
+# hand-edited config can't point it at file://, ftp://, a bare host, or an embedded credential.
+@pytest.mark.parametrize("bad", ["file:///etc/passwd", "ftp://host/x", "octopi.local", "javascript:alert(1)"])
+def test_build_http_connector_rejects_non_http_base_url(bad):
+    cfg = _config({"d": {"type": "duet", "base_url": bad}})
+    with pytest.raises(ConnectorError, match="http"):
+        build_connector(cfg, "d")
+
+
+def test_build_http_connector_rejects_base_url_with_embedded_credentials():
+    cfg = _config({"d": {"type": "duet", "base_url": "http://user:pass@host"}})
+    with pytest.raises(ConnectorError, match="username|password"):
+        build_connector(cfg, "d")
+
+
+def test_marlin_base_url_is_not_scheme_validated():
+    # ENG-005 scope: Marlin's base_url is a serial port / host:port M-code target, NOT an HTTP url,
+    # so it is deliberately exempt — "COM3" and "192.168.0.70:8080" must still build.
+    for target in ("COM3", "192.168.0.70:8080"):
+        c = build_connector(_config({"m": {"type": "marlin", "base_url": target}}), "m")
+        assert c.name == "m"
+
+
 def test_build_prusalink_without_key_is_a_clear_error(monkeypatch):
     monkeypatch.delenv("PRUSA_KEY", raising=False)
     cfg = _config(

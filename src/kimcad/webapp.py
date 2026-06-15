@@ -221,6 +221,13 @@ def _sanitize_history(raw: Any) -> list[dict[str, str]] | None:
 
 # MS-3: cap on live design-progress slots (abandoned/cancelled runs are LRU-evicted).
 _MAX_PROGRESS_SLOTS = 32
+# ENG-004: admission cap on the expensive, otherwise-unbounded design route. _handle_design runs
+# the full LLM→render→gate pipeline (100-140 s on the local model) inline on its request thread,
+# and — unlike slice/render, which slice_lock/render_lock already serialize — has no bound of its
+# own. A BoundedSemaphore caps concurrent design runs so a button-masher or a --allow-remote LAN
+# peer can't stack N heavy pipelines and exhaust CPU/RAM; 2 gives a little headroom over the
+# single-user norm of one-at-a-time. Over the cap, the route returns 429 + Retry-After.
+_MAX_INFLIGHT_DESIGNS = 2
 # A client-supplied job_id keys in-memory progress state, so it's validated to a short, safe token
 # (a UUID fits) before use; anything else disables progress tracking for that run (best-effort).
 _JOB_ID_RE = re.compile(r"\A[A-Za-z0-9-]{1,64}\Z")
@@ -705,6 +712,11 @@ def make_handler(
     # contention across different designs is nil; key it by rid only if a multi-client mode lands
     # (ENG-503).
     render_lock = threading.Lock()
+    # ENG-004: admission cap for the design route — see _MAX_INFLIGHT_DESIGNS. A BoundedSemaphore
+    # (not a Lock) so up to N runs proceed concurrently and the N+1th is rejected 429 rather than
+    # queued; one per server instance, shared across all request threads. slice/render are already
+    # serialized by slice_lock/render_lock above, so design is the one heavy route lacking a bound.
+    design_slots = threading.BoundedSemaphore(_MAX_INFLIGHT_DESIGNS)
     # MS-3: live design-phase slots keyed by a client-supplied job_id, so the SPA can poll
     # GET /api/design/progress/<job_id> WHILE a (multi-minute) design runs on another request
     # thread and show the current phase. Bounded + LRU-evicted; an entry is removed when its run
@@ -832,10 +844,13 @@ def make_handler(
             finally:
                 self._head_only = False
 
-        def _send(self, status: int, body: bytes, content_type: str) -> None:
+        def _send(self, status: int, body: bytes, content_type: str,
+                  extra_headers: "dict[str, str] | None" = None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            for _hk, _hv in (extra_headers or {}).items():
+                self.send_header(_hk, _hv)
             self.end_headers()
             if not getattr(self, "_head_only", False):
                 self.wfile.write(body)
@@ -852,6 +867,16 @@ def make_handler(
                 ).encode("utf-8")
                 status = 500
             self._send(status, body, "application/json")
+
+        def _busy(self) -> None:
+            # ENG-004: the admission-cap rejection for the design route. 429 + Retry-After so the
+            # client backs off instead of the server stacking unbounded heavy pipelines. The SPA
+            # surfaces the message; on single-user loopback (the norm) this never fires.
+            body = json.dumps({
+                "error": "KimCad is busy finishing another design — give it a moment and try again.",
+                "reason": "busy",
+            }).encode("utf-8")
+            self._send(429, body, "application/json", {"Retry-After": "10"})
 
         def _send_download(self, body: bytes, content_type: str, filename: str) -> None:
             self.send_response(200)
@@ -1180,18 +1205,16 @@ def make_handler(
                 body = html.replace("__KIMCAD_SESSION_TOKEN__", session_token).encode("utf-8")
                 etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
                 static_cache[key] = (stat.st_mtime, stat.st_size, etag, body)
-            if self.headers.get("If-None-Match") == etag:
-                self.send_response(304)
-                self.send_header("ETag", etag)
-                self.send_header("Cache-Control", "no-cache")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
+            # ENG-006: the shell embeds the per-boot session token (the one bearer secret in the
+            # trust model), so it is served `no-store` — never written to a browser/proxy disk
+            # cache — and carries NO ETag: a per-boot-token body must not be revalidated across
+            # boots, and a 304 buys nothing on a body that changes every restart. (The in-process
+            # `static_cache` above is server-side memoization only; it never reaches the client.)
+            del etag  # computed for the memoization key/parity with _serve_static; not sent
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("ETag", etag)
-            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
             self.end_headers()
             if not getattr(self, "_head_only", False):
                 self.wfile.write(body)
@@ -1326,7 +1349,16 @@ def make_handler(
                 })
                 return
             if self.path == "/api/design":
-                self._handle_design()
+                # ENG-004: admission control — cap concurrent runs of the one heavy, unbounded
+                # route. Non-blocking acquire so the N+1th request is refused 429 (via _busy)
+                # instead of queueing a thread on a 100s+ pipeline; the finally always releases.
+                if not design_slots.acquire(blocking=False):
+                    self._busy()
+                    return
+                try:
+                    self._handle_design()
+                finally:
+                    design_slots.release()
                 return
             if self.path == "/api/settings":
                 self._handle_settings_post()

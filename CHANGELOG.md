@@ -5,7 +5,7 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
-> The project versions toward the `0.9.0b1` Windows beta (Stage 11); each stage is tagged as it lands.
+> The `0.9.0b1` and `0.9.0b2` Windows betas have shipped (tags `beta` and `v0.9.0b2`); each stage was tagged as it landed. `[Unreleased]` collects post-`0.9.0b2` work.
 > **Stages 0–7 are tagged (`stage-0` … `stage-7`).** Stage 5 (deterministic template engine +
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
@@ -19,12 +19,22 @@ All notable changes to KimCad are documented here. Format follows
 > numeric parameter entry, mm/inch units), Slice 5 (the on-ramps design — no code), Slice 6 (the
 > in-app Settings screen — model status, opt-in cloud, experimental toggle), and Slice 7 (the
 > "describe with a photo" on-ramp). Slices passed their gates progressively; the stage closed at
-> the full audit-team gate. These sections accumulate toward the `0.9.0b1` beta release.
+> the full audit-team gate. These sections accumulated toward the shipped betas; new entries below are post-`0.9.0b2`.
 > New runtime dependency (Stage 1): **`manifold3d>=3.0`** — installed by default
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
+### Added
+- **Keyboard control of the 3D preview** (WCAG 2.1.1): the viewport is focusable; arrow keys orbit
+  and `+`/`-` zoom, with a visible focus ring — it's no longer mouse/touch-only.
+- **Batteries-included installer**: the official build now bundles BOTH optional connector extras
+  (`bambu` and `serial`), so a USB Marlin/Ender prints out of the box with no manual `pip` step.
+  `CONTRIBUTING.md` documents how `requirements.lock` is regenerated.
+
 ### Changed
+- **Landing examples are dimensioned, template-mapped prompts** (a project box, a cable clip, a
+  trinket dish) the default model builds reliably and fast; the template matcher now resolves
+  qualified natural phrasings ("desk cable clip" → the cable-clip family) instead of dead-ending.
 - **Default on-device planner is now `qwen2.5:7b`** (was `gemma4:e4b`), and design-plan calls to a
   local Ollama backend are **schema-constrained at the token level** (Ollama's native `format`), so
   a model that wraps its JSON in prose / `//` comments / fences still yields a parseable plan. On-machine
@@ -35,6 +45,18 @@ All notable changes to KimCad are documented here. Format follows
   the stale "Qwen rejected 0/10" verdict is corrected (it tested `qwen2.5-coder`, a *code* model —
   never the general instruct model that wins here). `gemma4:e4b` stays as the non-China fallback and
   still hosts the vision reader; vision remains `qwen2.5vl:3b`. The advisor downshifts smaller boxes.
+
+### Fixed
+- After a failed design (no part on screen), the geometric refine chips are hidden so a click can't
+  fire another ~2-minute likely-failure; the re-describe box stays for a different wording.
+- The experimental generator now **fails fast with a clear message** when it returns non-code (the
+  object name, a bare comment) instead of burning a render that then errors cryptically.
+
+### Security
+- The synchronous `/api/design` route is bounded by an admission cap: concurrent runs over the cap
+  get `429 + Retry-After` instead of stacking unbounded heavy pipelines (matters under `--allow-remote`).
+- HTTP printer `base_url`s are scheme-allowlisted (http/https only, host required, no embedded
+  credentials) before reaching `urllib`; the session-token-bearing app shell is now served `no-store`.
 
 ## [0.9.0b2] — 2026-06-14
 

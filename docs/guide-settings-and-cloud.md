@@ -14,7 +14,7 @@ produce a print file yet.
 ## The AI model
 
 A health readout, not a menu: KimCad runs two tested local models, both via Ollama —
-`gemma4:e4b`, which designs your parts, and a small dedicated vision model
+`qwen2.5:7b`, which designs your parts, and a small dedicated vision model
 (`qwen2.5vl:3b`) that reads photos and sketches. Settings shows whether Ollama is running
 and the design model is pulled, with a re-check button — the same status the start page
 and setup wizard show. `kimcad models` in a terminal (or the setup wizard) confirms both

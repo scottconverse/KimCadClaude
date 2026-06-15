@@ -6,10 +6,15 @@ import PhotoOnramp from './PhotoOnramp'
 // The landing (empty) screen. Wired in Slice 3: the textarea + "Design it" submit a prompt,
 // and clicking an example submits it directly. Stage 8.5 Slice 7 adds the "describe with a photo"
 // on-ramp (Surface D) as a secondary affordance beside the text box — text stays the primary path.
+// ENG-002 / UX-001: the one-tap examples are deliberately DIMENSIONED and phrased to map onto
+// shipped template families (project box, cable clip, trinket dish), so a click builds on the
+// deterministic template path in seconds rather than gambling on free-form codegen. The real
+// default model is held to this by tests/test_landing_examples.py (the Ollama-gated canary) and
+// the deterministic family-mapping check beside it.
 const EXAMPLES = [
-  'a wall-mounted holder for a 1 kg filament spool',
-  'a 40 mm desk cable clip',
-  'a hexagonal pen and tool organizer',
+  'an 80 × 60 × 40 mm project box with a lid',
+  'a desk cable clip for an 8 mm cable',
+  'a round trinket dish, 90 mm across',
 ]
 
 function SendGlyph() {

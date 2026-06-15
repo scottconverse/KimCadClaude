@@ -136,6 +136,11 @@ export default function ChatPanel({
   // and the model isn't currently working.
   const hasResult = result !== null || (messages.length > 0 && !busy)
   const canRefine = hasResult && !busy
+  // UX-002 (audit-team): the geometric refine chips ("Make it bigger" …) only make sense when a
+  // part actually exists. After a FAILED design (no mesh) they used to stay live, so a click fired
+  // another full ~2-minute generation that would likely fail again — a loop. Gate the chips on a
+  // real part; the re-describe input stays so the user can try a different wording.
+  const hasPart = !!result?.has_mesh
 
   function submit() {
     const text = draft.trim()
@@ -251,7 +256,7 @@ export default function ChatPanel({
               blank box the user has to guess at. Hidden when the model is asking a clarifying
               question (the user must answer that, not request a generic change). Each chip threads a
               change through the same onRefine path as a typed message. */}
-          {result?.status !== 'clarification_needed' && (
+          {hasPart && result?.status !== 'clarification_needed' && (
             <>
               <span className="kc-refine-hint">Refine by talking — tap a change or describe your own:</span>
               {/* UX-013 (2026-06-09 audit): chips are UNIVERSAL edits — size and walls apply to

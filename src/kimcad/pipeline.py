@@ -18,6 +18,7 @@ Two safety behaviors from the threat model (§12) live here, not in the leaf sta
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -101,6 +102,24 @@ def _render_feedback(error: str, label: str = "OpenSCAD", fix: str = _OPENSCAD_F
         f"{error}\n"
         f"{fix}"
     )
+
+
+def _reject_non_code(code: str, label: str = "OpenSCAD") -> None:
+    """Raise :class:`RenderError` when ``code`` is not plausibly ``label`` source — the generator
+    echoed the object name ("coaster"), or returned only comments/whitespace — so a bad generation
+    fails fast with a clear message instead of burning a render subprocess that errors cryptically
+    (QA-002). Cheap NECESSARY-condition check: after stripping comments, real OpenSCAD invokes a
+    module/primitive (``name(...)``) or opens a ``{...}`` block. NOT a parser — a real render still
+    validates everything else (a recognized ``name(...)`` that isn't a real module still errors at
+    render, which the retry loop already feeds back)."""
+    stripped = re.sub(r"/\*.*?\*/", " ", code, flags=re.DOTALL)
+    stripped = re.sub(r"//[^\n]*", " ", stripped).strip()
+    if not stripped:
+        raise RenderError(f"the {label} generator returned only comments or whitespace, not code")
+    if not re.search(r"[A-Za-z_]\w*\s*\(", stripped) and "{" not in stripped:
+        raise RenderError(
+            f"the {label} generator returned text with no {label} call or block — not buildable code"
+        )
 
 
 def _axis_breakdown(plan: DesignPlan, report: MeshReport | None) -> str:
@@ -866,6 +885,10 @@ class Pipeline:
 
         for attempt in range(1, self.max_render_retries + 2):
             try:
+                # QA-002: reject obviously-non-code generations BEFORE the render subprocess, so a
+                # model that echoes the object name or emits a bare comment fails fast (and feeds
+                # back) instead of burning a multi-second OpenSCAD run that errors cryptically.
+                _reject_non_code(code, backend.label)
                 emit("rendering")
                 render = backend.render(code, out_dir, rbase)
             except (RenderError, BlockedCodeError) as e:

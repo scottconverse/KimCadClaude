@@ -161,14 +161,24 @@ export default function Viewport({
           ? 'Your 3D preview appears here.'
           : null
   const ariaLabel = dims
-    ? `3D preview — ${dims.x} by ${dims.y} by ${dims.z} millimetres`
-    : '3D preview'
+    ? `3D preview — ${dims.x} by ${dims.y} by ${dims.z} millimetres. Use the arrow keys to rotate and the plus and minus keys to zoom.`
+    : '3D preview. Use the arrow keys to rotate and the plus and minus keys to zoom.'
 
   return (
     <div className="kc-col-center">
       <div className="kc-viewport-card">
         <div className="kc-viewport-stage" ref={stageRef}>
-          <canvas ref={canvasRef} className="kc-viewport-canvas" aria-label={ariaLabel} />
+          <canvas
+            ref={canvasRef}
+            className="kc-viewport-canvas"
+            tabIndex={0}
+            aria-label={ariaLabel}
+            onKeyDown={(e) => {
+              // UX-003 (WCAG 2.1.1): keyboard orbit/zoom. handleKey returns true when it consumed
+              // the key, so the arrow keys / ± don't also scroll or zoom the page underneath.
+              if (vpRef.current?.handleKey(e.key)) e.preventDefault()
+            }}
+          />
           {/* Dimension pills — KCViewport projects the part's bbox and positions/fills these. */}
           <span ref={labelX} className="kc-dim-pill" aria-hidden="true" />
           <span ref={labelY} className="kc-dim-pill" aria-hidden="true" />
@@ -214,7 +224,9 @@ export default function Viewport({
           )}
           {showModel && (
             <span className="kc-viewport-hint">
-              {measuring ? 'Click the part to measure · drag still rotates' : 'Drag to rotate · scroll to zoom'}
+              {measuring
+                ? 'Click the part to measure · drag still rotates'
+                : 'Drag or arrow keys to rotate · scroll or +/− to zoom'}
             </span>
           )}
           {showModel && staleNote && (

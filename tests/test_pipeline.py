@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import trimesh
 
 from kimcad.config import Config
@@ -110,6 +111,51 @@ def test_invalid_plan_fails_clean_instead_of_a_traceback(tmp_path):
     assert "design plan" in (result.error or "").lower()
     assert "different model" in (result.error or "").lower()  # actionable
     assert "ValidationError" in (result.error or "")  # underlying type surfaced as the detail
+
+
+# --- QA-002: the experimental generator must fail fast on non-code, before the render subprocess --
+@pytest.mark.parametrize("garbage", ["coaster", "  ", "// just the object name\n", "/* nothing */", "\n\n"])
+def test_reject_non_code_raises_on_garbage(garbage):
+    from kimcad.openscad_runner import RenderError
+    from kimcad.pipeline import _reject_non_code
+
+    with pytest.raises(RenderError):
+        _reject_non_code(garbage)
+
+
+@pytest.mark.parametrize(
+    "good",
+    [
+        "cube([10,10,2]);",
+        "use <library/box.scad>;\nbox(20,20,20);",  # a library module call — valid, no primitive
+        "translate([0,0,1]) cylinder(r=5,h=2);",
+        "/* pad */\nlinear_extrude(2) circle(20);",
+        "difference(){ cube(10); sphere(4); }",
+    ],
+)
+def test_reject_non_code_accepts_real_openscad(good):
+    from kimcad.pipeline import _reject_non_code
+
+    _reject_non_code(good)  # must not raise
+
+
+def test_non_code_generation_fails_fast_without_rendering(tmp_path):
+    # QA-002: when the experimental generator echoes the object name ("coaster") instead of emitting
+    # OpenSCAD, the pipeline rejects it BEFORE spending a render, feeds back + retries, then fails
+    # with a clear message — never a burned subprocess, never a cryptic render traceback.
+    plan = DesignPlan(
+        object_type="articulated dragon",  # matches no template family → the experimental codegen path
+        summary="x", dimensions={}, bounding_box_mm=[20, 20, 20],
+        printer="bambu_p2s", material="pla",
+    )
+    provider = FakeProvider(plan, scad="coaster")  # the QA-002 failure mode: the model echoed the name
+    renderer, state = _box_renderer((20, 20, 20))
+    result = _pipeline(provider, renderer).run("a coaster", tmp_path, allow_experimental=True)
+
+    assert state["n"] == 0  # the render subprocess was never spawned on the garbage
+    assert provider.openscad_calls >= 1  # codegen was attempted (and re-attempted with feedback)
+    assert result.status is PipelineStatus.render_failed
+    assert "not buildable code" in (result.error or "").lower()
 
 
 def test_bad_json_plan_fails_clean(tmp_path):

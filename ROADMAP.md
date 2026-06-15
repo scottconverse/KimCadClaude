@@ -77,9 +77,16 @@ verify_install on the real installed tree + the installed WebView2 window live);
 gate caught and fixed a REAL Blocker (the wheel shipped no SPA - every prior proof ran the
 API, never '/'). **THE BETA IS BUILT. Next: Kim runs it on her real printers.**
 
-Still ahead before beta: direct-print UI + Bambu-native
-(Stage 10), and the Windows installer + beta gate (Stage 11). **No part has driven real hardware yet
-— that's after Stage 11, at Kim's.**
+### 0.9.0b2 — second Windows beta (2026-06-14, tag `v0.9.0b2`)
+
+Post-b1, shipped on `main` + tagged: **Duet/RepRapFirmware + Marlin send-to-printer connectors**
+(every issue #6–#35 closed; only #11 real-hardware validation parked); the **per-boot session-token
+guard** on every state-changing POST (the web-layer trust boundary); the **default planner moved to
+`qwen2.5:7b` with a grammar-`format`-constrained plan step** (it plans the landing examples reliably)
+plus the model advisor reworked to rank on merit, not origin; **macOS/Linux paths + WebView2-absent
+shell degradation** documented; the **batteries-included installer** now bundling both the `bambu` and
+`serial` connector extras. A second 5-role audit-team pass on the whole repo was remediated to
+0/0/0/0/0. **The one and only physical phase still remaining: Kim runs it on her real printers (#11).**
 
 ---
 

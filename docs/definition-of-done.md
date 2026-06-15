@@ -6,8 +6,9 @@ is committed under `docs/audits/`).
 
 ## Per-change (every slice, before it merges)
 
-1. **A written plan exists first** (`.claude/plans/` in this repo's practice) — scope,
-   approach, and blast radius before code.
+1. **Scope is thought through before code** — the approach and blast radius are clear up front,
+   with a written plan when the change warrants one (historically under `.claude/plans/`). This is
+   a planning discipline, not a hard per-slice gate.
 2. **Tests land with the behavior.** A change that touches logic, data flow, or a public
    interface carries a test that would fail without it — written against the project's
    existing frameworks (pytest / vitest). Never weaken an existing test to get green.
@@ -44,7 +45,7 @@ is committed under `docs/audits/`).
    pass-rate lift, build-volume numbers) carries a committed, re-runnable measurement —
    and gets re-measured rather than trusted when the underlying model/tool changes.
 
-## The beta bar (what `0.9.0b1` actually means)
+## The beta bar (what the beta actually means)
 
 - Double-click Windows installer; the **installed tree** verified by
   `scripts/verify_install.py` (not just the dev checkout); release artifacts carry

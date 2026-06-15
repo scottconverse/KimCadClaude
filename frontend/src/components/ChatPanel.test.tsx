@@ -65,6 +65,26 @@ describe('ChatPanel thread', () => {
     expect(screen.getByText(/Refining your part/i)).toBeTruthy()
   })
 
+  it('UX-002: after a failed design (no part) the geometric refine chips are hidden but the re-describe input stays', () => {
+    renderPanel({
+      messages: [
+        { role: 'user', content: 'a 40 mm cable clip' },
+        { role: 'assistant', content: "I couldn't turn that into a workable plan." },
+      ],
+      result: { status: 'completed', has_mesh: false } as DesignResponse,
+    })
+    // The re-describe input stays so the user can try a different wording...
+    expect(screen.getByRole('textbox', { name: /Refine your part/i })).toBeTruthy()
+    // ...but the geometric chips are gone — clicking one would fire another ~2-min likely-failure (the loop).
+    expect(screen.queryByText('Make it bigger')).toBeNull()
+    expect(screen.queryByText('Thicker walls')).toBeNull()
+  })
+
+  it('UX-002: with a real part on screen the geometric refine chips are shown', () => {
+    renderPanel() // default `completed` result has_mesh: true
+    expect(screen.getByText('Make it bigger')).toBeTruthy()
+  })
+
   it('shows the refine input once there is a result', () => {
     renderPanel({ messages: [{ role: 'assistant', content: 'done' }] })
     expect(screen.getByRole('textbox', { name: /Refine your part/i })).toBeTruthy()

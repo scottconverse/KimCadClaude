@@ -209,6 +209,36 @@ def test_natural_phrase_routes_to_expected_family(phrase, expected):
     )
 
 
+# ENG-002 / UX-001: the conservative multi-word containment fallback. A qualified phrasing whose
+# object_type CONTAINS a multi-word family alias as a contiguous whole-word run routes to that
+# family (longest alias wins), so the landing examples and natural user phrasings build on the
+# deterministic template path instead of dead-ending at the experimental-codegen offer.
+@pytest.mark.parametrize(
+    "phrase,expected",
+    [
+        ("desk cable clip", "cable_clip"),
+        ("a 3 mm desk cable clip", "cable_clip"),  # extra qualifiers + stray words around the alias
+        ("wall mounted spool holder", "spool_holder"),
+        ("small project box", "snap_box"),  # "project box" is contained; bare "box" is exact-only
+        ("round trinket dish", "ring_dish"),
+    ],
+)
+def test_qualified_phrase_contains_multiword_alias_routes(phrase, expected):
+    match = default_registry().match(_plan(phrase))
+    assert match is not None and match.family.name == expected, (
+        f"'{phrase}' routed to {None if match is None else match.family.name}, expected {expected}"
+    )
+
+
+# The containment fallback must stay CONSERVATIVE: a SINGLE-word alias ("box", "ring", "hook")
+# must NOT be matched by substring, or "souvenir box" / "ring binder" would be hijacked. These
+# phrases contain only single-word aliases (or none), so they correctly fall through to None — the
+# experimental-codegen offer — exactly as before the broadening.
+@pytest.mark.parametrize("phrase", ["souvenir box", "ring binder", "skateboard"])
+def test_containment_does_not_hijack_single_word_aliases(phrase):
+    assert default_registry().match(_plan(phrase)) is None
+
+
 def test_registry_rejects_duplicate_alias():
     # Two families claiming the same normalized alias must fail loudly, not silently
     # shadow each other (TPL-002).

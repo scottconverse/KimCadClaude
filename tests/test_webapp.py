@@ -1678,6 +1678,49 @@ def test_concurrent_identical_slices_run_once(tmp_path, monkeypatch):
     assert r1 and r2 and r1[0]["gcode_url"] == r2[0]["gcode_url"]
 
 
+def test_design_route_admission_cap_429s_when_saturated(tmp_path, monkeypatch):
+    """ENG-004: the design route is the one heavy, otherwise-unbounded pipeline (slice/render
+    are already serialized by slice_lock/render_lock). With the in-flight cap pinned to 1, a
+    second design POST issued while the first is still mid-pipeline must be refused 429 with
+    reason:"busy" (admission control) instead of stacking a second 100s+ run. The first then
+    completes normally once released — the slot is freed in a finally."""
+    import threading
+
+    import kimcad.webapp as webapp_mod
+
+    # Pin the cap to 1 so a single in-flight run saturates it (read when make_handler builds
+    # the per-server BoundedSemaphore, which _serve does on entry — patch must precede it).
+    monkeypatch.setattr(webapp_mod, "_MAX_INFLIGHT_DESIGNS", 1)
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    class _BlockingPipeline(_MeshPipeline):
+        def run(self, prompt, out_dir, **kw):
+            entered.set()
+            release.wait(timeout=10)  # hold the only design slot until the test releases it
+            return super().run(prompt, out_dir, **kw)
+
+    with _serve(_BlockingPipeline(".stl"), tmp_path) as (host, port):
+        first: dict = {}
+
+        def post_first():
+            first["res"] = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
+
+        t1 = threading.Thread(target=post_first)
+        t1.start()
+        assert entered.wait(timeout=10), "the first design never entered the pipeline"
+        # The only slot is held — a concurrent design POST is refused immediately, not queued.
+        status, body = _req_json(host, port, "POST", "/api/design", {"prompt": "another box"})
+        assert status == 429, (status, body)
+        assert body.get("reason") == "busy", body
+        release.set()
+        t1.join(timeout=15)
+
+    s1, d1 = first["res"]
+    assert s1 == 200 and d1.get("mesh_url"), first["res"]  # the released run completed normally
+
+
 # --- Stage 5: template parameters on /api/design + the live-slider re-render endpoint -----
 
 import json as _json  # noqa: E402

@@ -47,7 +47,7 @@ see [troubleshooting](troubleshooting.md#python-isnt-found) ("Python isn't found
    download) and the small vision model that reads photos and sketches (~3 GB):
 
 ```
-ollama pull gemma4:e4b
+ollama pull qwen2.5:7b
 ollama pull qwen2.5vl:3b
 ```
 
@@ -61,7 +61,7 @@ ollama pull qwen2.5vl:3b
 ollama list
 ```
 
-You should see both `gemma4:e4b` and `qwen2.5vl:3b` in the list. (`kimcad models` will
+You should see both `qwen2.5:7b` and `qwen2.5vl:3b` in the list. (`kimcad models` will
 also confirm both once KimCad is installed.)
 
 ## Step 3 — Get KimCad

@@ -10,6 +10,7 @@ const hl = vi.hoisted(() => ({
   setHighlightsVisible: vi.fn(),
   focusHighlight: vi.fn(),
   setMeasureMode: vi.fn(),
+  handleKey: vi.fn((_key: string) => true),
 }))
 
 // Stub the three.js/WebGL viewport so the component renders in jsdom — we're testing the overlay
@@ -30,6 +31,7 @@ vi.mock('../viewport/KCViewport', () => ({
     setHighlightsVisible = hl.setHighlightsVisible
     focusHighlight = hl.focusHighlight
     setMeasureMode = hl.setMeasureMode
+    handleKey = hl.handleKey
     dispose() {}
   },
 }))
@@ -39,6 +41,26 @@ beforeEach(() => {
   hl.setHighlights.mockClear()
   hl.setHighlightsVisible.mockClear()
   hl.focusHighlight.mockClear()
+  hl.handleKey.mockClear()
+})
+
+describe('Viewport keyboard a11y (UX-003 / WCAG 2.1.1)', () => {
+  it('the canvas is focusable and arrow / ± keys drive the engine orbit + zoom', () => {
+    render(<Viewport {...baseProps} />)
+    const canvas = screen.getByLabelText(/3D preview/i)
+    expect((canvas as HTMLCanvasElement).tabIndex).toBe(0) // reachable by keyboard, not pointer-only
+    fireEvent.keyDown(canvas, { key: 'ArrowLeft' })
+    fireEvent.keyDown(canvas, { key: 'ArrowUp' })
+    fireEvent.keyDown(canvas, { key: '+' })
+    fireEvent.keyDown(canvas, { key: '-' })
+    expect(hl.handleKey.mock.calls.map((c) => c[0])).toEqual(['ArrowLeft', 'ArrowUp', '+', '-'])
+  })
+
+  it('the canvas advertises the keyboard controls in its accessible name', () => {
+    render(<Viewport {...baseProps} />)
+    const canvas = screen.getByLabelText(/3D preview/i)
+    expect(canvas.getAttribute('aria-label')).toMatch(/arrow keys to rotate/i)
+  })
 })
 
 const baseProps = {
