@@ -24,6 +24,15 @@ All notable changes to KimCad are documented here. Format follows
 > (a compiled wheel; relevant to the install footprint on the 32 GB target), though the
 > *import* is optional at runtime (hardening is skipped with a note if it is absent).
 
+## [0.9.0b2] — 2026-06-14
+
+The second Windows beta build, cut from `main` after the `0.9.0b1` tag (`beta`). It collects the
+full post-beta hardening below — the gate-integrity fix (the pre-push gate no longer goes green on
+a failing test), the broadened **29-printer** catalog, the **Playwright e2e** browser suite, the
+session-token guard, the diff-coverage gate, the macOS/Linux-from-source support, and the new
+**Duet + Marlin** printer connectors. Still **awaiting real-hardware connector validation (#11)**
+before promotion — every direct-send connector is validated against a conformance mock, not metal.
+
 ### Added
 - **RepRapFirmware/Duet + Marlin-serial printer connectors (#26, KC-21).** Two new send-to-printer
   protocols, each with a faithful conformance mock and full tests (the project's mock-twin pattern):
