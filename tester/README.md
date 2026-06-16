@@ -1,9 +1,11 @@
 # KimCad clean-machine test channel (`tester` branch)
 
-> ## ▶ CURRENT DIRECTIVE: [`directive-002-clean-install-evidence-first.md`](directive-002-clean-install-evidence-first.md)
-> Read it and run it. Two non-negotiable rules: **(1) every claim needs a committed artifact under
-> `evidence/002/` — no narration; (2) prove you're on the CORRECTED build (Phase 3 gate) before testing
-> anything — the public Releases build is STALE.** `directive-001` is superseded; ignore it.
+> ## ▶ CURRENT DIRECTIVE: [`directive-003-clean-install-evidence-first.md`](directive-003-clean-install-evidence-first.md)
+> Read it and run it. **Download `KimCad-Setup-0.9.0b3.exe` from the Releases page (v0.9.0b3 — now the
+> corrected build).** Two non-negotiable rules: **(1) every claim needs a committed artifact under
+> `evidence/003/` — no narration; (2) prove you're on the corrected build (Phase 3 gate: model =
+> `qwen2.5:7b` + the curated chips) before testing anything.** `directive-001` and `directive-002` are
+> superseded.
 
 This branch is an **async coordination channel** between two Claude agents over git:
 
