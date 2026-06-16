@@ -88,6 +88,14 @@ shell degradation** documented; the **batteries-included installer** now bundlin
 `serial` connector extras. A second 5-role audit-team pass on the whole repo was remediated to
 0/0/0/0/0. **The one and only physical phase still remaining: Kim runs it on her real printers (#11).**
 
+### 0.9.0b3 — corrected beta (2026-06-15, tag `v0.9.0b3`)
+
+The build a `0.9.0b2` user should actually have. `0.9.0b2` was cut *before* the default-model fix
+(`qwen2.5:7b` + grammar-constrained planning), the curated landing examples, and the entire
+second-pass audit remediation — so it shipped the bake-off-rejected `gemma4:e4b` planner. `0.9.0b3`
+folds all of that in, re-cut from `main` and re-verified (`verify_install` ALL GREEN; the gate green
+at 1598 pytest + 393 vitest). Still beta, still unsigned, still gated on #11 (real-metal validation).
+
 ---
 
 ## Stage 0 — Refit to the target model and close Phase 1  ✅ DONE

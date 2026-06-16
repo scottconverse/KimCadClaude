@@ -5,7 +5,9 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
-> The `0.9.0b1` and `0.9.0b2` Windows betas have shipped (tags `beta` and `v0.9.0b2`); each stage was tagged as it landed. `[Unreleased]` collects post-`0.9.0b2` work.
+## [0.9.0b3] — 2026-06-15
+
+> The `0.9.0b1`, `0.9.0b2`, and `0.9.0b3` Windows betas have shipped (tags `beta`, `v0.9.0b2`, `v0.9.0b3`). **`0.9.0b3` is the corrected build:** `0.9.0b2` was cut *before* the default-model fix (`qwen2.5:7b` + grammar-constrained planning), the curated landing examples, and the entire second-pass audit remediation — so a `0.9.0b2` user got the bake-off-rejected `gemma4:e4b` planner. `0.9.0b3` folds all of it in. Each stage was tagged as it landed.
 > **Stages 0–7 are tagged (`stage-0` … `stage-7`).** Stage 5 (deterministic template engine +
 > live sliders) and **Stage 6 (the model layer — advisor, tiered fallback, 3-axis grading,
 > bake-off, plan-failure robustness) both merged + tagged 2026-06-02** (Stage 6 through the full
