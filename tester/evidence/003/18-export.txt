@@ -1,0 +1,14 @@
+PHASE 5 — Custom design -> slider re-render -> slice -> export
+
+Custom prompt: "a 75 mm square coaster, 4 mm thick, with a 3 mm raised rim"
+  -> built on qwen2.5:7b in 42.1s, Readiness 92 "Passed", 0 console errors (15-custom-design.png)
+
+Slider re-render (LOCAL, no AI round-trip): "Outer diameter" 75 -> 80 mm, part re-rendered (16-slider-rerender.png)
+
+Slice (mock Bambu P2S / PLA): "Slice & prepare file" completed in ~18s (17-sliced.png)
+
+Exported files (verified real geometry):
+  18-export.stl  = binary STL, 764 triangles, 38,284 bytes (header triangle-count == file size: VALID)
+  18-export.3mf  = 1,038,249 bytes; valid 3MF/OOXML zip; entries include 3D/3dmodel.model,
+                   3D/Objects/part.oriented.stl_1.model, Metadata/plate_1.gcode (real sliced G-code),
+                   project_settings.config, slice_info.config => complete print-ready sliced 3MF.
