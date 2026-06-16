@@ -1,0 +1,7 @@
+﻿PHASE 2 — Install (silent, per-user)
+command: KimCad-Setup-0.9.0b3.exe /VERYSILENT /CURRENTUSER /SUPPRESSMSGBOXES /NORESTART /LOG
+exit code: 0   elapsed: 52s   admin required: NO (per-user /CURRENTUSER path)
+install location: C:\Users\a7207\AppData\Local\Programs\KimCad
+install dir exists: True
+
+uninstall-registry: DisplayName='KimCad 0.9.0b3' DisplayVersion='0.9.0b3' InstallLocation='C:\Users\a7207\AppData\Local\Programs\KimCad\' hive=HKCU
