@@ -1,0 +1,16 @@
+﻿=== Phase 0 clean-machine check (DESKTOP-2BR3SJR) 2026-06-16T00:26:29.7552294-06:00 ===
+python --version: Python 3.13.13
+  python path: C:\Users\a7207\AppData\Local\Programs\Python\Python313\python.exe
+  node: NOT recognized (expected)
+ollama --version: NOT found (expected on clean box)
+ollama.exe present: False
+WebView2 Runtime version: 149.0.4022.69
+prior KimCad install (Programs\KimCad): False
+prior KimCad (Program Files x86): False
+%LOCALAPPDATA%\KimCad data: False
+KimCad in Apps list: none (clean)
+OS: Microsoft Windows 11 Pro build 26200
+CPU: AMD Ryzen 7 8745HS w/ Radeon 780M Graphics     
+GPU: AMD Radeon 780M Graphics
+RAM GB: 27.8
+

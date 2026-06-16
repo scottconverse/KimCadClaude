@@ -1,0 +1,7 @@
+﻿PHASE 1 — Download + integrity (KimCad-Setup-0.9.0b3.exe)
+source: https://github.com/scottconverse/KimCadClaude/releases/download/v0.9.0b3/KimCad-Setup-0.9.0b3.exe
+size bytes: 203466477  (expected 203466477; match: True)
+computed SHA-256: 2ffb5c12bd2ec65d8e233875e001db45af5040b386cf17d8cc02bd0ca1e66fbd
+expected SHA-256: 2ffb5c12bd2ec65d8e233875e001db45af5040b386cf17d8cc02bd0ca1e66fbd
+MATCH: True
+stale-build sha (must NOT equal): f75495a045f0e03f1a4207ef94cb1240a87eb8934ae5758eeb66e33794fd6059

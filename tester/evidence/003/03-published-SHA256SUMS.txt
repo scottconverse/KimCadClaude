@@ -1,0 +1,1 @@
+2ffb5c12bd2ec65d8e233875e001db45af5040b386cf17d8cc02bd0ca1e66fbd  KimCad-Setup-0.9.0b3.exe
