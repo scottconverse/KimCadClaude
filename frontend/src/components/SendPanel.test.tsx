@@ -176,6 +176,7 @@ describe('SendPanel', () => {
       })
       const { unmount } = render(<SendPanel designId={6} />)
       await vi.advanceTimersByTimeAsync(0) // flush the connectors load
+      mockStatus.mockClear() // drop the UX-006 one-shot pre-send status read; count the SEND poll only
       fireEvent.click(screen.getByRole('button', { name: /send to printer/i }))
       fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
       await vi.advanceTimersByTimeAsync(0) // send resolves; the first poll fires
@@ -202,6 +203,7 @@ describe('SendPanel', () => {
       })
       render(<SendPanel designId={8} />)
       await vi.advanceTimersByTimeAsync(0)
+      mockStatus.mockClear() // drop the UX-006 one-shot pre-send status read; count the SEND poll only
       fireEvent.click(screen.getByRole('button', { name: /send to printer/i }))
       fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
       await vi.advanceTimersByTimeAsync(0)
@@ -226,6 +228,14 @@ describe('SendPanel', () => {
     try {
       mockConnectors.mockResolvedValue(REAL_AND_MOCK)
       mockSend.mockResolvedValue({ sent: true, connector: 'octoprint', simulated: false, job_id: 'j5' })
+      // The UX-006 pre-send read happens first (on selection); give it a benign resolution, then
+      // flush+clear so the SEND poll chain owns the sequenced returns below.
+      mockStatus.mockResolvedValue({
+        name: 'octoprint', ready: false, online: true, state: 'operational', simulated: false,
+      })
+      render(<SendPanel designId={9} />)
+      await vi.advanceTimersByTimeAsync(0)
+      mockStatus.mockReset()
       mockStatus
         .mockResolvedValueOnce({
           name: 'octoprint', ready: false, online: true, state: 'printing', reason: 'busy', simulated: false,
@@ -234,8 +244,6 @@ describe('SendPanel', () => {
         .mockResolvedValue({
           name: 'octoprint', ready: true, online: true, state: 'operational', simulated: false,
         })
-      render(<SendPanel designId={9} />)
-      await vi.advanceTimersByTimeAsync(0)
       fireEvent.click(screen.getByRole('button', { name: /send to printer/i }))
       fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
       await vi.advanceTimersByTimeAsync(0)
@@ -273,5 +281,35 @@ describe('SendPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: /send test job/i }))
     fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
     expect(await screen.findByText(/unreadable response/i)).toBeTruthy()
+  })
+
+  // UX-006: a configured, non-simulated connection's CURRENT thermal state shows as read-only
+  // temperature chips BEFORE any send, so the user can tell the printer is warm or cold.
+  it('shows a pre-send "Printer status" line with temperature chips for a configured real connector', async () => {
+    mockConnectors.mockResolvedValue({
+      connectors: [{ name: 'octoprint', simulated: false, configured: true }],
+      default: 'octoprint',
+    })
+    mockStatus.mockResolvedValue({
+      name: 'octoprint', ready: true, online: true, state: 'operational', simulated: false,
+      toolhead_temps: [205, null],
+    })
+    render(<SendPanel designId={4} />)
+    expect(await screen.findByText('Printer status')).toBeTruthy()
+    expect(await screen.findByText('T1: 205°C')).toBeTruthy()
+    // ENG-004: a null element in the array renders an em-dash, never crashes on toFixed.
+    expect(screen.getByText('T2: —°C')).toBeTruthy()
+    // It used getConnectorStatus once (a one-shot read, not a poll).
+    await waitFor(() => expect(mockStatus).toHaveBeenCalledWith('octoprint'))
+  })
+
+  it('shows no pre-send status line for a simulated (test) connection', async () => {
+    mockConnectors.mockResolvedValue(MOCK_ONLY)
+    mockStatus.mockResolvedValue({
+      name: 'mock', ready: true, simulated: true, toolhead_temps: [200],
+    })
+    render(<SendPanel designId={4} />)
+    expect(await screen.findByRole('button', { name: /send test job/i })).toBeTruthy()
+    expect(screen.queryByText('Printer status')).toBeNull()
   })
 })

@@ -194,11 +194,27 @@ When a part passes the gate, you can:
   KimCad's own dialog (it never auto-starts a print), and watch the live status. A built-in
   **test connection** (`mock`) proves the whole send path without any hardware.
 
-KimCad's picker offers a **curated catalog of ~29 popular current machines** across the top
-makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each build-volume-checked and
-slice-proven, on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send today
-covers six connection types — Bambu native LAN, OctoPrint, Moonraker (Klipper), PrusaLink,
-and the new **Duet** and **Marlin** connectors.
+KimCad's picker offers a **curated catalog of ~30 popular current machines** across the top
+makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol, Snapmaker), each
+build-volume-checked and slice-proven, on top of the full ~1,400-profile OrcaSlicer library on
+disk. Direct send today covers seven connection types — Bambu native LAN, OctoPrint, Moonraker
+(Klipper), the **Snapmaker** U1 (Klipper/Moonraker-based), PrusaLink, and the **Duet** and
+**Marlin** connectors.
+
+### Multi-toolhead printers
+
+A few printers have more than one extruder — the **Snapmaker U1**, for instance, has four. For
+these, the slice step shows **one material dropdown per extruder** (Extruder 1..N, which map to
+the printer's toolheads T0..T(N-1)). Assign the filament you want each extruder to use, then
+confirm. Any slot you leave at the default material simply prints in that default material, and
+the slots are used in order. Single-extruder printers are unaffected — they show one material
+picker as before.
+
+> **One caveat — your config is authoritative.** The number of toolheads KimCad slices for comes
+> from the **printer's configuration**, not from live hardware state — you often slice before the
+> printer is even reachable, so KimCad slices for the printer model *as configured*. If your
+> actual hardware has fewer heads than the config declares, reconcile your config (in
+> `config/local.yaml`, or with your maintainer) so the slot count matches your machine.
 
 > **Beta status:** connections are validated against the printers' real software protocols
 > (against a faithful conformance mock) but **not yet on physical hardware** — that's the
@@ -349,8 +365,8 @@ provider's current list before relying on it.
 
 A sliced job can be sent to a **printer connection** through a swappable connector. Every
 send requires explicit confirmation and refuses anything that isn't a proven slice. The
-printer **picker** offers a curated **~29-machine catalog** (build-volume-gated, slice-proven
-in CI) on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send covers seven
+printer **picker** offers a curated **~30-machine catalog** (build-volume-gated, slice-proven
+in CI) on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send covers eight
 connectors:
 
 | Connector | Printers | Config |
@@ -359,6 +375,7 @@ connectors:
 | `bambu` | Bambu Lab P2S / A1 (native LAN) | `base_url` (IP), `serial`, access-code env var, `use_ams`; optional `bambulabs-api` pkg |
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper (Voron, Creality-Klipper, RatRig …) | `base_url`, optional `api_key_env` |
+| `snapmaker` | Snapmaker U1 (Klipper/Moonraker-based, 4-toolhead) — extends `moonraker` with per-extruder status | `base_url`, optional `api_key_env` |
 | `prusalink` | Prusa MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
 | `duet` | RepRapFirmware / Duet 2/3 boards | `base_url` (board IP), optional `api_key_env` (board password if one is set) |
 | `marlin` | Marlin firmware (Ender-class + most consumer FDM) | `base_url` = USB serial port **or** `host:port` bridge |
@@ -495,7 +512,7 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
 | `validation.py` / `printability.py` / `orientation.py` / `hardening.py` | the validation → gate → orient → harden stack |
 | `slicer.py` | the OrcaSlicer CLI integration |
 | `pipeline.py` | the orchestrator that wires it all and builds the report |
-| `printer_connector.py` + `*_connector.py` | the send abstraction + leaf connectors (`bambu_`, `octoprint_`, `moonraker_`, `prusalink_`, `duet_`, `marlin_`) |
+| `printer_connector.py` + `*_connector.py` | the send abstraction + leaf connectors (`bambu_`, `octoprint_`, `moonraker_`, `snapmaker_`, `prusalink_`, `duet_`, `marlin_`) |
 | `webapp.py` / `shell.py` | the local web layer (incl. the session-token guard) and the WebView2 app window |
 | `design_registry.py` | per-design server state + its locking protocols |
 | `paths.py` | the dev↔installed + per-OS path seam (read root vs writable root) |

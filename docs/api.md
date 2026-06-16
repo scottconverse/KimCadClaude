@@ -102,6 +102,18 @@ Slice a gate-passing part for a printer + material. The POST is the explicit con
 
 Request: `{"printer": "bambu_p2s", "material": "pla"}`
 
+For a **multi-toolhead** printer (`toolhead_count > 1` — see `/api/options`), supply one
+material per extruder as `filament_slot_0`..`filament_slot_{N-1}` instead of a single
+`material`:
+
+```json
+{"printer": "snapmaker_u1", "filament_slot_0": "pla", "filament_slot_1": "petg",
+ "filament_slot_2": "tpu", "filament_slot_3": "abs"}
+```
+
+Any omitted slot falls back to the `material` field. A multi-toolhead printer always slices
+per-slot; single-toolhead printers ignore the `filament_slot_*` fields and use `material`.
+
 Response: `{"sliced": true, "gcode_url": "/api/gcode/3", "estimate": "...", "machine": "...",
 "process": "...", "filament": "..."}` — or `{"sliced": false, "reason":
 "no_profile" | "failed" | "stale", "note": "..."}`. A gate-**failed** part is refused
@@ -134,10 +146,23 @@ If the part was not just sent to real hardware, the endpoint returns `409` with
 
 `connectors` lists configured connections (`name`, `simulated`, `configured`).
 `connector-status` is the live readiness of one printer (`ready` / `busy` / `offline` /
-`needs_setup` — statuses, never 5xx). `connections` GET lists each connection's effective
+`needs_setup` — statuses, never 5xx). When the connector reports them, the status payload MAY
+also carry `nozzle_temp_c` (float, °C) and `toolhead_temps` (an array of floats, T0..T(N-1))
+— both are present only when the connector actually reports a temperature. `toolhead_temps`
+lists only the extruders currently reporting a numeric temperature, so it can be **shorter
+than the printer's `toolhead_count`** (see `/api/options`) if a head is disconnected. A
+single-toolhead connector that reports a hotend temperature surfaces it as `nozzle_temp_c`.
+
+`connections` GET lists each connection's effective
 non-secret fields (+ which env var holds its secret and whether it's set); POST saves the
 overlay for one named connection (`{"name": "...", "base_url": "...", "serial": "...",
 "use_ams": true}`) — secrets never pass through this surface in either direction.
+
+**Connector `type` vocabulary** (the `type` field on a configured connection):
+`mock` (`loopback`), `octoprint`, `moonraker`, `prusalink`, `duet`, `marlin`, `bambu`, and
+`snapmaker` — the Snapmaker U1 (Klipper/Moonraker-based, 4-toolhead); it extends `moonraker`
+with per-extruder status (auto-detected active extruders → `toolhead_count`, per-extruder
+`toolhead_temps`) and inherits the full Moonraker send/job/pause/resume/cancel path.
 
 ---
 
@@ -182,8 +207,11 @@ credential store at rest.
 
 ### GET `/api/options`
 
-The printer + material catalog the UI offers (each printer with its build volume and
-`sliceable` flag) plus the effective defaults.
+The printer + material catalog the UI offers (each printer with its build volume,
+`sliceable` flag, and `toolhead_count`) plus the effective defaults. `toolhead_count` is an
+integer — **1 for a single-toolhead printer; N for a multi-toolhead printer** (the Snapmaker
+U1 reports 4). The SPA uses it to render one material dropdown per extruder and to drive the
+`filament_slot_*` slice request (see `POST /api/slice`).
 
 ### GET `/api/templates`
 

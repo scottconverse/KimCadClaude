@@ -80,6 +80,15 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
     setError(null)
   }, [result?.mesh_url])
 
+  // UX-004: for a multi-head printer, the post-slice summary surfaces the per-extruder material
+  // assignments (KEY → display name from the in-scope `materials` list). Empty for a single head —
+  // that summary keeps showing the one primary material.
+  const isMultiHead = (selectedPrinter?.toolhead_count ?? 1) > 1
+  const slotMaterialNames = useMemo(() => {
+    if (!isMultiHead) return []
+    return materialSlots.map((key) => materials.find((m) => m.key === key)?.name ?? key)
+  }, [isMultiHead, materialSlots, materials])
+
   const designId = designIdFromMeshUrl(result?.mesh_url)
   const gateFailed = result?.report?.gate_status === 'fail'
   const canSlice =
@@ -155,26 +164,41 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
           </label>
 
           {(selectedPrinter?.toolhead_count ?? 1) > 1 ? (
-            materialSlots.map((slot, i) => (
-              <label key={i} className="kc-field">
-                <span>T{i + 1} Material</span>
-                <select
-                  value={slot}
-                  onChange={(e) => {
-                    const next = [...materialSlots]
-                    next[i] = e.target.value
-                    setMaterialSlots(next)
-                  }}
-                >
-                  {materials.map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {m.name}
-                      {selectedPrinter?.generic_materials.includes(m.key) ? ' (generic profile)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))
+            <>
+              {/* UX-002: name each slot by its physical extruder and say what assigning one does,
+                  so "Extruder 2: TPU" reads plainly instead of the slicer-jargon "T2 Material". */}
+              <p className="kc-muted-note">
+                Assign a filament to each extruder — the slicer tunes temperature and retraction per
+                slot.
+              </p>
+              {/* UX-003: a wrapping grid keeps many extruders compact and the Slice button visible. */}
+              <div className="kc-material-slots">
+                {materialSlots.map((slot, i) => (
+                  <label key={i} htmlFor={`kc-slot-${i}`} className="kc-field">
+                    <span id={`kc-slot-label-${i}`}>Extruder {i + 1}</span>
+                    <select
+                      id={`kc-slot-${i}`}
+                      aria-labelledby={`kc-slot-label-${i}`}
+                      value={slot}
+                      onChange={(e) => {
+                        const next = [...materialSlots]
+                        next[i] = e.target.value
+                        setMaterialSlots(next)
+                      }}
+                    >
+                      {materials.map((m) => (
+                        <option key={m.key} value={m.key}>
+                          {m.name}
+                          {selectedPrinter?.generic_materials.includes(m.key)
+                            ? ' (generic profile)'
+                            : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </>
           ) : (
             <label className="kc-field">
               <span>Material</span>
@@ -227,7 +251,10 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
           )}
           {slice && slice.sliced && (
             <>
-              <PrintSummary slice={slice} />
+              <PrintSummary
+                slice={slice}
+                slotMaterials={isMultiHead ? slotMaterialNames : undefined}
+              />
               {/* Stage 10: direct print — only offered once a proven print file exists; the
                   server re-checks the gate verdict on /api/send regardless. */}
               <SendPanel designId={designId} />
@@ -285,7 +312,15 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
 // Slice 10 — output clarity: once the part is sliced, show *what you're going to get* — a plain
 // "your design → print file" line, the estimate broken out (time / layers / filament length +
 // weight) instead of one blob, and the print file with a copy-the-link affordance.
-function PrintSummary({ slice }: { slice: SliceResponse }) {
+function PrintSummary({
+  slice,
+  slotMaterials,
+}: {
+  slice: SliceResponse
+  // UX-004: per-extruder material display names for a multi-head printer (in slot order).
+  // Undefined/empty for a single head — the summary keeps showing the one primary material.
+  slotMaterials?: string[]
+}) {
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(
@@ -320,11 +355,20 @@ function PrintSummary({ slice }: { slice: SliceResponse }) {
     }
   }
 
+  // UX-004: a multi-head slice lists each extruder's filament ("Extruder 1: PLA, Extruder 2: TPU")
+  // instead of the single primary material — what actually went on the machine, per slot.
+  const hasSlots = !!slotMaterials && slotMaterials.length > 0
+  const slotLead = hasSlots
+    ? ` — ${slotMaterials.map((name, i) => `Extruder ${i + 1}: ${name}`).join(', ')}`
+    : slice.material
+      ? ` in ${slice.material}`
+      : ''
+
   return (
     <div className="kc-slice-result">
       <p className="kc-print-lead">
         Sliced{slice.printer ? ` for ${slice.printer}` : ''}
-        {slice.material ? ` in ${slice.material}` : ''}. Here&rsquo;s your print:
+        {slotLead}. Here&rsquo;s your print:
       </p>
       <ol className="kc-print-flow" aria-label="From your design to a ready print file">
         <li className="kc-flow-step kc-flow-done">Your design</li>

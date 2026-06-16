@@ -35,6 +35,12 @@ class SnapmakerConnector(MoonrakerConnector):
     All send / job_status / pause / resume / cancel behaviour is inherited from
     :class:`MoonrakerConnector` unchanged; only ``capabilities`` and ``status`` are
     overridden to surface per-extruder data.
+
+    ENG-004/ENG-006: ``status().toolhead_temps`` contains ONLY the extruders currently
+    reporting a numeric temperature, in T0..TN-1 order, and MAY be shorter than
+    ``capabilities().toolhead_count`` if a head is disconnected — a head present in the query
+    but reporting ``temperature: null`` is omitted. This is intentional so the tuple (and the
+    JSON it serializes to) stays valid: no NaN/null ever enters ``toolhead_temps``.
     """
 
     def capabilities(self) -> PrinterCapabilities:
@@ -77,6 +83,18 @@ class SnapmakerConnector(MoonrakerConnector):
         )
 
     def status(self) -> PrinterStatus:
+        """Snapshot the printer + per-extruder temps.
+
+        ENG-004/ENG-006/ENG-101: ``toolhead_temps`` carries one entry per extruder object
+        *present* in the query response, in T0..TN-1 order. An object that is absent (a machine
+        with fewer heads) is dropped, so the tuple MAY be shorter than
+        ``capabilities().toolhead_count``. An object that is present but reporting
+        ``temperature: null`` (a disconnected head on an N-head machine) keeps its index as
+        ``None`` — the position is index-stable so a non-reporting *middle* head never shifts the
+        T-labels of the heads after it. ``None`` is valid JSON (unlike NaN), so the serialized
+        response stays well-formed; the SPA renders a non-reporting slot as "—". ``nozzle_temp_c``
+        is T0's temperature (``None`` if T0 itself isn't reporting).
+        """
         try:
             status = self._query("print_stats", "heater_bed", *_EXTRUDER_OBJECTS)
         except urllib.error.HTTPError as e:
@@ -97,13 +115,15 @@ class SnapmakerConnector(MoonrakerConnector):
         print_stats = status.get("print_stats") or {}
         raw = str(print_stats.get("state") or "").lower()
         state = _PRINT_STATE.get(raw, PrinterState.error if raw else PrinterState.operational)
-        temps: list[float] = []
+        temps: list[float | None] = []
         for obj in _EXTRUDER_OBJECTS:
             block = status.get(obj)
-            if block is not None:
-                t = block.get("temperature")
-                if t is not None:
-                    temps.append(float(t))
+            if block is None:
+                continue  # extruder object absent → this machine simply has fewer heads
+            # ENG-101: a present-but-non-reporting head (temperature: null) keeps its T-index
+            # as None so the heads after it don't shift onto the wrong T-label.
+            t = block.get("temperature")
+            temps.append(float(t) if t is not None else None)
         return PrinterStatus(
             online=True,
             state=state,

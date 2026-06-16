@@ -29,6 +29,13 @@ DEFAULT_CONFIG = PROJECT_ROOT / "config" / "default.yaml"
 LOCAL_CONFIG = _user_config_path()
 
 
+# ENG-007: THE single-head default toolhead count, defined once and shared by both the config
+# reader (Printer.toolhead_count) and the connector capability default
+# (PrinterCapabilities.toolhead_count). Defined HERE (not in printer_connector) to avoid an import
+# cycle: config -> printer_connector -> slicer -> config; printer_connector imports it from here.
+DEFAULT_TOOLHEAD_COUNT = 1
+
+
 class UnknownConfigKey(RuntimeError):
     """An unknown printer/material/backend/connector name (QA-301). A RuntimeError subclass so the
     CLI's RuntimeError handler prints it cleanly; the web layer catches it for a 400 (not a 500)."""
@@ -48,7 +55,7 @@ class Printer:
     orca_process_profile: str | None = None
     orca_filament_profiles: dict[str, str] = field(default_factory=dict)
     reference_hardware: bool = False
-    toolhead_count: int = 1
+    toolhead_count: int = DEFAULT_TOOLHEAD_COUNT
 
 
 @dataclass(frozen=True)
@@ -288,7 +295,7 @@ class Config:
             orca_process_profile=p.get("orca_process_profile"),
             orca_filament_profiles=dict(p.get("orca_filament_profiles", {})),
             reference_hardware=bool(p.get("reference_hardware", False)),
-            toolhead_count=int(p.get("toolhead_count", 1)),
+            toolhead_count=int(p.get("toolhead_count", DEFAULT_TOOLHEAD_COUNT)),
         )
 
     def material(self, key: str | None = None) -> Material:

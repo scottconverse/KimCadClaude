@@ -549,6 +549,15 @@ def test_web_options_lists_per_printer_available_materials():
     assert "tpu" not in by_key["elegoo_neptune_4_max"]["materials"]
 
 
+def test_web_options_carries_toolhead_count():
+    # TEST-005: the per-printer toolhead_count surfaces in /api/options so the SPA can render the
+    # right number of filament-slot pickers — single-head for the Bambu P2S, four for the U1.
+    opts = web_options(Config.load())
+    by_key = {p["key"]: p for p in opts["printers"]}
+    assert by_key["bambu_p2s"]["toolhead_count"] == 1
+    assert by_key["snapmaker_u1"]["toolhead_count"] == 4
+
+
 def _serve_with_token(pipe, root, token):
     """A server booted WITH a session token (production injects a per-boot one); tests/dev default
     to an empty token, so the guard is opt-in here."""
@@ -1484,6 +1493,120 @@ def test_slice_is_idempotent_one_real_slice_per_key(tmp_path, monkeypatch):
         d2 = slice_once()
     assert calls["n"] == 1  # the second identical request was served from cache
     assert d1["gcode_url"] == d2["gcode_url"]
+
+
+# --- TEST-003 / QA-003: multi-head filament_slots wiring through /api/slice -------------------
+
+
+def _recording_slice():
+    """A slice_registered_mesh stub that records every call's filament_slots (and counts calls),
+    writes a real (per-slots) gcode file, and returns a minimal sliced=True payload. Accepts the
+    optional filament_slots kwarg the multi-head path passes (single-head omits it entirely)."""
+    calls = []
+
+    def stub(config, mesh_path, printer, material, *, filament_slots=None):
+        calls.append({"printer": printer, "material": material, "filament_slots": filament_slots})
+        tag = "_".join(filament_slots) if filament_slots else material
+        gp = mesh_path.parent / f"{mesh_path.name.split('.')[0]}_{printer}_{tag}.gcode.3mf"
+        gp.write_bytes(b"PKfake")
+        return (
+            {"sliced": True, "printer": printer, "material": material, "gcode_lines": 5,
+             "estimate": "", "profiles": {"machine": "m", "process": "p", "filament": "f"}},
+            gp,
+        )
+
+    return stub, calls
+
+
+def _slice_post(base, rid, body):
+    import json
+    import urllib.request
+    return json.load(urllib.request.urlopen(
+        urllib.request.Request(
+            base + f"/api/slice/{rid}",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+
+
+def test_slice_multihead_forwards_filament_slots(tmp_path, monkeypatch):
+    """TEST-003: POSTing explicit filament_slot_* fields to a multi-head printer forwards them
+    as an ordered filament_slots tuple to the slicer."""
+    import kimcad.webapp as webapp_mod
+
+    stub, calls = _recording_slice()
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        _slice_post(base, rid, {
+            "printer": "snapmaker_u1", "material": "pla",
+            "filament_slot_0": "pla", "filament_slot_1": "petg",
+            "filament_slot_2": "pla", "filament_slot_3": "abs",
+        })
+    assert len(calls) == 1
+    assert calls[0]["filament_slots"] == ("pla", "petg", "pla", "abs")
+
+
+def test_slice_multihead_with_no_slots_fills_full_tuple(tmp_path, monkeypatch):
+    """ENG-001 (QA-003): a multi-head POST with NO filament_slot_* fields must NOT collapse to the
+    single-head key — every slot falls back to `material`, so the slicer gets a full 4-tuple."""
+    import kimcad.webapp as webapp_mod
+
+    stub, calls = _recording_slice()
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        _slice_post(base, rid, {"printer": "snapmaker_u1", "material": "pla"})
+    assert len(calls) == 1
+    assert calls[0]["filament_slots"] == ("pla", "pla", "pla", "pla")
+
+
+def test_slice_multihead_distinct_slots_are_distinct_slices_same_are_cached(tmp_path, monkeypatch):
+    """TEST-003: two POSTs with DIFFERENT slot tuples are two distinct slices (cache miss); two
+    POSTs with the SAME slot tuple hit the cache (slice runs once)."""
+    import kimcad.webapp as webapp_mod
+
+    stub, calls = _recording_slice()
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        a = {"printer": "snapmaker_u1", "material": "pla",
+             "filament_slot_0": "pla", "filament_slot_1": "petg",
+             "filament_slot_2": "pla", "filament_slot_3": "abs"}
+        b = {"printer": "snapmaker_u1", "material": "pla",
+             "filament_slot_0": "abs", "filament_slot_1": "abs",
+             "filament_slot_2": "abs", "filament_slot_3": "abs"}
+        _slice_post(base, rid, a)
+        _slice_post(base, rid, b)   # different tuple -> a second slice
+        _slice_post(base, rid, a)   # repeat of `a` -> cache hit, no new slice
+    assert len(calls) == 2
+    assert calls[0]["filament_slots"] == ("pla", "petg", "pla", "abs")
+    assert calls[1]["filament_slots"] == ("abs", "abs", "abs", "abs")
+
+
+def test_slice_single_head_ignores_filament_slots(tmp_path, monkeypatch):
+    """TEST-003: filament_slot_* fields POSTed to a SINGLE-head printer (toolhead_count 1) are
+    ignored — the slicer is called WITHOUT a filament_slots kwarg (it stays None)."""
+    import kimcad.webapp as webapp_mod
+
+    stub, calls = _recording_slice()
+    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        rid = _design_rid(base)
+        _slice_post(base, rid, {
+            "printer": "bambu_p2s", "material": "pla",
+            "filament_slot_0": "pla", "filament_slot_1": "petg",
+        })
+    assert len(calls) == 1
+    assert calls[0]["filament_slots"] is None
 
 
 def test_slice_response_carries_structured_estimate_and_filename(tmp_path, monkeypatch):

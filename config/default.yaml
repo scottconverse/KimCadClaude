@@ -462,12 +462,7 @@ printers:
       petg: "Snapmaker PETG @U1"
       tpu: "Snapmaker TPU 95A @U1"
       abs: "Snapmaker ABS @U1"
-    # Connector template (copy to config/local.yaml and fill in base_url):
-    # connectors:
-    #   snapmaker_u1:
-    #     type: snapmaker
-    #     base_url: http://192.168.1.xxx:7125
-    #     # api_key_env: SNAPMAKER_API_KEY  # optional; Moonraker typically runs unauthenticated
+    # To print to it, fill in base_url on the `snapmaker_u1` entry in the connectors: block below.
 
 # Min recommended wall thickness is computed as wall_multiplier * nozzle_diameter
 # unless a material overrides it. Temps are nozzle/bed in °C.
@@ -511,6 +506,16 @@ connectors:
     type: moonraker
     base_url:                       # e.g. http://192.168.0.40 (Mainsail/Fluidd box)
     api_key_env: MOONRAKER_API_KEY
+  # Snapmaker U1: runs Klipper/Moonraker, so use type: snapmaker (NOT moonraker) — the snapmaker
+  # connector auto-detects the active extruders and reports per-extruder temperatures (the plain
+  # moonraker connector reports a single nozzle). Port 7125 is Moonraker's default. The API key is
+  # OPTIONAL: Moonraker typically runs unauthenticated on a trusted LAN; set its env var only if
+  # your [authorization] block requires one. Ships visible-but-unconfigured (empty base_url) like
+  # the templates above — fill in the address in Settings -> Printer connections.
+  snapmaker_u1:
+    type: snapmaker
+    base_url:                       # e.g. http://192.168.1.xxx:7125
+    api_key_env: SNAPMAKER_API_KEY  # optional; trusted-LAN Moonraker is usually unauthenticated
   prusalink:
     type: prusalink
     base_url:                       # the printer's IP, e.g. http://192.168.0.50

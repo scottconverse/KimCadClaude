@@ -170,7 +170,8 @@ export interface ConnectorStatusResponse {
   simulated: boolean
   note?: string
   nozzle_temp_c?: number | null
-  toolhead_temps?: number[] | null
+  // ENG-101: index-stable per-head temps; a present-but-non-reporting head is null at its index.
+  toolhead_temps?: (number | null)[] | null
 }
 
 export interface ConnectorsResponse {

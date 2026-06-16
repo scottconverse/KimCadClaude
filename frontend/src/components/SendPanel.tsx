@@ -123,6 +123,34 @@ export default function SendPanel({ designId }: { designId: number | null }) {
     }
   }, [chosen, needsNote])
 
+  // UX-006: before any send, show the printer's CURRENT thermal state so the user can see if it's
+  // warm or cold. One bounded fetch on selection (NOT a poll) for a configured, non-simulated
+  // connector — it reuses the same getConnectorStatus path as the setup-note above. Cleared once a
+  // real send starts so the post-send live banner takes over (no stale pre-send line lingering).
+  const [preStatus, setPreStatus] = useState<ConnectorStatusResponse | null>(null)
+  const entryForPre = conns?.connectors.find((c) => c.name === chosen) ?? null
+  const wantsPreStatus = !!entryForPre && entryForPre.configured && !entryForPre.simulated
+  useEffect(() => {
+    if (!wantsPreStatus || !chosen) {
+      setPreStatus(null)
+      return
+    }
+    let cancelled = false
+    setPreStatus(null)
+    // Promise.resolve(...) tolerates a status path that throws synchronously or returns a
+    // non-promise — this read is purely informational, so any failure just leaves the line off.
+    Promise.resolve(getConnectorStatus(chosen))
+      .then((s) => {
+        if (!cancelled) setPreStatus(s ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setPreStatus(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [chosen, wantsPreStatus])
+
   const entry = conns?.connectors.find((c) => c.name === chosen) ?? null
   // Nothing to offer: no design id, no connectors at all, or none even selectable.
   if (designId == null || !conns || conns.connectors.length === 0) return null
@@ -135,6 +163,7 @@ export default function SendPanel({ designId }: { designId: number | null }) {
     setResult(null)
     setOutcomeState(null)
     setLive(null)
+    setPreStatus(null) // UX-006: the post-send live banner supersedes the pre-send status line
     stopPoll()
     try {
       const r = await sendDesign(designId, chosen)
@@ -221,6 +250,31 @@ export default function SendPanel({ designId }: { designId: number | null }) {
         </p>
       )}
 
+      {/* UX-006: a read-only glance at the printer's CURRENT thermal state BEFORE sending —
+          so the user can tell if it's warm or cold. Only when the chosen connector reported
+          a temperature, and only until a send takes over (the live banner then owns the chips). */}
+      {!result && preStatus && (preStatus.nozzle_temp_c != null ||
+        (preStatus.toolhead_temps && preStatus.toolhead_temps.length > 0)) && (
+        <p className="kc-send-live kc-presend-status">
+          <span>Printer status</span>
+          {preStatus.toolhead_temps && preStatus.toolhead_temps.length > 0 ? (
+            <span className="kc-send-temps">
+              {preStatus.toolhead_temps.map((t, i) => (
+                <span key={i} className="kc-temp-chip">
+                  T{i + 1}: {t != null ? t.toFixed(0) : '—'}°C
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="kc-send-temps">
+              <span className="kc-temp-chip">
+                Nozzle: {preStatus.nozzle_temp_c != null ? preStatus.nozzle_temp_c.toFixed(0) : '—'}°C
+              </span>
+            </span>
+          )}
+        </p>
+      )}
+
       {confirming && entry && (
         <ConfirmDialog
           message={
@@ -273,7 +327,9 @@ export default function SendPanel({ designId }: { designId: number | null }) {
               {live?.toolhead_temps && live.toolhead_temps.length > 0 && (
                 <span className="kc-send-temps">
                   {live.toolhead_temps.map((t, i) => (
-                    <span key={i} className="kc-temp-chip">T{i + 1}: {t.toFixed(0)}°C</span>
+                    <span key={i} className="kc-temp-chip">
+                      T{i + 1}: {t != null ? t.toFixed(0) : '—'}°C
+                    </span>
                   ))}
                 </span>
               )}

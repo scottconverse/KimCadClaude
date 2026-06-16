@@ -442,6 +442,39 @@ describe('getOptions / postSlice', () => {
     await postSlice(7, 'p2s', 'pla', ctrl.signal)
     expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ signal: ctrl.signal })
   })
+
+  // TEST-006: a multi-head slice carries per-extruder assignments as filament_slot_0..N-1; a
+  // single-head slice sends only printer+material (no slot keys at all).
+  it('postSlice includes filament_slot_0..N-1 when more than one material slot is given', async () => {
+    const fetchMock = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ sliced: true }) }))
+    await postSlice(7, 'u1', 'pla', undefined, ['pla', 'tpu', 'petg'])
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as RequestInit
+    const body = JSON.parse(init.body as string)
+    expect(body).toMatchObject({
+      printer: 'u1',
+      material: 'pla',
+      filament_slot_0: 'pla',
+      filament_slot_1: 'tpu',
+      filament_slot_2: 'petg',
+    })
+    // No stray higher-index slot keys beyond the three provided.
+    expect(body.filament_slot_3).toBeUndefined()
+  })
+
+  it('postSlice omits slot keys for a single head (no slots, or a single-entry slot list)', async () => {
+    const fetchMock = mockFetch(async () => ({ ok: true, status: 200, json: async () => ({ sliced: true }) }))
+    await postSlice(7, 'p2s', 'pla')
+    const noSlotsInit = (fetchMock.mock.calls[0] as unknown[])[1] as RequestInit
+    const noSlots = JSON.parse(noSlotsInit.body as string)
+    expect(noSlots).toEqual({ printer: 'p2s', material: 'pla' })
+
+    fetchMock.mockClear()
+    await postSlice(7, 'p2s', 'pla', undefined, ['pla'])
+    const oneSlotInit = (fetchMock.mock.calls[0] as unknown[])[1] as RequestInit
+    const oneSlot = JSON.parse(oneSlotInit.body as string)
+    expect(oneSlot).toEqual({ printer: 'p2s', material: 'pla' })
+    expect(oneSlot.filament_slot_0).toBeUndefined()
+  })
 })
 
 // TEST-403: the settings/status GETs and the "My Designs" CRUD wrappers were the seam most exposed

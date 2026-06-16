@@ -5,6 +5,29 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+- **Snapmaker U1 + generic multi-toolhead support.** A new **`snapmaker`** connector type
+  (`SnapmakerConnector`) extends the Moonraker connector: the Snapmaker U1 runs
+  Klipper/Moonraker, so `type: snapmaker` builds on `type: moonraker` by auto-detecting the
+  active extruder objects and reporting **per-extruder temperatures**. All
+  send/job/pause/resume/cancel behavior is inherited from Moonraker. The Snapmaker U1 joins the
+  printer catalog (`config/default.yaml`) — build volume 270.5 × 271.0 × 270.05 mm,
+  **4 toolheads**, filament profiles PLA/PETG/TPU/ABS — API-validated against a conformance mock
+  (no real-hardware validation yet).
+  - **Per-slot multi-material slicing.** `POST /api/slice/<id>` now accepts
+    `filament_slot_0`..`filament_slot_{N-1}` for printers with `toolhead_count > 1` — one
+    material key per extruder. Any omitted slot falls back to the `material` field, and a
+    multi-toolhead printer always slices per-slot. The SPA renders one material dropdown per
+    extruder (Extruder 1..N, mapping to T0..T(N-1)).
+  - **New API fields.** `GET /api/options` now returns **`toolhead_count`** per printer
+    (1 for single-toolhead; N for multi-toolhead — the Snapmaker U1 is 4).
+    `GET /api/connector-status/<name>` MAY now return **`nozzle_temp_c`** (float °C) and
+    **`toolhead_temps`** (array of floats, T0..T(N-1)) when the connector reports them;
+    `toolhead_temps` contains only the extruders currently reporting a numeric temperature, so
+    it can be shorter than `toolhead_count` if a head is disconnected.
+- **Pause / resume / cancel on the Moonraker and Snapmaker connectors.** The `PrinterConnector`
+  Protocol now declares `pause` / `resume` / `cancel`, and both connectors implement them.
+
 ## [0.9.0b4] — 2026-06-16
 
 Post-acceptance patch from the directive-003 clean-machine test (NONCE KCT-003-20260616-B3,

@@ -1957,6 +1957,16 @@ input {
   border-color: var(--kc-accent);
 }
 
+/* UX-003: a multi-head printer can have many extruders — lay the per-slot material pickers out
+   in a compact wrapping grid so they group together and never push the Slice button off-screen. */
+.kc-material-slots {
+  display: grid;
+  /* UX-201: auto-fit (not auto-fill) collapses empty tracks so a 2-slot row fills the width
+     instead of leaving a phantom empty column. */
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
 .kc-slice-actions {
   display: flex;
   gap: 8px;
@@ -3293,6 +3303,26 @@ input {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* UX-001: per-toolhead temperature readouts render as distinct inline pill badges so they
+   read as discrete data, not as part of the surrounding muted status prose. */
+.kc-send-temps {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.kc-temp-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid var(--kc-hair-strong);
+  border-radius: var(--kc-r-chip);
+  background: var(--kc-surface-2);
+  color: var(--kc-ink);
+  font-family: var(--kc-font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 .kc-print-outcome {
   margin-top: 10px;

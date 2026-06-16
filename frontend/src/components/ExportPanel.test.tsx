@@ -277,3 +277,110 @@ describe('ExportPanel print summary (Slice 10)', () => {
     expect(screen.queryByText('Layers')).toBeNull()
   })
 })
+
+// UX-002/003/005 (TEST-006): a multi-head printer fans out into one labeled material picker PER
+// extruder; switching back to a single-head printer collapses to one Material select (the
+// materialSlots reset useEffect). Two printers share the same materials so the switch is clean.
+function stubFetchMultiHead() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (String(url).includes('/api/options')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            printers: [
+              // default: single head
+              { key: 'p1', name: 'One Head', sliceable: true, toolhead_count: 1, materials: ['pla', 'tpu'], generic_materials: [] },
+              // dual head
+              { key: 'p2', name: 'Two Heads', sliceable: true, toolhead_count: 2, materials: ['pla', 'tpu'], generic_materials: [] },
+            ],
+            materials: [
+              { key: 'pla', name: 'PLA' },
+              { key: 'tpu', name: 'TPU' },
+            ],
+            default_printer: 'p1',
+            default_material: 'pla',
+          }),
+        }
+      }
+      return { ok: true, status: 200, json: async () => ({ connectors: [], default: null }) }
+    }),
+  )
+}
+
+describe('ExportPanel multi-head material slots (UX-002/003/005)', () => {
+  it('renders one labeled "Extruder n" picker per toolhead when toolhead_count > 1, and collapses back to a single Material select for a 1-head printer', async () => {
+    stubFetchMultiHead()
+    render(<ExportPanel result={base('pass')} />)
+    // Starts single-head: one "Material" field, no per-extruder pickers.
+    expect(await screen.findByText('Material')).toBeTruthy()
+    expect(screen.queryByText('Extruder 1')).toBeNull()
+
+    // The Printer select is the first combobox; switch to the dual-head printer.
+    const printerSelect = screen.getAllByRole('combobox')[0] as HTMLSelectElement
+    fireEvent.change(printerSelect, { target: { value: 'p2' } })
+
+    // Two extruder pickers appear, each labeled by its physical extruder (UX-002), with the
+    // muted guidance note above them (UX-002).
+    expect(await screen.findByText('Extruder 1')).toBeTruthy()
+    expect(screen.getByText('Extruder 2')).toBeTruthy()
+    expect(screen.queryByText('Extruder 3')).toBeNull()
+    expect(screen.getByText(/assign a filament to each extruder/i)).toBeTruthy()
+    // The plain single "Material" label is gone in multi-head mode.
+    expect(screen.queryByText('Material')).toBeNull()
+
+    // UX-005: each slot select is explicitly associated to its label by id.
+    const slot0 = document.getElementById('kc-slot-0') as HTMLSelectElement
+    expect(slot0).toBeTruthy()
+    expect(slot0.getAttribute('aria-labelledby')).toBe('kc-slot-label-0')
+
+    // Switch back to the single-head printer — collapses to one Material select again.
+    fireEvent.change(printerSelect, { target: { value: 'p1' } })
+    await waitFor(() => expect(screen.queryByText('Extruder 1')).toBeNull())
+    expect(screen.getByText('Material')).toBeTruthy()
+  })
+
+  // UX-004: the post-slice summary lead, for a multi-head printer, lists each extruder's filament
+  // (mapped from material KEYS to display names) instead of the single primary material.
+  it('surfaces the per-extruder material assignments in the post-slice summary for a multi-head printer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).includes('/api/options')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              printers: [
+                { key: 'u1', name: 'Snapmaker U1', sliceable: true, toolhead_count: 2, materials: ['pla', 'tpu'], generic_materials: [] },
+              ],
+              materials: [
+                { key: 'pla', name: 'PLA' },
+                { key: 'tpu', name: 'TPU' },
+              ],
+              default_printer: 'u1',
+              default_material: 'pla',
+            }),
+          }
+        }
+        if (String(url).includes('/api/slice/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ sliced: true, printer: 'Snapmaker U1', material: 'PLA', gcode_url: '/api/gcode/1', gcode_filename: 'p.3mf' }),
+          }
+        }
+        return { ok: true, status: 200, json: async () => ({ connectors: [], default: null }) }
+      }),
+    )
+    render(<ExportPanel result={base('pass')} />)
+    // Assign a distinct filament to extruder 2 (TPU), leaving extruder 1 on PLA.
+    const slot1 = (await screen.findByLabelText('Extruder 2')) as HTMLSelectElement
+    fireEvent.change(slot1, { target: { value: 'tpu' } })
+    await runSlice()
+    // The lead names each extruder's filament by display name, not the single primary material.
+    expect(await screen.findByText(/Extruder 1: PLA, Extruder 2: TPU/)).toBeTruthy()
+  })
+})

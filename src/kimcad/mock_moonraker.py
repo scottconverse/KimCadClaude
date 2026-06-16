@@ -16,8 +16,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
+# ENG-008: share the canonical extruder-object names with the Snapmaker connector instead of
+# hardcoding the same literals here (snapmaker_connector does not import this mock, so no cycle).
+from kimcad.snapmaker_connector import _EXTRUDER_OBJECTS
+
 DEFAULT_API_KEY = "mock-moonraker-key"
 MAX_BODY_BYTES = 64 * 1024 * 1024
+# TEST-004: per-extruder "printing" / idle temps, indexed to _EXTRUDER_OBJECTS (T0..T3).
+_EXTRUDER_PRINT_TEMPS = (210.0, 205.0, 200.0, 195.0)
 
 
 def _parse_upload(body: bytes, content_type: str) -> tuple[str | None, bool]:
@@ -63,14 +69,12 @@ def _status_for(objects: list[str], state: dict[str, Any]) -> dict[str, Any]:
         out["configfile"] = {"settings": {"extruder": {"nozzle_diameter": 0.4}}}
     if "print_stats" in objects:
         out["print_stats"] = {"state": state["klip_state"], "filename": state.get("filename", "")}
-    if "extruder" in objects:
-        out["extruder"] = {"temperature": 210.0 if state["printing"] else 25.0}
-    if "extruder1" in objects:
-        out["extruder1"] = {"temperature": 205.0 if state["printing"] else 25.0}
-    if "extruder2" in objects:
-        out["extruder2"] = {"temperature": 200.0 if state["printing"] else 25.0}
-    if "extruder3" in objects:
-        out["extruder3"] = {"temperature": 195.0 if state["printing"] else 25.0}
+    # TEST-004: only the first `extruder_count` extruder objects exist on this mock (default 4 =
+    # all heads), so a query for a head this printer doesn't have returns nothing for it — exactly
+    # how a real Moonraker answers, and what lets a test drive a 1- or 2-head printer.
+    for i, obj in enumerate(_EXTRUDER_OBJECTS[: state["extruder_count"]]):
+        if obj in objects:
+            out[obj] = {"temperature": _EXTRUDER_PRINT_TEMPS[i] if state["printing"] else 25.0}
     if "heater_bed" in objects:
         out["heater_bed"] = {"temperature": 60.0 if state["printing"] else 25.0}
     if "virtual_sdcard" in objects:
@@ -184,6 +188,7 @@ def _initial_state(
     step: float,
     axis_minimum: list[float] | None = None,
     axis_maximum: list[float] | None = None,
+    extruder_count: int = 4,
 ) -> dict[str, Any]:
     return {
         "files": [],
@@ -195,6 +200,8 @@ def _initial_state(
         "step": step,
         "axis_minimum": axis_minimum or [0.0, 0.0, 0.0, 0.0],
         "axis_maximum": axis_maximum or [250.0, 250.0, 240.0, 0.0],
+        # TEST-004: how many of _EXTRUDER_OBJECTS this mock printer exposes (default 4 = all heads).
+        "extruder_count": extruder_count,
     }
 
 
@@ -205,6 +212,7 @@ def serve_mock_moonraker(
     step: float = 0.4,
     axis_minimum: list[float] | None = None,
     axis_maximum: list[float] | None = None,
+    extruder_count: int = 4,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """Run the mock on an ephemeral 127.0.0.1 port. Yields ``(base_url, state)``.
 
@@ -212,8 +220,11 @@ def serve_mock_moonraker(
     done by the 3rd poll). ``api_key=None`` runs unauthenticated (the common Klipper LAN case).
     ``axis_minimum``/``axis_maximum`` override the reported travel (defaults model a 250×250×240
     bed at origin); pass a negative minimum to exercise a non-zero build origin.
+    ``extruder_count`` (TEST-004) is how many of the four extruder objects the mock exposes —
+    default 4 returns all heads (preserving every existing test); pass 1 or 2 to model a
+    single- / dual-head Snapmaker.
     """
-    state = _initial_state(step, axis_minimum, axis_maximum)
+    state = _initial_state(step, axis_minimum, axis_maximum, extruder_count)
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(state, api_key))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:

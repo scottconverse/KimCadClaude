@@ -34,6 +34,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from kimcad.config import DEFAULT_TOOLHEAD_COUNT
 from kimcad.slicer import MAX_GCODE_MEMBER_BYTES, GcodeProofFailed, prove_gcode_3mf
 
 
@@ -136,7 +137,7 @@ class PrinterCapabilities:
     build_volume_mm: tuple[float, float, float] | None = None
     nozzle_diameter_mm: float | None = None
     materials: tuple[str, ...] | None = None
-    toolhead_count: int = 1
+    toolhead_count: int = DEFAULT_TOOLHEAD_COUNT  # ENG-007: shared single-head default
 
 
 @dataclass(frozen=True)
@@ -148,7 +149,9 @@ class PrinterStatus:
     detail: str = ""
     nozzle_temp_c: float | None = None
     bed_temp_c: float | None = None
-    toolhead_temps: tuple[float, ...] | None = None
+    # ENG-101: index-stable per-head temps in T0..TN-1 order. A present-but-non-reporting head
+    # is None (keeps its position); an absent head is dropped (shorter tuple = fewer heads).
+    toolhead_temps: tuple[float | None, ...] | None = None
 
 
 @dataclass(frozen=True)

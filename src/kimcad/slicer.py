@@ -215,7 +215,9 @@ def slice_model(
         "--load-settings",
         f"{settings.machine};{settings.process}",
     ]
-    if settings.filaments and len(settings.filaments) > 1:
+    # ENG-002: any non-empty per-toolhead filament tuple (including a length-1 tuple) uses
+    # --filament-config; only the single-head path (filaments is None/empty) uses --load-filaments.
+    if settings.filaments:
         for fp in settings.filaments:
             cmd += ["--filament-config", str(fp)]
     else:
