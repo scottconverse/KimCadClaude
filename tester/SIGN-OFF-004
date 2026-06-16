@@ -1,0 +1,72 @@
+# KimCad Clean-Machine Acceptance Test — SIGN-OFF-004
+
+**NONCE:** `KCT-004-20260616-B4`
+**Release:** v0.9.0b4
+**Tester box:** DESKTOP-2BR3SJR (AMD Ryzen 7 8745HS / Radeon 780M / 27.8 GB / Win 11 Pro 26200)
+**Test run:** directive-004 (evidence-first protocol, 7 phases)
+**Dev review:** commit `9af7cc7` on main (2026-06-16)
+**Status:** ACCEPTED — 0/0/0/0/0
+
+---
+
+## Verdict
+
+**0.9.0b4 is accepted for continued beta.** The corrected build passed all 7 phases on a
+clean Windows 11 box with AMD Radeon 780M hardware. Both b3 open items are confirmed fixed:
+
+- **Model-down message** is now friendly and actionable ("KimCad couldn't reach your local
+  AI. Make sure Ollama is running, then try again.") — not the generic b3 HTTP 500.
+  Console: 0 errors during model-down. "Try again" flow worked end-to-end.
+  Evidence: `evidence/004/24-model-down.png`, `evidence/004/24-model-down.txt`.
+
+- **Coaster height capped at 15 mm.** `h` slider max is 15 mm (was 40 mm in b3), current
+  value 10 mm for a 90 mm coaster. Evidence: `evidence/004/26-coaster.png`.
+
+All 3 curated landing chips built on qwen2.5:7b (Phase 5a, 3/3 PASS, 0 console errors).
+Custom design + slider re-render + slice + export (.stl + .3mf) functional (Phase 5b).
+Photo/sketch on-ramp live on qwen2.5vl:3b (Phase 5e). Keyboard viewport navigation PASS
+(Phase 5f). All 6 connector types graceful (Phase 6). Clean uninstall with user data
+correctly retained (Phase 7). WebGL rendered on real 780M via ANGLE/D3D11.
+Full evidence under `evidence/004/`.
+
+---
+
+## Findings — none (0/0/0/0/0)
+
+No new Blockers, Criticals, Majors, Minors, or Nits found in b4.
+
+The two b3 findings are confirmed FIXED:
+
+| ID | b3 Severity | Finding | Resolution |
+|----|-------------|---------|-----------|
+| b3-Minor | **Fixed in b4** | Model-down returned generic HTTP 500 instead of reason-coded message | Friendly `model_unavailable` response with "Try again" button; console stays 0-error. Commit `c722275`. |
+| b3-Nit | **Fixed in b4** | `coaster_with_rim` template allowed `h` up to 40 mm | `h` max lowered 40→15 mm; renders at 10 mm. Commit `c722275`. |
+
+---
+
+## Gate: 0/0/0/0/0
+
+| Severity | Count |
+|---------|-------|
+| Blocker | 0 |
+| Critical | 0 |
+| Major | 0 |
+| Minor | 0 |
+| Nit | 0 |
+
+---
+
+## Open items (tester questions, non-blocking)
+
+1. **`kimcad_launcher.py --verify` flag** referenced in Phase 3a of the directive is not
+   implemented; canonical `scripts/verify_install.py <INSTALL_DIR>` was used instead.
+   Update the directive template for directive-005.
+2. **Experimental generator path** (Phase 5b): "a 100 mm round lid with a 5 mm rim" routed
+   to the experimental generator, not a parameterized template. Alternate prompt used.
+   Experimental generator coverage is a candidate for a dedicated test pass.
+3. **Ollama + qwen models** left installed on DESKTOP-2BR3SJR for any re-test.
+
+---
+
+Signed off: dev (Claude Sonnet 4.6), 2026-06-16
+Evidence: `tester/evidence/004/` (25+ files), report: `tester/reports/report-004.md`
