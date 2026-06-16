@@ -1,0 +1,20 @@
+PHASE 6 — Failure states
+
+[A] Non-geometric prompt "a feeling of nostalgia" (Ollama UP):
+  - Graceful: "I don't have a precise template for that. I can try an experimental generator
+    that writes the shape directly — ... runs in a locked sandbox ... must pass printability."
+    Offers "Try the experimental generator" / "describe it differently". (23-nongeometric.png)
+  - UX-002: geometric refine chips ("Make it bigger/smaller/taller/Thicker walls") NOT offered
+    (refineCount=0, partOnScreen=false). RUN-1 REGRESSION FIXED. 0 console errors.
+
+[B] Model down (Ollama stopped) -> attempt a design:
+  - UI shows recoverable state: "Your local AI isn't running yet — start Ollama to design."
+    + one-click "Check again". No raw traceback shown to the user. (24-model-down.png)
+  - One-click retry RECOVERS: after restarting Ollama, "Check again" -> app ready,
+    model-status running:true. (24b-model-down-recovered.png)
+  - NUANCE (Minor): a design POST that reaches /api/design while Ollama is down returns
+    HTTP 500 with a STRUCTURED json body (no stack trace leaked):
+      {"error":"Something went wrong on the server. The terminal running `kimcad web` has the detail."}
+    i.e. a GENERIC 500, not a reason-coded "AI offline" status — it logs a console
+    "[error] Failed to load resource: ...500" and would show a vague message if the
+    UI's model-status pre-check is bypassed/raced. The pre-check normally shields the user.
