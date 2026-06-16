@@ -1,0 +1,10 @@
+{
+  "ollama_was_running": false,
+  "page_on_load": "Skip to main content\nKimCad\nBambu Lab P2S\n256×256×256 mm\nMy Designs\nSettings\n?\nReady to print in ~15 minutes · no CAD skills\nWhat do you want to make today?\n\nDescribe a functional part in plain words — I’ll design it, check that it’s actually printable, and get it ready for your printer. Runs entirely on your machine.\n\nYour local AI isn’t running yet — start Ollama to design.\nCheck again\n\nDesign i",
+  "after_submit": "Skip to main content\nKimCad\nBambu Lab P2S\n256×256×256 mm\nMy Designs\nSettings\n?\nNew design\nCONVERSATION\na small test cube 30mm\nKimCad couldn't reach your local AI. Make sure Ollama is running, then try again. You can check the AI's status in Settings.\nTry again\n\nStart Ollama first — see the AI’s status in Settings.\n\nSend\nEnter to send · Shift+Enter for a new line\nDescribe with a photo\n— or drop an image here\nStart from a sketch\n— or drop an image here\nYour 3D preview appears here.\nParameters\nQuality\nExport\nParameters\nmm\nin\n\nNo part was produced, so there’s nothing to adjust. Try describing it a",
+  "is_server_error": false,
+  "is_friendly_msg": true,
+  "console_lines": 0,
+  "console": [],
+  "b4_verdict": "PASS"
+}

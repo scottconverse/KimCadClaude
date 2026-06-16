@@ -1,0 +1,8 @@
+﻿KimCad 0.9.0b4 Uninstall Verification
+Install dir exists: False (expected False - PASS)
+Registry HKCU: GONE (expected GONE - PASS)
+Start Menu: False (expected False - PASS)
+User data KimCad dir: True (expected True - PASS)
+Designs .kimcad dir: True (expected True - PASS)
+
+Note: python+site-packages remained after silent uninstall (app-server python.exe held DLLs). Tester killed PID 4548, rmdir completed. Tester-harness issue only.

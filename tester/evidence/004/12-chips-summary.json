@@ -1,0 +1,38 @@
+[
+  {
+    "label": "an 80 × 60 × 40 mm project box with a lid",
+    "elapsed_s": 74.1,
+    "status": {
+      "designing": false,
+      "failed": false,
+      "hasParams": true,
+      "readiness": "86"
+    },
+    "readiness_score": "86",
+    "console_lines": 0
+  },
+  {
+    "label": "a desk cable clip for an 8 mm cable",
+    "elapsed_s": 28.0,
+    "status": {
+      "designing": false,
+      "failed": false,
+      "hasParams": true,
+      "readiness": "92"
+    },
+    "readiness_score": "92",
+    "console_lines": 0
+  },
+  {
+    "label": "a round trinket dish, 90 mm across",
+    "elapsed_s": 30.0,
+    "status": {
+      "designing": false,
+      "failed": false,
+      "hasParams": true,
+      "readiness": "92"
+    },
+    "readiness_score": "92",
+    "console_lines": 0
+  }
+]

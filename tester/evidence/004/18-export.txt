@@ -1,0 +1,9 @@
+﻿Custom prompt: "a 75mm square drink coaster, 4mm thick"
+Elapsed: ~24s
+Readiness: 92/100
+Slider tested: od (Outer diameter) moved from 75mm -> 128mm (re-rendered)
+Slice: Quality tab clicked, ~90s slice
+
+18-export.stl: 38284 bytes (binary STL)
+18-export.3mf: 9616 bytes (3MF with sliced data)
+Source: %LOCALAPPDATA%\KimCad\output\web\5\

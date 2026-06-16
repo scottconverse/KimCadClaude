@@ -1,0 +1,64 @@
+{
+  "prompt": "a 90mm round drink coaster",
+  "elapsed_s": 22.0,
+  "sliders": [
+    {
+      "name": "od",
+      "min": "40",
+      "max": "170",
+      "val": "90",
+      "label": "Outer diameterX90mm"
+    },
+    {
+      "name": "h",
+      "min": "4",
+      "max": "15",
+      "val": "10",
+      "label": "HeightZ10mm"
+    },
+    {
+      "name": "rim_w",
+      "min": "2",
+      "max": "20",
+      "val": "4",
+      "label": "Rim width4mm"
+    },
+    {
+      "name": "rim_h",
+      "min": "1",
+      "max": "10",
+      "val": "3",
+      "label": "Rim height3mm"
+    },
+    {
+      "name": "floor_t",
+      "min": "1",
+      "max": "10",
+      "val": "2",
+      "label": "Floor thickness2mm"
+    }
+  ],
+  "h_slider": {
+    "name": "h",
+    "min": "4",
+    "max": "15",
+    "val": "10",
+    "label": "HeightZ10mm"
+  },
+  "dims_on_page": [
+    "256",
+    "90",
+    "90",
+    "90",
+    "90",
+    "10",
+    "90",
+    "10",
+    "4",
+    "3",
+    "2"
+  ],
+  "console_lines": 0,
+  "console": [],
+  "b4_fix": "h max=15mm (b3 was 40mm)"
+}
