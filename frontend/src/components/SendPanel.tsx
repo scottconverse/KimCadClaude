@@ -270,6 +270,13 @@ export default function SendPanel({ designId }: { designId: number | null }) {
                   {connectorLabel(live)}
                 </>
               )}
+              {live?.toolhead_temps && live.toolhead_temps.length > 0 && (
+                <span className="kc-send-temps">
+                  {live.toolhead_temps.map((t, i) => (
+                    <span key={i} className="kc-temp-chip">T{i + 1}: {t.toFixed(0)}°C</span>
+                  ))}
+                </span>
+              )}
             </p>
           )}
           {!result.simulated && outcomeState && (

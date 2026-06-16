@@ -65,6 +65,12 @@ def _status_for(objects: list[str], state: dict[str, Any]) -> dict[str, Any]:
         out["print_stats"] = {"state": state["klip_state"], "filename": state.get("filename", "")}
     if "extruder" in objects:
         out["extruder"] = {"temperature": 210.0 if state["printing"] else 25.0}
+    if "extruder1" in objects:
+        out["extruder1"] = {"temperature": 205.0 if state["printing"] else 25.0}
+    if "extruder2" in objects:
+        out["extruder2"] = {"temperature": 200.0 if state["printing"] else 25.0}
+    if "extruder3" in objects:
+        out["extruder3"] = {"temperature": 195.0 if state["printing"] else 25.0}
     if "heater_bed" in objects:
         out["heater_bed"] = {"temperature": 60.0 if state["printing"] else 25.0}
     if "virtual_sdcard" in objects:
@@ -145,6 +151,30 @@ def _make_handler(state: dict[str, Any], api_key: str | None) -> type[BaseHTTPRe
                     {"item": {"path": fname, "root": "gcodes"}, "print_started": do_print},
                 )
                 return
+            path = urlsplit(self.path).path
+            if path == "/printer/print/pause":
+                with lock:
+                    if state["printing"] and not state["paused"]:
+                        state["paused"] = True
+                        state["printing"] = False
+                        state["klip_state"] = "paused"
+                self._json(200, {"result": "ok"})
+                return
+            if path == "/printer/print/resume":
+                with lock:
+                    if state["paused"]:
+                        state["paused"] = False
+                        state["printing"] = True
+                        state["klip_state"] = "printing"
+                self._json(200, {"result": "ok"})
+                return
+            if path == "/printer/print/cancel":
+                with lock:
+                    state["printing"] = False
+                    state["paused"] = False
+                    state["klip_state"] = "cancelled"
+                self._json(200, {"result": "ok"})
+                return
             self._json(404, {"error": {"message": "not found"}})
 
     return Handler
@@ -158,6 +188,7 @@ def _initial_state(
     return {
         "files": [],
         "printing": False,
+        "paused": False,
         "progress": 0.0,
         "klip_state": "standby",
         "filename": "",

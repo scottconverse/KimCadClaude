@@ -136,6 +136,7 @@ class PrinterCapabilities:
     build_volume_mm: tuple[float, float, float] | None = None
     nozzle_diameter_mm: float | None = None
     materials: tuple[str, ...] | None = None
+    toolhead_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -147,6 +148,7 @@ class PrinterStatus:
     detail: str = ""
     nozzle_temp_c: float | None = None
     bed_temp_c: float | None = None
+    toolhead_temps: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -188,6 +190,12 @@ class PrinterConnector(Protocol):
         ...
 
     def job_status(self, job_id: str) -> PrintJob: ...
+
+    def pause(self) -> None: ...
+
+    def resume(self) -> None: ...
+
+    def cancel(self) -> None: ...
 
 
 def ensure_sendable(gcode_path: Path, *, confirm: bool) -> None:
@@ -421,3 +429,12 @@ class LoopbackConnector:
             state, polls, name = job.state, job.polls, job.name
         progress = 1.0 if state is JobState.done else (polls - 1) / (self._polls_to_done - 1)
         return PrintJob(job_id=job_id, state=state, progress=round(progress, 4), detail=name)
+
+    def pause(self) -> None:
+        raise ConnectorError("loopback does not support pause", reason="unsupported")
+
+    def resume(self) -> None:
+        raise ConnectorError("loopback does not support resume", reason="unsupported")
+
+    def cancel(self) -> None:
+        raise ConnectorError("loopback does not support cancel", reason="unsupported")

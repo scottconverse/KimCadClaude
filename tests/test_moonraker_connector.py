@@ -249,3 +249,63 @@ def test_status_no_result_envelope_is_error(monkeypatch):
     c = _connector("http://x")
     monkeypatch.setattr(c, "_request", lambda *a, **k: (200, b"{}"))
     assert c.status().state is PrinterState.error
+
+
+# --- pause / resume / cancel --------------------------------------------------
+
+
+def _start_print(state: dict) -> None:
+    """Seed the mock state so there is an active print to pause/cancel."""
+    state["printing"] = True
+    state["klip_state"] = "printing"
+    state["progress"] = 0.1
+    state["filename"] = "job.gcode"
+
+
+def test_pause_transitions_to_paused():
+    with serve_mock_moonraker() as (base, state):
+        _start_print(state)
+        c = _connector(base)
+        c.pause()
+        assert state["paused"] is True
+        assert state["klip_state"] == "paused"
+        assert state["printing"] is False
+
+
+def test_resume_transitions_back_to_printing():
+    with serve_mock_moonraker() as (base, state):
+        _start_print(state)
+        c = _connector(base)
+        c.pause()
+        c.resume()
+        assert state["paused"] is False
+        assert state["klip_state"] == "printing"
+        assert state["printing"] is True
+
+
+def test_cancel_transitions_to_cancelled():
+    with serve_mock_moonraker() as (base, state):
+        _start_print(state)
+        c = _connector(base)
+        c.cancel()
+        assert state["klip_state"] == "cancelled"
+        assert state["printing"] is False
+        assert state["paused"] is False
+
+
+def test_pause_wrong_key_raises_auth_error():
+    with serve_mock_moonraker(api_key="the-real-key") as (base, state):
+        _start_print(state)
+        c = _connector(base, key="wrong-key")
+        with pytest.raises(AuthError):
+            c.pause()
+
+
+def test_resume_offline_raises_printer_offline():
+    with pytest.raises(PrinterOffline):
+        _connector("http://127.0.0.1:1").resume()
+
+
+def test_cancel_offline_raises_printer_offline():
+    with pytest.raises(PrinterOffline):
+        _connector("http://127.0.0.1:1").cancel()

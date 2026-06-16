@@ -278,3 +278,63 @@ class MoonrakerConnector:
         if klip_state == "printing":
             return PrintJob(job_id=job_id, state=JobState.printing, progress=round(progress, 4))
         return PrintJob(job_id=job_id, state=JobState.queued, progress=round(progress, 4))
+
+    def pause(self) -> None:
+        try:
+            self._request("POST", "/printer/print/pause", data=b"", content_type="application/json")
+        except urllib.error.HTTPError as e:
+            detail = _moonraker_error_detail(e)
+            if e.code in (401, 403):
+                raise AuthError(
+                    f"{self.name} rejected the API key (HTTP {e.code}){detail}",
+                    user_message=f"The printer '{self.name}' rejected the API key.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} pause failed (HTTP {e.code}){detail}",
+                user_message=f"The printer '{self.name}' couldn't be paused.",
+            ) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'.",
+            ) from e
+
+    def resume(self) -> None:
+        try:
+            self._request("POST", "/printer/print/resume", data=b"", content_type="application/json")
+        except urllib.error.HTTPError as e:
+            detail = _moonraker_error_detail(e)
+            if e.code in (401, 403):
+                raise AuthError(
+                    f"{self.name} rejected the API key (HTTP {e.code}){detail}",
+                    user_message=f"The printer '{self.name}' rejected the API key.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} resume failed (HTTP {e.code}){detail}",
+                user_message=f"The printer '{self.name}' couldn't be resumed.",
+            ) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'.",
+            ) from e
+
+    def cancel(self) -> None:
+        try:
+            self._request("POST", "/printer/print/cancel", data=b"", content_type="application/json")
+        except urllib.error.HTTPError as e:
+            detail = _moonraker_error_detail(e)
+            if e.code in (401, 403):
+                raise AuthError(
+                    f"{self.name} rejected the API key (HTTP {e.code}){detail}",
+                    user_message=f"The printer '{self.name}' rejected the API key.",
+                ) from e
+            raise ConnectorError(
+                f"{self.name} cancel failed (HTTP {e.code}){detail}",
+                user_message=f"The printer '{self.name}' couldn't be cancelled.",
+            ) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise PrinterOffline(
+                f"{self.name} unreachable: {e}",
+                user_message=f"Couldn't reach the printer '{self.name}'.",
+            ) from e

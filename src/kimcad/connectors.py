@@ -18,6 +18,7 @@ from kimcad.moonraker_connector import MoonrakerConnector
 from kimcad.octoprint_connector import OctoPrintConnector
 from kimcad.printer_connector import ConnectorError, LoopbackConnector, PrinterConnector
 from kimcad.prusalink_connector import PrusaLinkConnector
+from kimcad.snapmaker_connector import SnapmakerConnector
 
 if TYPE_CHECKING:
     from kimcad.config import ConnectorConfig
@@ -31,6 +32,7 @@ _CONNECTOR_CLASSES: dict[str, type] = {
     "loopback": LoopbackConnector,
     "octoprint": OctoPrintConnector,
     "moonraker": MoonrakerConnector,
+    "snapmaker": SnapmakerConnector,
     "prusalink": PrusaLinkConnector,
     "duet": DuetConnector,
     "marlin": MarlinConnector,
@@ -194,6 +196,16 @@ def build_connector(config: Any, name: str) -> PrinterConnector:
         # error here — it just sends no X-Api-Key. A key is used only when configured.
         api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
         return MoonrakerConnector(validate_printer_base_url(cc.base_url), api_key, name=name)
+
+    if cc.type == "snapmaker":
+        if not cc.base_url:
+            raise ConnectorError(
+                f"connector {name!r} (snapmaker) has no base_url configured",
+                reason="config",
+                user_message=f"The '{name}' connection has no address configured.",
+            )
+        api_key = os.environ.get(cc.api_key_env) if cc.api_key_env else None
+        return SnapmakerConnector(validate_printer_base_url(cc.base_url), api_key, name=name)
 
     if cc.type == "duet":
         if not cc.base_url:

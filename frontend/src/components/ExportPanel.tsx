@@ -20,6 +20,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
   const [options, setOptions] = useState<OptionsResponse | null>(null)
   const [printer, setPrinter] = useState('')
   const [material, setMaterial] = useState('')
+  const [materialSlots, setMaterialSlots] = useState<string[]>([])
   const [slicing, setSlicing] = useState(false)
   const [slice, setSlice] = useState<SliceResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +64,16 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
     return materials[0].key
   }, [materials, material, options])
 
+  // Reset per-toolhead slots when printer or effective material changes.
+  useEffect(() => {
+    const count = selectedPrinter?.toolhead_count ?? 1
+    if (count > 1) {
+      setMaterialSlots(Array(count).fill(selectedMaterial || materials[0]?.key || ''))
+    } else {
+      setMaterialSlots([])
+    }
+  }, [printer, selectedMaterial]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // A new design clears the previous slice result.
   useEffect(() => {
     setSlice(null)
@@ -87,7 +98,8 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
     setError(null)
     setSlice(null)
     try {
-      setSlice(await postSlice(designId, printer, selectedMaterial, controller.signal))
+      const slots = (selectedPrinter?.toolhead_count ?? 1) > 1 ? materialSlots : undefined
+      setSlice(await postSlice(designId, printer, selectedMaterial, controller.signal, slots))
     } catch (err) {
       if (!isAbortError(err)) setError(err instanceof Error ? err.message : 'Slicing failed.')
       // a cancel just returns to the button — no error
@@ -142,17 +154,40 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
             </select>
           </label>
 
-          <label className="kc-field">
-            <span>Material</span>
-            <select value={selectedMaterial} onChange={(e) => setMaterial(e.target.value)}>
-              {materials.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.name}
-                  {selectedPrinter?.generic_materials.includes(m.key) ? ' (generic profile)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+          {(selectedPrinter?.toolhead_count ?? 1) > 1 ? (
+            materialSlots.map((slot, i) => (
+              <label key={i} className="kc-field">
+                <span>T{i + 1} Material</span>
+                <select
+                  value={slot}
+                  onChange={(e) => {
+                    const next = [...materialSlots]
+                    next[i] = e.target.value
+                    setMaterialSlots(next)
+                  }}
+                >
+                  {materials.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.name}
+                      {selectedPrinter?.generic_materials.includes(m.key) ? ' (generic profile)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))
+          ) : (
+            <label className="kc-field">
+              <span>Material</span>
+              <select value={selectedMaterial} onChange={(e) => setMaterial(e.target.value)}>
+                {materials.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.name}
+                    {selectedPrinter?.generic_materials.includes(m.key) ? ' (generic profile)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div className="kc-slice-actions">
             <button
