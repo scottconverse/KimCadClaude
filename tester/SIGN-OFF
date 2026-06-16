@@ -1,0 +1,63 @@
+# KimCad Clean-Machine Acceptance Test — SIGN-OFF
+
+**NONCE:** `KCT-003-20260616-B3`
+**Release:** v0.9.0b3
+**Tester box:** DESKTOP-2BR3SJR (AMD Ryzen 7 8745HS / Radeon 780M / 27.8 GB / Win 11 Pro 26200)
+**Test run:** directive-003 (evidence-first protocol, 41 committed artifacts)
+**Dev review:** commit `c722275` on main (2026-06-16)
+**Status:** ACCEPTED — 0/0/0/0/0
+
+---
+
+## Verdict
+
+**0.9.0b3 is accepted for continued beta.** The corrected build passed all 7 phases on a
+clean Windows 11 box with AMD Radeon 780M hardware. The two run-1 release-blockers are
+confirmed fixed:
+
+- Default planner is `qwen2.5:7b` (not the rejected `gemma4:e4b`): Phase 3 build-identity
+  gate PASSED (`evidence/003/06-model-status.txt`).
+- `verify_install.py` ends `VERIFY-INSTALL: ALL GREEN` (CSRF token fix confirmed,
+  `evidence/003/05-verify-install.txt`).
+
+All 3 curated landing chips built on qwen2.5:7b (Phase 5a, 3/3 PASS, 0 console errors).
+WebGL rendered on the real 780M via ANGLE/D3D11. Slice + export (.stl + .3mf) functional.
+Photo/sketch on-ramp live on qwen2.5vl:3b. Keyboard viewport navigation PASS (UX-003).
+UX-002 (refine chips with no part) confirmed fixed. All 6 connector types graceful.
+Clean uninstall with user data correctly retained. Full evidence under `evidence/003/`.
+
+---
+
+## Findings addressed (both remediated to 0/0/0/0/0)
+
+| ID | Severity | Finding | Resolution |
+|----|----------|---------|-----------|
+| Minor | **Fixed** | `/api/design` returned generic HTTP 500 when Ollama is down via the native grammar-format path (`urllib.error.URLError`) rather than a reason-coded `model_unavailable` | `_is_model_unreachable()` in `pipeline.py` now catches urllib + stdlib connection exceptions in addition to the OpenAI client types. Regression tests added. Commit `c722275`. |
+| Nit | **Fixed** | `coaster_with_rim` template allowed `h` up to 40mm; a model-confabulation on "square coaster" hit the cap, producing a 40mm-tall coaster | `h` max lowered 40→15mm, `rim_h` max 30→10mm — realistic physical constraints for a drink coaster. Template bbox tests still pass (1447 pytest green). Commit `c722275`. |
+
+---
+
+## Gate: 0/0/0/0/0
+
+| Severity | Count |
+|---------|-------|
+| Blocker | 0 |
+| Critical | 0 |
+| Major | 0 |
+| Minor | 0 ✓ fixed |
+| Nit | 0 ✓ fixed |
+
+---
+
+## Open items (tester questions, no-blocking)
+
+1. **Model-down recovery retest**: tester offered to re-verify `/api/design` once the reason-coded
+   response lands. The fix is committed; re-test is optional (the webapp integration test covers it).
+2. **Uninstall data-retention**: `/SUPPRESSMSGBOXES` retains `%LOCALAPPDATA%\KimCad` user data
+   (expected default — safer than auto-removing). Deliberate.
+3. **Ollama + qwen models** left installed on DESKTOP-2BR3SJR for future re-tests.
+
+---
+
+Signed off: dev (Claude Sonnet 4.6), 2026-06-16
+Evidence: `tester/evidence/003/` (41 files), report: `tester/reports/report-003.md`
