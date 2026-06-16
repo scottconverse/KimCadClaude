@@ -200,9 +200,22 @@ MODEL_UNAVAILABLE_MESSAGE = (
 
 
 def _is_model_unreachable(e: BaseException) -> bool:
-    """True if ``e`` is a model-server connection/timeout (Ollama down). Duck-typed by class name
-    so the pipeline needn't import the OpenAI client and a fake provider can raise a stand-in."""
-    return type(e).__name__ in {"APIConnectionError", "APITimeoutError"}
+    """True if ``e`` is a model-server connection/timeout (Ollama down).
+
+    Handles two code paths:
+    - OpenAI client path (cloud / non-native): ``APIConnectionError`` / ``APITimeoutError``
+    - Ollama-native path (grammar-format): ``urllib.error.URLError`` / ``TimeoutError`` /
+      ``ConnectionRefusedError`` (an ``OSError`` subclass)
+    """
+    import urllib.error
+
+    if type(e).__name__ in {"APIConnectionError", "APITimeoutError"}:
+        return True
+    if isinstance(e, urllib.error.URLError):
+        return True
+    if isinstance(e, (TimeoutError, ConnectionRefusedError, ConnectionResetError)):
+        return True
+    return False
 
 
 @dataclass

@@ -3491,6 +3491,42 @@ def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
     assert d["status"] == "model_unavailable" and d["has_mesh"] is False
 
 
+def test_design_native_ollama_path_down_is_recoverable_not_500(tmp_path):
+    """Regression (tester run-3 Minor): the Ollama-NATIVE grammar-format path raises
+    urllib.error.URLError / TimeoutError — NOT the OpenAI client's APIConnectionError.
+    Before the _is_model_unreachable fix these fell through to the generic 500.
+    After the fix, /api/design must return 200 model_unavailable, not 500."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    class _NativeOllamaDown:
+        openscad_calls = 0
+
+        def generate_design_plan(self, prompt, printer, material, history=None):
+            # This is what _complete_native_schema raises when Ollama isn't running.
+            raise urllib.error.URLError("Connection refused")
+
+        def generate_openscad(self, plan, printer, material, history=None):
+            return ""
+
+    pipe = _pipeline(_NativeOllamaDown(), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        resp = urllib.request.urlopen(
+            urllib.request.Request(
+                f"http://{host}:{port}/api/design",
+                data=json.dumps({"prompt": "a box", "experimental": True}).encode(),
+                headers={"Content-Type": "application/json"},
+            ),
+            timeout=15,
+        )
+        assert resp.status == 200  # NOT 500
+        d = json.load(resp)
+    assert d["status"] == "model_unavailable"
+    assert d.get("has_mesh") is False
+    assert "Ollama" in d["error"]
+
+
 # MS-3 — live design-progress poll (planning/generating/rendering/validating).
 def test_progress_endpoint_unknown_id_returns_null(tmp_path):
     import json

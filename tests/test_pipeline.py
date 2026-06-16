@@ -573,3 +573,36 @@ def test_run_without_progress_callback_is_unaffected(tmp_path):
     pipe = Pipeline(Config.load(), BAMBU, PLA, FakeProvider(make_plan([20, 20, 20])), renderer=render)
     result = pipe.run("a 20mm block", tmp_path)
     assert result.status is PipelineStatus.completed
+
+
+def test_is_model_unreachable_covers_native_ollama_path():
+    """Regression: the grammar-format (Ollama-native) path raises urllib/OSError exceptions,
+    not the OpenAI client's APIConnectionError — _is_model_unreachable must catch both.
+
+    Before the fix, URLError / TimeoutError / ConnectionRefusedError fell through to the
+    generic 500 handler; after the fix, /api/design returns 200 model_unavailable instead.
+    """
+    import urllib.error
+    from kimcad.pipeline import _is_model_unreachable
+
+    # OpenAI client path (existing)
+    class _FakeAPIConnectionError(Exception):
+        pass
+    _FakeAPIConnectionError.__name__ = "APIConnectionError"
+    assert _is_model_unreachable(_FakeAPIConnectionError())
+
+    class _FakeAPITimeoutError(Exception):
+        pass
+    _FakeAPITimeoutError.__name__ = "APITimeoutError"
+    assert _is_model_unreachable(_FakeAPITimeoutError())
+
+    # Ollama-native path (NEW): urllib + stdlib connection errors
+    assert _is_model_unreachable(urllib.error.URLError("Connection refused"))
+    assert _is_model_unreachable(TimeoutError())
+    assert _is_model_unreachable(ConnectionRefusedError())
+    assert _is_model_unreachable(ConnectionResetError())
+
+    # Must NOT match unrelated exceptions
+    assert not _is_model_unreachable(ValueError("bad input"))
+    assert not _is_model_unreachable(RuntimeError("parse failure"))
+    assert not _is_model_unreachable(KeyError("missing key"))
