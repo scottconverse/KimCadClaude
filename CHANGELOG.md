@@ -3,7 +3,7 @@
 All notable changes to KimCad are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); this project uses semantic versioning.
 
-## [Unreleased]
+## [0.9.0b5] — 2026-06-16
 
 ### Added
 - **Snapmaker U1 + generic multi-toolhead support.** A new **`snapmaker`** connector type
