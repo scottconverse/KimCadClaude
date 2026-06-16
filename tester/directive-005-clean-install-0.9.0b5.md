@@ -55,7 +55,8 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
 
 ## Phase 1 — Download + integrity  *(evidence required)*
 - Obtain `KimCad-Setup-0.9.0b5.exe`. `Get-FileHash .\KimCad-Setup-0.9.0b5.exe -Algorithm SHA256` →
-  commit `03-sha256.txt`. **PASS only if it equals `<SHA256_TBD>`** and the size is `<SIZE_BYTES_TBD>`.
+  commit `03-sha256.txt`. **PASS only if it equals `f4bd7af7f3f5f155c849f7c96611b4f4da8ee386a4bb9aac537e2e4cb5543e63`**
+  and the size is `204,770,673` bytes.
 
 ## Phase 2 — Install  *(evidence required)*
 - Install (silent-first per the heads-up). Capture any install screens (SmartScreen, wizard, finish).
