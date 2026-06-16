@@ -1,0 +1,15 @@
+﻿PHASE 7 — Uninstall (KimCad 0.9.0b3)
+BEFORE:
+  install dir exists: True
+  HKCU uninstall key exists: True
+  uninstaller present: True
+
+AFTER uninstall:
+  install dir (Programs\KimCad) exists: False
+  HKCU uninstall key exists: False
+  KimCad in Apps list (any hive): GONE
+  Start Menu shortcut exists: False
+
+User-data handling:
+  %LOCALAPPDATA%\KimCad (app working data) remains: True
+  ~/.kimcad (saved designs) remains: True
