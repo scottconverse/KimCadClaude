@@ -222,14 +222,13 @@ input {
 }
 
 .kc-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  flex: 0 0 auto;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
-  background: var(--kc-accent);
-  color: var(--kc-on-accent);
+  border-radius: 50%;
+  background: #dbe7f3 url('/kim-avatar.png') center/cover no-repeat;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--kc-accent) 30%, transparent);
 }
 
 .kc-wordmark {
@@ -2460,7 +2459,7 @@ input {
   }
 }
 
-/* Assistant message rows carry a small cube avatar. */
+/* Assistant message rows carry Kim's avatar. */
 .kc-ai-row {
   display: flex;
   align-items: flex-start;
@@ -2475,16 +2474,14 @@ input {
 }
 
 .kc-ava {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
   margin-top: 2px;
-  border-radius: 9px;
-  background: var(--kc-accent);
-  color: var(--kc-on-accent);
+  border-radius: 50%;
+  background: #dbe7f3 url('/kim-avatar.png') center/cover no-repeat;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kc-accent) 25%, transparent);
 }
 
 /* --------------------------------------------------- My Designs library (Stage 8.5 Slice 1) */
