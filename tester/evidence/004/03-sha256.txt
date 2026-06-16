@@ -1,0 +1,6 @@
+﻿PHASE 1 — Download + integrity (KimCad-Setup-0.9.0b4.exe)
+size bytes: 203472459  (expected 203472459; match: True)
+computed SHA-256: 532b3f8b3bfe70acd418c9aa99e1e9ff5397a896d2421a268a00df552c066d2c
+expected SHA-256: 532b3f8b3bfe70acd418c9aa99e1e9ff5397a896d2421a268a00df552c066d2c
+MATCH: True
+published SHA256SUMS.txt: 532b3f8b3bfe70acd418c9aa99e1e9ff5397a896d2421a268a00df552c066d2c  KimCad-Setup-0.9.0b4.exe

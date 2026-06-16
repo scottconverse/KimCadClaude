@@ -1,0 +1,25 @@
+﻿=== Phase 0 clean-machine check (DESKTOP-2BR3SJR) 2026-06-16T10:08:05.9511615-06:00 ===
+python --version: 
+Python 3.13.13
+  (system Python, not a KimCad venv)
+node present: 
+False
+  (expected: false)
+WebView2 Runtime: 
+149.0.4022.69
+
+prior KimCad (Programs\KimCad): 
+False
+prior KimCad (Program Files x86): 
+False
+KimCad in Apps list: 
+False
+
+DEVIATION (disclosed): Ollama is PRE-PRESENT: 
+True
+  ollama --version: 
+ollama version is 0.30.8
+  Reason: qwen2.5:7b + qwen2.5vl:3b were left installed after the ACCEPTED b3 run, per the
+  SIGN-OFF (open item #3: 'Ollama + qwen models left installed ... for future re-tests').
+  Re-pulling 8GB of identical models verifies nothing about b4, so they are retained.
+  => Box is CLEAN OF KIMCAD (the build under test); Ollama is intentionally pre-staged.
