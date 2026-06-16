@@ -106,6 +106,31 @@ def test_lock_bundles_both_connector_extras_symmetrically():
         )
 
 
+def test_verify_install_sends_the_session_token_on_the_design_post():
+    """Clean-machine finding (2026-06-15): scripts/verify_install.py POSTed /api/design with no
+    X-KimCad-Session header, so the per-boot session-token guard (#31/KC-26) 403'd it and the
+    verifier could never reach ALL GREEN against a real `kimcad web` server. It must read the token
+    the server injects into the page shell and echo it (un-substituted placeholder / absent → none)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "verify_install", ROOT / "scripts" / "verify_install.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    h = mod._session_headers('<meta name="kimcad-session-token" content="abc123tok" />')
+    assert h["X-KimCad-Session"] == "abc123tok"
+    assert h["Content-Type"] == "application/json"
+
+    # Guard off (un-substituted placeholder) or no meta at all → no token header (open-by-default).
+    for shell in ('<meta name="kimcad-session-token" content="__KIMCAD_SESSION_TOKEN__" />',
+                  "<html>no token meta</html>"):
+        h2 = mod._session_headers(shell)
+        assert "X-KimCad-Session" not in h2
+        assert h2["Content-Type"] == "application/json"
+
+
 def test_verify_install_covers_the_five_contracts():
     text = (ROOT / "scripts" / "verify_install.py").read_text(encoding="utf-8")
     for marker in ("--version", "/api/health", "openscad", "/api/design", "LOCALAPPDATA"):

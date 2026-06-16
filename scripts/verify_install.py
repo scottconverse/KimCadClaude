@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -28,6 +29,21 @@ from pathlib import Path
 def fail(msg: str) -> int:
     print(f"FAIL: {msg}", file=sys.stderr)
     return 1
+
+
+def _session_headers(shell_html: str) -> dict[str, str]:
+    """Headers for a state-changing POST to the installed server. The session-token guard
+    (#31 / KC-26) requires the per-boot token on every POST when the server mints one — and
+    ``kimcad web`` does, even in ``--demo`` — so an out-of-band client like this verifier must read
+    the token the server injected into the page shell and echo it as ``X-KimCad-Session``, exactly
+    like the SPA. Without it ``/api/design`` 403s and the verifier can never reach ALL GREEN
+    (clean-machine finding, 2026-06-15). An empty/un-substituted token means the guard is off, so
+    no header is sent (the open-by-default embedding/test case)."""
+    headers = {"Content-Type": "application/json"}
+    m = re.search(r'name="kimcad-session-token"\s+content="([^"]*)"', shell_html)
+    if m and m.group(1) and m.group(1) != "__KIMCAD_SESSION_TOKEN__":
+        headers["X-KimCad-Session"] = m.group(1)
+    return headers
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -94,9 +110,8 @@ def main(argv: list[str] | None = None) -> int:
             shell_html = r.read().decode("utf-8", errors="replace")
         if r.status != 200 or "kimcad" not in shell_html.lower():
             return fail("the SPA shell did not serve (the installed app would be a blank window)")
-        import re as _re
 
-        asset = _re.search(r'/assets/[^"\']+\.js', shell_html)
+        asset = re.search(r'/assets/[^"\']+\.js', shell_html)
         if not asset:
             return fail("the SPA shell references no JS asset")
         with urllib.request.urlopen(base + asset.group(0), timeout=10) as r:
@@ -109,9 +124,12 @@ def main(argv: list[str] | None = None) -> int:
             return fail("kimcad/prompts is missing from the install - real designs would fail")
         print("ok: prompt templates shipped")
 
+        # The session-token guard (#31 / KC-26) requires the per-boot token on this POST; read it
+        # from the shell the server just gave us and echo it like the SPA does (clean-machine
+        # finding 2026-06-15 — without it /api/design 403s and the verifier never reaches GREEN).
         req = urllib.request.Request(
             f"{base}/api/design", data=json.dumps({"prompt": "a 40 mm desk cable clip"}).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=_session_headers(shell_html),
         )
         with urllib.request.urlopen(req, timeout=300) as r:
             design = json.load(r)
