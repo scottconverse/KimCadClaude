@@ -1,0 +1,5 @@
+PHASE 3d — WebGL renderer (verbatim), KimCad 0.9.0b4 on DESKTOP-2BR3SJR (Radeon 780M)
+[UNMASKED_VENDOR, UNMASKED_RENDERER]:
+["Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon 780M Graphics (0x00001900) Direct3D11 vs_5_0 ps_5_0, D3D11)"]
+=> Real 780M via ANGLE->Direct3D11. Does NOT contain "SwiftShader". PASS.
+Captured against the installed app's server (port 8765) in local Chrome (real GPU) over CDP.

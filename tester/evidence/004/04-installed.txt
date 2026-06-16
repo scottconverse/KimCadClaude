@@ -1,0 +1,4 @@
+﻿PHASE 2 — Install (silent per-user /CURRENTUSER)
+exit code: 0   elapsed: 52.2s   admin: NO
+install dir exists: True
+uninstall-registry: DisplayName='KimCad 0.9.0b4' DisplayVersion='0.9.0b4' InstallLocation='C:\Users\a7207\AppData\Local\Programs\KimCad\'

@@ -1,0 +1,10 @@
+PHASE 4 — Ollama + models (PRE-PRESENT from accepted b3 run, per SIGN-OFF item #3; not re-installed)
+ollama --version: ollama version is 0.30.8
+
+ollama list:
+NAME            ID              SIZE      MODIFIED    
+qwen2.5vl:3b    fb90415cde1e    3.2 GB    9 hours ago    
+qwen2.5:7b      845dbda0ea48    4.7 GB    9 hours ago    
+
+app /api/model-status:
+{"model": "qwen2.5:7b", "backend": "local", "vision_model": "qwen2.5vl:3b", "running": true, "model_present": true, "vision_present": true}
