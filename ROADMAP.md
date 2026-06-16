@@ -88,6 +88,15 @@ shell degradation** documented; the **batteries-included installer** now bundlin
 `serial` connector extras. A second 5-role audit-team pass on the whole repo was remediated to
 0/0/0/0/0. **The one and only physical phase still remaining: Kim runs it on her real printers (#11).**
 
+### 0.9.0b4 — post-acceptance patch (2026-06-16, tag `v0.9.0b4`)
+
+Two fixes from the directive-003 clean-machine acceptance test (NONCE KCT-003-20260616-B3,
+SIGN-OFF at 0/0/0/0/0): (1) `_is_model_unreachable` now catches `urllib.error.URLError` /
+`TimeoutError` / `ConnectionRefused` from the Ollama-native grammar-format path — a design POST
+with Ollama down now returns `model_unavailable` instead of a generic 500; (2) `coaster_with_rim`
+template body-height max lowered 40→15mm so the model can't produce an unrealistically thick
+coaster. Gate: 1447 pytest passed. Still beta, still unsigned, still gated on #11 (real-metal validation).
+
 ### 0.9.0b3 — corrected beta (2026-06-15, tag `v0.9.0b3`)
 
 The build a `0.9.0b2` user should actually have. `0.9.0b2` was cut *before* the default-model fix

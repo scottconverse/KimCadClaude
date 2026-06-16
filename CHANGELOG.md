@@ -5,6 +5,28 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.9.0b4] — 2026-06-16
+
+Post-acceptance patch from the directive-003 clean-machine test (NONCE KCT-003-20260616-B3,
+signed off at 0/0/0/0/0 on DESKTOP-2BR3SJR / AMD Radeon 780M).
+
+### Fixed
+- **Model-down returns a friendly status, not a generic 500** (`_is_model_unreachable`). The
+  Ollama-native grammar-format path raises `urllib.error.URLError` / `TimeoutError` /
+  `ConnectionRefusedError` when Ollama is unreachable — not the OpenAI client's
+  `APIConnectionError`. `_is_model_unreachable` now catches both families, so a `/api/design`
+  POST with Ollama down returns `200 {"status":"model_unavailable", ...}` with the recovery
+  message instead of a generic server error.
+- **Coaster template height clamped to realistic values.** `coaster_with_rim` body-height max
+  lowered from 40 mm → 15 mm (rim-height max 30 → 10 mm). Prevents a model-confabulation
+  from producing a 40 mm-tall "drink coaster."
+
+### Tests
+- `test_is_model_unreachable_covers_native_ollama_path` — unit guard for both exception
+  families (`URLError`, `TimeoutError`, `ConnectionRefused`, `APIConnectionError`).
+- `test_design_native_ollama_path_down_is_recoverable_not_500` — webapp-level regression:
+  design POST with `URLError` must return `200 model_unavailable`, not `500`.
+
 ## [0.9.0b3] — 2026-06-15
 
 > The `0.9.0b1`, `0.9.0b2`, and `0.9.0b3` Windows betas have shipped (tags `beta`, `v0.9.0b2`, `v0.9.0b3`). **`0.9.0b3` is the corrected build:** `0.9.0b2` was cut *before* the default-model fix (`qwen2.5:7b` + grammar-constrained planning), the curated landing examples, and the entire second-pass audit remediation — so a `0.9.0b2` user got the bake-off-rejected `gemma4:e4b` planner. `0.9.0b3` folds all of it in. Each stage was tagged as it landed.

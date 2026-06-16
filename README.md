@@ -2,7 +2,7 @@
 
 **Describe a functional 3D-printable part in plain English — or a photo, or a sketch — and get a checked, print-ready file, entirely on your own machine. No CAD skills, no account, no cloud.**
 
-![beta](https://img.shields.io/badge/beta-0.9.0b3-2563eb)
+![beta](https://img.shields.io/badge/beta-0.9.0b4-2563eb)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![python](https://img.shields.io/badge/python-3.13-3776AB)
 ![license](https://img.shields.io/badge/license-Apache--2.0-1d7a4e)
