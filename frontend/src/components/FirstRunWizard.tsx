@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { openExternal } from '../openExternal'
 import {
   getModelPullProgress,
@@ -29,7 +29,7 @@ function modelLabel(m: ModelStatus): string {
   if (!m.running) return 'Ollama isn’t running'
   if (!m.model_present) return 'Model not pulled yet'
   // UX-1005 (stage-10 gate): a bare "Ready" beside a card offering the vision download
-  // claimed more than is true — designing works, the image on-ramps don't yet.
+  // claimed more than is true — designing works, the image on-ramps don’t yet.
   if (m.vision_present === false) return 'Ready — words only'
   return 'Ready'
 }
@@ -69,8 +69,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
         if (!cancelled) setSettings(s)
       })
       .catch(() => {
-        // A settings load failure shouldn't trap the user in the wizard — the steps still work and
-        // Settings is reachable later. The printer step swaps to an honest "couldn't load" message.
+        // A settings load failure shouldn’t trap the user in the wizard — the steps still work and
+        // Settings is reachable later. The printer step swaps to an honest "couldn’t load" message.
         if (!cancelled) setSettingsError(true)
       })
     return () => {
@@ -80,7 +80,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
 
   useEffect(() => checkModel(), [checkModel])
 
-  // Slice 10.4 — the in-app model download. POST starts whatever's missing (the model list
+  // Slice 10.4 — the in-app model download. POST starts whatever’s missing (the model list
   // is fixed server-side); we poll progress once a second until the job ends, then re-probe
   // the model status so "Ready" is a measured claim. The poll dies with the wizard.
   const [pull, setPull] = useState<ModelPullSnapshot | null>(null)
@@ -121,7 +121,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
               }
             })
             .catch(() => {
-              /* one missed poll isn't a failure; the next tick retries */
+              /* one missed poll isn’t a failure; the next tick retries */
             })
         }, 1000)
       })
@@ -153,14 +153,14 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
       .join('; ')
   })()
 
-  // UX-002 (2026-06-09 audit): re-probe when the recap step opens, so "you're all set" is a
+  // UX-002 (2026-06-09 audit): re-probe when the recap step opens, so "you’re all set" is a
   // claim about NOW — the user may have started Ollama (or not) since step 1 checked.
   useEffect(() => {
     if (step === STEPS.length - 1) checkModel()
   }, [step, checkModel])
 
   // Move focus into the dialog on mount so keyboard users start inside it; Escape skips setup; and
-  // Tab is trapped inside the dialog so keyboard/SR users can't tab out onto the (still-present)
+  // Tab is trapped inside the dialog so keyboard/SR users can’t tab out onto the (still-present)
   // page behind the modal — `aria-modal` alone is only a hint, not a focus boundary.
   useEffect(() => {
     dialogRef.current?.focus()
@@ -203,7 +203,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
     })
   }
 
-  // Persistence model: the printer choice persists the moment it's picked (pickPrinter); the cloud
+  // Persistence model: the printer choice persists the moment it’s picked (pickPrinter); the cloud
   // opt-in persists only here, at finish. So "Skip setup" / Escape intentionally abandon an
   // unsaved cloud key (we never half-commit one), while a printer already picked stays — both are
   // re-settable in Settings.
@@ -218,7 +218,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
           ...(cloudModelDraft.trim() ? { cloud_model: cloudModelDraft.trim() } : {}),
         })
       } catch {
-        /* a cloud-save failure shouldn't block finishing setup — local always works. */
+        /* a cloud-save failure shouldn’t block finishing setup — local always works. */
       }
     }
     onClose()
@@ -333,13 +333,13 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   </p>
                   {/* UX-902 (stage-9 gate) + Slice 10.4: the SECOND model is checked too, and
                       "get the model" is now an in-app DOWNLOAD with progress — the server
-                      decides what's missing (chat and/or vision); the button just says go.
+                      decides what’s missing (chat and/or vision); the button just says go.
                       Designing in words works without the vision model, so a vision-only gap
                       is an action line, never a blocker. */}
                   {/* UX-A-001 (stage-A gate): the action line + its button stay MOUNTED while a
                       re-check is in flight (last-known state drives visibility), so keyboard
-                      focus never drops and the wizard's Tab trap can't be escaped mid-check. */}
-                  {/* Slice 11.6: a CLEAN box can't tell "not installed" from "not
+                      focus never drops and the wizard’s Tab trap can’t be escaped mid-check. */}
+                  {/* Slice 11.6: a CLEAN box can’t tell "not installed" from "not
                       running" — the guidance covers both, with the download a real
                       button (the shell opens it in the system browser). */}
                   {model?.backend === 'local' && !model.running && (
@@ -430,47 +430,44 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   )}
                 </div>
 
-                <div className="kc-wiz-cloud">
-                  <label className="kc-wiz-cloud-toggle">
-                    <input
-                      type="checkbox"
-                      checked={cloudOn}
-                      onChange={(e) => setCloudOn(e.target.checked)}
-                    />
-                    Add an OpenRouter key for optional cloud speed-ups{' '}
+                <details
+                  className="kc-wiz-cloud"
+                  open={cloudOn}
+                  onToggle={(e) => setCloudOn((e.target as HTMLDetailsElement).open)}
+                >
+                  <summary className="kc-wiz-cloud-summary">
+                    Advanced — cloud speed-ups
                     <span className="kc-opt">(optional · local always works)</span>
-                  </label>
-                  {cloudOn && (
-                    <div className="kc-wiz-cloud-fields">
-                      <input
-                        className="kc-text-input kc-mono"
-                        type="password"
-                        placeholder="Paste your OpenRouter key (sk-or-…)"
-                        aria-label="OpenRouter API key"
-                        autoComplete="off"
-                        spellCheck={false}
-                        value={keyDraft}
-                        onChange={(e) => setKeyDraft(e.target.value)}
-                      />
-                      <input
-                        className="kc-text-input kc-mono"
-                        placeholder="Model slug (optional) — e.g. from openrouter.ai/models"
-                        aria-label="OpenRouter model"
-                        value={cloudModelDraft}
-                        onChange={(e) => setCloudModelDraft(e.target.value)}
-                      />
-                      <p className="kc-wiz-cloud-note">
-                        Used only when you opt into a cloud model. Sends your prompt off your machine;
-                        never required to run KimCad.{' '}
-                        {settings?.key_storage === 'file'
-                          ? 'The key is kept in a settings file on this computer (the secure ' +
-                            'credential store isn’t available here) — anyone who can read your ' +
-                            'files could read it.'
-                          : 'The key is kept in this computer’s secure credential store.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                  </summary>
+                  <div className="kc-wiz-cloud-fields">
+                    <input
+                      className="kc-text-input kc-mono"
+                      type="password"
+                      placeholder="Paste your OpenRouter key (sk-or-…)"
+                      aria-label="OpenRouter API key"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={keyDraft}
+                      onChange={(e) => setKeyDraft(e.target.value)}
+                    />
+                    <input
+                      className="kc-text-input kc-mono"
+                      placeholder="Model slug (optional) — e.g. from openrouter.ai/models"
+                      aria-label="OpenRouter model"
+                      value={cloudModelDraft}
+                      onChange={(e) => setCloudModelDraft(e.target.value)}
+                    />
+                    <p className="kc-wiz-cloud-note">
+                      Used only when you opt into a cloud model. Sends your prompt off your machine;
+                      never required to run KimCad.{' '}
+                      {settings?.key_storage === 'file'
+                        ? 'The key is kept in a settings file on this computer (the secure ' +
+                          'credential store isn’t available here) — anyone who can read your ' +
+                          'files could read it.'
+                        : 'The key is kept in this computer’s secure credential store.'}
+                    </p>
+                  </div>
+                </details>
               </>
             )}
 
@@ -554,7 +551,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
 
             {step === 4 && (
               <>
-                {/* UX-002: the recap tells the truth about the model's CURRENT state. "You're
+                {/* UX-002: the recap tells the truth about the model’s CURRENT state. "You’re
                     all set" with a dead model is exactly the trust-breaking first impression a
                     beta must avoid — so a not-ready model demotes the headline and the recap
                     row carries the fix + a re-check, while "Start designing" stays available. */}
@@ -591,7 +588,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     <dt>Model</dt>
                     <dd className="kc-mono">
                       {model?.model ?? 'qwen2.5:7b'}
-                      {/* Only claim "+ OpenRouter" when it's actually usable — cloud routes only
+                      {/* Only claim "+ OpenRouter" when it’s actually usable — cloud routes only
                           with a key AND a model; a key alone is saved but stays inactive. */}
                       {cloudOn && keyDraft.trim() && cloudModelDraft.trim() ? ' + OpenRouter' : ''}
                       {/* UX-A-001/002: mounted through re-checks (no focus loss, reliable SR
