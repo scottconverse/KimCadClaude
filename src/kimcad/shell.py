@@ -113,6 +113,13 @@ def build_shell(
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
+    # UX-COLD-001: the windowed app is the primary distribution, so it auto-starts a managed Ollama
+    # off the launch path too (best-effort; see serve()). Skipped in demo mode (no LLM).
+    if not demo:
+        from kimcad.ollama_runtime import ensure_serving_background
+
+        ensure_serving_background()
+
     url = f"http://127.0.0.1:{port}/"
     window = webview.create_window(
         WINDOW_TITLE,

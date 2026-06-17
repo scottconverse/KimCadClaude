@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { openExternal } from '../openExternal'
 import {
   getModelPullProgress,
   getModelStatus,
@@ -26,7 +25,9 @@ const STEPS = ['Welcome', 'Set up your AI', 'Pick your printer', 'Direct printin
 
 function modelLabel(m: ModelStatus): string {
   if (m.backend === 'cloud') return 'Cloud'
-  if (!m.running) return 'Ollama isn’t running'
+  // UX-COLD-001: KimCad manages its own engine — don't tell the user "Ollama isn't running"
+  // right above copy that says KimCad sets it up for them.
+  if (!m.running) return 'Not set up yet'
   if (!m.model_present) return 'Model not pulled yet'
   // UX-1005 (stage-10 gate): a bare "Ready" beside a card offering the vision download
   // claimed more than is true — designing works, the image on-ramps don’t yet.
@@ -127,7 +128,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
       })
       .catch(() => {
         if (disposedRef.current) return
-        setPull({ status: 'ok', running: false, error: 'Couldn’t start the download — check that Ollama is running, then try again.' })
+        setPull({ status: 'ok', running: false, error: 'Couldn’t set up the AI — check your internet connection, then try again.' })
       })
   }, [checkModel, stopPolling])
 
@@ -342,45 +343,30 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   {/* Slice 11.6: a CLEAN box can’t tell "not installed" from "not
                       running" — the guidance covers both, with the download a real
                       button (the shell opens it in the system browser). */}
-                  {model?.backend === 'local' && !model.running && (
-                    <p className="kc-wiz-model-action">
-                      KimCad’s AI runs on Ollama (free). Don’t have it yet?{' '}
-                      <button
-                        type="button"
-                        className="kc-link-btn"
-                        onClick={() => openExternal('https://ollama.com/download')}
-                      >
-                        Get Ollama
-                      </button>
-                      {' '}— install it, let it start, then{' '}
-                      <button
-                        type="button"
-                        className="kc-link-btn"
-                        aria-disabled={modelState === 'checking' || undefined}
-                        onClick={() => {
-                          if (modelState !== 'checking') checkModel()
-                        }}
-                      >
-                        {modelState === 'checking' ? 'checking…' : 'check again'}
-                      </button>
-                      . Already installed? Just start it. You can finish setup either way.
-                    </p>
-                  )}
+                  {/* UX-COLD-001 (2026-06-17 cold-start audit): the old cold dead-end ("Get Ollama
+                      → install it → check again") is GONE. "Set up KimCad's AI" below now ACTUALLY
+                      sets it up — KimCad reuses a system Ollama if present, else downloads its own
+                      portable engine, then downloads the model: one honest progress flow, no
+                      separate install, no polling. */}
                   {/* The live region stays MOUNTED (UX-A-001 pattern) and carries only the
                       coarse announcement — see pullAnnouncement above. */}
                   <p className="kc-sr-only" role="status">{pullAnnouncement}</p>
-                  {model?.backend === 'local' && model.running &&
-                    (!model.model_present || model.vision_present === false) && (
+                  {model?.backend === 'local' &&
+                    (!model.running || !model.model_present || model.vision_present === false) && (
                     <div className="kc-wiz-pull">
                       {!pull && (
                         <p className="kc-wiz-model-action">
-                          {!model.model_present
-                            ? 'The design model isn’t downloaded yet.'
-                            : 'Photos and sketches need one more download — designing in words works without it.'}{' '}
+                          {!model.running
+                            ? 'KimCad sets up its AI for you — no separate install. It downloads the AI engine, then the model, right here. (Already have Ollama? KimCad uses it automatically.)'
+                            : !model.model_present
+                              ? 'The design model isn’t downloaded yet.'
+                              : 'Photos and sketches need one more download — designing in words works without it.'}{' '}
                           <button type="button" className="kc-btn kc-btn-accent kc-wiz-pull-btn" onClick={beginPull}>
-                            {!model.model_present
-                              ? `Download now (~${model.vision_present === false ? 13 : 10} GB)`
-                              : 'Download now (~3 GB)'}
+                            {!model.running
+                              ? 'Set up KimCad’s AI'
+                              : !model.model_present
+                                ? 'Download now (~7.7 GB)'
+                                : 'Download now (~3 GB)'}
                           </button>
                         </p>
                       )}
@@ -400,7 +386,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                               {st.status === 'queued' && <span>waiting…</span>}
                               {st.status === 'pulling' && (
                                 <span>
-                                  downloading…{' '}
+                                  {name === 'AI engine' ? 'setting up…' : 'downloading…'}{' '}
                                   {st.total > 0 ? `${Math.min(100, Math.round((st.completed / st.total) * 100))}%` : ''}
                                 </span>
                               )}
@@ -601,10 +587,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                               tell the user to pull manually — that contradicts the
                               download THEY started on the model step. */}
                           {pullActive
-                            ? 'downloading now — it continues in the background; when it finishes, '
-                            : model && model.running && !model.model_present
-                              ? `not downloaded yet — use Download on the model step (or run “ollama pull ${model.model}”), then `
-                              : 'not reachable yet — start Ollama, then '}
+                            ? 'setting up now — it continues in the background; when it finishes, '
+                            : 'not set up yet — use “Set up KimCad’s AI” on the model step, then '}
                           <button
                             type="button"
                             className="kc-link-btn"

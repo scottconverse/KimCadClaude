@@ -14,6 +14,28 @@ All notable changes to KimCad are documented here. Format follows
   code has been **fully reverted** — the **canonical release remains `0.9.0b4`**. Real multi-material
   printing is future work; it needs multi-part / assignable model generation, not just a slicer flag.
 
+### Added
+- **Zero-install local AI (managed Ollama).** KimCad now sets up its own AI engine instead of making
+  you install Ollama by hand. On launch it reuses a system Ollama if you have one; otherwise the
+  first-run **"Set up KimCad's AI"** button downloads Ollama's official portable build (~1.4 GB,
+  pinned + SHA-256-verified) into KimCad's data folder and runs it headless — no separate install, no
+  system tray, no "check again" polling. The chat + vision models then download in the same progress
+  flow. (New `kimcad.ollama_runtime` + `kimcad.ollama_fetch`; auto-start wired into the web/shell
+  launch; one-click setup on the existing `/api/model-pull`.)
+
+### Changed
+- **First-run "Set up your AI" now actually sets up the AI** — one button ensures the engine and
+  downloads the model, replacing the old "go install Ollama → start it → check again" detour. The
+  landing "AI isn't ready" banner points to the in-app setup, not "start Ollama."
+- **Model-download size stated honestly as ~7.7 GB** (≈4.7 GB chat + ≈3 GB vision) across the wizard
+  and docs (previously stated variously as 8 / 9 / 13 GB).
+
+### Fixed
+- **Local-Ollama detection no longer misreads a non-default port as "cloud, ready."** The
+  model-status / model-pull "is this local?" check classifies by loopback host instead of a literal
+  `"11434"` substring, so an Ollama on any port is correctly detected and probed (ENG-COLD-002, from
+  the 2026-06-17 cold-start audit).
+
 ## [0.9.0b4] — 2026-06-16
 
 Post-acceptance patch from the directive-003 clean-machine test (NONCE KCT-003-20260616-B3,

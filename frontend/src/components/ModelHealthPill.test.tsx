@@ -39,11 +39,11 @@ describe('ModelHealthPill (UX-002 / UX-A-001/002)', () => {
     expect(region.textContent).toBe('') // no spurious announcement on a healthy mount
   })
 
-  it('warns with a start-Ollama line when nothing is running', async () => {
+  it('warns with a finish-setup line when nothing is running (UX-COLD-001)', async () => {
     await mockStatus({ ...READY, running: false, model_present: false })
     render(<ModelHealthPill />)
     await waitFor(() => expect(pillWarn()).not.toBeNull())
-    expect(screen.getByText(/start Ollama/)).toBeTruthy()
+    expect(screen.getByText(/finish setup/)).toBeTruthy()
   })
 
   it('warns with the exact pull command when the model is absent', async () => {
@@ -76,7 +76,7 @@ describe('ModelHealthPill (UX-002 / UX-A-001/002)', () => {
     let resolveRecheck: (v: object) => void = () => {}
     fn.mockReturnValueOnce(new Promise((r) => { resolveRecheck = r })) // re-check: in flight
     render(<ModelHealthPill />)
-    expect(await screen.findByText(/start Ollama/)).toBeTruthy()
+    expect(await screen.findByText(/finish setup/)).toBeTruthy()
 
     const btn = screen.getByRole('button', { name: /check again/i })
     btn.focus()

@@ -46,9 +46,11 @@ There are two layers, with an HONEST division of what each one independently gua
    function still carries its real, unrestricted ``__builtins__`` inside ``__globals__``, so a
    script reaching ``some_func.__globals__["__builtins__"]`` would get full ``import`` power.
    Every such path needs a dunder or an introspection attribute, which the static sanitizer
-   blocks — so that escape class is closed by layer 1, not layer 2. The durable, defence-in-depth
-   answer (OS-level process confinement: no network, restricted working dir) is tracked as a
-   later hardening; it is NOT yet implemented.
+   blocks — so that escape class is closed by layer 1, not layer 2. As defence in depth, the worker
+   now also DENIES NETWORK egress before running the script (:func:`_deny_network` neutralizes the
+   socket constructors), so even a smuggled socket reference can't exfiltrate at the Python level —
+   a geometry worker needs no network. The residual (a pure-native Winsock bypass, and OS-level
+   working-dir FS confinement) needs admin/platform infra and stays tracked as a later hardening.
 
 Net: this is sanitizer-anchored defence in depth, not a perfect in-process sandbox. The ultimate
 boundary is that KimCad runs locally on the user's own machine — the same trust model as
@@ -118,6 +120,31 @@ def _safe_builtins(facade: types.SimpleNamespace) -> dict[str, object]:
     return safe
 
 
+def _deny_network() -> None:
+    """ENG-004 (defence in depth): a geometry worker needs no network, so deny it before any
+    untrusted code runs. Neutralizes the socket constructors in both ``socket`` and the underlying
+    ``_socket`` C module, so a script that smuggled a socket reference past the static sanitizer
+    (the documented ``__globals__`` escape class) still cannot open an outbound connection at the
+    Python level. A pure-native bypass (a C extension calling Winsock/BSD ``socket()`` directly)
+    would need OS-level firewalling — that residual needs admin/platform infra and stays tracked;
+    this closes the realistic Python-level egress path. Best-effort + idempotent."""
+
+    def _blocked(*_a: object, **_k: object) -> object:
+        raise PermissionError("network access is disabled in the CadQuery geometry worker")
+
+    for modname in ("socket", "_socket"):
+        try:
+            mod = __import__(modname)
+        except Exception:  # noqa: BLE001 - nothing to block if it won't import
+            continue
+        for attr in ("socket", "create_connection", "create_server", "socketpair"):
+            if hasattr(mod, attr):
+                try:
+                    setattr(mod, attr, _blocked)
+                except Exception:  # noqa: BLE001 - read-only attr: skip, best-effort
+                    pass
+
+
 def _run(request: dict[str, object]) -> dict[str, object]:
     script_path = request.get("script_path")
     stl_path = request.get("stl_path")
@@ -146,6 +173,8 @@ def _run(request: dict[str, object]) -> dict[str, object]:
         "math": math,
     }
 
+    # ENG-004: deny network egress before any untrusted code runs (a geometry worker needs none).
+    _deny_network()
     # Execute the (already statically-sanitized) script with the script's Python-level
     # stdout/stderr swallowed. The authoritative result goes to result_path, not stdout, so
     # even a native fd-1 write can't corrupt it; this just keeps stray prints out of the

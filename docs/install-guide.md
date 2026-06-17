@@ -60,13 +60,19 @@ These two files are the release's integrity story; there is no signed attestatio
 
 ## First run
 
-1. The wizard checks for **Ollama** (the free local AI runtime). Don't have it? The
-   wizard's **Get Ollama** button takes you to the official download — install it, then
-   come back and *check again*.
-2. The wizard's **Download now** button fetches KimCad's two AI models (about **8 GB**
-   total to download — chat ~4.7 GB + vision ~3 GB; keep **13–20 GB** of free disk for
-   headroom) with a progress bar. Designing in words works as soon as the first finishes.
-3. Pick your printer, and you're designing.
+1. The wizard's **Set up KimCad's AI** button does everything in one flow — no manual
+   Ollama install required. KimCad sets up its own local AI engine: if you already have
+   Ollama installed it **uses it automatically**, otherwise it downloads Ollama's official
+   **portable** build (~**1.4 GB**, a one-time engine download — no separate install, no
+   system tray, no admin) into KimCad's own data folder and runs it headless. Then it
+   fetches KimCad's two AI models (about **7.7 GB** total to download — chat ~4.7 GB +
+   vision ~3 GB) with a progress bar. Designing in words works as soon as the first model
+   finishes.
+2. Pick your printer, and you're designing.
+
+> **Already have Ollama?** KimCad uses it automatically — nothing to do. And if automatic
+> setup ever fails (e.g. you're offline), you can install Ollama yourself from
+> [ollama.com](https://ollama.com/) and press **Check again**.
 
 Everything runs on your computer. Nothing you design, photograph, or sketch leaves your
 machine unless you explicitly turn on the cloud option in Settings.
@@ -74,8 +80,9 @@ machine unless you explicitly turn on the cloud option in Settings.
 ## Requirements
 
 Windows 11 (or Windows 10 with the WebView2 Runtime — Microsoft ships it automatically
-via Edge — and .NET Framework 4.7.2+, in-box since Windows 10 1803), about **20 GB free disk space** (mostly the AI models), 16 GB+ RAM
-recommended. No graphics card needed.
+via Edge — and .NET Framework 4.7.2+, in-box since Windows 10 1803), about **12 GB of free
+disk space** as headroom (the AI engine ~1.4 GB plus the ~7.7 GB of models, with room to
+spare), 16 GB+ RAM recommended. No graphics card needed.
 
 ## macOS / Linux
 

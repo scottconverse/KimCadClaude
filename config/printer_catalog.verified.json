@@ -1,0 +1,32 @@
+{
+  "verified_at": "2026-06-17T17:37:17.751496+00:00",
+  "catalog_sha256": "9b7db2bc5e807bc34622cb2cba623fdcbbbf5823a39777fc9742a84243141f9c",
+  "slice_proven_printers": [
+    "anycubic_kobra2",
+    "anycubic_kobra2_max",
+    "anycubic_kobra_s1",
+    "bambu_a1_mini",
+    "bambu_p1p",
+    "bambu_p1s",
+    "bambu_x1c",
+    "bambu_x1e",
+    "creality_cr10_se",
+    "creality_ender3_v3",
+    "creality_ender3_v3_ke",
+    "creality_k1",
+    "creality_k1_max",
+    "creality_k1c",
+    "creality_k2_plus",
+    "elegoo_neptune4",
+    "elegoo_neptune4_plus",
+    "elegoo_neptune4_pro",
+    "prusa_mini",
+    "prusa_mk4",
+    "qidi_q1_pro",
+    "qidi_xmax3",
+    "qidi_xplus3",
+    "sovol_sv06",
+    "sovol_sv07",
+    "sovol_sv08"
+  ]
+}

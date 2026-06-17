@@ -2849,7 +2849,7 @@ def test_model_status_matches_quantized_variant(tmp_path, monkeypatch):
 
 
 def test_model_status_ollama_down_is_not_running(tmp_path, monkeypatch):
-    """Ollama unreachable -> running:false (the UI says "start Ollama"); a STATUS, never a 500."""
+    """Ollama unreachable -> running:false (the UI guides to in-app setup); a STATUS, never a 500."""
     from kimcad import model_advisor as ma
 
     monkeypatch.setattr(ma, "probe_ollama", lambda base_url, timeout=3.0: (False, []))
@@ -2872,6 +2872,36 @@ def test_model_status_running_but_model_absent(tmp_path, monkeypatch):
         st, s = _jreq(host, port, "GET", "/api/model-status")
         assert st == 200
         assert s["running"] is True and s["model_present"] is False
+
+
+def test_model_status_local_on_nondefault_port_is_local(tmp_path, monkeypatch):
+    """ENG-COLD-002 (cold-start audit): a local Ollama on a NON-default loopback port must be
+    detected as LOCAL and probed — not misreported as cloud/ready because the URL lacks the
+    literal '11434'. Regression for the port-string-fragile is_local check."""
+    from kimcad import config as config_mod
+    from kimcad import model_advisor as ma
+    from kimcad.config import LLMBackend
+
+    local_alt = LLMBackend(
+        key="local", provider="openai_compatible", base_url="http://127.0.0.1:11500/v1",
+        model_name="qwen2.5:7b", api_key_env=None, temperature=0.2, max_tokens=8192,
+        supports_structured_output=False,
+    )
+    monkeypatch.setattr(config_mod.Config, "llm_backend", lambda self, key=None: local_alt)
+    probed: dict[str, str] = {}
+
+    def _probe(base_url, timeout=3.0):
+        probed["url"] = base_url
+        return (False, [])  # honestly down — proves we PROBED rather than assuming cloud-ready
+
+    monkeypatch.setattr(ma, "probe_ollama", _probe)
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, s = _jreq(host, port, "GET", "/api/model-status")
+        assert st == 200
+        assert s["backend"] == "local"  # NOT misclassified as cloud
+        assert s["running"] is False  # the dead port was actually probed
+        assert probed["url"] == "http://127.0.0.1:11500/v1"
 
 
 def test_model_status_cloud_backend_reports_cloud(tmp_path, monkeypatch):

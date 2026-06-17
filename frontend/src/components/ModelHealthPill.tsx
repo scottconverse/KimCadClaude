@@ -30,7 +30,9 @@ export default function ModelHealthPill() {
   const problem =
     model !== null && model.backend !== 'cloud' && !(model.running && model.model_present)
       ? !model.running
-        ? 'Your local AI isn’t running yet — start Ollama to design.'
+        ? // UX-COLD-001: KimCad manages its own AI engine now — guide to the in-app setup, never
+          // "go start Ollama yourself" (the old dead-end).
+          'Your local AI isn’t ready yet — finish setup (the wizard’s “Set up KimCad’s AI”) to design.'
         : // DOC-1005 (stage-10 gate): the in-app download is the first-named path now.
           `The model isn’t downloaded yet — the setup wizard’s Download button fetches it (or run “ollama pull ${model.model}”).`
       : model !== null && model.backend !== 'cloud' && model.vision_present === false

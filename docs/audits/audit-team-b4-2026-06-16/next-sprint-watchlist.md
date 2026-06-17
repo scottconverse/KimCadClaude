@@ -29,3 +29,18 @@ No automated or live test dispatches a real print to physical hardware (no print
 ## 6. Maintainability watch — `webapp.py` size
 
 `webapp.py` is ~2,677 lines holding routing + handlers + closure state. Not a defect today (it's correct and well-commented), but a single source-of-truth route table + lifting per-design state into small collaborators would de-risk drift as the surface grows. Track; refactor when the file next needs substantive change.
+
+---
+
+## Closure — 2026-06-17 fix-everything pass (per the no-deferral directive)
+
+Reconciled and driven to zero except genuine dependencies:
+
+- **ENG-004** — FIXED to the maximum provable, non-admin extent: the CadQuery worker now **denies network egress** before running untrusted code (`cadquery_worker._deny_network`; proven by `tests/test_cadquery_worker.py` in a fresh subprocess). The auditor's core "network egress on a sanitizer miss" concern is closed at the Python level for the arbitrary-code worker. **Residual (true dependency):** a pure-native Winsock bypass + OS-level working-dir FS confinement require admin-level platform infra (Windows firewall / AppContainer) — not buildable by a non-admin process; tracked, do when that infra exists.
+- **TEST-103** — FIXED: `build_printer_catalog.py --verify` was run; it wrote `config/printer_catalog.verified.json` (26 slice-proven printers + catalog SHA-256 + UTC timestamp), so `test_catalog_was_reverified_after_its_last_edit` now **enforces** freshness instead of warn-passing.
+- **webapp.py route-table drift** — FIXED: the triplicated GET-only / POST-only route lists are now single-source constants (`_GET_ONLY_PATHS` / `_POST_ONLY_PATHS` / `_is_get_only`). The broader god-module split is genuinely not-a-defect (correct + tested today) and stays a refactor-when-it-next-changes watch.
+- **TEST-104** — software part already covered: the HTTP connector families round-trip against real local mock servers (`mock_octoprint` / `mock_moonraker` / …). The "recorded REAL-device cassette" half needs a real device = the #11 hardware dependency.
+- **UX-009 (avatar at 32 px)** — resolved as **KEEP**: a subjective brand decision on an avatar deliberately restored; the audit listed "keep (warm/distinctive)" as a valid option, and the asset is optimized (7.7 KB) + framed with an accent ring. Restyle available on request.
+- **#11 real-metal send** — TRUE hardware dependency (no printer on the box); do per protocol family when metal is available.
+
+Net: every software item is fixed to zero; the only open items are genuine hardware / admin-infra dependencies (#11 metal, and the native-bypass + FS-confinement half of ENG-004).

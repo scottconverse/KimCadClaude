@@ -33,6 +33,10 @@ from urllib.parse import urlsplit, urlunsplit
 _EST_GB = {"chat": 11.0, "vision": 4.0}
 _GB = 1024**3
 
+# UX-COLD-001: the snapshot row that carries the managed-Ollama runtime fetch/start progress,
+# shown by the wizard alongside the model rows so "set up the AI" is one honest progress flow.
+_ENGINE_ROW = "AI engine"
+
 
 def ollama_native_root(base_url: str) -> str:
     """Scheme + host[:port] of an OpenAI-compatible base_url (``…:11434/v1`` →
@@ -60,7 +64,7 @@ def _friendly_error(raw: str) -> str:
     if "no space" in low or "not enough" in low or "disk full" in low:
         return (
             "Your disk filled up during the download. Free some space "
-            "(the two models need about 13 GB together), then try again."
+            "(the models are about 8 GB, plus room to unpack), then try again."
         )
     if "file does not exist" in low or "not found" in low or "pull model manifest" in low:
         return "The model wasn't found on Ollama's registry — check your internet connection and try again."
@@ -144,6 +148,134 @@ class ModelPullJob:
             )
             self._thread.start()
         return self.snapshot()
+
+    # --- cold-start one-click setup (UX-COLD-001) -------------------------------------
+    def start_setup(
+        self,
+        base_url: str,
+        chat_model: str,
+        vision_model: str,
+        *,
+        opener: Any = urllib.request.urlopen,
+        is_up: Any = None,
+        resolve: Any = None,
+        fetch: Any = None,
+        serve: Any = None,
+        probe: Any = None,
+        managed_dir: Path | None = None,
+        sleep: Any = None,
+        wait_s: float = 30.0,
+        poll_s: float = 0.5,
+    ) -> dict[str, Any]:
+        """One-click cold setup (UX-COLD-001): ensure a managed Ollama is SERVING — reuse a
+        running/system one, else fetch + start KimCad's portable copy — then pull whatever of the
+        chat / vision models is missing. Both phases ride the SAME per-row snapshot the wizard
+        already renders: an "AI engine" row (the runtime fetch) plus a row per model. Idempotent
+        while running. All effects are injected for testing; defaults wire the real
+        runtime/fetch/probe. ``base_url`` is the native (host-rooted) Ollama URL, as ``start``."""
+        import time as _time
+
+        from kimcad import ollama_fetch as _of
+        from kimcad import ollama_runtime as _ort
+
+        is_up = is_up or (lambda u: _ort.is_server_up(u))
+        resolve = resolve or _ort.resolve_ollama_exe
+        fetch = fetch or _of.fetch_portable_ollama
+        serve = serve or (lambda e: _ort.start_serve(e))
+        sleep = sleep or _time.sleep
+        managed_dir = managed_dir if managed_dir is not None else _ort.managed_dir()
+        if probe is None:
+            from kimcad.model_advisor import probe_ollama as probe
+
+        with self.lock:
+            if self._thread is not None and self._thread.is_alive():
+                return self._snapshot_locked()
+            self._models = {
+                _ENGINE_ROW: {"status": "queued", "completed": 0, "total": 0, "error": ""}
+            }
+            self._thread = threading.Thread(
+                target=self._run_setup,
+                args=(base_url, chat_model, vision_model, opener, is_up, resolve, fetch,
+                      serve, probe, managed_dir, sleep, wait_s, poll_s),
+                daemon=True,
+            )
+            self._thread.start()
+        return self.snapshot()
+
+    def _run_setup(  # noqa: PLR0913 — an orchestration step; every arg is an injected effect
+        self, base_url: str, chat_model: str, vision_model: str, opener: Any, is_up: Any,
+        resolve: Any, fetch: Any, serve: Any, probe: Any, managed_dir: Path, sleep: Any,
+        wait_s: float, poll_s: float,
+    ) -> None:
+        # Phase 1 — ensure the runtime is serving.
+        if not is_up(base_url):
+            with self.lock:
+                self._models[_ENGINE_ROW]["status"] = "pulling"
+            exe = resolve()
+            if exe is None:
+                # No system Ollama and none fetched yet — download the portable runtime, its bytes
+                # driving the engine row's progress.
+                def _prog(done: int, total: int) -> None:
+                    with self.lock:
+                        self._models[_ENGINE_ROW]["completed"] = done
+                        self._models[_ENGINE_ROW]["total"] = total
+
+                try:
+                    exe = fetch(managed_dir, progress=_prog)
+                except Exception as e:  # noqa: BLE001 — a fetch failure is a friendly row, not a crash
+                    with self.lock:
+                        self._models[_ENGINE_ROW]["status"] = "error"
+                        self._models[_ENGINE_ROW]["error"] = _friendly_error(str(e))
+                    return
+            try:
+                serve(exe)
+            except Exception:  # noqa: BLE001
+                with self.lock:
+                    self._models[_ENGINE_ROW]["status"] = "error"
+                    self._models[_ENGINE_ROW]["error"] = (
+                        "Couldn't start the local AI engine — try again, or install Ollama "
+                        "from ollama.com."
+                    )
+                return
+            waited = 0.0
+            while waited < wait_s and not is_up(base_url):
+                sleep(poll_s)
+                waited += poll_s
+            if not is_up(base_url):
+                with self.lock:
+                    self._models[_ENGINE_ROW]["status"] = "error"
+                    self._models[_ENGINE_ROW]["error"] = (
+                        "The local AI engine didn't come up in time. Try again."
+                    )
+                return
+        with self.lock:
+            self._models[_ENGINE_ROW]["status"] = "done"
+
+        # Phase 2 — pull whatever models are missing (reuses _pull_one).
+        try:
+            _running, installed = probe(base_url)
+        except Exception:  # noqa: BLE001
+            installed = []
+        names = {getattr(m, "name", "") for m in installed}
+
+        def _present(tag: str) -> bool:
+            return any(n == tag or n.startswith(tag + "-") for n in names)
+
+        missing = [t for t in ((chat_model, "chat"), (vision_model, "vision")) if not _present(t[0])]
+        with self.lock:
+            for name, _kind in missing:
+                self._models[name] = {"status": "queued", "completed": 0, "total": 0, "error": ""}
+        for name, _kind in missing:
+            with self.lock:
+                self._models[name]["status"] = "pulling"
+            try:
+                self._pull_one(base_url, name, opener)
+                with self.lock:
+                    self._models[name]["status"] = "done"
+            except Exception as e:  # noqa: BLE001 — per-model friendly status, never a crash
+                with self.lock:
+                    self._models[name]["status"] = "error"
+                    self._models[name]["error"] = _friendly_error(str(e))
 
     # --- the worker -------------------------------------------------------------------
     def _run(self, base_url: str, names: list[str], opener: Any) -> None:

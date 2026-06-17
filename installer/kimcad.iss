@@ -73,9 +73,10 @@ begin
     the uninstaller; only the app's working data is, and only if asked.) }
   DataPage := CreateOutputMsgPage(wpInfoAfter,
     'Before you start', 'Two things worth knowing',
-    'AI models: KimCad''s design AI runs locally via Ollama (free). On first run, ' +
-    'KimCad checks for Ollama and offers to download its two models (about 13 GB total) ' +
-    'with a progress bar - nothing is sent to the cloud.' + #13#10#13#10 +
+    'AI engine + models: KimCad runs its design AI locally. On first run it SETS THIS UP for ' +
+    'you - it reuses Ollama if you already have it, otherwise it downloads a portable AI engine ' +
+    '(about 1.4 GB, no separate install) plus the two models (about 7.7 GB total) with a ' +
+    'progress bar. Nothing is sent to the cloud.' + #13#10#13#10 +
     'Your work: saved designs and settings live in your user profile (the .kimcad ' +
     'folder) and are NEVER removed by the uninstaller. The app''s working data ' +
     '(design output, the window''s browser profile) is separate, and the uninstaller ' +

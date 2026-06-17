@@ -167,12 +167,13 @@ describe('FirstRunWizard', () => {
     expect(await screen.findByText('Almost ready')).toBeTruthy()
     expect(screen.queryByText('You’re all set')).toBeNull()
     // The recap row carries the cause + an in-place re-check; finishing stays possible.
-    expect(screen.getByText(/not reachable yet — start Ollama/)).toBeTruthy()
+    // UX-COLD-001: points to the in-app one-click setup, not a "start Ollama" dead-end.
+    expect(screen.getByText(/not set up yet/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /start designing/i })).toBeTruthy()
   })
 
-  it('recap names the pull command when Ollama runs but the model is absent (UX-002)', async () => {
+  it('recap points to the in-app setup when the model is absent (UX-COLD-001)', async () => {
     const api = await import('../api')
     ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
       model: 'gemma4:e4b',
@@ -186,7 +187,9 @@ describe('FirstRunWizard', () => {
     go(/continue/i)
     go(/continue/i)
     expect(await screen.findByText('Almost ready')).toBeTruthy()
-    expect(screen.getByText(/ollama pull gemma4:e4b/)).toBeTruthy()
+    // No manual "ollama pull …" homework — the recap routes to the one-click Set up action.
+    expect(screen.getByText(/not set up yet/)).toBeTruthy()
+    expect(screen.queryByText(/ollama pull/)).toBeNull()
   })
 
   // --- Slice 10.4: the in-app model download -------------------------------------------
@@ -208,7 +211,7 @@ describe('FirstRunWizard', () => {
     render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i) // → Your AI model
     const btn = await screen.findByRole('button', { name: /download now/i })
-    expect(btn.textContent).toMatch(/13 GB/) // both models missing — the honest total
+    expect(btn.textContent).toMatch(/7\.7 GB/) // both models missing — the honest measured total
     fireEvent.click(btn)
     expect(await screen.findByText(/downloading…/)).toBeTruthy()
     expect(screen.getByText(/50%/)).toBeTruthy()
@@ -254,22 +257,29 @@ describe('FirstRunWizard', () => {
     }
   })
 
-  it('a down Ollama at pull time is a typed message with try again — never a crash', async () => {
+  it('cold (no Ollama) offers one-click "Set up KimCad’s AI" and shows the engine setting up — no dead-end (UX-COLD-001)', async () => {
     const api = await import('../api')
     ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
-      model: 'gemma4:e4b', backend: 'local', running: true,
-      model_present: false, vision_model: 'qwen2.5vl:3b', vision_present: true,
+      model: 'qwen2.5:7b', backend: 'local', running: false,
+      model_present: false, vision_model: 'qwen2.5vl:3b', vision_present: false,
     })
     ;(api.startModelPull as ReturnType<typeof vi.fn>).mockResolvedValue({
-      status: 'ollama_down', running: false,
-      error: "Your local AI (Ollama) isn’t running — start it, then try again.",
+      status: 'ok', running: true,
+      models: { 'AI engine': { status: 'pulling', completed: 700, total: 1400, error: '' } },
+    })
+    ;(api.getModelPullProgress as ReturnType<typeof vi.fn>).mockResolvedValue({
+      running: true,
+      models: { 'AI engine': { status: 'pulling', completed: 700, total: 1400, error: '' } },
     })
     render(<FirstRunWizard onClose={vi.fn()} />)
-    go(/continue/i)
-    fireEvent.click(await screen.findByRole('button', { name: /download now/i }))
-    // The message lands twice by design: the visible action line AND the sr-only live region.
-    expect((await screen.findAllByText(/isn’t running/)).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+    go(/continue/i) // → Set up your AI
+    // No manual-install dead-end: the cold step offers the one-click setup, not "Get Ollama".
+    expect(screen.queryByRole('button', { name: /get ollama/i })).toBeNull()
+    const btn = await screen.findByRole('button', { name: /set up kimcad’s ai/i })
+    fireEvent.click(btn)
+    // The AI-engine fetch rides the same progress rows the model uses.
+    expect(await screen.findByText(/setting up…/)).toBeTruthy()
+    expect(screen.getByText(/50%/)).toBeTruthy()
   })
 
   it('Escape skips setup (calls onClose)', () => {

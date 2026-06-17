@@ -268,7 +268,7 @@
       <div class="step">
         <span class="n">1</span>
         <h3>Install &amp; open</h3>
-        <p>Download the installer, run it past SmartScreen (<b>More info → Run anyway</b>), and open KimCad. The setup wizard fetches the two local AI models with a progress bar.</p>
+        <p>Download the installer, run it past SmartScreen (<b>More info → Run anyway</b>), and open KimCad. One <b>Set up KimCad's AI</b> button sets up the local AI engine (reusing a system Ollama, or downloading its own portable ~1.4&#160;GB build) and fetches the two AI models (~7.7&#160;GB) — all with a progress bar. No manual Ollama install.</p>
       </div>
       <div class="step">
         <span class="n">2</span>
@@ -351,7 +351,7 @@
       <tr><th>Platform</th><td><b>Windows 10 / 11</b> — zero-terminal installer (the beta). macOS &amp; Linux run from source (<code>pip install</code>, then <code>kimcad web</code>); code-verified cross-platform, not yet exercised on real mac/Linux hardware.</td></tr>
       <tr><th>Local AI — planning</th><td><b>qwen2.5:7b</b> (~4.7&#160;GB) via Ollama — the on-device planner that won the on-machine bake-off 4/4. Turns your words into a validated design plan.</td></tr>
       <tr><th>Local AI — vision</th><td><b>qwen2.5vl:3b</b> (~3&#160;GB) — the dedicated reader for photos and dimensioned sketches. Images are always processed locally and never persisted.</td></tr>
-      <tr><th>Runs offline</th><td><b>Fully.</b> No account, no API key, no network required. The cloud path is an opt-in OpenRouter escape hatch for hard prompts only.</td></tr>
+      <tr><th>Runs offline</th><td><b>Fully.</b> No account, no API key, no network required after setup. KimCad even sets up its own AI engine on first run — reusing a system Ollama if present, else downloading Ollama's portable build (~1.4&#160;GB) into its own data folder — so there's no manual install. The cloud path is an opt-in OpenRouter escape hatch for hard prompts only.</td></tr>
       <tr><th>Hardware</th><td>CPU-only core path (no discrete GPU). Reference box: a recent CPU with 32&#160;GB RAM; the model advisor downshifts smaller machines.</td></tr>
       <tr><th>Bundled engines</th><td>Embedded CPython 3.13, OpenSCAD, OrcaSlicer (full ~65-brand / 1,400+ machine-profile library), and the PrintProof3D validation engine — each run at arm's length as a subprocess.</td></tr>
       <tr><th>Printer catalog</th><td>A curated <b>~29-printer catalog</b> (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each build-volume-gated and slice-proven in CI; three are reference printers also wired for native direct-send.</td></tr>

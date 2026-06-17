@@ -118,11 +118,14 @@ on another machine — not a printable STL). A short walkthrough is in
   way the slice path consumes an STL, so a `lib3mf`-less build does not block printing)
 - OrcaSlicer (CLI)
 - An LLM backend. KimCad is **local-first**: out of the box it talks to a local
-  runtime ([Ollama](https://ollama.com/) or LM Studio), so no API key and no network
-  are required. A cloud API is an optional, off-by-default fallback — enable it in the
-  in-app **Settings** screen (via [OpenRouter](https://openrouter.ai/), where you pick the
-  cloud model), or in `config/local.yaml` (DeepSeek / OpenRouter / any OpenAI-compatible
-  endpoint).
+  runtime, so no API key and no network are required. **You don't install it by hand** —
+  on first run KimCad sets up its own AI engine: it reuses a system
+  [Ollama](https://ollama.com/) if one is present, otherwise it downloads Ollama's official
+  **portable** build (~1.4 GB, no separate install / no admin) into KimCad's own data folder
+  and runs it headless. (LM Studio also works if you prefer to run your own.) A cloud API is
+  an optional, off-by-default fallback — enable it in the in-app **Settings** screen (via
+  [OpenRouter](https://openrouter.ai/), where you pick the cloud model), or in
+  `config/local.yaml` (DeepSeek / OpenRouter / any OpenAI-compatible endpoint).
 
 OpenSCAD and OrcaSlicer are fetched as pinned portable builds into `tools/` by the
 setup step (see below); a system install can be pointed to via `config/local.yaml`.
@@ -166,20 +169,23 @@ crashes on every CLI slice on a GPU-less machine (upstream issue #12906), wherea
 builds are not yet verified (spec §7.5); install those manually and point
 `config/local.yaml` at them.
 
-Finally, pull the local model. KimCad defaults to [Ollama](https://ollama.com/) on
-`localhost:11434`, running `qwen2.5:7b` — the on-device planner that won the on-machine
-bake-off (4/4 vs the alternatives; ~4.7 GB, ~6 GB RAM) on the target machine (a 32 GB box
-with a 780M iGPU — the v3.0 spec's reference box is the slightly stronger Beelink 890M, so
-anything that runs here runs on the spec reference too). Smaller boxes downshift — run
-`kimcad models` for a hardware-matched pick:
+Finally, the local AI. **KimCad sets this up for you** — on first run it reuses a system
+[Ollama](https://ollama.com/) on `localhost:11434` if one is present, otherwise it downloads
+Ollama's official **portable** build (~1.4 GB, a one-time engine download — no separate
+install / no admin) into KimCad's own data folder and runs it headless; then it fetches the
+two models (~**7.7 GB** total) with progress via the in-app setup wizard's **Set up KimCad's
+AI** button (Stage 10). The default planner is `qwen2.5:7b` — the on-device model that won
+the on-machine bake-off (4/4 vs the alternatives; ~4.7 GB, ~6 GB RAM) on the target machine
+(a 32 GB box with a 780M iGPU — the v3.0 spec's reference box is the slightly stronger
+Beelink 890M, so anything that runs here runs on the spec reference too). Smaller boxes
+downshift — run `kimcad models` for a hardware-matched pick.
+
+To pull the models by hand instead (you have Ollama, or just prefer the terminal):
 
 ```
 ollama pull qwen2.5:7b
 ollama pull qwen2.5vl:3b
 ```
-
-(Or skip the commands: with Ollama running, the in-app **setup wizard's Download button**
-fetches whichever of the two is missing, with progress — Stage 10.)
 
 The second pull is the **dedicated local vision model** for the photo/sketch on-ramps
 (Stage 9): measured on the target box, `gemma4:e4b`'s vision is broken on this stack (the

@@ -3,22 +3,24 @@
 > **The easy way (the beta installer):** download `KimCad-Setup-<version>.exe` from the
 > releases page, double-click it, and follow
 > **[docs/install-guide.md](install-guide.md)** — no terminal at any point. The installer
-> bundles everything below except Ollama, and the in-app setup wizard handles Ollama and
-> the AI-model downloads with buttons and progress bars.
+> bundles everything below, and the in-app setup wizard's **Set up KimCad's AI** button
+> handles the AI engine and the model downloads automatically — no manual Ollama install.
 >
 > **The rest of this page is the FROM-SOURCE path** — for developers, or anyone who
-> prefers to run KimCad from a code checkout.
+> prefers to run KimCad from a code checkout. (Even here, KimCad can set up its own AI
+> engine on first launch — Step 2 below is just the manual equivalent.)
 
 This walks you from nothing to a running KimCad, step by step. No CAD experience needed —
 and no programming. You'll copy a few commands into a terminal; each one is given exactly
-as you should type it. Setup means installing three things yourself: Python, Ollama, and
-KimCad's own files — about 15–30 minutes, most of it download time. If anything goes
-wrong, [troubleshooting.md](troubleshooting.md) has the fixes for every common snag.
+as you should type it. Setup means installing Python and KimCad's own files, then letting
+KimCad set up its AI (or installing Ollama yourself, below) — about 15–30 minutes, most of
+it download time. If anything goes wrong, [troubleshooting.md](troubleshooting.md) has the
+fixes for every common snag.
 
 ## What you'll need
 
-- A Windows 10/11 PC with about **20 GB free disk space** (most of it for the two AI models)
-  and ideally 16 GB+ of RAM.
+- A Windows 10/11 PC with about **12 GB free disk space** as headroom (the AI engine
+  ~1.4 GB plus the ~7.7 GB of models) and ideally 16 GB+ of RAM.
 - An internet connection for the downloads. (After setup, KimCad runs fully offline.)
 
 ## Step 1 — Install Python 3.13
@@ -38,31 +40,26 @@ python --version
 You should see `Python 3.13.x`. If you see an error or a Microsoft Store window opens,
 see [troubleshooting](troubleshooting.md#python-isnt-found) ("Python isn't found").
 
-## Step 2 — Install Ollama (the local AI runtime)
+## Step 2 — Set up the local AI
 
-1. Go to <https://ollama.com/download> and download **Ollama for Windows**.
-2. Run the installer. When it finishes, Ollama runs quietly in the background (you'll see
-   a llama icon in the system tray).
-3. In your terminal, pull KimCad's two AI models — the designer (~4.7 GB, the big
-   download) and the small vision model that reads photos and sketches (~3 GB):
+KimCad sets up its own local AI on first run, so this step is largely automatic. Once
+KimCad is running (Step 4), its setup wizard's **Set up KimCad's AI** button does the whole
+flow: if you already have Ollama it uses it automatically, otherwise it downloads Ollama's
+official **portable** build (~1.4 GB, a one-time engine download — no separate install, no
+system tray, no admin) into KimCad's own data folder, then fetches the two AI models — the
+designer (`qwen2.5:7b`, ~4.7 GB) and the small vision model that reads photos and sketches
+(`qwen2.5vl:3b`, ~3 GB), ~**7.7 GB** total — with a progress bar.
 
-```
-ollama pull qwen2.5:7b
-ollama pull qwen2.5vl:3b
-```
-
-> **Prefer buttons to terminals?** You can skip these two commands: once KimCad itself is
-> running (Step 5), its setup wizard offers a **Download now** button that fetches whichever
-> model is missing and shows the progress. Ollama just needs to be installed and running.
-
-**Check it worked:**
-
-```
-ollama list
-```
-
-You should see both `qwen2.5:7b` and `qwen2.5vl:3b` in the list. (`kimcad models` will
-also confirm both once KimCad is installed.)
+> **Already have Ollama, or prefer to do it by hand?** Install Ollama from
+> <https://ollama.com/download> if you don't have it, then pull the two models yourself:
+>
+> ```
+> ollama pull qwen2.5:7b
+> ollama pull qwen2.5vl:3b
+> ```
+>
+> Either way KimCad uses whatever's there. `ollama list` (or `kimcad models` once installed)
+> shows both `qwen2.5:7b` and `qwen2.5vl:3b` once they're present.
 
 ## Step 3 — Get KimCad
 
@@ -104,8 +101,8 @@ screen shows live progress the whole time.
 ## Day-to-day
 
 - **Starting KimCad later:** open a terminal, then
-  `cd C:\KimCad`, `.venv\Scripts\activate`, `kimcad web`. Ollama starts itself with
-  Windows; if you've quit it, start it from the Start menu first.
+  `cd C:\KimCad`, `.venv\Scripts\activate`, `kimcad web`. KimCad starts its own AI engine
+  automatically (and a system Ollama, if you installed one, starts itself with Windows).
 - **Your designs are saved automatically** — see [guide-my-designs.md](guide-my-designs.md).
 - **Stopping:** press `Ctrl+C` in the terminal, or just close it.
 
@@ -113,7 +110,8 @@ screen shows live progress the whole time.
 
 Every common failure has a fix in **[troubleshooting.md](troubleshooting.md)** — the
 landing page and the terminal also tell you what's wrong in plain words (e.g. "Your local
-AI isn't running yet — start Ollama"). Nothing you can do in setup harms your PC; the
-worst case is deleting the KimCad folder and redoing Step 3 (Python and Ollama are
-separate installs and keep working — uninstall those from Windows Settings → Apps if you
-ever want them gone too).
+AI isn't ready yet" with a one-click **Set up KimCad's AI** / **Check again**). Nothing you
+can do in setup harms your PC; the worst case is deleting the KimCad folder and redoing
+Step 3 (Python keeps working; KimCad's portable AI engine lives in its own data folder, and
+any system Ollama you installed stays put — uninstall those from Windows Settings → Apps if
+you ever want them gone too).

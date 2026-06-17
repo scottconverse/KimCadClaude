@@ -6,12 +6,15 @@ commands.
 
 ## "KimCad couldn't reach your local AI" / designs never start
 
-**Cause:** Ollama (the local AI runtime) isn't running, or was never installed.
+**Cause:** KimCad's AI engine isn't set up or isn't running yet. KimCad runs its **own**
+engine (it reuses a system Ollama if one is installed, otherwise it downloads and runs
+Ollama's portable build for you), so there's normally nothing for you to start by hand.
 
-**Fix:** start Ollama from the Start menu (look for the llama icon in the system tray),
-then click **Check again** on the landing page — or just try your design again. If Ollama
-isn't installed yet, see [getting-started-windows.md](getting-started-windows.md), Step 2.
-`kimcad models` in a terminal shows exactly what KimCad can see.
+**Fix:** click **Set up KimCad's AI** (or **Check again**) on the landing page — it
+provisions and starts the engine, then retries — or just try your design again. If
+automatic setup fails (for example, you're offline so the portable engine can't download),
+install Ollama yourself from [ollama.com](https://ollama.com/) as a fallback and press
+**Check again**. `kimcad models` in a terminal shows exactly what KimCad can see.
 
 ## "requirements.lock not found" / "no such file" during setup
 
@@ -24,23 +27,26 @@ unpacked into a nested folder (`KimCadClaude-main` inside the folder you unzippe
 
 ## "The model isn't available on your local AI server" / "The model isn't pulled yet"
 
-**Cause:** Ollama is running but the model was never pulled (or was removed). The first
-wording is the terminal's; the second is the web page's — same cause, same fix.
+**Cause:** the AI engine is running but the model was never downloaded (or was removed).
+The first wording is the terminal's; the second is the web page's — same cause, same fix.
 
-**Fix:**
+**Fix:** in the app, re-open the setup wizard and press **Set up KimCad's AI** — it fetches
+whichever model is missing with a progress bar. (If you're running your own Ollama, you can
+pull it by hand instead:)
 
 ```
 ollama pull qwen2.5:7b
 ```
 
-Then try again. `ollama list` should show `qwen2.5:7b`.
+Then try again. `kimcad models` should show `qwen2.5:7b`.
 
 ## "KimCad's vision model isn't pulled yet"
 
 **Cause:** the photo and sketch features use a dedicated small vision model that wasn't
 downloaded (it's a separate pull from the main design model).
 
-**Fix:**
+**Fix:** re-open the setup wizard and press **Set up KimCad's AI** — it fetches the missing
+vision model with a progress bar. (Running your own Ollama? Pull it by hand instead:)
 
 ```
 ollama pull qwen2.5vl:3b
@@ -50,11 +56,13 @@ Then try the photo or sketch again. `kimcad models` shows both models' status.
 
 ## The photo or sketch feature returns nothing / an empty description
 
-**Cause:** usually an outdated Ollama (older builds mishandle vision requests), or a very
-low-contrast image.
+**Cause:** usually a very low-contrast image, or — if you're using your own (older) system
+Ollama — a build that mishandles vision requests. (KimCad's own portable engine is a current
+build, so this is mostly a concern when you've pointed KimCad at a pre-existing install.)
 
-**Fix:** update Ollama to the current release from <https://ollama.com/download>, then try
-again with a clear, well-lit image. (Your models and settings survive the update.)
+**Fix:** try again with a clear, well-lit image. If you're on your own system Ollama, update
+it to the current release from <https://ollama.com/download> (your models and settings
+survive the update); or let KimCad use its own engine via **Set up KimCad's AI**.
 
 ## (Installed app) The KimCad window won't open, or opens blank
 
@@ -88,20 +96,25 @@ release page: see [install-guide.md](install-guide.md).
 Saved designs + settings: the `.kimcad` folder in your user profile (never removed by the
 uninstaller). The app's working output: `%LOCALAPPDATA%\KimCad`. The app itself: the
 folder you chose at install time.
-## The in-app model download fails or stalls
+## The in-app AI setup or model download fails or stalls
 
-The setup wizard's **Download now** asks your local Ollama to fetch KimCad's models, so a
-failure there is almost always one of three things:
+The setup wizard's **Set up KimCad's AI** provisions the engine (reusing a system Ollama, or
+downloading the portable build) and then fetches KimCad's models, so a failure there is
+almost always one of these:
 
-- **"Not enough disk space"** — the two models download to about 8 GB together (chat ~4.7 GB +
-  vision ~3 GB), but keep **13–20 GB** free for headroom (KimCad checks before downloading).
-  Free up space, then press **try again**.
-- **"Your local AI (Ollama) isn't running"** — start Ollama, then **try again**.
-- **The download stopped partway** — usually the internet connection. Ollama resumes a
+- **"Not enough disk space"** — the two models download to about **7.7 GB** together (chat
+  ~4.7 GB + vision ~3 GB), and the portable engine adds a one-time ~1.4 GB on first run. Keep
+  about **12 GB** free as headroom (KimCad checks before downloading). Free up space, then
+  press **try again**.
+- **The AI engine couldn't be set up** — usually because you're offline so the portable
+  build can't download. Reconnect and press **Set up KimCad's AI** again; or install Ollama
+  from [ollama.com](https://ollama.com/) as a fallback and press **Check again**.
+- **The download stopped partway** — usually the internet connection. The engine resumes a
   partial download, so pressing **try again** continues rather than starting over.
 
-The wizard downloads only KimCad's own two models; you never need to pick one. You can
-always pull manually instead: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`.
+The wizard downloads only KimCad's own two models; you never need to pick one. If you're
+running your own Ollama you can also pull manually: `ollama pull qwen2.5:7b` and
+`ollama pull qwen2.5vl:3b`.
 
 ## A Bambu printer connection needs the optional bambulabs-api package
 
@@ -209,7 +222,8 @@ the web page and the terminal show live progress phases the whole time ("Plannin
 shape…", "Rendering the part…"). If you see phases ticking, it's working.
 
 **What's not:** no progress at all for 10+ minutes. Press Cancel (or `Ctrl+C` in the
-terminal) and try again; if it repeats, restart Ollama. Your saved designs are unaffected.
+terminal) and try again; if it repeats, restart KimCad (which restarts its AI engine), or
+re-run **Set up KimCad's AI** from the wizard. Your saved designs are unaffected.
 
 ## Something else broke
 

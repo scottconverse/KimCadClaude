@@ -52,8 +52,9 @@ Full details, including the checksum check and exactly what goes where, are in t
 **[install guide](install-guide.md)**.
 
 **Requirements:** Windows 11 (or Windows 10 with the WebView2 Runtime, which Edge installs
-automatically, plus .NET Framework 4.7.2+, in-box since Windows 10 1803), about 20 GB free
-disk (mostly the AI models), 16 GB+ RAM recommended. **No graphics card needed.**
+automatically, plus .NET Framework 4.7.2+, in-box since Windows 10 1803), about 12 GB free
+disk as headroom (the AI engine ~1.4 GB plus the ~7.7 GB of models, with room to spare),
+16 GB+ RAM recommended. **No graphics card needed.**
 
 ### macOS and Linux — run from source
 
@@ -76,12 +77,17 @@ on Linux).
 Launch KimCad from the Start-Menu shortcut (Windows) or with `kimcad web` (Mac/Linux). A
 setup wizard walks you through three things:
 
-1. **The AI.** KimCad's design intelligence runs locally through **Ollama** (free). If you
-   don't have Ollama, the wizard's **Get Ollama** button takes you to the download; install
-   it and click *check again*. Then the wizard's **Download now** button fetches KimCad's
-   two AI models (about 8 GB total) with a progress bar. Designing in words works the
-   moment the first one finishes. The two models are **`qwen2.5:7b`** (the design planner)
-   and **`qwen2.5vl:3b`** (the photo/sketch reader); both run **fully offline**.
+1. **The AI.** KimCad's design intelligence runs locally through **Ollama** (free) — and
+   KimCad **sets that up for you**. The wizard's **Set up KimCad's AI** button does it in one
+   flow: if you already have Ollama it uses it automatically; otherwise it downloads Ollama's
+   official **portable** build (~1.4 GB, a one-time engine download — no separate install, no
+   system tray, no admin) into KimCad's own data folder and runs it headless. It then fetches
+   KimCad's two AI models (about 7.7 GB total) with a progress bar. Designing in words works
+   the moment the first model finishes. The two models are **`qwen2.5:7b`** (the design
+   planner) and **`qwen2.5vl:3b`** (the photo/sketch reader); both run **fully offline**.
+   *(Already have Ollama? It's used automatically. If automatic setup ever fails — e.g.
+   you're offline — you can install Ollama from [ollama.com](https://ollama.com/) and click
+   **Check again**.)*
 2. **Your printer.** Pick the printer your parts will be checked and sliced against. You can
    change it any time in Settings.
 3. **Direct printing** (optional). You can always download a file; connecting a printer to
@@ -252,8 +258,8 @@ A symptom-first list of the most common snags. The full, exhaustive version is
 | What you see | What to do |
 |---|---|
 | **"Windows protected your PC" (SmartScreen)** at install | Expected — the beta isn't code-signed. Click **More info → Run anyway**. You can verify the `.sha256` checksum from the release first if you like. |
-| **The setup wizard can't find the AI** | Ollama isn't installed or isn't running. Click **Get Ollama**, install it, then **check again**. On Windows, Ollama runs as a background service after install. |
-| **A model won't download / download stalls** | Re-open the wizard and press **Download now** again — it resumes. You can also pull them yourself: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`. The models download to ~8 GB total; keep 13–20 GB free for headroom. |
+| **The setup wizard can't find the AI** | Press **Set up KimCad's AI** — KimCad provisions and starts its own engine (reusing a system Ollama if one is present, else downloading the portable build), then **Check again**. If automatic setup fails (e.g. offline), install Ollama from [ollama.com](https://ollama.com/) as a fallback and retry. |
+| **A model won't download / download stalls** | Re-open the wizard and press **Set up KimCad's AI** again — it resumes. You can also pull them yourself if you have Ollama: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`. The models download to ~7.7 GB total (plus the ~1.4 GB engine on first run); keep ~12 GB free as headroom. |
 | **A design takes a minute or two** | Normal for the first design after a cold start (the model is loading into memory). Template parts re-render from sliders instantly afterward. |
 | **"This part can't be sliced"** | The Printability Gate failed it — usually too big for the selected printer, too-thin walls, or a non-manifold result. The card names the reason. Make it smaller / thicker, or pick a bigger printer, then retry. You can still download the model to inspect it. |
 | **A photo's sizes are wrong** | A photo can't convey scale — the numbers are estimates. Edit them in the description (or use a *dimensioned sketch* instead, which carries real sizes). |

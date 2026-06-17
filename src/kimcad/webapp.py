@@ -680,6 +680,22 @@ def slice_registered_mesh(
     )
 
 
+# ENG-005/ENG-008 (audit-team-b4): single source of truth for the method-routing tables, so the
+# 405/Allow logic can't drift between _method_not_allowed and the do_GET/do_POST wrong-verb guards
+# (the GET-only list was previously duplicated inline across all three).
+_GET_ONLY_PATHS = (
+    "/api/options", "/api/model-status", "/api/health", "/api/connectors",
+    "/api/model-pull/progress", "/api/designs",
+)
+_GET_ONLY_PREFIXES = ("/api/connector-status/", "/api/design/progress/")
+_POST_ONLY_PATHS = ("/api/model-pull", "/api/design")
+
+
+def _is_get_only(path: str) -> bool:
+    """A read-only API path (GET/HEAD only) — one source for the wrong-verb 405/Allow logic."""
+    return path in _GET_ONLY_PATHS or path.startswith(_GET_ONLY_PREFIXES)
+
+
 def make_handler(
     pipeline: Any, web_root: Path, *, config: Any = None, pull_job: Any = None,
     session_token: str = "",
@@ -814,12 +830,9 @@ def make_handler(
             # QA-1002 (stage-10 gate): the Allow header is TRUTHFUL per path — a PUT to a
             # POST-only route must not advertise GET.
             path = urlsplit(self.path).path
-            if path in ("/api/model-pull", "/api/design"):
+            if path in _POST_ONLY_PATHS:
                 allow = "POST"
-            elif path in (
-                "/api/options", "/api/model-status", "/api/health", "/api/connectors",
-                "/api/model-pull/progress", "/api/designs",
-            ) or path.startswith(("/api/connector-status/", "/api/design/progress/")):
+            elif _is_get_only(path):
                 allow = "GET, HEAD"
             else:
                 allow = "GET, HEAD, POST"
@@ -1059,7 +1072,7 @@ def make_handler(
                 return
             # QA-1002 (stage-10 gate): GET on a POST-only resource is 405 with a TRUTHFUL
             # Allow header, mirroring the do_POST tail's rule for GET-only resources.
-            if self.path in ("/api/model-pull", "/api/design"):
+            if self.path in _POST_ONLY_PATHS:
                 self.send_response(405)
                 self.send_header("Allow", "POST")
                 self.send_header("Content-Length", "0")
@@ -1376,11 +1389,7 @@ def make_handler(
             # for every actual state-changing POST route below. The 405 uses _method_not_allowed so
             # the JSON {"error":"Method not allowed."} envelope is emitted in BOTH paths (QA-005: the
             # old inline block sent an empty body), keeping the error contract uniform.
-            _getonly_post = self.path in (
-                "/api/options", "/api/model-status", "/api/health", "/api/connectors",
-                "/api/model-pull/progress", "/api/designs",
-            ) or self.path.startswith(("/api/connector-status/", "/api/design/progress/"))
-            if _getonly_post:
+            if _is_get_only(self.path):
                 self._method_not_allowed()
                 return
             if session_token and not hmac.compare_digest(
@@ -1617,8 +1626,12 @@ def make_handler(
             except Exception:  # noqa: BLE001 - a config gap shouldn't 500 the action
                 backend = None
             base_url = (backend.base_url if backend else "") or ""
+            from kimcad.config import DEFAULT_CHAT_MODEL, DEFAULT_VISION_MODEL, Config
+
+            # ENG-COLD-002 (cold-start audit): classify "local" by loopback HOST, not a literal
+            # "11434" port-string match (which misread a non-default-port Ollama as remote).
             is_local = backend is not None and (
-                backend.provider == "ollama" or "11434" in base_url
+                backend.provider == "ollama" or Config._is_local_base_url(base_url)
             )
             if not is_local or not is_loopback_url(base_url):
                 self._json(400, {
@@ -1626,30 +1639,14 @@ def make_handler(
                     "error": "In-app downloads manage the local AI on this computer only.",
                 })
                 return
-            from kimcad.model_advisor import probe_ollama
-
-            running, installed = probe_ollama(base_url)
-            if not running:
-                self._json(200, {
-                    "status": "ollama_down",
-                    "error": "Your local AI (Ollama) isn't running — start it, then try again.",
-                })
-                return
-            names = {m.name for m in installed}
-
-            def _present(tag: str) -> bool:
-                return any(n == tag or n.startswith(tag + "-") for n in names)
-
-            from kimcad.config import DEFAULT_CHAT_MODEL, DEFAULT_VISION_MODEL
-
-            missing: list[tuple[str, str]] = []
-            chat = backend.model_name or DEFAULT_CHAT_MODEL
-            vision = backend.vision_model or DEFAULT_VISION_MODEL
-            if not _present(chat):
-                missing.append((chat, "chat"))
-            if not _present(vision):
-                missing.append((vision, "vision"))
-            snap = pull_job.start(ollama_native_root(base_url), missing)
+            # UX-COLD-001 (cold-start audit): ONE-CLICK setup. start_setup ENSURES the runtime is
+            # serving first — reuse a running/system Ollama, else fetch + start KimCad's portable
+            # copy — THEN pulls whatever models are missing, all on one progress snapshot. This
+            # replaces the old "Ollama isn't running — go start it yourself" dead-end. Non-blocking:
+            # returns the initial snapshot; the SPA polls /api/model-pull/progress as before.
+            chat = (backend.model_name if backend else "") or DEFAULT_CHAT_MODEL
+            vision = (backend.vision_model if backend else "") or DEFAULT_VISION_MODEL
+            snap = pull_job.start_setup(ollama_native_root(base_url), chat, vision)
             self._json(200, {"status": "ok", **snap})
 
         def _handle_model_status(self) -> None:
@@ -1674,8 +1671,18 @@ def make_handler(
 
             model_name = (backend.model_name if backend else DEFAULT_CHAT_MODEL) or DEFAULT_CHAT_MODEL
             base_url = (backend.base_url if backend else "") or ""
-            # Local (Ollama) vs a cloud backend: an ollama provider or a localhost:11434 base_url.
-            is_local = backend is not None and (backend.provider == "ollama" or "11434" in base_url)
+            # Local (Ollama) vs a cloud backend. ENG-COLD-002 (2026-06-17 cold-start audit): the old
+            # test was `"11434" in base_url` — a literal-port-string match that misclassified a local
+            # Ollama on ANY non-default port (e.g. OLLAMA_HOST=…:11500) as "cloud, ready"
+            # (running:true, model_present:true, never probed), then the first design failed. Classify
+            # by LOOPBACK HOST instead — the rigor already used in config._is_local_base_url /
+            # model_pull.is_loopback_url: a loopback base_url, or an explicit ollama provider, is local
+            # and gets probed; only a genuine remote host is treated as cloud.
+            from kimcad.config import Config
+
+            is_local = backend is not None and (
+                backend.provider == "ollama" or Config._is_local_base_url(base_url)
+            )
             payload: dict[str, Any] = {
                 "model": model_name,
                 "backend": "local" if is_local else "cloud",
@@ -2731,6 +2738,15 @@ def serve(
         target=lambda: _swallow(config.cadquery_interpreter), daemon=True,
         name="cadquery-probe-warmup",
     ).start()
+    # UX-COLD-001 (2026-06-17 cold-start audit): auto-start a managed Ollama off the launch path,
+    # so a user who already has Ollama (or set it up once) never sees a "start Ollama" step — the
+    # app just works. Best-effort: reuses a running server, starts a stopped system/portable one,
+    # or no-ops when no runtime is present yet (the wizard's one-click setup handles that). Skipped
+    # in demo mode (no LLM is used).
+    if not demo:
+        from kimcad.ollama_runtime import ensure_serving_background
+
+        ensure_serving_background()
     mode = " (demo mode — no LLM)" if demo else ""
     print(f"KimCad web UI on http://{host}:{port}{mode}")
     print("Press Ctrl+C to stop.")

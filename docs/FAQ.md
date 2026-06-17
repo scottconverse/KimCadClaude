@@ -30,11 +30,14 @@ rather than folklore.
 
 ### 4. The first setup is downloading something huge. What and why?
 
-The two local models total roughly **8 GB** as a one-time download — the chat/planner model
+The two local models total roughly **7.7 GB** as a one-time download — the chat/planner model
 (~4.7 GB) plus the vision model (~3 GB) — the price of a capable AI that runs entirely on your
-machine. The setup wizard downloads them in-app with a live progress bar; your designs afterward
+machine. KimCad also sets up its own AI **engine** on first run: if Ollama is already installed
+it just uses it, otherwise it downloads Ollama's official **portable** build (~**1.4 GB**, a
+separate one-time download — no install, no admin) into its own data folder. The **Set up
+KimCad's AI** button does both, in one flow, with a live progress bar; your designs afterward
 need no network at all. (Free-disk recommendation is higher — see the install guide — because
-that headroom covers more than the download itself.)
+that headroom covers both downloads with room to spare.)
 
 ### 5. How long does a design take?
 
@@ -125,9 +128,10 @@ design — re-renders are deterministic and versioned.
 
 ### 17. Something's not running — the AI, a tool, the photo reader.
 
-The UI tells you which piece is down and how to fix it (e.g. *"Your local AI isn't running
-yet — start Ollama"* with a one-click re-check; a missing vision model gets the exact pull
-command). The longer list — port conflicts, model pulls, tool paths, logs — is in
+The UI tells you which piece is down and how to fix it. If the AI engine is down, the wizard's
+**Set up KimCad's AI** / **Check again** button restarts (or re-provisions) it — KimCad runs its
+own engine, so there's nothing for you to start by hand; a missing vision model gets re-fetched
+the same way. The longer list — port conflicts, model pulls, tool paths, logs — is in
 [troubleshooting](troubleshooting.md). Re-running the setup wizard (Settings) repairs most
 first-run states.
 

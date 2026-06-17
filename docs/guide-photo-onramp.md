@@ -54,10 +54,12 @@ or anything where the overall shape can't be named in a sentence or two.
 
 ## If it returns nothing
 
-An empty or failed read usually means an **outdated Ollama** — older builds have a bug
-that makes the vision read come back blank. Update Ollama from
-[ollama.com/download](https://ollama.com/download) and try again. For a sketch, also
-check the dimensions are *written* on it — a shape with no labels reads into a shape with
-no sizes. If your local AI isn't running at all, or the vision model isn't downloaded
-yet, KimCad says so (it never blames your image for a setup problem). More in
-[troubleshooting](troubleshooting.md).
+An empty or failed read most often means a **low-contrast image** — or, if you've pointed
+KimCad at your own older system Ollama, a build with a vision bug that makes the read come
+back blank. KimCad's own portable engine is a current build, so this is mainly a concern on
+a pre-existing install; if that's you, update Ollama from
+[ollama.com/download](https://ollama.com/download) and try again. For a sketch, also check
+the dimensions are *written* on it — a shape with no labels reads into a shape with no
+sizes. If your local AI isn't set up or running yet, or the vision model isn't downloaded,
+KimCad says so and offers **Set up KimCad's AI** (it never blames your image for a setup
+problem). More in [troubleshooting](troubleshooting.md).

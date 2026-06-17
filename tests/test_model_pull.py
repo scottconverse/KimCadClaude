@@ -13,7 +13,7 @@ from pathlib import Path
 
 import kimcad.model_pull as mp
 from kimcad.config import Config
-from kimcad.model_pull import ModelPullJob, is_loopback_url, ollama_native_root
+from kimcad.model_pull import _ENGINE_ROW, ModelPullJob, is_loopback_url, ollama_native_root
 from kimcad.webapp import make_handler
 
 
@@ -104,6 +104,94 @@ def test_friendly_error_clips_raw_text_directly():
     assert mp._friendly_error("Q" * 1000).count("Q") == 300
 
 
+# --- UX-COLD-001: one-click cold setup (ensure runtime, then pull) ------------------------
+
+
+def _ok_opener(req, timeout=None):
+    return _FakeStream([{"status": "success", "total": 10, "completed": 10}])
+
+
+def test_setup_server_already_up_pulls_missing_only():
+    """Server already running -> the engine row completes instantly and only the MISSING model
+    is pulled; KimCad never fetches a runtime it doesn't need."""
+    from kimcad.model_advisor import InstalledModel
+
+    def _no_resolve():
+        raise AssertionError("must not resolve/fetch a runtime when the server is already up")
+
+    job = ModelPullJob()
+    job.start_setup(
+        "http://127.0.0.1:11434", "qwen2.5:7b", "qwen2.5vl:3b",
+        opener=_ok_opener, is_up=lambda _u: True, resolve=_no_resolve,
+        probe=lambda _u, timeout=3.0: (True, [InstalledModel(name="qwen2.5:7b")]),
+        sleep=lambda _s: None,
+    )
+    snap = _wait_done(job)
+    assert snap["models"][_ENGINE_ROW]["status"] == "done"
+    assert snap["models"]["qwen2.5vl:3b"]["status"] == "done"  # missing vision model pulled
+    assert "qwen2.5:7b" not in snap["models"]  # chat already present -> not re-pulled
+
+
+def test_setup_cold_fetches_runtime_then_pulls(tmp_path):
+    """No system Ollama -> fetch the portable runtime (its bytes drive the engine row), start it,
+    then pull both models. The whole cold path in one flow."""
+    state = {"served": False}
+
+    def _fetch(managed_dir, progress=None):
+        if progress:
+            progress(700, 1400)
+            progress(1400, 1400)
+        return managed_dir / "ollama.exe"
+
+    job = ModelPullJob()
+    job.start_setup(
+        "http://127.0.0.1:11434", "qwen2.5:7b", "qwen2.5vl:3b",
+        opener=_ok_opener,
+        is_up=lambda _u: state["served"],
+        resolve=lambda: None,
+        fetch=_fetch,
+        serve=lambda _e: state.__setitem__("served", True),
+        probe=lambda _u, timeout=3.0: (True, []),  # nothing installed -> pull both
+        managed_dir=tmp_path, sleep=lambda _s: None, wait_s=1.0, poll_s=0.01,
+    )
+    snap = _wait_done(job)
+    assert snap["models"][_ENGINE_ROW]["status"] == "done"
+    assert snap["models"][_ENGINE_ROW]["total"] == 1400  # fetch progress rode the engine row
+    assert snap["models"]["qwen2.5:7b"]["status"] == "done"
+    assert snap["models"]["qwen2.5vl:3b"]["status"] == "done"
+
+
+def test_setup_fetch_failure_marks_engine_error(tmp_path):
+    from kimcad.ollama_fetch import OllamaFetchError
+
+    def _boom(managed_dir, progress=None):
+        raise OllamaFetchError("integrity check failed")
+
+    job = ModelPullJob()
+    job.start_setup(
+        "http://127.0.0.1:11434", "qwen2.5:7b", "qwen2.5vl:3b",
+        is_up=lambda _u: False, resolve=lambda: None, fetch=_boom,
+        managed_dir=tmp_path, sleep=lambda _s: None,
+    )
+    snap = _wait_done(job)
+    assert snap["models"][_ENGINE_ROW]["status"] == "error"
+    assert "integrity" in snap["models"][_ENGINE_ROW]["error"]
+    assert set(snap["models"]) == {_ENGINE_ROW}  # never got the runtime up -> no model rows
+
+
+def test_setup_serve_never_healthy_errors():
+    job = ModelPullJob()
+    job.start_setup(
+        "http://127.0.0.1:11434", "qwen2.5:7b", "qwen2.5vl:3b",
+        is_up=lambda _u: False,  # never comes up
+        resolve=lambda: Path("/x/ollama"),
+        serve=lambda _e: None, sleep=lambda _s: None, wait_s=0.05, poll_s=0.01,
+    )
+    snap = _wait_done(job)
+    assert snap["models"][_ENGINE_ROW]["status"] == "error"
+    assert "didn't come up" in snap["models"][_ENGINE_ROW]["error"]
+
+
 def test_a_disk_full_error_maps_to_the_friendly_fix():
     def opener(req, timeout=None):
         return _FakeStream([{"error": "write /models/blobs: no space left on device"}])
@@ -112,7 +200,7 @@ def test_a_disk_full_error_maps_to_the_friendly_fix():
     job.start("http://127.0.0.1:11434", [("gemma4:e4b", "chat")], probe_dir=Path.cwd(), opener=opener)
     snap = _wait_done(job)
     assert "disk filled up" in snap["models"]["gemma4:e4b"]["error"]
-    assert "13 GB" in snap["models"]["gemma4:e4b"]["error"]
+    assert "8 GB" in snap["models"]["gemma4:e4b"]["error"]
 
 
 def test_the_disk_precheck_fails_friendly_before_any_download(monkeypatch):
@@ -286,31 +374,36 @@ def test_pull_refuses_a_non_loopback_backend(tmp_path):
     assert data["status"] == "not_local"
 
 
-def test_pull_reports_a_down_ollama_as_a_typed_status(tmp_path, monkeypatch):
-    import kimcad.model_advisor as ma
+def test_pull_down_ollama_triggers_setup_not_a_deadend(tmp_path, monkeypatch):
+    """UX-COLD-001 (cold-start audit): a down/absent Ollama no longer dead-ends ("go start it
+    yourself"). The POST kicks the one-click setup (ensure the runtime, then pull) — we assert the
+    handler invokes start_setup, not the old ollama_down bail."""
+    called: dict = {}
 
-    monkeypatch.setattr(ma, "probe_ollama", lambda url: (False, []))
+    def fake_start_setup(self, base, chat, vision, **kw):
+        called["yes"] = True
+        return {"running": True, "models": {_ENGINE_ROW: {"status": "pulling"}}}
+
+    monkeypatch.setattr(mp.ModelPullJob, "start_setup", fake_start_setup)
     with _serve(tmp_path, _cfg()) as (host, port):
         status, data = _jreq(host, port, "POST", "/api/model-pull")
-    assert status == 200
-    assert data["status"] == "ollama_down"
-    assert "start it" in data["error"].lower()
+    assert status == 200 and data["status"] == "ok"
+    assert called.get("yes") is True  # setup was kicked, not a dead-end
+    assert data["status"] != "ollama_down"  # the old dead-end is gone
 
 
 def test_pull_ignores_an_attacker_named_model_in_the_body(tmp_path, monkeypatch):
     """TEST-1002 (stage-10 gate): the pull list is fixed SERVER-side. A request body
     naming a model must change NOTHING — this pins the trust rule adversarially, so a
     future convenience `data.get("model")` read fails loudly."""
-    import kimcad.model_advisor as ma
 
-    monkeypatch.setattr(ma, "probe_ollama", lambda url: (True, []))  # both models missing
     started: dict = {}
 
-    def fake_start(self, base, missing, **kw):
-        started["missing"] = list(missing)
+    def fake_start_setup(self, base, chat, vision, **kw):
+        started.update(chat=chat, vision=vision)
         return {"running": True, "models": {}}
 
-    monkeypatch.setattr(mp.ModelPullJob, "start", fake_start)
+    monkeypatch.setattr(mp.ModelPullJob, "start_setup", fake_start_setup)
     with _serve(tmp_path, _cfg()) as (host, port):
         conn = http.client.HTTPConnection(host, port, timeout=20)
         try:
@@ -322,9 +415,9 @@ def test_pull_ignores_an_attacker_named_model_in_the_body(tmp_path, monkeypatch)
         finally:
             conn.close()
     assert resp.status == 200 and data["status"] == "ok"
-    names = [n for n, _ in started["missing"]]
-    assert "evil/backdoored:latest" not in names and "evil:1" not in names
-    assert names == ["gemma4:e4b", "qwen2.5vl:3b"]  # the CONFIGURED model (_cfg) + vision, nothing else
+    # The model names come from CONFIG (chat + vision), never the request body.
+    assert started["chat"] == "gemma4:e4b" and started["vision"] == "qwen2.5vl:3b"
+    assert "evil" not in started["chat"] and "evil" not in started["vision"]
 
 
 def test_pull_refuses_an_absurd_body_with_a_typed_413(tmp_path):
@@ -384,26 +477,19 @@ def test_concurrent_starts_never_fork_a_second_pull():
     assert len(results) == 8  # every racer got a snapshot back
 
 
-def test_pull_starts_only_the_missing_models_fixed_server_side(tmp_path, monkeypatch):
-    """The chat model is present, the vision model isn't — exactly the vision model is
-    pulled, and the list came from CONFIG, not from any request body."""
-    import kimcad.model_advisor as ma
-
-    class _M:
-        def __init__(self, name):
-            self.name = name
-
-    monkeypatch.setattr(ma, "probe_ollama", lambda url: (True, [_M("gemma4:e4b")]))
+def test_pull_setup_uses_native_root_and_config_models(tmp_path, monkeypatch):
+    """The handler delegates to start_setup with the NATIVE (host-rooted) URL and the chat +
+    vision model names from CONFIG — never a request body. Which of those are actually missing is
+    decided inside start_setup (see test_setup_server_already_up_pulls_missing_only)."""
     started: dict = {}
 
-    def fake_start(self, base, missing, **kw):
-        started["base"] = base
-        started["missing"] = missing
-        return {"running": True, "models": {n: {"status": "queued"} for n, _ in missing}}
+    def fake_start_setup(self, base, chat, vision, **kw):
+        started.update(base=base, chat=chat, vision=vision)
+        return {"running": True, "models": {}}
 
-    monkeypatch.setattr(mp.ModelPullJob, "start", fake_start)
+    monkeypatch.setattr(mp.ModelPullJob, "start_setup", fake_start_setup)
     with _serve(tmp_path, _cfg()) as (host, port):
         status, data = _jreq(host, port, "POST", "/api/model-pull")
     assert status == 200 and data["status"] == "ok"
     assert started["base"] == "http://127.0.0.1:11434"  # native root, not the /v1 base
-    assert started["missing"] == [("qwen2.5vl:3b", "vision")]
+    assert started["chat"] == "gemma4:e4b" and started["vision"] == "qwen2.5vl:3b"
