@@ -36,3 +36,43 @@ def test_ensure_serving_reuses_or_starts_the_real_ollama() -> None:
     st = ort.ensure_serving()
     assert st.running is True, f"ensure_serving did not reach a running server: {st}"
     assert ort.is_server_up() is True
+
+
+@_skip
+def test_start_serve_spawns_a_real_server_on_an_alt_port_and_tears_down() -> None:
+    """TEST-GG-001: the reuse branch above never spawns. This forces the REAL spawn path —
+    start `ollama serve` on a free alternate loopback port (so it can't collide with the system
+    :11434), poll until the real HTTP endpoint answers, then tear it down and confirm it's gone
+    (the ENG-GG-001 no-orphan guarantee, proven against the real binary)."""
+    import socket
+    import time
+
+    exe = ort.resolve_ollama_exe()
+    assert exe is not None and exe.exists()
+
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    host = f"127.0.0.1:{port}"
+    base = f"http://127.0.0.1:{port}/v1"
+    assert ort.is_server_up(base) is False, "alt port should be free before we spawn"
+
+    proc = ort.start_serve(exe, host=host)
+    try:
+        up = False
+        for _ in range(60):  # ~30s budget for a cold serve to answer
+            if ort.is_server_up(base):
+                up = True
+                break
+            time.sleep(0.5)
+        assert up, "real `ollama serve` on the alt port never became healthy"
+    finally:
+        try:
+            proc.terminate()
+            proc.wait(timeout=10)
+        except Exception:  # noqa: BLE001
+            proc.kill()
+    # No orphan: the spawned server is gone after teardown.
+    time.sleep(1.0)
+    assert ort.is_server_up(base) is False, "spawned server still answering after teardown (orphan!)"

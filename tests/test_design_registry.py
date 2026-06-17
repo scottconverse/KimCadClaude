@@ -3,6 +3,8 @@ not only through the 125 webapp route tests that exercise them in situ."""
 
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path
 
 from kimcad.design_registry import DesignRegistry
@@ -17,9 +19,22 @@ def test_init_clears_stale_numeric_dirs_only(tmp_path):
     (root / "7").mkdir(parents=True)
     (root / "assets").mkdir()
     (root / "assets" / "keep.js").write_text("x")
+    # Backdate the stale per-design dir past the cleanup grace window (QA-GG-003) so it qualifies
+    # as "from an ended run".
+    old = time.time() - 3600
+    os.utime(root / "7", (old, old))
     DesignRegistry(root)
     assert not (root / "7").exists()  # stale per-design dir cleared
     assert (root / "assets" / "keep.js").exists()  # non-numeric content untouched
+
+
+def test_init_spares_a_recently_touched_dir(tmp_path):
+    # QA-GG-003: a concurrent `kimcad web` instance is actively writing output/web/3 — a second
+    # instance's startup cleanup must NOT delete it (doing so 404'd the first instance's live mesh).
+    root = tmp_path / "web"
+    (root / "3").mkdir(parents=True)  # freshly created → within the grace window
+    DesignRegistry(root)
+    assert (root / "3").exists()  # spared, not clobbered
 
 
 def test_eviction_is_lockstep_across_every_registry_and_disk(tmp_path):

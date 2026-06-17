@@ -23,12 +23,19 @@ from __future__ import annotations
 import itertools
 import shutil
 import threading
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 # Hardening caps (ENG-004): bound in-memory state.
 MAX_REGISTRY = 50  # keep at most the last N rendered meshes; evict oldest
+
+# QA-GG-003 (gauntletgate): the startup cleanup must not delete a per-design dir a CONCURRENT
+# `kimcad web` instance (sharing this output tree) just wrote — that nukes the other instance's
+# live mesh out from under it (a one-off /api/mesh/<id> 404). Spare anything touched this recently;
+# only genuinely stale dirs from an ENDED run are cleaned (the cleanup's real purpose).
+_CLEANUP_GRACE_S = 120
 # ENG-406: the slice cache is a DIFFERENT quantity (cached G-code results, not meshes);
 # slices are heavier and re-confirms rarer, so a smaller bound is plenty.
 MAX_SLICE_CACHE = 16
@@ -42,8 +49,16 @@ class DesignRegistry:
         self.web_root.mkdir(parents=True, exist_ok=True)
         # QA-003: clear stale per-design dirs from a previous run — the in-memory state and
         # id counter reset each start, so old output/web/<id> dirs would otherwise accumulate.
+        # QA-GG-003: but SKIP any dir touched within the grace window — a concurrent instance is
+        # actively writing it, and deleting it would 404 that instance's live mesh.
+        now = time.time()
         for child in self.web_root.iterdir():
             if child.is_dir() and child.name.isdigit():
+                try:
+                    if now - child.stat().st_mtime < _CLEANUP_GRACE_S:
+                        continue  # recently active — likely a concurrent instance's live design
+                except OSError:
+                    pass  # stat failed — fall through and attempt the (best-effort) cleanup
                 shutil.rmtree(child, ignore_errors=True)
 
         self.lock = threading.Lock()

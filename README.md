@@ -32,6 +32,7 @@ The installer (`KimCad-Setup-<version>.exe`) — one double-click, **zero termin
 - The app window (WebView2) + the full KimCad app and AI wiring
 - An **embedded CPython 3.13** — KimCad never touches your system Python
 - **OpenSCAD + OrcaSlicer** (with the full **~65-brand / 1,400+ machine-profile** library) + the **PrintProof3D** validation engine, on by default
+- KimCad's **managed AI engine** (a portable Ollama) and the downloaded models — *not* in Program Files. The engine lives under your per-user data folder (`%LOCALAPPDATA%\KimCad\ollama`) and the models go in Ollama's standard model store; both are removable with the app data.
 - Per-user data under `%LOCALAPPDATA%\KimCad`; your saved designs live in `~/.kimcad` — the uninstaller never touches them
 
 ### Beta notes — honest status

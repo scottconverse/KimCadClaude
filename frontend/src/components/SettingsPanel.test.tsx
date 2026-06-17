@@ -130,15 +130,19 @@ describe('SettingsPanel', () => {
     expect(container.textContent).not.toMatch(/sent to the cloud/i)
   })
 
-  it('guides an unreachable Ollama: get it or start it (BG-U002 copy)', async () => {
+  it('a down local AI routes to the in-app setup, never a manual Ollama install (UX-FULL-001/002)', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
     render(<SettingsPanel />)
     expect(await screen.findByText('Not running')).toBeTruthy()
-    // Single action line: text says "Ollama isn’t running", Get Ollama is still an inline button.
-    const actionLine = screen.getByText(/Ollama isn.t running/i).closest('.kc-model-action-line')
+    // Single action line leads with the in-app fix — no "Ollama isn’t running / Start it".
+    const actionLine = screen.getByText(/local AI isn.t running yet/i).closest('.kc-model-action-line')
     expect(actionLine).toBeTruthy()
-    expect(screen.getByRole('button', { name: /get ollama/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy()
+    // The PRIMARY CTA re-enters the in-app setup, not a manual install/start.
+    expect(screen.getByRole('button', { name: /set up kimcad.s ai/i })).toBeTruthy()
+    // The old manual-path copy + the ollama.com download link are GONE from the down-state.
+    expect(within(actionLine as HTMLElement).queryByRole('button', { name: /get ollama/i })).toBeNull()
+    expect(actionLine!.textContent).not.toMatch(/start it/i)
+    expect(document.querySelector('.kc-model-action-line a[href*="ollama.com"]')).toBeNull()
   })
 
   it('tells the user to get the model when Ollama is up but it isn’t installed', async () => {
@@ -424,17 +428,20 @@ describe('SettingsPanel', () => {
     expect(screen.queryByText(/ollama pull qwen2\.5vl:3b/)).toBeNull()
   })
 
-  it('offers Get-Ollama when the AI is unreachable and a setup re-entry (BG-U002)', async () => {
+  it('a down AI offers the in-app setup CTA, which re-enters the wizard (UX-FULL-001/002)', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
     render(<SettingsPanel />)
-    expect(await screen.findByRole('button', { name: /get ollama/i })).toBeTruthy()
-    // The wizard re-entry: clears the first-run flag and fires the reopen event.
+    // The action-line primary CTA is the in-app setup — clicking it clears the first-run flag and
+    // fires the reopen event (same re-entry as "Run the setup walkthrough again").
+    const setupBtn = await screen.findByRole('button', { name: /set up kimcad.s ai/i })
     localStorage.setItem('kc-first-run-done', '1')
     const fired: Event[] = []
     window.addEventListener('kimcad-rerun-setup', (e) => fired.push(e))
-    fireEvent.click(screen.getByRole('button', { name: /run the setup walkthrough again/i }))
+    fireEvent.click(setupBtn)
     expect(localStorage.getItem('kc-first-run-done')).toBeNull()
     expect(fired.length).toBe(1)
+    // No manual "get Ollama" path remains anywhere on the screen for the down-state.
+    expect(screen.queryByRole('button', { name: /get ollama/i })).toBeNull()
   })
 
   it('Reset asks to confirm, then clears settings + units to defaults', async () => {

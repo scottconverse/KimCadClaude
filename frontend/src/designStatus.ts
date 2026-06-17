@@ -73,11 +73,12 @@ export function assistantMessage(result: DesignResponse): string {
       // actionable — don't echo result.error, which carries technical parse details.
       return "I couldn't turn that into a workable plan — the model's response wasn't usable. Try describing the part a little differently, or switch to a model better suited to planning."
     case 'model_unavailable':
-      // Ollama isn't reachable — a recoverable wall, not a dead error. Prefer the backend's
-      // actionable message (how to recover); fall back to a clear default.
+      // The local AI isn't reachable — a recoverable wall, not a dead error. Prefer the backend's
+      // actionable message (how to recover); fall back to a clear default. KimCad MANAGES its own
+      // AI, so the recovery is the in-app setup, never a manual "start Ollama".
       return (
         result.error ||
-        "Your local AI isn't running. Start Ollama, then try again — you can check its status in Settings."
+        "Your local AI isn't set up yet — open Settings and run “Set up KimCad’s AI”."
       )
     case 'render_failed':
       return result.error

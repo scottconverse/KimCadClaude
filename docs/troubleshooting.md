@@ -94,8 +94,11 @@ release page: see [install-guide.md](install-guide.md).
 ## (Installed app) Where is my stuff?
 
 Saved designs + settings: the `.kimcad` folder in your user profile (never removed by the
-uninstaller). The app's working output: `%LOCALAPPDATA%\KimCad`. The app itself: the
-folder you chose at install time.
+uninstaller). The app's working output: `%LOCALAPPDATA%\KimCad`. KimCad's managed AI engine
+(the portable Ollama) and the downloaded models: under your per-user data folder
+(`%LOCALAPPDATA%\KimCad\ollama` for the engine, Ollama's standard model store for the models) —
+never Program Files, and removable with the app data. The app itself: the folder you chose at
+install time.
 ## The in-app AI setup or model download fails or stalls
 
 The setup wizard's **Set up KimCad's AI** provisions the engine (reusing a system Ollama, or

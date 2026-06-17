@@ -15,7 +15,11 @@ The model download stays the existing in-app, progress-bearing :mod:`kimcad.mode
 this module only ensures the *server* is present and running. Everything here takes its external
 effects (locate, probe, spawn, sleep) as injectable callables so the orchestration is unit-tested
 without a real binary, socket, or subprocess (the b5 lesson: prove behaviour, don't mock the
-effect away — the REAL fetch+serve path is exercised by a `real_tool` integration test).
+effect away). Real-tool coverage is honest about its branches: the auto-run `real_tool` test
+(tests/test_ollama_runtime_real.py) exercises the *reuse* branch (detect a running server) AND a
+*spawn* branch (start `ollama serve` on an alternate loopback port, poll healthy, tear it down);
+the full ~1.4 GB portable *fetch+extract* is covered by the manual cold-start run recorded under
+docs/audits/coder-ui-qa-test-coldstart-2026-06-17/ and by the Walkthrough lane (live bytes).
 
 The fetch/extract/verify of the portable binary lives in :mod:`kimcad.ollama_fetch` (network) so
 this module stays import-light and pure.
@@ -23,6 +27,7 @@ this module stays import-light and pure.
 
 from __future__ import annotations
 
+import atexit
 import os
 import subprocess
 import threading
@@ -128,6 +133,20 @@ class _Spawn(Protocol):
     def __call__(self, args: list[str], **kwargs: object) -> object: ...
 
 
+# ENG-GG-006 (gauntletgate): the managed Ollama child is a local geometry/LLM runtime — it has no
+# business inheriting the parent's cloud credentials. Drop anything secret-shaped from its env (a
+# DENY-list, not an allow-list, so we never accidentally starve Ollama of a var it genuinely needs
+# like USERPROFILE/PATH/TEMP, which it uses to find ~/.ollama and write its socket/logs).
+_SECRETISH = ("API_KEY", "APIKEY", "SECRET", "TOKEN", "PASSWORD", "_KEY", "CREDENTIAL")
+
+
+def _child_env(env: dict[str, str] | None, host: str) -> dict[str, str]:
+    base = os.environ if env is None else env
+    run_env = {k: v for k, v in base.items() if not any(s in k.upper() for s in _SECRETISH)}
+    run_env.setdefault("OLLAMA_HOST", host)
+    return run_env
+
+
 def start_serve(
     exe: Path,
     *,
@@ -138,15 +157,20 @@ def start_serve(
     """Launch ``ollama serve`` headless as a managed child. ``OLLAMA_HOST`` pins the loopback
     bind; we deliberately do NOT set ``OLLAMA_MODELS`` — the portable server uses Ollama's
     standard model store (``~/.ollama/models``), so models are shared with (not duplicated by)
-    any system Ollama the user later installs. Returns the process handle; ``spawn`` is
-    injectable for testing (defaults to :class:`subprocess.Popen`)."""
+    any system Ollama the user later installs. The child env is scrubbed of cloud secrets
+    (ENG-GG-006) and, on Windows, the child gets its own process group so teardown can signal it
+    (ENG-GG-008). Returns the process handle; ``spawn`` is injectable for testing
+    (defaults to :class:`subprocess.Popen`)."""
     spawn = spawn or subprocess.Popen
-    run_env = dict(os.environ if env is None else env)
-    run_env.setdefault("OLLAMA_HOST", host)
+    run_env = _child_env(env, host)
     kwargs: dict[str, object] = {"env": run_env}
     if os.name == "nt":
-        # Don't pop a console window for the managed server in the windowed (shell) app.
-        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        # Don't pop a console window for the managed server in the windowed (shell) app; give it its
+        # own process group so the teardown path (stop_managed) can signal the whole group.
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+        )
+        kwargs["creationflags"] = flags
     return spawn([str(exe), "serve"], **kwargs)
 
 
@@ -158,6 +182,117 @@ class OllamaStatus:
     running: bool
     source: str
     exe: Path | None = None
+
+
+# ENG-GG-001 (gauntletgate): the managed `ollama serve` child must die WITH the app — the module
+# docstring promises "stop it with the app", and an orphaned headless server (multi-GB for the
+# portable build) on every cold-start machine is the exact leak this section prevents. We track ONLY
+# a server KimCad itself started (never a reused system one), assign it to a Windows Job Object so it
+# is killed even on a hard parent exit, and register an atexit terminate as a cross-platform floor.
+_managed_lock = threading.Lock()
+_managed_proc: subprocess.Popen | None = None  # type: ignore[type-arg]
+_managed_job = None  # Windows HANDLE for the kill-on-close job object (kept alive = job alive)
+
+
+def _assign_to_job_object(proc: subprocess.Popen) -> None:  # type: ignore[type-arg]
+    """Windows: put the child in a Job Object with KILL_ON_JOB_CLOSE so it dies when our process
+    (and thus the job handle) goes away — the durable guarantee a bare Popen can't give. Best-effort:
+    any failure leaves the atexit terminate as the floor. No-op off Windows."""
+    global _managed_job
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+        JobObjectExtendedLimitInformation = 9
+        PROCESS_ALL_ACCESS = 0x1F0FFF
+
+        class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", ctypes.c_int64),
+                ("PerJobUserTimeLimit", ctypes.c_int64),
+                ("LimitFlags", wintypes.DWORD),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", wintypes.DWORD),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", wintypes.DWORD),
+                ("SchedulingClass", wintypes.DWORD),
+            ]
+
+        class IO_COUNTERS(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_uint64) for n in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+        class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                ("IoInfo", IO_COUNTERS),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            return
+        info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not k32.SetInformationJobObject(
+            job, JobObjectExtendedLimitInformation, ctypes.byref(info), ctypes.sizeof(info)
+        ):
+            k32.CloseHandle(job)
+            return
+        hproc = k32.OpenProcess(PROCESS_ALL_ACCESS, False, proc.pid)
+        if not hproc:
+            k32.CloseHandle(job)
+            return
+        try:
+            if k32.AssignProcessToJobObject(job, hproc):
+                _managed_job = job  # keep the handle alive for the process lifetime
+            else:
+                k32.CloseHandle(job)
+        finally:
+            k32.CloseHandle(hproc)
+    except Exception:  # noqa: BLE001 — job assignment is a hardening floor; never crash launch
+        pass
+
+
+def _set_managed_proc(proc: subprocess.Popen) -> None:  # type: ignore[type-arg]
+    """Record the server KimCad started so teardown can stop it; assign the Windows job object."""
+    global _managed_proc
+    with _managed_lock:
+        _managed_proc = proc
+    _assign_to_job_object(proc)
+
+
+def stop_managed(timeout: float = 5.0) -> None:
+    """Stop the managed `ollama serve` KimCad started (no-op if we reused a system server or never
+    started one). Idempotent; best-effort. Wired into the shell window-close and the `serve()`
+    shutdown path, and registered with atexit as a floor."""
+    global _managed_proc
+    with _managed_lock:
+        proc = _managed_proc
+        _managed_proc = None
+    if proc is None:
+        return
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=timeout)
+            except Exception:  # noqa: BLE001 — escalate to kill if terminate didn't take
+                proc.kill()
+    except Exception:  # noqa: BLE001 — teardown is best-effort; never raise on exit
+        pass
+
+
+atexit.register(stop_managed)
 
 
 def ensure_serving(
@@ -178,10 +313,17 @@ def ensure_serving(
     3. If no executable exists yet — return ``needs-fetch`` so the caller can fetch the portable
        binary (a network step the caller owns) and call again.
 
-    All effects are injected so this orchestration is fully unit-tested; the real fetch→serve
-    path is covered by a ``real_tool`` integration test."""
+    All effects are injected so this orchestration is fully unit-tested; the real reuse+spawn
+    branches are covered by the ``real_tool`` test and the full fetch by the recorded manual run
+    (see the module docstring). ENG-GG-001: when WE start the server (the real, non-injected path),
+    the handle is recorded via :func:`_set_managed_proc` so :func:`stop_managed` can tear it down
+    with the app — a reused system server (the ``already-up`` branch) is never touched."""
     resolve = resolve or resolve_ollama_exe
     is_up = is_up or (lambda u: is_server_up(u))
+    # Only manage (track + teardown) a server we started through the REAL start path. Tests that
+    # inject `start` exercise the orchestration with fakes and must not mutate the module's
+    # managed-process state.
+    started_by_default = start is None
 
     if is_up(base_url):
         return OllamaStatus(True, "already-up")
@@ -191,13 +333,15 @@ def ensure_serving(
         return OllamaStatus(False, "needs-fetch")
 
     start = start or (lambda e: start_serve(e))
-    start(exe)
+    proc = start(exe)
 
     # Poll for health. A cold `ollama serve` is ready in ~1-2s; bound the wait so a wedged
     # start can't hang app launch — the caller surfaces "needs-fetch"/"unavailable" to the UI.
     waited = 0.0
     while waited < wait_s:
         if is_up(base_url):
+            if started_by_default and isinstance(proc, subprocess.Popen):
+                _set_managed_proc(proc)
             return OllamaStatus(True, "started", exe)
         sleep(poll_s)
         waited += poll_s

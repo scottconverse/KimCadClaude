@@ -221,7 +221,7 @@ export default function ChatPanel({
               <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onRetry}>
                 Try again
               </button>
-              <p className="kc-exp-decline">Start Ollama first — see the AI’s status in Settings.</p>
+              <p className="kc-exp-decline">Set up your local AI first — see Settings.</p>
             </div>
           </div>
         )}

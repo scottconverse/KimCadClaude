@@ -155,3 +155,70 @@ def test_ensure_serving_unavailable_when_start_never_healthy() -> None:
         wait_s=0.3,
     )
     assert st.running is False and st.source == "unavailable" and st.exe == exe
+
+
+# --- ENG-GG-001: managed-process teardown (no orphan `ollama serve`) ---------------------------
+
+
+class _FakeProc:
+    """A stand-in for subprocess.Popen recording terminate/kill/wait for the teardown tests."""
+
+    def __init__(self, alive: bool = True) -> None:
+        self._alive = alive
+        self.pid = 4242
+        self.terminated = False
+        self.killed = False
+
+    def poll(self):
+        return None if self._alive else 0
+
+    def terminate(self):
+        self.terminated = True
+        self._alive = False
+
+    def kill(self):
+        self.killed = True
+        self._alive = False
+
+    def wait(self, timeout=None):  # noqa: ARG002
+        return 0
+
+
+def test_stop_managed_terminates_a_started_server(monkeypatch) -> None:
+    proc = _FakeProc(alive=True)
+    monkeypatch.setattr(ort, "_managed_proc", proc, raising=False)
+    ort.stop_managed()
+    assert proc.terminated is True
+    assert ort._managed_proc is None  # cleared so a second call is a no-op
+
+
+def test_stop_managed_is_a_noop_when_nothing_started(monkeypatch) -> None:
+    monkeypatch.setattr(ort, "_managed_proc", None, raising=False)
+    ort.stop_managed()  # must not raise
+    assert ort._managed_proc is None
+
+
+def test_stop_managed_does_not_terminate_an_already_exited_proc(monkeypatch) -> None:
+    proc = _FakeProc(alive=False)  # poll() -> 0 (already gone)
+    monkeypatch.setattr(ort, "_managed_proc", proc, raising=False)
+    ort.stop_managed()
+    assert proc.terminated is False and proc.killed is False
+    assert ort._managed_proc is None
+
+
+def test_injected_start_never_records_a_managed_proc(monkeypatch) -> None:
+    """A reused system server (already-up) AND any injected-effect unit run must leave the module's
+    managed-process state untouched — we only ever tear down a server WE started on the real path."""
+    monkeypatch.setattr(ort, "_managed_proc", None, raising=False)
+    exe = Path("/x/ollama")
+    seq = iter([False, False, True])
+    st = ort.ensure_serving(
+        is_up=lambda _u: next(seq),
+        resolve=lambda: exe,
+        start=lambda e: _FakeProc(),  # injected → started_by_default is False
+        sleep=lambda _s: None,
+        poll_s=0.01,
+        wait_s=1.0,
+    )
+    assert st.source == "started"
+    assert ort._managed_proc is None  # injected path did NOT record (no global pollution)

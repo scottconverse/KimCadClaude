@@ -122,22 +122,29 @@ def _safe_builtins(facade: types.SimpleNamespace) -> dict[str, object]:
 
 def _deny_network() -> None:
     """ENG-004 (defence in depth): a geometry worker needs no network, so deny it before any
-    untrusted code runs. Neutralizes the socket constructors in both ``socket`` and the underlying
-    ``_socket`` C module, so a script that smuggled a socket reference past the static sanitizer
-    (the documented ``__globals__`` escape class) still cannot open an outbound connection at the
-    Python level. A pure-native bypass (a C extension calling Winsock/BSD ``socket()`` directly)
-    would need OS-level firewalling — that residual needs admin/platform infra and stays tracked;
-    this closes the realistic Python-level egress path. Best-effort + idempotent."""
+    untrusted code runs. Neutralizes the socket constructors AND the fd-to-socket factories in both
+    ``socket`` and the underlying ``_socket`` C module, so a script that smuggled a socket reference
+    (or a raw fd) past the static sanitizer (the documented ``__globals__`` escape class) still
+    cannot open or reconstitute a live socket at the Python level. ``fromfd``/``fromshare``/``dup``
+    are covered too — otherwise a smuggled fd could be turned back into a working socket and dodge
+    the constructor block. A pure-native bypass (a C extension calling Winsock/BSD ``socket()``
+    directly) would need OS-level firewalling — that residual needs admin/platform infra and stays
+    tracked; this closes the realistic Python-level egress path. Best-effort + idempotent."""
 
     def _blocked(*_a: object, **_k: object) -> object:
         raise PermissionError("network access is disabled in the CadQuery geometry worker")
 
+    # ``fromshare`` is Windows-only and ``socketpair``/``fromfd`` are absent on some platforms,
+    # so each attr is guarded with hasattr (a missing one is simply nothing to block).
     for modname in ("socket", "_socket"):
         try:
             mod = __import__(modname)
         except Exception:  # noqa: BLE001 - nothing to block if it won't import
             continue
-        for attr in ("socket", "create_connection", "create_server", "socketpair"):
+        for attr in (
+            "socket", "create_connection", "create_server", "socketpair",
+            "fromfd", "fromshare", "dup",
+        ):
             if hasattr(mod, attr):
                 try:
                     setattr(mod, attr, _blocked)

@@ -262,6 +262,73 @@ def derive_values(family: TemplateFamily, plan: DesignPlan) -> dict[str, float]:
     return _finalize(family, raw)
 
 
+# QA-GG-002 (gauntletgate): generic filler words that must NOT act as a dimension anchor.
+_ANCHOR_STOPWORDS = frozenset({"size", "print", "printed", "part", "the", "and", "for", "with"})
+_MM_UNITS = frozenset({"mm", "millimeter", "millimeters", "millimetre", "millimetres"})
+
+
+def _anchor_words(p: ParamSpec) -> set[str]:
+    """The whole-words that, when they sit next to an explicit ``<N> mm`` in the prompt, identify
+    this param — derived from its ``dim_keys`` (the canonical DIMENSION names: "cable_d",
+    "diameter", "width", …). Deliberately NOT the label: a label like "Clip width" carries the
+    OBJECT noun ("clip"), which would false-anchor an unrelated number ("8 mm cable clip")."""
+    words: set[str] = set()
+    for k in p.dim_keys:
+        words.update(re.findall(r"[a-z]+", k.lower()))
+    return {w for w in words if len(w) >= 3 and w not in _ANCHOR_STOPWORDS}
+
+
+def bind_prompt_dimensions(prompt: str, family: TemplateFamily, plan: DesignPlan) -> list[str]:
+    """QA-GG-002: honor a dimension the user STATED explicitly but the planner dropped. When the
+    prompt ties a number to a NAMED dimension (e.g. "8 mm cable", "20 mm bolt", "50 mm diameter
+    tube"), bind that value to the matching family param the plan left at its default — so a stated
+    size isn't silently replaced by a template default. Deliberately conservative: fires only when
+    an explicit ``<N> mm`` sits within a few tokens of a UNIQUE param anchor-word and the value is
+    in range. An unanchored or ambiguous number ("80 x 60 x 40 mm box", "90 mm across") is left to
+    the existing plan/bbox path. Mutates ``plan.dimensions`` in place; returns notes for the record.
+    """
+    tokens = re.findall(r"[a-z]+|\d+(?:\.\d+)?", prompt.lower())
+    numbers: list[tuple[int, float]] = [
+        (i, float(tok))
+        for i, tok in enumerate(tokens)
+        if re.fullmatch(r"\d+(?:\.\d+)?", tok) and i + 1 < len(tokens) and tokens[i + 1] in _MM_UNITS
+    ]
+    if not numbers:
+        return []
+
+    def _around(i: int) -> set[str]:
+        # Content words HUGGING the "<N> mm" phrase: the two tokens before the number and the two
+        # after the unit (i = number, i+1 = unit). Adjacency is what stops an object word three
+        # tokens away (e.g. "cable clip … 8 mm") from anchoring an unrelated param.
+        idxs = (i - 2, i - 1, i + 2, i + 3)
+        return {
+            tokens[j]
+            for j in idxs
+            if 0 <= j < len(tokens)
+            and re.fullmatch(r"[a-z]+", tokens[j])
+            and len(tokens[j]) >= 3
+            and tokens[j] not in _ANCHOR_STOPWORDS
+        }
+
+    unbound = [p for p in family.params if not any(k in plan.dimensions for k in p.dim_keys)]
+    notes: list[str] = []
+    for ni, val in numbers:
+        around = _around(ni)
+        if not around:
+            continue
+        claimants = [p for p in unbound if _anchor_words(p) & around]
+        if len(claimants) != 1:
+            continue  # unanchored, or an ambiguous word shared by 2+ params — leave the default
+        p = claimants[0]
+        if p.dim_keys[0] in plan.dimensions:
+            continue  # an earlier number already bound this param
+        if not (p.min <= val <= p.max):
+            continue  # out of the param's safe range — leave the default (the slider still edits it)
+        plan.dimensions[p.dim_keys[0]] = val
+        notes.append(f"Used your stated {p.label.lower()} of {val:g} mm.")
+    return notes
+
+
 def clamp_values(family: TemplateFamily, values: dict[str, float]) -> dict[str, float]:
     """Clamp an externally-supplied set of parameter values (e.g. a live-slider POST)
     into range, ignoring unknown keys, back-filling any missing parameter with its
@@ -320,14 +387,21 @@ class TemplateRegistry:
     def family(self, name: str) -> TemplateFamily | None:
         return next((f for f in self._families if f.name == name), None)
 
+    def family_for_plan(self, plan: DesignPlan) -> TemplateFamily | None:
+        """Resolve the family for a plan's ``object_type`` WITHOUT deriving values — exact
+        normalized alias, then a conservative singular form, then the multi-word containment
+        fallback. Lets a caller (the pipeline) inspect the chosen family's params before the
+        derive step (e.g. to bind explicit prompt dimensions). ``match`` reuses this."""
+        norm = _normalize(plan.object_type)
+        return self._index.get(norm) or self._index.get(_singular(norm)) or self._contains_alias(norm)
+
     def match(self, plan: DesignPlan) -> TemplateMatch | None:
         """Pick a family for the plan's ``object_type``: exact normalized alias, then a
         conservative singular form, then a conservative multi-word *containment* fallback
         so a qualified natural phrasing ("desk cable clip", "wall mounted spool holder")
         still reaches the right family instead of dead-ending at the experimental-codegen
         offer. Returns ``None`` when nothing matches — the caller then offers that path."""
-        norm = _normalize(plan.object_type)
-        fam = self._index.get(norm) or self._index.get(_singular(norm)) or self._contains_alias(norm)
+        fam = self.family_for_plan(plan)
         if fam is None:
             return None
         return TemplateMatch(family=fam, values=derive_values(fam, plan))

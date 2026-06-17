@@ -2756,3 +2756,12 @@ def serve(
         print("\nStopping.")
     finally:
         httpd.server_close()
+        # ENG-GG-001: stop the managed Ollama child we may have started (no-op if we reused a
+        # system server or never started one) so `kimcad web` leaves no orphan headless serve.
+        if not demo:
+            try:
+                from kimcad.ollama_runtime import stop_managed
+
+                stop_managed()
+            except Exception:  # noqa: BLE001 — teardown is best-effort
+                pass

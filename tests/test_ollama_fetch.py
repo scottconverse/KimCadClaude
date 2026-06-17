@@ -1,8 +1,9 @@
 """Unit tests for the portable-Ollama fetcher (kimcad.ollama_fetch).
 
 Network is injected (a synthetic in-memory zip via a fake opener), so download → SHA-256 verify
-→ zip-slip-guarded extract is proven here with no network. The real ~1.4 GB fetch is a separate
-real_tool integration test.
+→ zip-slip-guarded extract is proven here with no network. The full real ~1.4 GB fetch is proven
+separately by the recorded manual cold-start run (docs/audits/coder-ui-qa-test-coldstart-2026-06-17/)
+and by the Walkthrough lane (live bytes through this same path).
 """
 
 from __future__ import annotations
@@ -89,8 +90,20 @@ def test_fetch_rejects_hash_mismatch_without_extracting(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("kimcad-ollama-*.zip"))  # temp cleaned even on failure
 
 
-def test_fetch_rejects_zip_slip(tmp_path: Path) -> None:
-    data = _make_zip({"../evil.txt": b"PWN", "ollama.exe": b"X"})
+@pytest.mark.parametrize(
+    "evil_name",
+    [
+        "../evil.txt",  # parent-dir traversal
+        "C:/Windows/Temp/evil.txt",  # a drive-absolute Windows path
+        "lib/../../evil.txt",  # traversal hidden inside an in-tree-looking prefix
+        "..\\..\\evil.txt",  # backslash traversal (Windows separators in the member name)
+    ],
+)
+def test_fetch_rejects_zip_slip(tmp_path: Path, evil_name: str) -> None:
+    """TEST-GG-004: every flavor of unsafe archive member — parent traversal, a drive-absolute
+    path, traversal hidden behind an in-tree prefix, and backslash separators — is refused
+    BEFORE extraction, so a hostile/corrupt archive can never write outside the managed dir."""
+    data = _make_zip({evil_name: b"PWN", "ollama.exe": b"X"})
     sha = hashlib.sha256(data).hexdigest()
     with pytest.raises(of.OllamaFetchError, match="unsafe path"):
         of.fetch_portable_ollama(tmp_path, sha256=sha, opener=_opener(data))
@@ -102,3 +115,11 @@ def test_fetch_errors_when_exe_missing_from_archive(tmp_path: Path) -> None:
     sha = hashlib.sha256(data).hexdigest()
     with pytest.raises(of.OllamaFetchError, match="wasn't found"):
         of.fetch_portable_ollama(tmp_path, sha256=sha, opener=_opener(data))
+
+
+def test_pinned_portable_size_is_the_real_v0_30_9_asset_size() -> None:
+    """ENG-GG-003 / TEST-GG-006: the progress-fallback size is the EXACT byte size of the pinned
+    v0.30.9 release asset (so the no-Content-Length progress bar isn't off by ~70 MB), and it
+    stays in the ≈1.4 GB ballpark the docstring promises."""
+    assert of.PORTABLE_SIZE_BYTES == 1_461_613_335
+    assert 1.35 * 1024**3 < of.PORTABLE_SIZE_BYTES < 1.45 * 1024**3

@@ -31,8 +31,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 LicenseFile={#StagingDir}\LICENSE
-; The app payload is ~1.5 GB unpacked (Python + tools); the AI models are ANOTHER ~13 GB
-; that the in-app wizard downloads — said plainly on the final page below.
+; The app payload is ~1.5 GB unpacked (Python + tools); the AI models are ANOTHER ~7.7 GB
+; (plus a ~1.4 GB portable AI engine downloaded on first run) that the in-app wizard
+; downloads — said plainly on the final page below.
 ExtraDiskSpaceRequired=200000000
 UninstallDisplayName=KimCad {#AppVersion}
 

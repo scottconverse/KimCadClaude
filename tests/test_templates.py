@@ -27,6 +27,7 @@ from kimcad.templates import (
     _fmt,
     _normalize,
     _singular,
+    bind_prompt_dimensions,
     clamp_values,
     default_registry,
     derive_values,
@@ -556,3 +557,53 @@ def test_wall_hook_bbox_is_exact_at_the_plate_height_minimum():
         assert abs(got - exp) <= 0.05, (
             f"wall_hook@plate_h_min {axis}: got {got:.4f}, declared {exp:.4f} (ENG-501 regression)"
         )
+
+
+# --- QA-GG-002: honor a dimension stated in the prompt that the planner dropped ----------------
+
+
+def _bind(prompt: str, object_type: str, dims: dict[str, float] | None = None):
+    plan = DesignPlan(object_type=object_type, summary="t", dimensions=dict(dims or {}))
+    fam = default_registry().family_for_plan(plan)
+    assert fam is not None, f"no family resolved for object_type {object_type!r}"
+    notes = bind_prompt_dimensions(prompt, fam, plan)
+    return plan.dimensions, notes
+
+
+def test_prompt_binds_a_stated_cable_diameter() -> None:
+    # QA-GG-002 flagship: "...for an 8 mm cable" must yield an 8 mm channel, not the 6 mm default.
+    dims, notes = _bind("a desk cable clip for an 8 mm cable", "cable clip")
+    assert dims.get("cable_d") == 8.0
+    assert notes and "cable" in notes[0].lower()
+
+
+def test_prompt_binds_when_dimension_word_hugs_the_number() -> None:
+    # The discriminating word "cable" sits right after the "8 mm" → unambiguous.
+    dims, _ = _bind("an 8 mm cable clip", "cable clip")
+    assert dims.get("cable_d") == 8.0
+
+
+def test_prompt_binder_leaves_unanchored_box_dimensions_to_the_plan() -> None:
+    # "80 x 60 x 40 mm" has no width/depth/height word hugging the numbers → the binder must NOT
+    # touch them (they come from the model's plan/bbox, which already works for boxes).
+    dims, notes = _bind("an 80 x 60 x 40 mm project box with a lid", "box")
+    assert dims == {} and notes == []
+
+
+def test_prompt_binder_skips_ambiguous_shared_words() -> None:
+    # "50 mm diameter" anchors BOTH the outer- and inner-diameter params (both carry "diameter") →
+    # ambiguous → bind neither rather than guess.
+    dims, notes = _bind("a 50 mm diameter tube", "tube")
+    assert dims == {} and notes == []
+
+
+def test_prompt_binder_respects_param_range() -> None:
+    # 500 mm is past the cable_d max (40 mm) → leave the default; the slider still allows edits.
+    dims, _ = _bind("a 500 mm cable clip", "cable clip")
+    assert "cable_d" not in dims
+
+
+def test_prompt_binder_never_overrides_a_plan_supplied_dimension() -> None:
+    # The model already bound cable_d; the binder must not clobber it, and must not mis-bind width.
+    dims, notes = _bind("an 8 mm cable clip", "cable clip", {"cable_d": 12.0})
+    assert dims == {"cable_d": 12.0} and notes == []

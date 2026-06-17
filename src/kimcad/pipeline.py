@@ -49,7 +49,12 @@ from kimcad.slicer import (
     resolve_slice_settings,
     slice_model,
 )
-from kimcad.templates import TemplateMatch, TemplateRegistry, default_registry
+from kimcad.templates import (
+    TemplateMatch,
+    TemplateRegistry,
+    bind_prompt_dimensions,
+    default_registry,
+)
 from kimcad.validation import MeshReport, load_mesh, validate_mesh
 
 Renderer = Callable[[str, Path, str], RenderResult]
@@ -481,6 +486,15 @@ class Pipeline:
         # template part, the size it will actually be is the family's analytic envelope, so
         # align the plan's target bbox to it — the gate then verifies the template built
         # what it declares, and the report/viewport show that size.
+        # QA-GG-002: honor a dimension the user stated explicitly but the planner dropped (e.g.
+        # "8 mm cable" → the cable-clip's cable_d) BEFORE deriving the template values, so the part
+        # is the size the user asked for instead of a silent template default. Conservative — only a
+        # unique, in-range, anchored "<N> mm" the plan left unbound is applied (see the helper).
+        _fam = self.registry.family_for_plan(plan)
+        if _fam is not None:
+            _stated = bind_prompt_dimensions(prompt, _fam, plan)
+            if _stated:
+                plan.assumptions.extend(_stated)
         match = self.registry.match(plan)
         if match is None and not allow_experimental:
             # No deterministic template fits, and the experimental LLM-OpenSCAD generator wasn't

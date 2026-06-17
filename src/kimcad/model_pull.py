@@ -17,7 +17,6 @@ holds no partial files (Ollama's pull is resumable on its side).
 
 from __future__ import annotations
 
-import ipaddress
 import json
 import os
 import shutil
@@ -29,8 +28,13 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 # Rough on-disk sizes for the disk pre-check (GB) — deliberately a little generous; the
-# real total comes from Ollama's stream once the pull starts.
-_EST_GB = {"chat": 11.0, "vision": 4.0}
+# real total comes from Ollama's stream once the pull starts. Kept reconciled with the
+# documented 12 GB free-disk headroom (DOC-101): chat + vision + engine must fit under it —
+# pinned by a doc-vs-code test so the contradiction can't silently return.
+_EST_GB = {"chat": 6.0, "vision": 4.0}
+# The portable Ollama runtime's rough on-disk footprint (GB), added to the pre-check only when
+# a fetch is actually needed (no system/managed exe yet).
+_ENGINE_EST_GB = 1.5
 _GB = 1024**3
 
 # UX-COLD-001: the snapshot row that carries the managed-Ollama runtime fetch/start progress,
@@ -51,12 +55,28 @@ def is_loopback_url(base_url: str) -> bool:
     """Whether the backend host is this machine. The pull surface manages the ON-DEVICE
     install only — starting multi-GB downloads on some remote box is never what the
     wizard's button means. Parsed as an IP when possible (ENG-005, slice-10.4 audit: a
-    string-prefix check accepted hostnames like ``127.evil.example``)."""
-    host = (urlsplit(base_url).hostname or "") if "//" in base_url else base_url.split(":", 1)[0]
+    string-prefix check accepted hostnames like ``127.evil.example``).
+
+    ENG-GG-005: the loopback classification is delegated to the single source of truth,
+    :meth:`kimcad.config.Config._is_local_base_url`, so the two classifiers can never drift
+    apart. We keep this function's own input contract — it accepts a bare ``host``/``host:port``
+    OR a full ``http://host/...`` URL — by normalizing a bare host into a URL before delegating."""
+    from kimcad.config import Config
+
+    url = base_url if "//" in base_url else f"http://{base_url}"
+    return Config._is_local_base_url(url)
+
+
+def _free_gb_on_receiving_drive(probe_dir: Path | None = None) -> float:
+    """Free space (GB) on the drive that will actually receive the blobs. Ollama stores models
+    under the user profile by default, or wherever ``OLLAMA_MODELS`` points (ENG-003) — measure
+    THAT drive. A bad env var never blocks: fall back to home. Shared by both the per-model
+    ``start`` pre-check and the cold ``_run_setup`` pre-check (ENG-GG-002), so the two agree."""
+    models_dir = os.environ.get("OLLAMA_MODELS") or (probe_dir or Path.home())
     try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return host == "localhost"
+        return shutil.disk_usage(models_dir).free / _GB
+    except OSError:
+        return shutil.disk_usage(Path.home()).free / _GB
 
 
 def _friendly_error(raw: str) -> str:
@@ -64,7 +84,7 @@ def _friendly_error(raw: str) -> str:
     if "no space" in low or "not enough" in low or "disk full" in low:
         return (
             "Your disk filled up during the download. Free some space "
-            "(the models are about 8 GB, plus room to unpack), then try again."
+            "(the models are about 7.7 GB, plus room to unpack), then try again."
         )
     if "file does not exist" in low or "not found" in low or "pull model manifest" in low:
         return "The model wasn't found on Ollama's registry — check your internet connection and try again."
@@ -122,11 +142,7 @@ class ModelPullJob:
             # under the user profile by default, or wherever OLLAMA_MODELS points (ENG-003) —
             # measure the drive that will actually receive the blobs.
             need_gb = sum(_EST_GB.get(kind, 5.0) for _, kind in missing)
-            models_dir = os.environ.get("OLLAMA_MODELS") or (probe_dir or Path.home())
-            try:
-                free_gb = shutil.disk_usage(models_dir).free / _GB
-            except OSError:
-                free_gb = shutil.disk_usage(Path.home()).free / _GB  # a bad env var never blocks
+            free_gb = _free_gb_on_receiving_drive(probe_dir)
             if free_gb < need_gb:
                 # ENG-002: REPLACE the state — no residue from a previous run.
                 self._models = {
@@ -207,6 +223,41 @@ class ModelPullJob:
         resolve: Any, fetch: Any, serve: Any, probe: Any, managed_dir: Path, sleep: Any,
         wait_s: float, poll_s: float,
     ) -> None:
+        # ENG-GG-002: the disk pre-check, hoisted into the cold one-click path so the common
+        # failure (a small SSD) fails friendly BEFORE a single byte of runtime or model is
+        # fetched/pulled. Estimate need = the portable engine (only if a fetch will be needed,
+        # i.e. there's no system/managed exe to reuse) + the rough size of each MISSING model.
+        server_up = is_up(base_url)
+        fetch_needed = (not server_up) and resolve() is None
+        if server_up:
+            # The server is up, so we can ask which models are already installed; only the
+            # genuinely-missing ones cost disk.
+            try:
+                _running, installed = probe(base_url)
+            except Exception:  # noqa: BLE001 — a flaky probe never blocks the pre-check
+                installed = []
+            names = {getattr(m, "name", "") for m in installed}
+            missing_kinds = [
+                kind for tag, kind in ((chat_model, "chat"), (vision_model, "vision"))
+                if not any(n == tag or n.startswith(tag + "-") for n in names)
+            ]
+        else:
+            # Server down -> can't probe; assume both models are missing (the cold case pulls
+            # whatever is actually missing once it's up — this is the conservative estimate).
+            missing_kinds = ["chat", "vision"]
+        need_gb = sum(_EST_GB.get(k, 5.0) for k in missing_kinds) + (
+            _ENGINE_EST_GB if fetch_needed else 0.0
+        )
+        free_gb = _free_gb_on_receiving_drive(managed_dir)
+        if need_gb and free_gb < need_gb:
+            with self.lock:
+                self._models[_ENGINE_ROW]["status"] = "error"
+                self._models[_ENGINE_ROW]["error"] = (
+                    f"Not enough disk space: about {need_gb:.0f} GB is needed and only "
+                    f"{free_gb:.0f} GB is free. Free some space, then try again."
+                )
+            return
+
         # Phase 1 — ensure the runtime is serving.
         if not is_up(base_url):
             with self.lock:

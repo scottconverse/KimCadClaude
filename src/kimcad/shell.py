@@ -131,8 +131,15 @@ def build_shell(
     )
 
     def _on_closed() -> None:
-        # The window IS the app: closing it stops the server (no orphan pipeline server).
+        # The window IS the app: closing it stops the server (no orphan pipeline server) AND the
+        # managed Ollama child KimCad started (ENG-GG-001 — never an orphan headless serve).
         httpd.shutdown()
+        try:
+            from kimcad.ollama_runtime import stop_managed
+
+            stop_managed()
+        except Exception:  # noqa: BLE001 — teardown is best-effort; window close must not raise
+            pass
 
     window.events.closed += _on_closed
     if start_gui:

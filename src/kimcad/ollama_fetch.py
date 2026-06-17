@@ -12,8 +12,10 @@ mismatch BEFORE anything is extracted. Extraction is zip-slip-guarded (exact, in
 only), matching the rigor of :mod:`kimcad.design_store`'s import path.
 
 Kept import-light and effect-injected: ``opener`` (the URL fetch) is a parameter, so the
-download/verify/extract logic is unit-tested with a synthetic in-memory zip and no network; the
-REAL ~1.4 GB fetch+extract+serve is exercised by a ``real_tool`` integration test.
+download/verify/extract logic is unit-tested with a synthetic in-memory zip and a SHA-256 pin
+(no network). The full REAL ~1.4 GB fetch+extract+serve is proven separately by the recorded
+manual cold-start run (``docs/audits/coder-ui-qa-test-coldstart-2026-06-17/``) and by the
+Walkthrough lane, which drives live bytes through this path.
 """
 
 from __future__ import annotations
@@ -35,9 +37,11 @@ PORTABLE_URL = (
     f"https://github.com/ollama/ollama/releases/download/{PORTABLE_VERSION}/{PORTABLE_ASSET}"
 )
 PORTABLE_SHA256 = "6d83cbe1db06ec659e7f47c0897318d2093128bcbb7c5d140c142e71d65f991f"
-# Approximate compressed size (≈1.4 GB) — used only to show honest progress when the server
-# omits a Content-Length. The integrity check is the SHA-256, never the size.
-PORTABLE_SIZE_BYTES = 1393 * 1024 * 1024
+# The exact byte size of the pinned v0.30.9 ``ollama-windows-amd64.zip`` release asset
+# (`gh api .../assets`, same 2026-06-17 verification as the SHA above). Used only to show honest
+# progress when the server omits a Content-Length. The integrity check is the SHA-256, never the
+# size. (≈1.4 GB)
+PORTABLE_SIZE_BYTES = 1_461_613_335
 
 
 class OllamaFetchError(RuntimeError):

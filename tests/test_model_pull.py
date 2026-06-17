@@ -13,7 +13,14 @@ from pathlib import Path
 
 import kimcad.model_pull as mp
 from kimcad.config import Config
-from kimcad.model_pull import _ENGINE_ROW, ModelPullJob, is_loopback_url, ollama_native_root
+from kimcad.model_pull import (
+    _ENGINE_EST_GB,
+    _ENGINE_ROW,
+    _EST_GB,
+    ModelPullJob,
+    is_loopback_url,
+    ollama_native_root,
+)
 from kimcad.webapp import make_handler
 
 
@@ -200,7 +207,7 @@ def test_a_disk_full_error_maps_to_the_friendly_fix():
     job.start("http://127.0.0.1:11434", [("gemma4:e4b", "chat")], probe_dir=Path.cwd(), opener=opener)
     snap = _wait_done(job)
     assert "disk filled up" in snap["models"]["gemma4:e4b"]["error"]
-    assert "8 GB" in snap["models"]["gemma4:e4b"]["error"]
+    assert "7.7 GB" in snap["models"]["gemma4:e4b"]["error"]
 
 
 def test_the_disk_precheck_fails_friendly_before_any_download(monkeypatch):
@@ -243,6 +250,77 @@ def test_start_is_idempotent_while_running():
     _wait_done(job)
 
 
+def test_setup_is_idempotent_while_running(tmp_path):
+    """TEST-GG-005: like start()'s idempotency, but for the one-click start_setup — two calls
+    while a setup runs must yield ONE worker thread (a wizard re-mount can't fork a second
+    runtime fetch/serve). Block in serve() so the worker stays alive across both calls."""
+    release = threading.Event()
+    serve_calls: list = []
+
+    def _blocking_serve(_exe):
+        serve_calls.append(1)
+        release.wait(5)
+
+    def _start():
+        return job.start_setup(
+            "http://127.0.0.1:11434", "qwen2.5:7b", "qwen2.5vl:3b",
+            is_up=lambda _u: False, resolve=lambda: Path("/x/ollama"),
+            serve=_blocking_serve, probe=lambda _u, timeout=3.0: (True, []),
+            managed_dir=tmp_path, sleep=lambda _s: None, wait_s=1.0, poll_s=0.01,
+        )
+
+    job = ModelPullJob()
+    _start()
+    # spin until the worker is actually inside the blocking serve, so the 2nd call races a
+    # genuinely-running job (not a not-yet-started thread).
+    deadline = time.monotonic() + 5.0
+    while not serve_calls and time.monotonic() < deadline:
+        time.sleep(0.01)
+    snap2 = _start()
+    assert snap2["running"] is True
+    release.set()
+    _wait_done(job)
+    assert serve_calls == [1]  # exactly one worker ran; the 2nd start_setup didn't fork
+
+
+def test_doc_and_code_disk_estimates_fit_the_documented_headroom():
+    """ENG-GG-002 / DOC-101: the rough model+engine estimates must fit under the documented
+    12 GB free-disk headroom. Pin it so the contradiction (chat+vision+engine > the headroom)
+    can never silently return — if someone bumps a size, this test forces a doc reconciliation."""
+    documented_free_gb = 12.0
+    assert sum(_EST_GB.values()) + _ENGINE_EST_GB <= documented_free_gb
+
+
+def test_setup_disk_precheck_fails_before_fetch_or_pull(monkeypatch, tmp_path):
+    """ENG-GG-002 / TEST-GG-002: the cold one-click path pre-checks disk BEFORE moving a byte.
+    With the receiving drive nearly full, the engine row errors with 'Not enough disk space' and
+    neither the runtime fetch nor the per-model opener is ever called."""
+    from collections import namedtuple
+
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(mp.shutil, "disk_usage", lambda p: Usage(100, 99, 1 * (1024**3)))
+    fetched: list = []
+    opened: list = []
+
+    job = ModelPullJob()
+    job.start_setup(
+        "http://127.0.0.1:11434", "qwen2.5:7b", "qwen2.5vl:3b",
+        opener=lambda *a, **k: opened.append(a) or _ok_opener(*a, **k),
+        is_up=lambda _u: False,
+        resolve=lambda: None,  # -> a fetch WOULD be needed (so the engine size counts too)
+        fetch=lambda *a, **k: fetched.append(a) or (tmp_path / "ollama.exe"),
+        serve=lambda _e: None,
+        probe=lambda _u, timeout=3.0: (True, []),
+        managed_dir=tmp_path, sleep=lambda _s: None, wait_s=1.0, poll_s=0.01,
+    )
+    snap = _wait_done(job)
+    assert snap["models"][_ENGINE_ROW]["status"] == "error"
+    assert "Not enough disk space" in snap["models"][_ENGINE_ROW]["error"]
+    assert fetched == []  # the runtime was never fetched
+    assert opened == []  # no model pull was ever opened
+    assert set(snap["models"]) == {_ENGINE_ROW}  # never reached the per-model rows
+
+
 def test_native_root_and_loopback_helpers():
     assert ollama_native_root("http://localhost:11434/v1") == "http://localhost:11434"
     assert ollama_native_root("http://127.0.0.1:11434/ollama/v1") == "http://127.0.0.1:11434"
@@ -253,6 +331,31 @@ def test_native_root_and_loopback_helpers():
     assert is_loopback_url("https://api.example.com/v1") is False
     # ENG-005 (slice-10.4 audit): a HOSTNAME that merely starts with "127." is not loopback.
     assert is_loopback_url("http://127.evil.example:11434/v1") is False
+
+
+def test_is_loopback_url_delegates_to_config_and_agrees_on_adversarial_hosts():
+    """ENG-GG-005: is_loopback_url now delegates to Config._is_local_base_url (one source of
+    truth), while keeping its own host-OR-url input contract. The two classifiers must agree on
+    every adversarial host Engineering checked — pin that agreement so they can't drift apart."""
+    # bare host / host:port AND full-URL forms; loopback (True) vs not (False).
+    cases = {
+        "127.0.0.1": True,
+        "127.0.0.1:11434": True,
+        "localhost": True,
+        "localhost:11434": True,
+        "127.evil.example": False,  # prefix trick, not loopback
+        "192.168.0.9": False,
+        "http://localhost:11434/v1": True,
+        "http://127.0.0.1:11434/v1": True,
+        "http://[::1]:11434/v1": True,
+        "http://192.168.0.9:11434/v1": False,
+        "https://api.example.com/v1": False,
+    }
+    for host, expected in cases.items():
+        assert is_loopback_url(host) is expected, host
+        # and the URL-form classification matches Config's single source of truth exactly.
+        url = host if "//" in host else f"http://{host}"
+        assert is_loopback_url(host) is Config._is_local_base_url(url), host
 
 
 def test_a_new_start_replaces_the_previous_runs_states(monkeypatch):

@@ -447,20 +447,19 @@ export default function SettingsPanel() {
               let cta = 'Refresh'
               let onCta: () => void = checkModel
               if (modelState === 'error') {
-                tone = 'warn'; text = "Couldn’t reach Ollama."; cta = 'Check again'
+                tone = 'warn'; text = "Couldn’t reach the local AI."; cta = 'Check again'
               } else if (model?.backend === 'local' && !model.running) {
+                // UX-FULL-001/002: KimCad MANAGES its own AI — the fix is the in-app setup
+                // (reuse a system Ollama if present, else KimCad downloads+runs it), never a
+                // manual "start Ollama / get Ollama". Primary CTA re-enters the setup wizard,
+                // exactly like the !model_present branch below.
                 tone = 'warn'
-                text = (
-                  <>
-                    Ollama isn’t running. Start it (or{' '}
-                    <button type="button" className="kc-link-btn"
-                      onClick={() => openExternal('https://ollama.com/download')}>
-                      get Ollama
-                    </button>
-                    ), then check again.
-                  </>
-                )
-                cta = 'Check again'
+                text = 'Your local AI isn’t running yet.'
+                cta = 'Set up KimCad’s AI'
+                onCta = () => {
+                  try { localStorage.removeItem('kc-first-run-done') } catch {}
+                  window.dispatchEvent(new Event('kimcad-rerun-setup'))
+                }
               } else if (model?.backend === 'local' && model.running && !model.model_present) {
                 tone = 'warn'
                 text = "The model isn’t downloaded yet."
@@ -492,8 +491,15 @@ export default function SettingsPanel() {
           <section id="set-cloud" className="kc-set-card">
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">Cloud acceleration</h2>
+              {/* UX-FULL-003: "On" is honest ONLY when cloud is actually usable — enabled AND a
+                  key is stored AND a model is chosen. Enabled-but-incomplete reads "On — needs
+                  setup" so the badge never claims a working cloud the user hasn't finished wiring. */}
               <span className={`kc-set-badge${settings.cloud_enabled ? ' kc-set-badge-cloud' : ''}`}>
-                {settings.cloud_enabled ? 'On' : 'Off'}
+                {settings.cloud_enabled
+                  ? settings.has_cloud_key && settings.cloud_model
+                    ? 'On'
+                    : 'On — needs setup'
+                  : 'Off'}
               </span>
               <span className="kc-set-grow" />
               <button
