@@ -1,0 +1,9 @@
+=== PHASE 1: SHA-256 INTEGRITY CHECK ===
+Date: 2026-06-16 18:20:06
+File: C:\kimcad-dl\KimCad-Setup-0.9.0b5.exe
+Size: 204770673 bytes (expected: 204,770,673) — MATCH: True
+SHA-256: f4bd7af7f3f5f155c849f7c96611b4f4da8ee386a4bb9aac537e2e4cb5543e63
+Expected: f4bd7af7f3f5f155c849f7c96611b4f4da8ee386a4bb9aac537e2e4cb5543e63
+MATCH: True
+
+PHASE 1 VERDICT: PASS

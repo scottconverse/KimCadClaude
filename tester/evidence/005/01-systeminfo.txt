@@ -1,0 +1,36 @@
+=== PHASE 0: CLEAN MACHINE CHECK ===
+Date: 2026-06-16 18:13:02
+
+=== SYSTEMINFO ===
+
+OS Name:                       Microsoft Windows 11 Pro
+OS Build Type:                 Multiprocessor Free
+System Model:                  SER8
+Processor(s):                  1 Processor(s) Installed.
+Total Physical Memory:         28,450 MB
+
+
+
+=== WINVER ===
+ Microsoft Windows [Version 10.0.26200.8655]
+
+=== KIMCAD REGISTRY ===
+
+
+=== COMMANDS (node, ollama) ===
+
+Name       Source                                                 
+----       ------                                                 
+ollama.exe C:\Users\a7207\AppData\Local\Programs\Ollama\ollama.exe
+
+
+
+
+=== WEBVIEW2 ===
+
+pv           
+--           
+149.0.4022.69
+
+
+

@@ -1,0 +1,8 @@
+ok: kimcad 0.9.0b5
+ok: server up, version 0.9.0b5 (matches the launcher)
+ok: bundled OpenSCAD + OrcaSlicer present
+ok: the SPA shell + its JS asset serve (the window has a real app in it)
+ok: prompt templates shipped
+ok: demo design rendered, mesh downloaded (1284 bytes)
+ok: writes under C:\Users\a7207\AppData\Local\KimCad\output\web; the install tree is byte-path identical (diffed)
+VERIFY-INSTALL: ALL GREEN

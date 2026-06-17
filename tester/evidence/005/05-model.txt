@@ -1,0 +1,37 @@
+=== PHASE 3a: MODEL CHECK ===
+model-status API: {
+  "model": "qwen2.5:7b",
+  "backend": "local",
+  "vision_model": "qwen2.5vl:3b",
+  "running": true,
+  "model_present": true,
+  "vision_present": true
+}
+Settings page model section: model that turns your words into a design.
+Choose the printer your parts are checked against.
+Decide how you want to get your files.
+Continue
+KimCad
+Bambu Lab P2S
+256×256×256 mm
+My Designs
+Settings
+?
+Settings
+DESIGN DEFAULTS
+Printer & material
+Display
+AI
+AI model
+Cloud acceleration
+Experimental
+OUTPUT & TOOLS
+Printer connections
+Editable CAD
+Tools
+SYSTEM
+About & reset
+Printer & material
+
+The defau
+EXPECTED: qwen2.5:7b

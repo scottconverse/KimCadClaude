@@ -1,0 +1,45 @@
+=== PHASE 2: INSTALL EVIDENCE ===
+Date: 2026-06-16 18:21:55
+
+Install method: /VERYSILENT /CURRENTUSER /SUPPRESSMSGBOXES /NORESTART /LOG
+Exit code: 0 (success)
+Duration: ~21s total (installer ran async ~15s after process launch)
+Install location: C:\Users\a7207\AppData\Local\Programs\KimCad
+Install date: 2026-06-16
+
+=== REGISTRY (HKCU uninstall) ===
+
+DisplayName    DisplayVersion InstallLocation                               InstallDate
+-----------    -------------- ---------------                               -----------
+KimCad 0.9.0b5 0.9.0b5        C:\Users\a7207\AppData\Local\Programs\KimCad\ 20260616   
+
+
+
+
+=== INSTALL DIR CONTENTS (top-level) ===
+
+Name               Length 
+----               ------ 
+config                    
+library                   
+python                    
+site-packages             
+tools                     
+kimcad_launcher.py 1437   
+LICENSE            10287  
+unins000.dat       6848743
+unins000.exe       4451074
+
+
+
+
+=== INSTALL LOG SUMMARY ===
+Log lines: 121258
+Final lines: 2026-06-16 18:21:41.374   Detected previous administrative 64-bit install? No
+2026-06-16 18:21:41.416   Installation process succeeded.
+2026-06-16 18:21:41.416   Need to restart Windows? No
+2026-06-16 18:21:41.416   Deinitializing Setup.
+2026-06-16 18:21:41.424   Log closed.
+
+
+PHASE 2 VERDICT: PASS — KimCad 0.9.0b5 installed successfully, no admin rights required.

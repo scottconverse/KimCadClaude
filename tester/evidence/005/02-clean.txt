@@ -1,0 +1,19 @@
+=== PHASE 0: CLEAN MACHINE STATE ===
+Date: 2026-06-16 18:20:38
+Box: DESKTOP-2BR3SJR (Ryzen 7 8745HS / Radeon 780M / 27.8 GB / Win11 Pro 26200)
+
+KimCad in HKCU/HKLM uninstall registry: NONE (b4 cleanly uninstalled per SIGN-OFF-004)
+Node.js: NOT FOUND (correct)
+Ollama: PRESENT at C:\Users\a7207\AppData\Local\Programs\Ollama\ollama.exe
+  --- DISCLOSED DEVIATION: Ollama 0.30.8 + qwen models pre-present from b3/b4.
+  --- Per SIGN-OFF-004 open item 3: "left installed for any re-test". Not re-pulled.
+  --- Ollama list: NAME            ID              SIZE      MODIFIED     
+qwen2.5vl:3b    fb90415cde1e    3.2 GB    18 hours ago    
+qwen2.5:7b      845dbda0ea48    4.7 GB    18 hours ago    
+
+WebView2 Runtime: 149.0.4022.69 (present)
+
+KimCad install dir (%LOCALAPPDATA%\Programs\KimCad): ABSENT (correct)
+KimCad user data dir (%LOCALAPPDATA%\KimCad): PRESENT (user data retained — expected)
+
+PHASE 0 VERDICT: PASS (1 disclosed deviation — Ollama+models pre-present, documented above)
