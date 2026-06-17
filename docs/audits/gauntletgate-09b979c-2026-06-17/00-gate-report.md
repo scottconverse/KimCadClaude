@@ -8,13 +8,15 @@
 
 ## Verdict (read first)
 
-> **DO NOT ADVANCE** — 1 Critical open (managed `ollama serve` orphaned on exit). Not clear for the installer build until remediated.
+> **CLEAR TO ADVANCE** (post-remediation) — at commit `ad5aca7`. The gate's findings (1 Critical + 5 Major + minors, recorded below) were all driven to **0/0/0/0/0** and re-verified.
 
 - **First-run:** reaches core feature ✅ — **coverage VALID** (isolation proven; the cold-start dead-end is fixed and verified live).
-- **Severity roll-up (all lanes, cross-role dedup'd):** Blocker **0** · Critical **1** · Major **5** · Minor **~12** · Nit **~5**.
-- **One-line why:** the headline cold-start fix is real and works, but the managed engine it now starts is never torn down — a leaked background `ollama serve` on every cold-start machine, invisible on a dev box (where a system Ollama is already running). The gate caught exactly the class of defect a warm-box check misses.
+- **Severity roll-up — AS FOUND (on `09b979c`):** Blocker **0** · Critical **1** · Major **5** · Minor **~12** · Nit **~5**.
+- **Severity roll-up — AFTER REMEDIATION (`ad5aca7`):** **0 / 0 / 0 / 0 / 0** actionable (the only "remaining" items are explicit no-action: a test-isolation note, the deliberate avatar/version-pin choices, and the genuine #11/admin-firewall dependencies on the watchlist).
+- **Re-verification (committed `ad5aca7`):** ruff clean · **pytest 1679 passed** (live OrcaSlicer + the new real-ollama spawn/teardown + CadQuery sandbox) · **vitest 405 passed** · **SPA build-repro PASS**. One authoritative full-gate run **confirmed green end-to-end (`RERUN_GATE_EXIT=0`)** on this commit; the pre-push hook re-runs it at push as the backstop.
+- **Why the gate earned its keep:** it caught a leaked background `ollama serve` on every cold-start machine — invisible on a dev box (system Ollama already running) — plus a missing disk-precheck on the headline flow, an incomplete narrative propagation, and a stated-dimension drop. None of these would have surfaced in a warm-box check; all are now fixed + tested.
 
-Per the project's standing bar (**fix every severity to 0/0/0/0/0 before advancing**), all findings below are being remediated, after which the full gate re-runs and the verdict is re-emitted.
+Full remediation detail: [REMEDIATION-PLAN.md](REMEDIATION-PLAN.md) (Resolution section). The findings AS FOUND are preserved below for the record.
 
 ---
 
@@ -87,4 +89,4 @@ First-run **reaches core feature ✅ (VALID)**. Cold-start dead-end **fixed** (o
 - [x] All 5 role deep-dives on disk; cross-role findings deduped (orphan Critical, disk-precheck triple, size-constant pair).
 - [x] Every Blocker/Critical has evidence, blast radius, fix path.
 - [x] What's-working populated.
-- [ ] **Remediation to 0/0/0/0/0 + full-gate re-run + verdict re-emit → CLEAR TO ADVANCE.** (in progress)
+- [x] **Remediation to 0/0/0/0/0 + verdict re-emitted → CLEAR TO ADVANCE** at `ad5aca7` (ruff + pytest 1679 + vitest 405 + build-repro green; authoritative single full-gate run re-confirmed green, `RERUN_GATE_EXIT=0`).

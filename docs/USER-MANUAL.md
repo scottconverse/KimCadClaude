@@ -12,7 +12,7 @@ This manual has three parts, each for a different reader. Start wherever you fit
 | **[2 · The technical surface](#part-2--the-technical-surface)** | CLI users, tinkerers, integrators | commands, config layering, the printer connectors, the MCP server, the CadQuery/STEP engine |
 | **[3 · Architecture](#part-3--architecture)** | developers and the curious | the pipeline, the modules, the trust boundaries, how it's built |
 
-> **Version:** this manual tracks the current Windows beta (`0.9.0b4`). KimCad's version shows in
+> **Version:** this manual tracks the current Windows beta (`0.9.1`). KimCad's version shows in
 > **Settings → About** and from `kimcad --version`.
 
 ---

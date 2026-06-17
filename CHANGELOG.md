@@ -5,14 +5,12 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
-### Notes
-- **A multi-toolhead prototype (Snapmaker U1) was attempted and withdrawn.** Two pre-releases,
-  `0.9.0b5` and `0.9.0b6`, were cut and then **un-published** — neither is a valid release and both
-  tags have been removed. `0.9.0b5` added a Snapmaker U1 / multi-toolhead feature whose multi-material
-  slice never actually worked: KimCad generates a single solid mesh, so there is nothing to assign the
-  extra materials to, and OrcaSlicer rejected the multi-filament CLI input. `0.9.0b6` removed it. The
-  code has been **fully reverted** — the **canonical release remains `0.9.0b4`**. Real multi-material
-  printing is future work; it needs multi-part / assignable model generation, not just a slicer flag.
+## [0.9.1] — 2026-06-17
+
+The **cold-start onboarding** release: KimCad now sets up its own local AI (no manual Ollama
+install), and the **GauntletGate** pre-release gate (1 Critical + 5 Major + minors) was driven to
+**0/0/0/0/0** and re-verified. Built directly on `0.9.0b4` (the withdrawn `0.9.0b5`/`0.9.0b6`
+Snapmaker prototype — see Notes); this is the first `0.9.1` build.
 
 ### Added
 - **Zero-install local AI (managed Ollama).** KimCad now sets up its own AI engine instead of making
@@ -26,15 +24,33 @@ All notable changes to KimCad are documented here. Format follows
 ### Changed
 - **First-run "Set up your AI" now actually sets up the AI** — one button ensures the engine and
   downloads the model, replacing the old "go install Ollama → start it → check again" detour. The
-  landing "AI isn't ready" banner points to the in-app setup, not "start Ollama."
+  landing "AI isn't ready" banner — and now the Settings / chat / on-ramp surfaces too — point to the
+  in-app setup, not "start Ollama."
 - **Model-download size stated honestly as ~7.7 GB** (≈4.7 GB chat + ≈3 GB vision) across the wizard
-  and docs (previously stated variously as 8 / 9 / 13 GB).
+  and docs (previously stated variously as 8 / 9 / 13 GB); the disk pre-check + the documented
+  free-disk headroom are now consistent.
 
 ### Fixed
+- **The managed AI engine now stops with the app.** A managed `ollama serve` KimCad started is torn
+  down on exit (Windows Job Object kill-on-close + atexit) — no orphaned background server / held
+  port on a cold-start machine. A *reused* system Ollama is never touched. (GauntletGate ENG-GG-001.)
 - **Local-Ollama detection no longer misreads a non-default port as "cloud, ready."** The
   model-status / model-pull "is this local?" check classifies by loopback host instead of a literal
-  `"11434"` substring, so an Ollama on any port is correctly detected and probed (ENG-COLD-002, from
-  the 2026-06-17 cold-start audit).
+  `"11434"` substring, so an Ollama on any port is correctly detected and probed (ENG-COLD-002).
+- **One-click setup pre-checks disk space before downloading** gigabytes (engine + missing models),
+  and a stated dimension the planner drops (e.g. "8 mm cable") is now honored instead of silently
+  defaulting. (GauntletGate ENG-GG-002 / QA-GG-002, plus minor/security hardening — full punch list:
+  `docs/audits/gauntletgate-09b979c-2026-06-17/`.)
+
+### Notes
+- **A multi-toolhead prototype (Snapmaker U1) was attempted and withdrawn.** Two pre-releases,
+  `0.9.0b5` and `0.9.0b6`, were cut and then **un-published** — neither is a valid release and both
+  tags have been removed. `0.9.0b5` added a Snapmaker U1 / multi-toolhead feature whose multi-material
+  slice never actually worked: KimCad generates a single solid mesh, so there is nothing to assign the
+  extra materials to, and OrcaSlicer rejected the multi-filament CLI input. `0.9.0b6` removed it. The
+  code was **fully reverted**; `0.9.1` is `0.9.0b4` plus the cold-start onboarding work and
+  supersedes the `0.9.0` betas as the current build. Real multi-material printing is future work; it needs
+  multi-part / assignable model generation, not just a slicer flag.
 
 ## [0.9.0b4] — 2026-06-16
 
