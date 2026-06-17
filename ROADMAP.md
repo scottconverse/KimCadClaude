@@ -105,6 +105,35 @@ second-pass audit remediation — so it shipped the bake-off-rejected `gemma4:e4
 folds all of that in, re-cut from `main` and re-verified (`verify_install` ALL GREEN; the gate green
 at 1598 pytest + 393 vitest). Still beta, still unsigned, still gated on #11 (real-metal validation).
 
+### 0.9.0b6 — single-head honest release (2026-06-16, after a tester-caught false-green)
+
+`0.9.0b5` shipped a **Snapmaker U1 / multi-toolhead** headline feature whose multi-material slice
+**failed 100% of the time** on the clean-machine tester (it passed OrcaSlicer an invalid flag; the
+deeper cause is that KimCad generates a single solid mesh, so there's nothing to assign the extra
+materials to). The 3-round audit-team missed it because the tests asserted the *command string*
+instead of running the real slicer — captured as a hard rule (execute external-tool paths against
+the real tool). `0.9.0b6` **removes the Snapmaker U1 + the multi-toolhead UI** from the catalog;
+**every shipped printer is now single-material** (a Bambu + AMS is driven single-material too — the
+same single-mesh limitation applies). The generic multi-toolhead scaffolding stays in the code,
+dormant and marked in-development, as groundwork.
+
+## Coming next — multi-material / multi-color / multi-head printing  (IN DEVELOPMENT)
+
+Cheap multi-head / multi-color printers (the Snapmaker U1's 4 toolheads, Bambu + AMS, …) are
+arriving fast, and OrcaSlicer slices them fine — **KimCad can't yet**, because it generates one
+undifferentiated solid mesh. Real multi-material is a whole-pipeline feature, not a slicer flag
+(the slicer is ~10% of the work; generation is the hard 90%):
+1. **Plan decomposition** — the model splits a prompt into material-distinct regions ("base black,
+   letters white"). *(the hard part)*
+2. **Multi-part geometry** — codegen emits separate solids/parts per material, not one fused body.
+3. **Assignment-bearing 3MF** — export an OrcaSlicer project mapping each part → an extruder.
+4. **Slice** — slice that project with N filaments (the slicer handles it once the model carries the
+   assignment); guard the crash on bad input.
+5. **Region-assignment UI** — assign materials to parts/regions and preview them.
+A higher-ROI subset — **soluble / second-material supports** (model in one filament, supports in
+another) — is a slicer-config-only path and may ship first. The generic `toolhead_count` /
+per-extruder temperature reporting and the `SnapmakerConnector` already exist as dormant foundation.
+
 ---
 
 ## Stage 0 — Refit to the target model and close Phase 1  ✅ DONE

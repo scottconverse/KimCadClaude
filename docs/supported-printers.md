@@ -3,7 +3,7 @@
 **The short version:** KimCad ships the **full OrcaSlicer profile library — roughly 65
 printer brands and 1,400+ machine profiles** (Bambu Lab, Creality, Prusa, Anycubic, Elegoo,
 Voron, Sovol, Qidi, Artillery, and dozens more) inside the installer. On top of that library,
-the printer picker now offers a **curated catalog of ~30 popular current machines across the
+the printer picker now offers a **curated catalog of ~29 popular current machines across the
 top makers** — each one with a build-volume gate and a slice **proven in CI** — and three of
 those are **reference printers** wired end to end (slice + native connection). The rest of the
 1,400-profile library is on your disk and can be promoted into the catalog as each machine is
@@ -23,6 +23,15 @@ Honesty key — four different claims, kept separate on purpose:
   These are KimCad's target hardware. **No physical print has run.**
 - **Metal-validated:** a real part printed on the real machine. *Nothing is metal-validated
   yet* — that's the beta's own job (see `docs/beta/first-hardware-contact.md`).
+
+> **Coming soon — multi-material printing.** KimCad currently slices **single-material for every
+> printer**: you pick one filament, and a Bambu printer with an AMS unit is driven as single-material
+> too (KimCad does not yet drive AMS multi-color). Multi-material / multi-toolhead printers — like
+> the **Snapmaker U1** (a 4-toolhead machine), which was pulled from the catalog for now — are **in
+> development**. The reason is honest: KimCad builds a single solid mesh, so there's nothing yet to
+> assign extra materials to; the U1 is held until real multi-material ships rather than shipped as a
+> misleading single-material "U1". The `snapmaker` connector type still exists in the code, but no
+> shipped printer uses it today.
 
 ## Reference printers (catalog + direct-send connection)
 
@@ -64,7 +73,6 @@ printer" rather than silently mis-mapped. Direct-send is not wired for these (ex
 | | X-Plus 3 | 280 × 280 × 270 |
 | **Sovol** | SV06 / SV07 | 220 × 220 × 250 |
 | | SV08 | 350 × 350 × 345 |
-| **Snapmaker** | U1 (4-toolhead — PLA/PETG/TPU/ABS) | 270.5 × 271.0 × 270.05 |
 
 "Proven to slice" = real OrcaSlicer produced a valid, motion-bearing G-code 3MF for the
 profile in CI — software validation, not yet a physical print. The catalog is generated and
@@ -80,7 +88,6 @@ headless slice and are intentionally left in the profile-shipped tier until fixe
 | `bambu` (native LAN) | P2S, A1 | **API-validated against a verified mock** of the printer's MQTT/FTPS protocols; metal pending |
 | `octoprint` | any OctoPrint box | API-validated against a real OctoPrint REST mock |
 | `moonraker` | Klipper (Voron, Creality-Klipper, …) | API-validated (conformance mock); ships as a fill-in template in Settings → Printer connections |
-| `snapmaker` | Snapmaker U1 (Klipper/Moonraker-based) | API-validated against a conformance mock; **inherits the full Moonraker send path** and adds **4-extruder status** (auto-detected active extruders → `toolhead_count`, per-extruder `toolhead_temps`); metal pending |
 | `prusalink` | MK4 / MK3.9 / MINI / XL | API-validated (conformance mock); ships as a fill-in template in Settings → Printer connections |
 | `duet` | Duet 2/3 boards (RepRapFirmware 2/3) | API-validated (conformance mock) over the classic `/rr_*` HTTP interface; optional board password; ships as a fill-in template |
 | `marlin` | Marlin firmware (Ender-class + most consumer FDM) | API-validated (conformance mock) over the raw M-code line protocol; uploads to SD and prints from SD. Target is a USB serial port (`COM3`/`/dev/ttyUSB0`, needs `pip install pyserial`) or a `host:port` serial-over-network bridge |

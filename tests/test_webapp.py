@@ -550,12 +550,13 @@ def test_web_options_lists_per_printer_available_materials():
 
 
 def test_web_options_carries_toolhead_count():
-    # TEST-005: the per-printer toolhead_count surfaces in /api/options so the SPA can render the
-    # right number of filament-slot pickers — single-head for the Bambu P2S, four for the U1.
+    # TEST-005: the per-printer toolhead_count surfaces in /api/options. Every shipped printer is
+    # single-head today (the multi-toolhead Snapmaker U1 was pulled until multi-material is real),
+    # so the value is 1 across the catalog; the field stays for when multi-material ships.
     opts = web_options(Config.load())
     by_key = {p["key"]: p for p in opts["printers"]}
     assert by_key["bambu_p2s"]["toolhead_count"] == 1
-    assert by_key["snapmaker_u1"]["toolhead_count"] == 4
+    assert all(p["toolhead_count"] == 1 for p in opts["printers"])
 
 
 def _serve_with_token(pipe, root, token):
@@ -1529,67 +1530,11 @@ def _slice_post(base, rid, body):
         ), timeout=30))
 
 
-def test_slice_multihead_forwards_filament_slots(tmp_path, monkeypatch):
-    """TEST-003: POSTing explicit filament_slot_* fields to a multi-head printer forwards them
-    as an ordered filament_slots tuple to the slicer."""
-    import kimcad.webapp as webapp_mod
-
-    stub, calls = _recording_slice()
-    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
-    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
-    with _serve(pipe, tmp_path) as (host, port):
-        base = f"http://{host}:{port}"
-        rid = _design_rid(base)
-        _slice_post(base, rid, {
-            "printer": "snapmaker_u1", "material": "pla",
-            "filament_slot_0": "pla", "filament_slot_1": "petg",
-            "filament_slot_2": "pla", "filament_slot_3": "abs",
-        })
-    assert len(calls) == 1
-    assert calls[0]["filament_slots"] == ("pla", "petg", "pla", "abs")
-
-
-def test_slice_multihead_with_no_slots_fills_full_tuple(tmp_path, monkeypatch):
-    """ENG-001 (QA-003): a multi-head POST with NO filament_slot_* fields must NOT collapse to the
-    single-head key — every slot falls back to `material`, so the slicer gets a full 4-tuple."""
-    import kimcad.webapp as webapp_mod
-
-    stub, calls = _recording_slice()
-    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
-    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
-    with _serve(pipe, tmp_path) as (host, port):
-        base = f"http://{host}:{port}"
-        rid = _design_rid(base)
-        _slice_post(base, rid, {"printer": "snapmaker_u1", "material": "pla"})
-    assert len(calls) == 1
-    assert calls[0]["filament_slots"] == ("pla", "pla", "pla", "pla")
-
-
-def test_slice_multihead_distinct_slots_are_distinct_slices_same_are_cached(tmp_path, monkeypatch):
-    """TEST-003: two POSTs with DIFFERENT slot tuples are two distinct slices (cache miss); two
-    POSTs with the SAME slot tuple hit the cache (slice runs once)."""
-    import kimcad.webapp as webapp_mod
-
-    stub, calls = _recording_slice()
-    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
-    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
-    with _serve(pipe, tmp_path) as (host, port):
-        base = f"http://{host}:{port}"
-        rid = _design_rid(base)
-        a = {"printer": "snapmaker_u1", "material": "pla",
-             "filament_slot_0": "pla", "filament_slot_1": "petg",
-             "filament_slot_2": "pla", "filament_slot_3": "abs"}
-        b = {"printer": "snapmaker_u1", "material": "pla",
-             "filament_slot_0": "abs", "filament_slot_1": "abs",
-             "filament_slot_2": "abs", "filament_slot_3": "abs"}
-        _slice_post(base, rid, a)
-        _slice_post(base, rid, b)   # different tuple -> a second slice
-        _slice_post(base, rid, a)   # repeat of `a` -> cache hit, no new slice
-    assert len(calls) == 2
-    assert calls[0]["filament_slots"] == ("pla", "petg", "pla", "abs")
-    assert calls[1]["filament_slots"] == ("abs", "abs", "abs", "abs")
-
-
+# NOTE (2026-06-16): the multi-head webapp POST tests (TEST-003) were removed alongside the
+# Snapmaker U1 — they exercised the multi-toolhead slice path through the only multi-head printer,
+# which is now pulled until multi-material is real. The single-head guard below stays (it protects
+# the shipped path: a single-head printer must IGNORE stray filament_slot_* fields). When
+# multi-material ships, real multi-head HTTP tests return with a real multi-head printer fixture.
 def test_slice_single_head_ignores_filament_slots(tmp_path, monkeypatch):
     """TEST-003: filament_slot_* fields POSTed to a SINGLE-head printer (toolhead_count 1) are
     ignored — the slicer is called WITHOUT a filament_slots kwarg (it stays None)."""

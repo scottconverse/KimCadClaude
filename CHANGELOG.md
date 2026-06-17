@@ -3,6 +3,31 @@
 All notable changes to KimCad are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); this project uses semantic versioning.
 
+## [0.9.0b6] — 2026-06-16
+
+### Removed
+- **Snapmaker U1 + the multi-toolhead UI pulled from the catalog.** The `0.9.0b5`
+  Snapmaker U1 / multi-toolhead feature could plan and report per-extruder state but
+  **never produced a real multi-material print**, so it is removed: KimCad's geometry path
+  emits a **single solid mesh**, and a single solid mesh carries no per-region material
+  assignment — there is nothing for a second filament to be assigned *to*. On real hardware
+  the b5 multi-toolhead slice failed outright (OrcaSlicer **rejected the multi-filament
+  flag**). Rather than ship a path that can't deliver, the Snapmaker U1 is dropped from the
+  printer catalog (`config/default.yaml`) and the per-extruder material UI is removed.
+  **Every printer is now single-material** — one material per part. Multi-material /
+  multi-color / multi-toolhead printing is **in development** (see `ROADMAP.md`).
+- The generic multi-toolhead **scaffolding stays in the code** — dormant, gated, and marked
+  in-development — as the foundation the in-development multi-material work builds on
+  (`snapmaker_connector.py` and the per-extruder plumbing remain, unused by the shipped
+  single-material path).
+
+### Fixed
+- **Corrected the slicer's multi-filament flag in the now-dormant scaffolding.** The b5 slice
+  passed OrcaSlicer an invalid `--filament-config` argument (the immediate cause of the
+  on-hardware slice failure); it is corrected to `--load-filaments`. This lives in the gated,
+  in-development multi-toolhead path and is not reachable from the shipped single-material flow
+  — it is fixed so the groundwork is correct for when multi-material lands.
+
 ## [0.9.0b5] — 2026-06-16
 
 ### Added

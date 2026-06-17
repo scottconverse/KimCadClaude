@@ -86,9 +86,12 @@ def test_slice_builds_expected_command(tmp_path, monkeypatch):
     assert result.gcode_proof.line_count >= 4
 
 
-def test_slice_uses_filament_config_for_multi_toolhead(tmp_path, monkeypatch):
-    # TEST-002: a multi-toolhead slice (SliceSettings.filaments populated) passes one
-    # --filament-config per toolhead and must NOT use the single-head --load-filaments.
+def test_slice_multi_filament_uses_load_filaments_semicolon(tmp_path, monkeypatch):
+    # Multi-material is IN DEVELOPMENT and unreachable in production (no shipped printer has
+    # toolhead_count > 1 — the Snapmaker U1 was pulled until multi-material is real). This pins the
+    # intended OrcaSlicer CLI form for when it returns: ONE --load-filaments with ;-separated paths
+    # (NOT the invented --filament-config, which OrcaSlicer rejects). Command construction only —
+    # real multi-material also needs assignment-bearing models; see slicer.py / ROADMAP.
     seen = {}
 
     def _run(cmd, **kwargs):
@@ -111,16 +114,13 @@ def test_slice_uses_filament_config_for_multi_toolhead(tmp_path, monkeypatch):
         basename="part",
     )
     cmd = seen["cmd"]
-    assert cmd.count("--filament-config") == 4
-    assert "--load-filaments" not in cmd
-    # each slot path appears as a --filament-config value
-    for fp in ("f0.json", "f1.json", "f2.json", "f3.json"):
-        assert fp in cmd
+    assert "--filament-config" not in cmd
+    assert cmd[cmd.index("--load-filaments") + 1] == "f0.json;f1.json;f2.json;f3.json"
 
 
-def test_slice_uses_filament_config_for_single_element_filaments(tmp_path, monkeypatch):
-    # ENG-002 regression: a length-1 filaments tuple is still multi-toolhead-style — it uses
-    # --filament-config (once), NOT --load-filaments (the old `len > 1` gate collapsed this case).
+def test_slice_single_element_filaments_uses_load_filaments(tmp_path, monkeypatch):
+    # A length-1 filaments tuple uses --load-filaments with that single path (same flag as the
+    # single-head path). Command construction only; multi-material is in development.
     seen = {}
 
     def _run(cmd, **kwargs):
@@ -143,9 +143,8 @@ def test_slice_uses_filament_config_for_single_element_filaments(tmp_path, monke
         basename="part",
     )
     cmd = seen["cmd"]
-    assert cmd.count("--filament-config") == 1
-    assert "--load-filaments" not in cmd
-    assert "f0.json" in cmd
+    assert "--filament-config" not in cmd
+    assert cmd[cmd.index("--load-filaments") + 1] == "f0.json"
 
 
 def test_slice_fails_when_3mf_has_no_gcode(tmp_path, monkeypatch):

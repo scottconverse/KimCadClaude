@@ -2,7 +2,7 @@
 
 **Describe a functional 3D-printable part in plain English — or a photo, or a sketch — and get a checked, print-ready file, entirely on your own machine. No CAD skills, no account, no cloud.**
 
-![beta](https://img.shields.io/badge/beta-0.9.0b5-2563eb)
+![beta](https://img.shields.io/badge/beta-0.9.0b6-2563eb)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![python](https://img.shields.io/badge/python-3.13-3776AB)
 ![license](https://img.shields.io/badge/license-Apache--2.0-1d7a4e)
@@ -22,7 +22,7 @@
 - **Local-first & private** — runs entirely on your computer; no account, no cloud, no API key required. Prompts, photos, and sketches never leave the machine unless you opt into a cloud model. The core path is CPU-only — no discrete GPU.
 - **Deterministic geometry** — common shapes come from a parametric template engine ([86 families](docs/templates.md)), *not* a neural net, so the output is solid, watertight, and dimensionally meaningful. Drag a slider and the part re-renders locally in under a second.
 - **Real printability** — every part is validated against your printer and material *before* it can be sliced; the bundled PrintProof3D engine adds overhang / bridge / bed-adhesion analysis and a 0–100 readiness score.
-- **Slice & print** — download a print-ready file or send it straight to your printer (Bambu LAN, OctoPrint, Moonraker, PrusaLink, Snapmaker), always behind an explicit confirmation. Multi-toolhead printers like the Snapmaker U1 expose per-extruder material selection — one dropdown per extruder.
+- **Slice & print** — download a print-ready file or send it straight to your printer (Bambu LAN, OctoPrint, Moonraker, PrusaLink), always behind an explicit confirmation. Every printer is single-material — you pick one filament. *(Multi-material / multi-toolhead printing, e.g. the Snapmaker U1, is in development — coming soon.)*
 - **Editable CAD out** — with the optional [CadQuery](https://cadquery.readthedocs.io/) engine, template-built parts also export an editable `.STEP` you can keep modeling in Fusion / FreeCAD / SolidWorks.
 
 ### What the installer puts on your machine
@@ -38,7 +38,7 @@ The installer (`KimCad-Setup-<version>.exe`) — one double-click, **zero termin
 
 - **It's a beta.** All eleven build stages are complete and gate-passed at 0/0/0/0/0, but **real-hardware print validation is the beta's own job** — connectors are proven against each printer's real software protocol with runnable mock servers, not yet on physical metal. If you have a printer, [your report](docs/beta/first-hardware-contact.md) is the most valuable thing you can give.
 - **The installer is unsigned** (no code-signing cert yet), so Windows **SmartScreen** will show a blue *"Windows protected your PC"* warning. That's expected — click **More info → Run anyway**; the [install guide](docs/install-guide.md) walks it through and shows how to verify the SHA-256 checksum + the signed attestation attached to the release.
-- **A curated catalog of ~30 printers** across the top makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol, Snapmaker) — each build-volume-gated and **slice-proven in CI**; three of them (Bambu P2S, A1, Elegoo Neptune 4 Max) are **reference printers** also wired for native direct-send. The rest of the 1,400-profile library is on disk and promoted into the picker as each machine clears the slice bar ([supported printers](docs/supported-printers.md)).
+- **A curated catalog of ~29 printers** across the top makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol) — each build-volume-gated and **slice-proven in CI**; three of them (Bambu P2S, A1, Elegoo Neptune 4 Max) are **reference printers** also wired for native direct-send. The rest of the 1,400-profile library is on disk and promoted into the picker as each machine clears the slice bar ([supported printers](docs/supported-printers.md)).
 
 > **For beta testers — the fastest path:** [Download](../../releases/latest) → run the installer (SmartScreen → *More info* → *Run anyway*) → open KimCad → describe a part → slice it → if you have a printer, send it and [tell us what happened](../../discussions/2).
 
@@ -308,7 +308,6 @@ hardware-verified.
 | `loopback` | the built-in **`mock`** simulation (no hardware) | — |
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper via Moonraker — Creality-Klipper, Voron, RatRig, Mainsail/Fluidd | `base_url`, optional `api_key_env` (Moonraker often runs unauthenticated on a trusted LAN) |
-| `snapmaker` | Snapmaker U1 (Klipper/Moonraker-based, 4-toolhead) — extends `moonraker` with per-extruder status | `base_url`, optional `api_key_env` |
 | `prusalink` | Prusa via PrusaLink — MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
 | `duet` | RepRapFirmware / Duet 2/3 boards | `base_url` (board IP), optional `api_key_env` (the board password if one is set) |
 | `marlin` | Marlin firmware — Ender-class + most consumer FDM | `base_url` = a USB serial port (`COM3`, `/dev/ttyUSB0`) **or** a `host:port` serial-over-network bridge |

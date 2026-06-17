@@ -215,11 +215,15 @@ def slice_model(
         "--load-settings",
         f"{settings.machine};{settings.process}",
     ]
-    # ENG-002: any non-empty per-toolhead filament tuple (including a length-1 tuple) uses
-    # --filament-config; only the single-head path (filaments is None/empty) uses --load-filaments.
+    # Multi-material is IN DEVELOPMENT and currently UNREACHABLE: no shipped printer has
+    # toolhead_count > 1 (the Snapmaker U1 was pulled until multi-material is real), so
+    # settings.filaments is always None here. When multi-material returns it must NOT use the
+    # invented `--filament-config` flag (OrcaSlicer rejects it: "Invalid option"); the real flag
+    # is `--load-filaments` with `;`-separated paths (mirrors --load-settings above). NB: real
+    # multi-material also needs assignment-bearing models (multi-part 3MF that map regions ->
+    # extruders), not just N filaments on a single solid — a single mesh prints in one material.
     if settings.filaments:
-        for fp in settings.filaments:
-            cmd += ["--filament-config", str(fp)]
+        cmd += ["--load-filaments", ";".join(str(fp) for fp in settings.filaments)]
     else:
         cmd += ["--load-filaments", str(settings.filament)]
     if allow_newer:

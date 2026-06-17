@@ -102,17 +102,23 @@ Slice a gate-passing part for a printer + material. The POST is the explicit con
 
 Request: `{"printer": "bambu_p2s", "material": "pla"}`
 
-For a **multi-toolhead** printer (`toolhead_count > 1` — see `/api/options`), supply one
-material per extruder as `filament_slot_0`..`filament_slot_{N-1}` instead of a single
-`material`:
+> **In development (dormant today).** The `filament_slot_0`..`filament_slot_{N-1}` fields below
+> are **reserved for the in-development multi-material / multi-toolhead path**. No shipped printer
+> currently reports `toolhead_count > 1` (every printer is single-head — see `/api/options`), so
+> these fields are **ignored today** and KimCad slices every part single-material from `material`.
+> The contract is documented here so it's stable when multi-material ships.
+
+For a (future) **multi-toolhead** printer (`toolhead_count > 1` — see `/api/options`), the client
+would supply one material per extruder as `filament_slot_0`..`filament_slot_{N-1}` instead of a
+single `material`:
 
 ```json
-{"printer": "snapmaker_u1", "filament_slot_0": "pla", "filament_slot_1": "petg",
- "filament_slot_2": "tpu", "filament_slot_3": "abs"}
+{"printer": "<multi_toolhead_printer>", "filament_slot_0": "pla", "filament_slot_1": "petg"}
 ```
 
-Any omitted slot falls back to the `material` field. A multi-toolhead printer always slices
-per-slot; single-toolhead printers ignore the `filament_slot_*` fields and use `material`.
+Any omitted slot falls back to the `material` field. A multi-toolhead printer would always slice
+per-slot; single-toolhead printers (i.e. every shipped printer today) ignore the
+`filament_slot_*` fields and use `material`.
 
 Response: `{"sliced": true, "gcode_url": "/api/gcode/3", "estimate": "...", "machine": "...",
 "process": "...", "filament": "..."}` — or `{"sliced": false, "reason":
@@ -148,10 +154,13 @@ If the part was not just sent to real hardware, the endpoint returns `409` with
 `connector-status` is the live readiness of one printer (`ready` / `busy` / `offline` /
 `needs_setup` — statuses, never 5xx). When the connector reports them, the status payload MAY
 also carry `nozzle_temp_c` (float, °C) and `toolhead_temps` (an array of floats, T0..T(N-1))
-— both are present only when the connector actually reports a temperature. `toolhead_temps`
-lists only the extruders currently reporting a numeric temperature, so it can be **shorter
-than the printer's `toolhead_count`** (see `/api/options`) if a head is disconnected. A
+— both are present only when the connector actually reports a temperature. A
 single-toolhead connector that reports a hotend temperature surfaces it as `nozzle_temp_c`.
+Because every shipped printer is single-head today (`toolhead_count` is always 1),
+`nozzle_temp_c` is the field you'll see in practice. `toolhead_temps` is **reserved for the
+in-development multi-material path**: when it appears it lists only the extruders currently
+reporting a numeric temperature, so it can be **shorter than the printer's `toolhead_count`**
+(see `/api/options`) if a head is disconnected.
 
 `connections` GET lists each connection's effective
 non-secret fields (+ which env var holds its secret and whether it's set); POST saves the
@@ -159,10 +168,10 @@ overlay for one named connection (`{"name": "...", "base_url": "...", "serial": 
 "use_ams": true}`) — secrets never pass through this surface in either direction.
 
 **Connector `type` vocabulary** (the `type` field on a configured connection):
-`mock` (`loopback`), `octoprint`, `moonraker`, `prusalink`, `duet`, `marlin`, `bambu`, and
-`snapmaker` — the Snapmaker U1 (Klipper/Moonraker-based, 4-toolhead); it extends `moonraker`
-with per-extruder status (auto-detected active extruders → `toolhead_count`, per-extruder
-`toolhead_temps`) and inherits the full Moonraker send/job/pause/resume/cancel path.
+`mock` (`loopback`), `octoprint`, `moonraker`, `prusalink`, `duet`, `marlin`, and `bambu`.
+A `snapmaker` type also exists in code (Klipper/Moonraker-based; it extends `moonraker` and
+inherits the full send/job/pause/resume/cancel path) but it is **reserved for the
+in-development multi-material U1** and is not a shipped, user-facing connector today.
 
 ---
 
@@ -209,9 +218,11 @@ credential store at rest.
 
 The printer + material catalog the UI offers (each printer with its build volume,
 `sliceable` flag, and `toolhead_count`) plus the effective defaults. `toolhead_count` is an
-integer — **1 for a single-toolhead printer; N for a multi-toolhead printer** (the Snapmaker
-U1 reports 4). The SPA uses it to render one material dropdown per extruder and to drive the
-`filament_slot_*` slice request (see `POST /api/slice`).
+integer — **1 for a single-toolhead printer; N for a multi-toolhead printer**. The field is
+**reserved for the in-development multi-material path**: every shipped printer is single-head
+today, so `toolhead_count` is **always 1** right now and the SPA renders a single material
+picker. When multi-material ships, a printer reporting `toolhead_count > 1` will drive one
+material dropdown per extruder and the `filament_slot_*` slice request (see `POST /api/slice`).
 
 ### GET `/api/templates`
 

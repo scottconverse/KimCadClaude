@@ -194,27 +194,17 @@ When a part passes the gate, you can:
   KimCad's own dialog (it never auto-starts a print), and watch the live status. A built-in
   **test connection** (`mock`) proves the whole send path without any hardware.
 
-KimCad's picker offers a **curated catalog of ~30 popular current machines** across the top
-makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol, Snapmaker), each
+KimCad's picker offers a **curated catalog of ~29 popular current machines** across the top
+makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each
 build-volume-checked and slice-proven, on top of the full ~1,400-profile OrcaSlicer library on
 disk. Direct send today covers seven connection types — Bambu native LAN, OctoPrint, Moonraker
-(Klipper), the **Snapmaker** U1 (Klipper/Moonraker-based), PrusaLink, and the **Duet** and
-**Marlin** connectors.
+(Klipper), PrusaLink, and the **Duet** and **Marlin** connectors.
 
-### Multi-toolhead printers
+### Multi-material printing
 
-A few printers have more than one extruder — the **Snapmaker U1**, for instance, has four. For
-these, the slice step shows **one material dropdown per extruder** (Extruder 1..N, which map to
-the printer's toolheads T0..T(N-1)). Assign the filament you want each extruder to use, then
-confirm. Any slot you leave at the default material simply prints in that default material, and
-the slots are used in order. Single-extruder printers are unaffected — they show one material
-picker as before.
-
-> **One caveat — your config is authoritative.** The number of toolheads KimCad slices for comes
-> from the **printer's configuration**, not from live hardware state — you often slice before the
-> printer is even reachable, so KimCad slices for the printer model *as configured*. If your
-> actual hardware has fewer heads than the config declares, reconcile your config (in
-> `config/local.yaml`, or with your maintainer) so the slot count matches your machine.
+Multi-material / multi-toolhead printing is in development — for now KimCad slices every
+printer as single-material (you pick one filament). That includes Bambu printers with an AMS:
+KimCad treats them as single-material today.
 
 > **Beta status:** connections are validated against the printers' real software protocols
 > (against a faithful conformance mock) but **not yet on physical hardware** — that's the
@@ -256,7 +246,7 @@ Plain-language definitions of the recurring terms in this manual and on screen.
 | **`.STL`** | A universal 3D-model file (just the mesh, no editability). Always downloadable for every part. |
 | **`.STEP`** | A precision, *editable* CAD model you can reopen in Fusion 360 / FreeCAD / SolidWorks. Offered for template parts when the optional CadQuery engine is installed. |
 | **`.kimcad`** | KimCad's own portable design backup (re-importable on another machine) — *not* a printable file. |
-| **AMS** | Bambu's Automatic Material System — the multi-spool unit that auto-feeds filament. The Bambu connector has a `use_ams` option. |
+| **AMS** | Bambu's Automatic Material System — the multi-spool unit that auto-feeds filament. The Bambu connector has a `use_ams` option, but KimCad slices every printer (Bambu+AMS included) as single-material today; multi-material is in development. |
 | **Ollama** | The free local AI runtime KimCad talks to. It hosts the two models on your machine; nothing leaves the computer. |
 | **manifold (the verb) / harden** | The final "make it watertight" step (using the Manifold3D library) that guarantees a 2-manifold mesh before slicing. |
 
@@ -365,8 +355,8 @@ provider's current list before relying on it.
 
 A sliced job can be sent to a **printer connection** through a swappable connector. Every
 send requires explicit confirmation and refuses anything that isn't a proven slice. The
-printer **picker** offers a curated **~30-machine catalog** (build-volume-gated, slice-proven
-in CI) on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send covers eight
+printer **picker** offers a curated **~29-machine catalog** (build-volume-gated, slice-proven
+in CI) on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send covers seven
 connectors:
 
 | Connector | Printers | Config |
@@ -375,7 +365,6 @@ connectors:
 | `bambu` | Bambu Lab P2S / A1 (native LAN) | `base_url` (IP), `serial`, access-code env var, `use_ams`; optional `bambulabs-api` pkg |
 | `octoprint` | any OctoPrint host | `base_url`, `api_key_env` |
 | `moonraker` | Klipper (Voron, Creality-Klipper, RatRig …) | `base_url`, optional `api_key_env` |
-| `snapmaker` | Snapmaker U1 (Klipper/Moonraker-based, 4-toolhead) — extends `moonraker` with per-extruder status | `base_url`, optional `api_key_env` |
 | `prusalink` | Prusa MK4 / MK3.9 / MINI / XL | `base_url`, `api_key_env`, optional `storage` (default `usb`) |
 | `duet` | RepRapFirmware / Duet 2/3 boards | `base_url` (board IP), optional `api_key_env` (board password if one is set) |
 | `marlin` | Marlin firmware (Ender-class + most consumer FDM) | `base_url` = USB serial port **or** `host:port` bridge |
