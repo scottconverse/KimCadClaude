@@ -1,11 +1,44 @@
 #!/bin/sh
 # Local CI gate: block the push if lint or tests fail.
 # Activated with: git config core.hooksPath .githooks
+#
 # Gate-integrity 2026-06-13: run the gate under bash with `-o pipefail` when available, matching the
 # CI workflow (.github/workflows/ci.yml) exactly so a local push is never weaker than CI — a pipe in
 # the gate must not mask a failure. ci.sh also self-protects (it captures pytest's real exit code),
 # so the plain-`sh` fallback stays correct on a box without bash.
+#
+# tester-branch skip (2026-06-16, Scott): the `tester` branch carries ONLY operator directives and
+# evidence/reports — no source, no tests. Running the full ~16-min code gate (ruff + pytest + vitest +
+# build-repro) on a one-line markdown edit there is pure waste, and it also COLLIDES with the global
+# anti-stall Stop hook (~/.claude Hard Rule 12): that hook ignores any stop-ticket older than 300s, but
+# this gate runs ~960s, so a single gated push outlasts the ticket window and traps the session in the
+# "keep working" loop. Fix: a push whose refs are ALL the `tester` branch skips the gate; EVERY push
+# that touches any other ref (incl. `main`) still runs the full authoritative gate, unchanged. Scoped to
+# the tester branch deliberately — `main` keeps the gate even for doc edits, because main's own doc tests
+# (README version badge, catalog counts, version single-source) must still run.
 root="$(git rev-parse --show-toplevel)"
+
+# Decide from the refs on stdin (git feeds: <local_ref> <local_sha> <remote_ref> <remote_sha> per line).
+# Skip the gate only when every non-delete ref targets refs/heads/tester.
+only_tester=1
+saw_ref=0
+while read -r _lref _lsha _rref _rsha; do
+    [ -z "$_lref" ] && continue
+    # A branch delete has an all-zero local sha and needs no gate; ignore that ref.
+    case "$_lsha" in *[!0]*) : ;; *) continue ;; esac
+    saw_ref=1
+    case "$_rref" in
+        refs/heads/tester) : ;;   # docs-only branch — safe to skip
+        *) only_tester=0 ;;       # any other target (main, feature branches) -> must gate
+    esac
+done
+
+if [ "$saw_ref" = 1 ] && [ "$only_tester" = 1 ]; then
+    echo "[pre-push] tester-branch (docs-only) push — skipping the code gate (scripts/ci.sh)."
+    exit 0
+fi
+
+# Code-bearing push -> run the full authoritative gate, exactly as before.
 if command -v bash >/dev/null 2>&1; then
     exec bash --noprofile --norc -eo pipefail "$root/scripts/ci.sh"
 fi
