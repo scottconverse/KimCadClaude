@@ -77,7 +77,7 @@ def test_shell_binds_a_stable_loopback_port_and_serves_the_real_app(fake_webview
         # SHELL-004: the external-link bridge is actually wired as the js_api.
         assert isinstance(fake_webview.created[0]["js_api"], shell._JsApi)
         # The window is pointed at the REAL app: the health endpoint answers.
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=10) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=30) as r:
             assert r.status == 200
     finally:
         _shutdown(httpd)
@@ -94,19 +94,23 @@ def test_shell_server_enforces_the_session_token_guard(fake_webview):
     httpd = shell.build_shell(demo=True, start_gui=False)
     try:
         port = httpd.server_address[1]
+        # Generous HTTP timeouts: under the FULL self-hosted gate (live OrcaSlicer + real-model runs
+        # saturate CPU), the shell's daemon serve_forever thread can be starved past a tight 10s
+        # budget, intermittently aborting the read (WinError 10053). 30s rides out the load — the
+        # same thermally-throttling-box accommodation the e2e suite already uses.
         # A tokenless state-changing POST is refused.
-        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
         conn.request("POST", "/api/settings", body=b"{}", headers={"Content-Type": "application/json"})
         assert conn.getresponse().status == 403
         conn.close()
         # The served shell carries a REAL per-boot token (the placeholder was substituted).
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=10) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=30) as r:
             html = r.read().decode("utf-8")
         assert "__KIMCAD_SESSION_TOKEN__" not in html
         m = re.search(r'name="kimcad-session-token" content="([^"]+)"', html)
         assert m and m.group(1), "no session token injected into the shell"
         # With the token, the same POST is no longer 403.
-        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
         conn.request("POST", "/api/settings", body=b"{}",
                      headers={"Content-Type": "application/json", "X-KimCad-Session": m.group(1)})
         assert conn.getresponse().status != 403
