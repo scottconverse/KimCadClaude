@@ -1,0 +1,154 @@
+{
+  "panel_before": {
+    "containerText": "Export & print\nmock\nReady \u00b7 simulated\nPrinter\nBambu Lab P2S\nBambu Lab A1\nElegoo Neptune 4 Max\nBambu Lab P1P\nBambu Lab P1S\nBambu Lab X1 Carbon\nBambu Lab X1E\nBambu Lab A1 mini\nCreality K1\nCreality K1 Max\nCreality K1C\nCreality K2 Plus\nCreality Ender-3 V3\nCreality Ender-3 V3 KE\nCreality CR-10 SE\nPrusa MK4\nPrusa MINI\nAnycubic Kobra 2\nAnycubic Kobra 2 Max\nAnycubic Kobra S1\nElegoo Neptune 4\nElegoo Neptune 4 Pro\nElegoo Neptune 4 Plus\nQidi Q1 Pro\nQidi X-Max 3\nQidi X-Plus 3\nSovol SV06\nSovol SV07\nSovol SV08\nSnapmaker U1\n\nAssign a filament to each extruder \u2014 the slicer tunes temperature and retraction per slot.\n\nExtruder 1\nPLA\nPETG\nTPU\nABS/ASA\nExtruder 2\nPLA\nPETG\nTPU\nABS/ASA\nExtruder 3\nPLA\nPETG\nTPU\nABS/ASA\nExtruder 4\nPLA\nPETG\nTPU\nABS/ASA\nSlice & prepare file\n\norca-slicer exited -2: Invalid option --filament-config\n\nDownload 3D model (.STL)\n\nThe .STL opens in other slicers and CAD tools, and once you slice you\u2019ll get a printer-agnostic .3mf that\u2019s safe to share. Want an editable, precision CAD file (.STEP) of this part too? Enable the CAD export engine in Settings \u2014 a one-time setup.",
+    "reddish_text": [
+      "orca-slicer exited -2: Invalid option --filament-config",
+      "Download 3D model (.STL)",
+      "Enable the CAD export engine in Settings"
+    ],
+    "slice_btn_text": "Slice & prepare file",
+    "slice_disabled": false
+  },
+  "changed_files": {},
+  "console_errors": [],
+  "final_buttons": [
+    {
+      "t": "Skip to main content"
+    },
+    {
+      "t": "KimCad",
+      "dis": false
+    },
+    {
+      "t": "Saved",
+      "dis": false
+    },
+    {
+      "t": "My Designs",
+      "dis": false
+    },
+    {
+      "t": "Settings",
+      "dis": false
+    },
+    {
+      "t": "?",
+      "dis": false
+    },
+    {
+      "t": "New design",
+      "dis": false
+    },
+    {
+      "t": "Make it bigger",
+      "dis": false
+    },
+    {
+      "t": "Make it smaller",
+      "dis": false
+    },
+    {
+      "t": "Make it taller",
+      "dis": false
+    },
+    {
+      "t": "Thicker walls",
+      "dis": false
+    },
+    {
+      "t": "Send",
+      "dis": true
+    },
+    {
+      "t": "Describe with a photo\u2014 or drop an image ",
+      "dis": false
+    },
+    {
+      "t": "Start from a sketch\u2014 or drop an image he",
+      "dis": false
+    },
+    {
+      "t": "Measure",
+      "dis": false
+    },
+    {
+      "t": "PassedReadiness 92\u2192",
+      "dis": false
+    },
+    {
+      "t": "Parameters",
+      "dis": false
+    },
+    {
+      "t": "Quality",
+      "dis": false
+    },
+    {
+      "t": "Export",
+      "dis": false
+    },
+    {
+      "t": "mm",
+      "dis": false
+    },
+    {
+      "t": "in",
+      "dis": false
+    },
+    {
+      "t": "92mm",
+      "dis": false
+    },
+    {
+      "t": "18mm",
+      "dis": false
+    },
+    {
+      "t": "3mm",
+      "dis": false
+    },
+    {
+      "t": "12mm",
+      "dis": false
+    },
+    {
+      "t": "0mm",
+      "dis": false
+    },
+    {
+      "t": "i",
+      "dis": false
+    },
+    {
+      "t": "i",
+      "dis": false
+    },
+    {
+      "t": "i",
+      "dis": false
+    },
+    {
+      "t": "i",
+      "dis": false
+    },
+    {
+      "t": "i",
+      "dis": false
+    },
+    {
+      "t": "Slice & prepare file",
+      "dis": false
+    },
+    {
+      "t": "Download 3D model (.STL)"
+    },
+    {
+      "t": "Enable the CAD export engine in Settings"
+    },
+    {
+      "t": "\u2193 Check & download",
+      "dis": false
+    }
+  ],
+  "final_body": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nSaved\nMy Designs\nSettings\n?\nNew design\nVERSIONS\nv1 \u2014 refine to create versions you can step back to.\nCONVERSATION\na round trinket dish, 90 mm across\nHere you go \u2014 A circular trinket dish with a diameter of 90 mm.\nRefine by talking \u2014 tap a change or describe your own:\nMake it bigger\nMake it smaller\nMake it taller\nThicker walls\nSend\nEnter to send \u00b7 Shift+Enter for a new line\nDescribe with a photo\n\u2014 or drop an image here\nStart from a sketch\n\u2014 or drop an image here\n92 mm\n92 mm\n18 mm\nAuto-oriented \u00b7 plate-down\nMeasure\nDrag or arrow keys to rotate \u00b7 scroll or +/\u2212 to zoom\nPassed\nReadiness 92\n\u2192\nParameters\nQuality\nExport\nExport & print\nmock\nReady \u00b7 simulated\nPrinter\nBambu Lab P2S\nBambu Lab A1\nElegoo Neptune 4 Max\nBambu Lab P1P\nBambu Lab P1S\nBambu Lab X1 Carbon\nBambu Lab X1E\nBambu Lab A1 mini\nCreality K1\nCreality K1 Max\nCreality K1C\nCreality K2 Plus\nCreality Ender-3 V3\nCreality Ender-3 V3 KE\nCreality CR-10 SE\nPrusa MK4\nPrusa MINI\nAnycubic "
+}

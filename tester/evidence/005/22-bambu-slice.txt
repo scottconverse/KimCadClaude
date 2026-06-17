@@ -1,0 +1,11 @@
+{
+  "bambu_result": {
+    "reddish": [
+      "Download 3D model (.STL)",
+      "Enable the CAD export engine in Settings"
+    ],
+    "orca_error": false,
+    "has_check_download": false
+  },
+  "changed_files": {}
+}

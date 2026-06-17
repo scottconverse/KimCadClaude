@@ -1,0 +1,7 @@
+=== Snapmaker U1 bed geometry (bundled OrcaSlicer profile) ===
+Source: tools/orcaslicer/resources/profiles/Snapmaker/machine/Snapmaker U1 (0.4 nozzle).json
+printable_area: 0.5x1; 270.5x1; 270.5x271; 0.5x271
+printable_height: 270.05
+=> Bed = 270.5 x 271.0 x 270.05 mm (matches directive Phase 5b step 1)
+inherits: fdm_U1
+nozzle/toolhead: 4-extruder (Dual/quad profiles present: 'Snapmaker Dual ...' filaments)

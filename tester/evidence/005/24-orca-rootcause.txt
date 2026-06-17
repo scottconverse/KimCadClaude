@@ -1,0 +1,14 @@
+=== Root-cause note: orca-slicer CLI option ===
+KimCad's Snapmaker U1 / multi-toolhead slice path invokes the bundled OrcaSlicer with:
+    --filament-config <...>
+OrcaSlicer rejects this: "orca-slicer exited -2: Invalid option --filament-config"
+Confirmed: 'orca-slicer.exe --help' does not list --filament-config.
+Single-head printers (e.g. Bambu P2S) do NOT pass this option and slice fine
+(Bambu produced part_bambu_p2s_pla.gcode.3mf, 416,960 bytes — see 22-bambu-print-file.3mf).
+
+=> The multi-extruder filament-assignment code path passes an unsupported CLI flag.
+   OrcaSlicer's multi-filament loading flag is --load-filaments; DEV should confirm
+   the correct flag/format for the bundled OrcaSlicer build.
+
+Reproduces 100% for Snapmaker U1, with same-material OR distinct-material assignment.
+(Test B: all-PLA -> same error. Test C: PLA/PETG/TPU/ABS -> same error.)

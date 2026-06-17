@@ -1,0 +1,28 @@
+{
+  "A_bambu_p2s_single": {
+    "reddish": [
+      "Download 3D model (.STL)",
+      "Enable the CAD export engine in Settings"
+    ],
+    "greenish": [],
+    "has_check_download": false
+  },
+  "B_snapmaker_all_pla": {
+    "reddish": [
+      "orca-slicer exited -2: Invalid option --filament-config",
+      "Download 3D model (.STL)",
+      "Enable the CAD export engine in Settings"
+    ],
+    "greenish": [],
+    "has_check_download": false
+  },
+  "C_snapmaker_multi": {
+    "reddish": [
+      "orca-slicer exited -2: Invalid option --filament-config",
+      "Download 3D model (.STL)",
+      "Enable the CAD export engine in Settings"
+    ],
+    "greenish": [],
+    "has_check_download": false
+  }
+}

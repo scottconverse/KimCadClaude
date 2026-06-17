@@ -1,0 +1,6 @@
+{
+  "refine_chips_shown": false,
+  "geometric_curated_chips_not_shown": true,
+  "graceful": true,
+  "body": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nMy Designs\nSettings\n?\nNew design\nCONVERSATION\na feeling of nostalgia\nWhat overall size should the other be? Give me the key dimensions in mm (e.g. width \u00d7 height \u00d7 depth).\nSend\nEnter to send \u00b7 Shift+Enter for a new line\nDescribe with a photo\n\u2014 or drop an image here\nStart from a sketch\n\u2014 or drop an image here\nYour 3D preview appears here.\nParameters\nQuality\nExport\nParameters\nmm\nin\nType\nother\n\nThis part doesn\u2019t have adjustable sliders \u2014 it was built straight from your description rather than a ready-made shape with options. To change it, u"
+}

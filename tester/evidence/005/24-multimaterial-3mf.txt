@@ -1,0 +1,20 @@
+{
+  "bambu_p2s": {
+    "orca_error": false,
+    "download_buttons": [
+      "Download print file (.3mf)",
+      "Download 3D model (.STL)",
+      "\u2193 Check & download"
+    ],
+    "verdict": "SLICE OK \u2014 print file available"
+  },
+  "snapmaker_u1": {
+    "orca_error": true,
+    "download_buttons": [
+      "Download 3D model (.STL)",
+      "\u2193 Check & download"
+    ],
+    "error_text": "orca-slicer exited -2: Invalid option --filament-config",
+    "verdict": "SLICE FAILS \u2014 orca-slicer exited -2, only STL geometry export available"
+  }
+}

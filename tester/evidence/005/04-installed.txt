@@ -43,3 +43,9 @@ Final lines: 2026-06-16 18:21:41.374   Detected previous administrative 64-bit i
 
 
 PHASE 2 VERDICT: PASS — KimCad 0.9.0b5 installed successfully, no admin rights required.
+
+=== PHASE 7 UNINSTALL (final) ===
+Install dir GONE: True
+Registry GONE: True
+User data %LOCALAPPDATA%\KimCad RETAINED: True
+Clean uninstall, no file-lock (python killed first).

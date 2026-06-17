@@ -1,0 +1,22 @@
+{
+  "step1_snapmaker_selected": true,
+  "step1_build_volume_270": false,
+  "step2_four_extruders": true,
+  "step2_extruder_labels": [
+    "Extruder 1PLAPETGTPUABS/ASA",
+    "Extruder 1",
+    "Extruder 2PLAPETGTPUABS/ASA",
+    "Extruder 2",
+    "Extruder 3PLAPETGTPUABS/ASA",
+    "Extruder 3",
+    "Extruder 4PLAPETGTPUABS/ASA",
+    "Extruder 4"
+  ],
+  "step2_material_selects": 4,
+  "step3_single_head_one_dropdown": true,
+  "step4_slice_no_error": true,
+  "step5_per_slot_ok": true,
+  "step6_snap_conn_present": true,
+  "step6_no_traceback": true,
+  "step6_not_setup_text": true
+}

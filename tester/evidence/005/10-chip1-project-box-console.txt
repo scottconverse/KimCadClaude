@@ -1,0 +1,7 @@
+{
+  "chip": "an 80 \u00d7 60 \u00d7 40 mm project box with a lid",
+  "elapsed_s": 36.073670387268066,
+  "readiness": 86,
+  "console_count": 0,
+  "console": []
+}

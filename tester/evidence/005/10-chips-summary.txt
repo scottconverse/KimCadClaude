@@ -1,0 +1,26 @@
+{
+  "results": [
+    {
+      "chip": "an 80 \u00d7 60 \u00d7 40 mm project box with a lid",
+      "elapsed_s": 36.073670387268066,
+      "readiness": 86,
+      "console_count": 0,
+      "pass": true
+    },
+    {
+      "chip": "a desk cable clip for an 8 mm cable",
+      "elapsed_s": 34.0696861743927,
+      "readiness": 92,
+      "console_count": 0,
+      "pass": true
+    },
+    {
+      "chip": "a round trinket dish, 90 mm across",
+      "elapsed_s": 28.05500340461731,
+      "readiness": 92,
+      "console_count": 0,
+      "pass": true
+    }
+  ],
+  "webgl": "ANGLE (AMD, AMD Radeon 780M Graphics (0x00001900) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+}

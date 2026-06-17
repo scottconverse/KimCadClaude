@@ -23,3 +23,4 @@ Run 1 (directive-001) is closed — the tester box died mid-run and we restarted
 2026-06-16 13:32 MT | TESTER | SIGN-OFF-004 received — DEV accepted v0.9.0b4, verdict SHIP(beta), 0/0/0/0/0 findings. Both b3 findings confirmed fixed. Campaign directive-001 through 004 COMPLETE. Watchdog stopped.
 [2026-06-16 18:19] directive-005 (v0.9.0b5) started. Phase 0 PASS. Phase 1 download in progress (~204 MB). Heartbeat cron cc3c9597 armed (10 min).
 [2026-06-16 18:28] Phases 0-4 PASS. SHA match, install OK, ALL GREEN, Snapmaker U1 in picker. Starting Phase 5 regression.
+[2026-06-16 19:03] directive-005 COMPLETE. Verdict: SHIP build / Snapmaker U1 headline BLOCKED. 1 CRITICAL: Snapmaker U1 slice fails 'orca-slicer exited -2: Invalid option --filament-config' (single-head Bambu slices fine). All b4 regression PASS. Clean uninstall. report-005 pushed. Awaiting DEV sign-off.

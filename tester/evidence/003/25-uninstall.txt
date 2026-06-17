@@ -13,3 +13,13 @@ AFTER uninstall:
 User-data handling:
   %LOCALAPPDATA%\KimCad (app working data) remains: True
   ~/.kimcad (saved designs) remains: True
+
+AFTER (uninstaller ran 31001.4s):
+  install dir exists: False
+  HKCU uninstall key exists: False
+  KimCad in Apps list (any hive): GONE
+  Start Menu shortcut exists: False
+
+User-data handling (program separate from data):
+  %LOCALAPPDATA%\KimCad (app working data) exists: False
+  ~/.kimcad (saved designs) exists: True

@@ -1,0 +1,7 @@
+{
+  "chip": "a desk cable clip for an 8 mm cable",
+  "elapsed_s": 34.0696861743927,
+  "readiness": 92,
+  "console_count": 0,
+  "console": []
+}

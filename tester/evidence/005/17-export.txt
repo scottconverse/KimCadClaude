@@ -1,0 +1,40 @@
+STL: 38284 bytes
+3MF: 9620 bytes
+Source dir: C:\Users\a7207\AppData\Local\KimCad\output\web\6
+Sliders: [
+  {
+    "name": "od",
+    "min": "40",
+    "max": "170",
+    "val": "75",
+    "label": "Outer diameterX75mm"
+  },
+  {
+    "name": "h",
+    "min": "4",
+    "max": "15",
+    "val": "4",
+    "label": "HeightZ4mm"
+  },
+  {
+    "name": "rim_w",
+    "min": "2",
+    "max": "20",
+    "val": "4",
+    "label": "Rim width4mm"
+  },
+  {
+    "name": "rim_h",
+    "min": "1",
+    "max": "10",
+    "val": "2",
+    "label": "Rim height2mm"
+  },
+  {
+    "name": "floor_t",
+    "min": "1",
+    "max": "10",
+    "val": "2",
+    "label": "Floor thickness2mm"
+  }
+]
