@@ -1,3 +1,4 @@
+import functools
 from pathlib import Path
 
 import pytest
@@ -606,3 +607,115 @@ def test_is_model_unreachable_covers_native_ollama_path():
     assert not _is_model_unreachable(ValueError("bad input"))
     assert not _is_model_unreachable(RuntimeError("parse failure"))
     assert not _is_model_unreachable(KeyError("missing key"))
+
+
+# --- TEST-101: the REAL model output through the full render+slice chain, end to end ----------
+#
+# Every test above runs FakeProvider — a canned plan + canned SCAD — so the model's OWN output is
+# never rendered or sliced by the gate. This is the b5 failure shape: a real path (model → SCAD →
+# render → watertight mesh → real OrcaSlicer → motion-bearing G-code) left unproven while proxy
+# assertions (plan→family in test_landing_examples; FakeProvider's box in the pipeline tests) stay
+# green. This test closes that gap: the REAL LLMProvider (default backend, qwen2.5:7b) plans 1-2
+# prompts, the pipeline builds + renders + hardens the geometry, asserts the exported mesh is
+# watertight, then slices it through the bundled OrcaSlicer and proves the .gcode.3mf carries a
+# real motion-bearing toolpath (line_count > 100) — re-proven from disk via prove_gcode_3mf.
+#
+# Marked `live` so the gate's explicit `pytest -m live ... 0 skipped` step guards it (TEST-102),
+# not only ci.sh's STRICT skip-grep. Kept to 2 prompts to bound wall-clock (real local inference
+# + 2 real slices, ~minutes). Model output is non-deterministic, so this asserts the chain PARSES,
+# is sized, renders watertight, and slices — NOT exact dimensions.
+
+
+@functools.lru_cache(maxsize=1)
+def _default_model_pulled() -> tuple[bool, str, str]:
+    """(is the configured default chat model pulled, its name, the probe base_url). Cached so the
+    Ollama probe runs at most once per session. Mirrors test_landing_examples._default_model."""
+    from kimcad.model_advisor import probe_installed_models
+
+    backend = Config.load().llm_backend(None)
+    try:
+        names = {m.name for m in probe_installed_models(backend.base_url)}
+    except Exception:  # noqa: BLE001 - Ollama not running -> treat as not pulled (skip below)
+        names = set()
+    ok = any(backend.model_name == n or backend.model_name in n for n in names)
+    return ok, backend.model_name, backend.base_url
+
+
+def _orca_and_profiles_present() -> bool:
+    try:
+        cfg = Config.load()
+        return cfg.binary_path("orcaslicer").exists() and cfg.orca_profiles_root().exists()
+    except Exception:  # pragma: no cover - config/binary absent
+        return False
+
+
+# Prompts phrased around real template families (project box, trinket dish) so the geometry path
+# is deterministic and bounded once the REAL model has planned them — exercising the full
+# model→plan→family→render→harden→slice chain without gambling on a multi-minute free-form codegen
+# run. (The model still does the real planning work; only the geometry is the deterministic twin.)
+_LIVE_PIPELINE_PROMPTS = [
+    "an 80 x 60 x 40 mm project box with a lid",
+    "a round trinket dish, 90 mm across",
+]
+
+
+@pytest.mark.live  # TEST-101: invokes the REAL model AND the real OrcaSlicer; `-m "not live"` skips
+@pytest.mark.skipif(
+    not _orca_and_profiles_present(), reason="OrcaSlicer binary/profiles not present"
+)
+@pytest.mark.parametrize("prompt", _LIVE_PIPELINE_PROMPTS)
+def test_live_real_model_output_renders_and_slices_end_to_end(tmp_path, prompt):
+    """TEST-101: the WHOLE chain, live, on REAL model output — plan with qwen2.5:7b, generate the
+    geometry, render, prove the exported mesh is watertight, slice with the real OrcaSlicer, and
+    prove the result carries a real motion-bearing toolpath (line_count > 100), re-proven from disk
+    with prove_gcode_3mf. No FakeProvider, no demo mode — the model's own output flows through the
+    real renderer and slicer. Asserts PARSES + sized + watertight + slices, never exact dimensions
+    (model output is non-deterministic)."""
+    ok, model, base = _default_model_pulled()
+    if not ok:
+        pytest.skip(f"default chat model {model!r} not pulled at {base} (no Ollama lane — TEST-003)")
+
+    from kimcad.llm_provider import LLMProvider
+    from kimcad.slicer import prove_gcode_3mf
+
+    config = Config.load()
+    printer = config.printer("bambu_p2s")
+    material = config.material("pla")
+    provider = LLMProvider(config.llm_backend(None))
+
+    # Real provider + the default real renderer (OpenSCAD) + the default real slicer (OrcaSlicer).
+    pipe = Pipeline(config, printer, material, provider)
+    result = pipe.run(prompt, tmp_path, confirm_print=True)
+
+    # The model planned a buildable part that rendered and passed the gate.
+    assert result.status is PipelineStatus.completed, (
+        f"{prompt!r} did not complete: status={result.status} error={result.error!r}"
+    )
+    assert result.plan is not None and result.plan.object_type  # a real, parsed plan
+    assert result.mesh_path is not None and result.mesh_path.exists()
+
+    # The exported (hardened) mesh is watertight — a sliceable solid, not a shell.
+    mesh = trimesh.load(str(result.mesh_path), file_type="stl")
+    assert mesh.is_watertight, f"{prompt!r}: exported mesh is not watertight"
+    assert result.report is not None and result.report.watertight is True
+
+    # The real OrcaSlicer produced a motion-bearing toolpath.
+    from kimcad.slicer import SliceResult
+
+    assert isinstance(result.slice_result, SliceResult), (
+        f"{prompt!r}: no slice (slice_error={result.slice_error!r})"
+    )
+    proof = result.slice_result.gcode_proof
+    assert proof is not None and proof.has_motion
+    assert proof.line_count > 100, f"{prompt!r}: near-empty toolpath ({proof.line_count} lines)"
+
+    # Independently re-prove from disk: open the actual .gcode.3mf zip, require motion-bearing
+    # G-code — not a string assertion on a constructed command.
+    reproved = prove_gcode_3mf(result.slice_result.gcode_path)
+    assert reproved.has_motion and reproved.line_count > 100
+    print(
+        f"\n[TEST-101 PROOF] prompt={prompt!r} object_type={result.plan.object_type!r}\n"
+        f"  gcode={result.slice_result.gcode_path.name} has_motion={reproved.has_motion} "
+        f"line_count={reproved.line_count} layers={reproved.layer_count} "
+        f"time={reproved.estimated_time} filament_mm={reproved.filament_mm}"
+    )

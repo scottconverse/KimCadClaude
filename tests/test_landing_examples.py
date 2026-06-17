@@ -52,6 +52,7 @@ def _default_model() -> tuple[bool, str, str]:
     return ok, backend.model_name, backend.base_url
 
 
+@pytest.mark.live  # TEST-102: runs the REAL default model; joins the gate's `-m live … 0 skipped`
 @pytest.mark.parametrize("prompt,canonical", EXAMPLES)
 def test_default_model_plans_each_landing_example_to_a_family(prompt, canonical):
     ok, model, base = _default_model()

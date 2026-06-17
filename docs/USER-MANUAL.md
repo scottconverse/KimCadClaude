@@ -253,7 +253,7 @@ A symptom-first list of the most common snags. The full, exhaustive version is
 |---|---|
 | **"Windows protected your PC" (SmartScreen)** at install | Expected — the beta isn't code-signed. Click **More info → Run anyway**. You can verify the `.sha256` checksum from the release first if you like. |
 | **The setup wizard can't find the AI** | Ollama isn't installed or isn't running. Click **Get Ollama**, install it, then **check again**. On Windows, Ollama runs as a background service after install. |
-| **A model won't download / download stalls** | Re-open the wizard and press **Download now** again — it resumes. You can also pull them yourself: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`. You need ~8 GB free. |
+| **A model won't download / download stalls** | Re-open the wizard and press **Download now** again — it resumes. You can also pull them yourself: `ollama pull qwen2.5:7b` and `ollama pull qwen2.5vl:3b`. The models download to ~8 GB total; keep 13–20 GB free for headroom. |
 | **A design takes a minute or two** | Normal for the first design after a cold start (the model is loading into memory). Template parts re-render from sliders instantly afterward. |
 | **"This part can't be sliced"** | The Printability Gate failed it — usually too big for the selected printer, too-thin walls, or a non-manifold result. The card names the reason. Make it smaller / thicker, or pick a bigger printer, then retry. You can still download the model to inspect it. |
 | **A photo's sizes are wrong** | A photo can't convey scale — the numbers are estimates. Edit them in the description (or use a *dimensioned sketch* instead, which carries real sizes). |

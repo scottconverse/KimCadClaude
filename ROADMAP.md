@@ -1,5 +1,9 @@
 # KimCad — Full Plan to Finished Product (v3.0 Windows beta)
 
+> **Status banner:** All stages 0–11 are DONE and tagged; the beta shipped at `0.9.0b1` and is now
+> `0.9.0b4`. The stage blocks below are retained as the executed plan (the "Size"/"Needs" lines are
+> the original estimates, kept for the record).
+
 Every stage is a **complete, shippable deliverable** — it ends with the product working,
 tested, and committed, not a half-built slice. Each lists full scope, exit criteria,
 dependencies, and an honest size. Where something genuinely can't be proven yet, it says so.
@@ -15,13 +19,15 @@ is what the git tags follow. **Stages 3–11 are the current 9-stage v3.0 Window
   that runs here runs on the spec reference too — see HANDOFF §9.)
   This is *both* the development target and the deployment target. If it doesn't run well
   here, it doesn't ship. There is no GPU box coming; "wait for the GPU" is off the table.
-- **Model: `gemma4:e4b`** — a small (~4B-effective) on-device model via local Ollama that fits and
-  runs fast on this class of machine. `gemma3:12b` was the wrong call (too big, slow, crashed the
+- **Model: `qwen2.5:7b`** (the default planner) — a small on-device model via local Ollama that fits
+  and runs on this class of machine. `gemma3:12b` was the wrong call (too big, slow, crashed the
   server). **Stage 6 evaluated `Qwen2.5-Coder 1.5B` as a candidate default and ruled it out** — the
   live bake-off showed it can't produce a design plan at all (a code-completion model echoes the
-  JSON schema instead of an instance), so **gemma4:e4b stays the default**. A bigger Qwen would be
-  larger than gemma and therefore slower on this CPU box, defeating the speed goal. Local-first;
-  cloud is opt-in via `config/local.yaml`.
+  JSON schema instead of an instance), so **Stage 6 kept `gemma4:e4b`** as the default at the time.
+  *(Superseded at 0.9.0b3: a later bake-off moved the default planner to `qwen2.5:7b` with a
+  grammar-`format`-constrained plan step, which plans the landing examples reliably. `gemma4:e4b`
+  remains a real role — the non-China fallback and the vision-host pairing — just no longer the
+  default.)* Local-first; cloud is opt-in via `config/local.yaml`.
 - **Printers live at Kim's house, not here.** So *all* real-hardware validation — every real
   print, every live printer connection — happens **only after Stage 11**: once the beta gate
   ships the installable v3.0 Windows beta, **Kim runs that beta on her real hardware** as the
@@ -52,8 +58,9 @@ to `main` (merge commit `14896d6`) and tagged `stage-5` (the engine, the tiered 
 <1 s no-model re-render; through the full `audit-team` gate + re-audit at 0/0/0/0/0). **Stage 6 (the
 model layer — hardware-aware advisor, tiered fallback, 3-axis grading, model bake-off, and plan-failure
 robustness) is DONE — merged to `main` and tagged `stage-6`** (through the full `audit-team` gate +
-remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the Qwen candidate failed the
-bake-off). **Stage 7 (Smart Mesh + PrintProof3D + readiness report + learning store) is DONE —
+remediation at 0/0/0/0/0). Its data-backed verdict: keep `gemma4:e4b` (the `Qwen2.5-Coder 1.5B`
+candidate failed the bake-off) — **superseded at 0.9.0b3**, when a later bake-off moved the default
+planner to `qwen2.5:7b` (gemma4:e4b stays on as the non-China fallback / vision-host). **Stage 7 (Smart Mesh + PrintProof3D + readiness report + learning store) is DONE —
 merged to `main` and tagged `stage-7`** (slices 1–6 each `audit-lite` 0/0/0/0/0; the full 5-role
 `audit-team` stage gate + remediation closed at 0/0/0/0/0). The usability stage was inserted ahead
 of the CadQuery backend (8.5-first, ratified 2026-06-03) because the deal-killer UX gaps had to be
@@ -175,9 +182,9 @@ viewport — the §5 design at high fidelity.
 - **Wire the existing text → plan → gate → slice → download flow** through the new UI (read-only
   parameters in Stage 4; the real live sliders arrived with the Stage 5 template engine, below).
 - Tests + a real run-through on the running app.
-**Exit:** the existing flow works end-to-end through the new React UI; the viewport renders; the
+**Exit (met):** the existing flow works end-to-end through the new React UI; the viewport renders; the
 Workshop baseline is in place; the built SPA is served as static files by the Python server.
-**Needs:** target box + Node (build-time only). **Size:** ~2–3 weeks.
+**Needs (as planned):** target box + Node (build-time only). **Size (estimated):** ~2–3 weeks.
 
 ## Stage 5 — Deterministic template engine + live sliders
 **Status: DONE — merged to `main` (merge commit `14896d6`) and tagged `stage-5`. Slices 1–5 each
@@ -199,13 +206,14 @@ re-render in **<1 s with no LLM call** — which is what makes true live sliders
 - ✅ A deterministic-family **benchmark** (`python -m kimcad.template_bench`) proving every family
   renders watertight at its declared envelope, no-model, in <1 s — recorded in
   `docs/benchmarks/stage-5-template-families.md`.
-**Exit:** named parameter sliders drag → re-render in <1 s with no model call across the template
-families; the tiered template→LLM fallback is proven. **Needs:** target box. **Size:** ~2–3 weeks.
+**Exit (met):** named parameter sliders drag → re-render in <1 s with no model call across the template
+families; the tiered template→LLM fallback is proven. **Needs (as planned):** target box. **Size (estimated):** ~2–3 weeks.
 
 ## Stage 6 — Model layer: hardware-aware advisor + tiered fallback + bake-off (DONE — merged + tagged `stage-6`)
 **Goal:** a data-backed default model on the target box, with the machinery to choose, fall back, and
-compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evaluated and **rejected** —
-`gemma4:e4b` stays the default.
+compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evaluated and **rejected**, so
+Stage 6 kept `gemma4:e4b` as the default at the time. *(Superseded at 0.9.0b3: the later bake-off moved
+the default planner to `qwen2.5:7b`; `gemma4:e4b` stays on as the non-China fallback / vision-host.)*
 - **Hardware/availability advisor** (`kimcad models`): probes RAM/CPU/GPU + installed Ollama models
   and recommends one — advisory only, never rewrites config; the model stays choosable (config
   backends + `config/local.yaml` + `--backend`). Surfaces a non-China alternative when the pick is
@@ -220,12 +228,13 @@ compare models. **Outcome:** the candidate swap (`Qwen2.5-Coder 1.5B`) was evalu
 - **Plan-failure robustness:** a model returning un-parseable output fails clean (`plan_failed`)
   instead of a raw traceback.
 - **Bake-off verdict (run live on the target box):** `Qwen2.5-Coder 1.5B` scored **0/10** — it fails
-  the design-plan step (echoes the schema), even with JSON mode forced. `gemma4:e4b` is the only
-  working local option, so it remains the default. A larger Qwen is bigger than gemma → slower on
-  CPU → fails the "faster default" premise. (Bigger benchmark prompt set is deferred to a later
-  stage; the 10 Appendix-B prompts remain the done-gate.)
-**Exit (met):** a data-backed on-target default (`gemma4:e4b`, confirmed) + a proven
-fallback/advisor/bake-off toolchain. **Status:** DONE — merged to `main`, tagged `stage-6`.
+  the design-plan step (echoes the schema), even with JSON mode forced. At Stage 6, `gemma4:e4b` was
+  the only working local option, so it remained the default then. (Bigger benchmark prompt set is
+  deferred to a later stage; the 10 Appendix-B prompts remain the done-gate.) *(Superseded at
+  0.9.0b3: a later bake-off, with the grammar-`format`-constrained plan step, moved the default
+  planner to `qwen2.5:7b`. `gemma4:e4b` keeps its role as the non-China fallback and vision-host.)*
+**Exit (met):** a data-backed on-target default (`gemma4:e4b` at Stage 6; `qwen2.5:7b` from 0.9.0b3) +
+a proven fallback/advisor/bake-off toolchain. **Status:** DONE — merged to `main`, tagged `stage-6`.
 
 ## Stage 7 — Smart Mesh + PrintProof3D + readiness report  ✅ DONE — merged + tagged `stage-7`
 **Status: DONE — merged to `main` and tagged `stage-7`** (the tag advanced past the merge to the
@@ -274,7 +283,7 @@ design (no code); (6) settings + engine discoverability; (7) photo on-ramp; (esc
 / help (`FirstRunWizard`); (10) output clarity + print estimate breakout; (11) responsive,
 accessibility, copy, polish.
 **Exit:** a person can make a part, leave, come back, refine it, set units, see problems on the model,
-and discover the optional engines — without hitting a wall. **Needs:** target box. **Size:** large.
+and discover the optional engines — without hitting a wall. **Needs (as planned):** target box. **Size (estimated):** large.
 
 ## Stage 8 — CadQuery parallel backend  ✅ DONE — merged to `main`, tagged `stage-8`
 **Goal:** a second, type-safe CAD backend and real CAD export. CadQuery 2.7 + real OCCT (OCP
@@ -318,7 +327,7 @@ about the hardware.
 - **Trust boundary enforced:** image output is untrusted, flows into the validated schema, never
   printed raw.
 **Exit:** sketch→plan working on-target; photo→plan working *or* honestly marked not-viable on this
-hardware. **Needs:** target box. **Size:** sketch ~1–2 weeks; photo unknown until measured.
+hardware. **Needs (as planned):** target box. **Size (estimated):** sketch ~1–2 weeks; photo unknown until measured.
 **EXIT MET (2026-06-10):** sketch→plan works on-target (5/5 end-to-end read through the real
 `/api/sketch-seed`, ~28 s on the target CPU); the photo→seed path also ships (working, sizes as
 estimates) on the dedicated local vision model `qwen2.5vl:3b` — adopted after measuring
@@ -335,7 +344,7 @@ verdict: `docs/benchmarks/stage-9-vision-onramps.md`; reproduce via `scripts/ben
 - **First-run setup wizard:** detect Ollama, pull the default model with a progress UI, pick a
   printer connection.
 **Exit:** Bambu-native send path works (mock-tested); the first-run wizard onboards a clean profile;
-direct-print UI is wired. **Needs:** target box + emulators. **Size:** ~2–3 weeks.
+direct-print UI is wired. **Needs (as planned):** target box + emulators. **Size (estimated):** ~2–3 weeks.
 **EXIT MET (2026-06-10):** all three exit items shipped and gate-verified - the SPA's SendPanel
 (picker → app-confirm → send → live status, every trust rule held under live abuse), the
 Bambu-native connector for P2S + A1 (LAN mode over the optional `bambulabs-api`; mock contract
@@ -367,7 +376,7 @@ beta gate.
   `audit-team` at 0/0/0/0/0 on the release).
 - User docs: install guide, usage, supported-printer matrix (API-only until verified on metal).
 **Exit:** clean install → working app from the installer, zero command line; beta gate passed; a
-tagged beta release. **Needs:** target box + a clean test profile. **Size:** ~1.5–2.5 weeks.
+tagged beta release. **Needs (as planned):** target box + a clean test profile. **Size (estimated):** ~1.5–2.5 weeks.
 **EXIT MET (2026-06-10):** the installer (incl. PrintProof3D v0.5.0 bundled - the
 gated-on-stable branch resolved in favor) silent-installs and verify_install proves the
 REAL installed tree end-to-end (server, tools, THE SPA SERVING, prompts, a demo design,

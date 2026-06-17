@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getHealth,
   getModelPullProgress,
@@ -105,25 +105,32 @@ export default function SettingsPanel() {
 
   useEffect(() => { checkHealth() }, [checkHealth])
 
-  // Section-nav: drives aria-current on the sticky left nav when the user scrolls.
-  const [activeGroup, setActiveGroup] = useState<string>('grp-design')
+  // UX-003 (b4 audit): the section-nav is now PER-ITEM. Each settings card carries a unique id
+  // (`set-printer`, `set-display`, …); each sub-link points at its own card; the observer watches
+  // every card and marks the SINGLE in-view card `aria-current`. (Was: one aria-current per whole
+  // group — two items lit at once — and 9 sub-links sharing only 4 group anchors.)
+  const SECTION_IDS = [
+    'set-printer', 'set-display', 'set-aimodel', 'set-cloud', 'set-experimental',
+    'set-connections', 'set-cad', 'set-tools', 'set-about',
+  ]
+  const [activeSection, setActiveSection] = useState<string>('set-printer')
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return
-    const ids = ['grp-design', 'grp-ai', 'grp-output', 'grp-system']
-    const els = ids.map(id => document.getElementById(id)).filter(Boolean) as HTMLElement[]
+    const els = SECTION_IDS.map(id => document.getElementById(id)).filter(Boolean) as HTMLElement[]
     if (!els.length) return
     const io = new IntersectionObserver(
       (entries) => {
         const visible = entries.filter(e => e.isIntersecting)
         if (visible.length) {
           const topmost = visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-          setActiveGroup(topmost.target.id)
+          setActiveSection(topmost.target.id)
         }
       },
       { rootMargin: '-60px 0px -60% 0px', threshold: 0 },
     )
     els.forEach(el => io.observe(el))
     return () => io.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings])
 
   async function change(updates: Parameters<typeof postSettings>[0]) {
@@ -214,27 +221,27 @@ export default function SettingsPanel() {
             {[
               {
                 id: 'grp-design', label: 'Design defaults', items: [
-                  { label: 'Printer & material' },
-                  { label: 'Display' },
+                  { id: 'set-printer', label: 'Printer & material' },
+                  { id: 'set-display', label: 'Display' },
                 ],
               },
               {
                 id: 'grp-ai', label: 'AI', items: [
-                  { label: 'AI model', dot: model ? modelTone(model) : undefined },
-                  { label: 'Cloud acceleration' },
-                  { label: 'Experimental' },
+                  { id: 'set-aimodel', label: 'AI model', dot: model ? modelTone(model) : undefined },
+                  { id: 'set-cloud', label: 'Cloud acceleration' },
+                  { id: 'set-experimental', label: 'Experimental' },
                 ],
               },
               {
                 id: 'grp-output', label: 'Output & tools', items: [
-                  { label: 'Printer connections' },
-                  { label: 'Editable CAD', dot: health ? (health.cadquery ? 'ok' as const : 'warn' as const) : undefined },
-                  { label: 'Tools', dot: health ? ((health.openscad && health.orcaslicer) ? 'ok' as const : 'warn' as const) : undefined },
+                  { id: 'set-connections', label: 'Printer connections' },
+                  { id: 'set-cad', label: 'Editable CAD', dot: health ? (health.cadquery ? 'ok' as const : 'warn' as const) : undefined },
+                  { id: 'set-tools', label: 'Tools', dot: health ? ((health.openscad && health.orcaslicer) ? 'ok' as const : 'warn' as const) : undefined },
                 ],
               },
               {
                 id: 'grp-system', label: 'System', items: [
-                  { label: 'About & reset' },
+                  { id: 'set-about', label: 'About & reset' },
                 ],
               },
             ].map((g) => (
@@ -242,10 +249,10 @@ export default function SettingsPanel() {
                 <span>{g.label}</span>
                 {g.items.map((it) => (
                   <a
-                    key={it.label}
-                    href={`#${g.id}`}
+                    key={it.id}
+                    href={`#${it.id}`}
                     className="kc-set-navlink"
-                    aria-current={activeGroup === g.id ? 'true' : undefined}
+                    aria-current={activeSection === it.id ? 'true' : undefined}
                   >
                     {it.label}
                     {it.dot && <span className={`nstat ${it.dot}`} aria-hidden />}
@@ -259,13 +266,14 @@ export default function SettingsPanel() {
           {/* ── Design defaults ── */}
           <div id="grp-design" className="kc-set-group">
           {/* Printer & material — the app-wide defaults new designs use. */}
-          <section className="kc-set-card">
+          <section id="set-printer" className="kc-set-card">
             <h2 className="kc-set-h">Printer &amp; material</h2>
             <p className="kc-set-sub">The default printer and material new designs are checked against.</p>
             <div className="kc-set-row">
-              <label htmlFor="set-printer">Default printer</label>
+              {/* The select id is distinct from the card's `set-printer` section anchor (UX-003). */}
+              <label htmlFor="set-printer-select">Default printer</label>
               <select
-                id="set-printer"
+                id="set-printer-select"
                 className="kc-set-select"
                 value={settings.default_printer ?? ''}
                 onChange={(e) => change({ default_printer: e.target.value })}
@@ -293,7 +301,7 @@ export default function SettingsPanel() {
           </section>
 
           {/* Units & appearance — the shared display preferences. */}
-          <section className="kc-set-card">
+          <section id="set-display" className="kc-set-card">
             <h2 className="kc-set-h">Display</h2>
             <p className="kc-set-sub">How dimensions are shown everywhere — the sliders, the size, the printability table — and the app&rsquo;s appearance.</p>
             {/* KC-18 (#23): the light/dark theme — token inversion, instant, persisted. */}
@@ -341,7 +349,7 @@ export default function SettingsPanel() {
           <div id="grp-ai" className="kc-set-group">
           {/* AI model (Surface A) — gemma4:e4b shown as THE model with its health. No menu of
               alternatives; the manual backend override stays CLI-only (trust rule 1). */}
-          <section className="kc-set-card">
+          <section id="set-aimodel" className="kc-set-card">
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">AI model</h2>
               {modelState === 'ready' && model && (
@@ -481,7 +489,7 @@ export default function SettingsPanel() {
           {/* Cloud acceleration (Surface B) — opt-in, OFF by default. Per spec §7.3, KimCad does NOT
               hardwire a cloud vendor: OpenRouter is the router and the USER picks the model. The key
               is saved locally and shown masked (last 5) on return. */}
-          <section className="kc-set-card">
+          <section id="set-cloud" className="kc-set-card">
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">Cloud acceleration</h2>
               <span className={`kc-set-badge${settings.cloud_enabled ? ' kc-set-badge-cloud' : ''}`}>
@@ -609,7 +617,7 @@ export default function SettingsPanel() {
           </section>
 
           {/* Experimental raw-codegen generator (Surface C) — OFF by default, untrusted. */}
-          <section className="kc-set-card">
+          <section id="set-experimental" className="kc-set-card">
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">Experimental: direct shape generator</h2>
               <span className="kc-set-badge kc-set-badge-exp">Experimental · Untrusted</span>
@@ -656,7 +664,7 @@ export default function SettingsPanel() {
           {/* KC-2 (#8) — the editable-CAD export engine (Option F: guided manual install).
               KimCad is already wired for CadQuery; this card explains what it gives, shows
               whether it’s installed, and walks a power user through the one-time setup. */}
-          <section className="kc-set-card">
+          <section id="set-cad" className="kc-set-card">
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">Editable CAD export (.STEP)</h2>
               <span className="kc-set-grow" />
@@ -724,7 +732,7 @@ export default function SettingsPanel() {
           </section>
 
           {/* Tools health (MS-5) — the bundled engines. */}
-          <section className="kc-set-card">
+          <section id="set-tools" className="kc-set-card">
             <h2 className="kc-set-h">Tools</h2>
             <p className="kc-set-sub">The bundled engines KimCad uses to build and slice your parts.</p>
             {(['openscad', 'orcaslicer'] as const).map((tool) => (
@@ -749,7 +757,7 @@ export default function SettingsPanel() {
           {/* ── System ── */}
           <div id="grp-system" className="kc-set-group">
           {/* About + reset (MS-5). */}
-          <section className="kc-set-card">
+          <section id="set-about" className="kc-set-card">
             <h2 className="kc-set-h">About</h2>
             <div className="kc-set-row">
               <span>KimCad</span>

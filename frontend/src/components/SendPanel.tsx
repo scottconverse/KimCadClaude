@@ -9,8 +9,12 @@ import {
   type PrintOutcome,
   type SendResponse,
 } from '../api'
-import { connectorLabel, connectorTone } from '../connectorStatus'
+import { connectorLabel, connectorTone, displayName } from '../connectorStatus'
 import ConfirmDialog from './ConfirmDialog'
+
+// UX-001 (b4 audit): connector key→label prettification now lives in one place (connectorStatus).
+// Re-exported here so existing importers (ConnectionsCard, tests) keep their `./SendPanel` path.
+export { displayName }
 
 // Stage 10 Slice 10.2 — direct print from the app. Appears only once a print file exists
 // (under the sliced result). Honest throughout: a simulated (loopback/no-hardware) connection
@@ -20,17 +24,9 @@ import ConfirmDialog from './ConfirmDialog'
 // dialog here IS the user's explicit start: the POST is the confirmation (the server treats it
 // as such and re-checks the gate verdict server-side) — so the send can only ever fire from
 // the dialog's confirm action, never from merely opening this panel.
-// UX-1004 (stage-10 gate): connection names come from config KEYS ("bambu_p2s") — present
-// them in the product's register ("Bambu P2S") instead of raw snake_case one dropdown below
-// the properly-named "Bambu Lab P2S" printer profile. Purely cosmetic: the VALUE sent to
-// the server stays the exact config key.
-export function displayName(key: string): string {
-  return key
-    .split('_')
-    .map((w) => (/\d/.test(w) || w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
-    .join(' ')
-}
-
+// UX-1004 (stage-10 gate): connection names come from config KEYS ("bambu_p2s") — presented in
+// the product's register ("Bambu P2S") via the centralized displayName() (imported above), not
+// raw snake_case. Purely cosmetic: the VALUE sent to the server stays the exact config key.
 export default function SendPanel({ designId }: { designId: number | null }) {
   const [conns, setConns] = useState<ConnectorsResponse | null>(null)
   const [chosen, setChosen] = useState('')

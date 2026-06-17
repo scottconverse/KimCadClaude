@@ -3,8 +3,9 @@
 *Stage 5 — shipped; merged to `main` and tagged `stage-5`.*
 
 When KimCad builds a part from one of its parametric **templates** (a box, tray, enclosure, tube,
-hook, cable clip, or drawer divider), you don't have to re-describe it to change its size. The part
-comes with **live sliders** — drag one and the part re-renders right there in the viewport.
+hook, cable clip, or drawer divider — these are just examples from one of KimCad's **86 template
+families**; see the [catalog](templates.md)), you don't have to re-describe it to change its size.
+The part comes with **live sliders** — drag one and the part re-renders right there in the viewport.
 
 ## Adjusting with the sliders
 

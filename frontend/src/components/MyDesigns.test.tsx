@@ -32,6 +32,23 @@ describe('MyDesigns', () => {
     expect(onOpen).toHaveBeenCalledWith('a1')
   })
 
+  // UX-007 (b4 audit): a thumbnail that fails to load (404 / empty, despite has_thumb:true) must
+  // fall back to the designed object-type tile, never a black void.
+  it('falls back to the object-type tile when the thumbnail image errors', async () => {
+    vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: sample })
+    const { container } = render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)
+    await screen.findByText('My Box')
+    const img = container.querySelector('img.kc-design-thumb') as HTMLImageElement
+    expect(img).toBeTruthy()
+    // Simulate the image failing to load.
+    fireEvent.error(img)
+    // The image is replaced by the designed empty tile carrying the humanized object type.
+    expect(container.querySelector('img.kc-design-thumb')).toBeNull()
+    const tile = container.querySelector('.kc-design-thumb-empty') as HTMLElement
+    expect(tile).toBeTruthy()
+    expect(tile.textContent).toMatch(/box/i)
+  })
+
   it('shows the empty state when there is nothing saved', async () => {
     vi.spyOn(api, 'getDesigns').mockResolvedValue({ designs: [] })
     render(<MyDesigns onOpen={vi.fn()} onNew={vi.fn()} />)

@@ -242,7 +242,17 @@ class LLMProvider:
                     f"Environment variable {backend.api_key_env} is not set; "
                     f"the {backend.key} backend needs an API key."
                 )
-        if not key:
+        # ENG-001 (audit-team-b4): before a REAL key is bound to a client, validate the cloud
+        # base_url against the shipped host allow-list (https + openrouter.ai / api.deepseek.com),
+        # so a tampered/imported config/local.yaml can't redirect a saved Bearer credential to an
+        # attacker host. Loopback backends are exempt (the key never leaves the box); the explicit
+        # KIMCAD_ALLOW_CUSTOM_CLOUD_HOST=1 escape hatch is honored inside validate_cloud_base_url.
+        # Mirrors the loopback-pin already enforced on the vision + model-pull paths.
+        if key:
+            from kimcad.config import Config
+
+            Config.validate_cloud_base_url(backend.base_url)
+        else:
             key = "not-needed"
         # QA-004: split connect vs read. A generation may legitimately take many minutes on the
         # CPU target (the long read budget), but a TCP connect to a server that's up answers in
@@ -325,10 +335,43 @@ class LLMProvider:
             return self._complete_native_schema(messages, design_plan_schema())
         return self._complete(messages, json_mode=True)
 
+    # ENG-007 (audit-team-b4): connect/first-byte budget for the native plan path, mirroring the
+    # OpenAI client's `connect=5.0` half of the QA-004 split. urllib exposes only ONE socket
+    # timeout (it covers connect AND every read), so the long `timeout_s` alone would let a
+    # wedged-but-listening server hang for the full read budget (default 1200 s). We can't bound
+    # the generation read itself (a legit local generation takes minutes), so instead we send a
+    # cheap fail-fast HEAD/GET probe with THIS short budget before committing to the long call.
+    _NATIVE_CONNECT_TIMEOUT_S = 5.0
+
+    def _native_responsive(self, chat_url: str) -> bool:
+        """ENG-007: a wedged-but-listening server passes the bare-TCP ``_server_reachable`` probe
+        (the socket accepts) yet never answers HTTP — so the long generation ``urlopen`` would
+        block for the full ``timeout_s``. Before the first real attempt, send a cheap GET to the
+        server root with the short connect/first-byte budget; if it doesn't ANSWER within that
+        budget the server is wedged and we fail fast. Any HTTP reply at all (even an error status,
+        which arrives as HTTPError) proves the server is alive and responsive — return True.
+        Local-only path, so the probe cost is a localhost round-trip."""
+        root = urlunsplit((*urlsplit(chat_url)[:2], "", "", ""))
+        budget = min(self.backend.timeout_s, self._NATIVE_CONNECT_TIMEOUT_S)
+        try:
+            with urllib.request.urlopen(root, timeout=budget):
+                return True
+        except urllib.error.HTTPError:
+            return True  # the server answered (with a status) — it's alive, just not at "/"
+        except (urllib.error.URLError, OSError, TimeoutError):
+            return False
+
     def _complete_native_schema(self, messages: list[dict[str, str]], schema: dict) -> str:
         """Ollama-native ``/api/chat`` with grammar-constrained ``format`` (a JSON schema). Reuses
         the same connect-retry / fail-fast policy as :meth:`_complete` (a never-up local server
-        fails fast; a mid-run drop keeps the retry budget)."""
+        fails fast; a mid-run drop keeps the retry budget).
+
+        ENG-007 (audit-team-b4): the OpenAI path gets ``httpx.Timeout(timeout_s, connect=5.0)``;
+        urllib offers only a single socket timeout, so this path fail-fast probes the server BEFORE
+        the first attempt — a never-up local Ollama (TCP refused) errors immediately, and a
+        wedged-but-listening server (TCP accepts, HTTP silent) is caught by a short-budget GET
+        (:meth:`_native_responsive`) instead of hanging for the full ``timeout_s``. Only once the
+        server proves responsive do we commit to the long-budget generation call."""
         chat_url = _native_chat_url(self.backend.base_url)
         body = json.dumps({
             "model": self.backend.model_name,
@@ -340,6 +383,13 @@ class LLMProvider:
                 "num_predict": self.backend.max_tokens,
             },
         }).encode()
+        # Fail fast BEFORE the long-budget call: a cheap short-budget GET catches both a never-up
+        # server (TCP refused -> URLError) and a wedged-but-listening one (TCP accepts, HTTP silent
+        # -> times out within the short budget). Only a responsive server reaches the long call.
+        if not self._native_responsive(chat_url):
+            raise urllib.error.URLError(
+                f"the local model server at {self.backend.base_url} is not responding"
+            )
         last_err: Exception | None = None
         for attempt in range(1, self.max_attempts + 1):
             try:

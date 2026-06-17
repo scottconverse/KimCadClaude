@@ -83,6 +83,27 @@ def test_a_failed_chat_pull_does_not_block_the_vision_pull():
     assert snap["models"]["qwen2.5vl:3b"]["status"] == "done"
 
 
+def test_a_runaway_upstream_error_is_clipped_in_the_display_string():
+    # ENG-012: a hostile/runaway streamed-JSON `error` (e.g. a megabyte of attacker text) must
+    # not be interpolated unbounded into the user-facing message — clip to the codebase's [:300].
+    huge = "Z" * 5000  # an unrecognized error so it hits the generic "The download stopped: …" arm
+
+    def opener(req, timeout=None):
+        return _FakeStream([{"error": huge}])
+
+    job = ModelPullJob()
+    job.start("http://127.0.0.1:11434", [("gemma4:e4b", "chat")], probe_dir=Path.cwd(), opener=opener)
+    snap = _wait_done(job)
+    msg = snap["models"]["gemma4:e4b"]["error"]
+    assert msg.count("Z") == 300  # exactly the [:300] window, not all 5000 chars
+    assert "The download stopped" in msg
+
+
+def test_friendly_error_clips_raw_text_directly():
+    # ENG-012 at the unit boundary: _friendly_error never echoes more than 300 chars of raw text.
+    assert mp._friendly_error("Q" * 1000).count("Q") == 300
+
+
 def test_a_disk_full_error_maps_to_the_friendly_fix():
     def opener(req, timeout=None):
         return _FakeStream([{"error": "write /models/blobs: no space left on device"}])

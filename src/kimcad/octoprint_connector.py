@@ -230,8 +230,10 @@ class OctoPrintConnector:
             # HTTPError is a subclass of URLError, so it MUST be caught first — a 401/403 is a
             # reachable-but-rejected printer, not "unreachable" (the same FIND-001 ordering fix).
             return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
-        except (urllib.error.URLError, OSError) as e:
-            return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
+        except (urllib.error.URLError, OSError):
+            # ENG-009: mirror the QA-003 status() treatment — a clean fixed detail, not the raw
+            # urllib/WinError string, which the UI/API surfaces.
+            return PrintJob(job_id=job_id, state=JobState.error, detail="could not reach the printer")
         except ConnectorError:
             return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
         completion = (data.get("progress") or {}).get("completion")

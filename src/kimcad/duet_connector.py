@@ -225,26 +225,29 @@ class DuetConnector:
         )
 
     def status(self) -> PrinterStatus:
+        # ENG-003: _disconnect() runs on EVERY exit path (try/finally), so a transient mid-poll
+        # URLError/OSError after a successful _connect() can't leak an RRF session. urllib.error.URLError
+        # is caught before its OSError sibling-overlap is irrelevant; HTTPError (a URLError subclass) and
+        # AuthError/ConnectorError are matched first so the offline arm only sees true transport failures.
         try:
-            self._connect()
-            status = self._status_json(3)
-        except AuthError:
+            try:
+                self._connect()
+                status = self._status_json(3)
+            except AuthError:
+                return PrinterStatus(online=True, state=PrinterState.error, detail="authentication failed")
+            except urllib.error.HTTPError as e:
+                return PrinterStatus(
+                    online=e.code < 500, state=PrinterState.error,
+                    detail=f"request rejected (HTTP {e.code})",
+                )
+            except (urllib.error.URLError, OSError):
+                return PrinterStatus(online=False, state=PrinterState.offline, detail="could not connect")
+            except ConnectorError:
+                return PrinterStatus(
+                    online=True, state=PrinterState.error, detail="unexpected response from printer"
+                )
+        finally:
             self._disconnect()
-            return PrinterStatus(online=True, state=PrinterState.error, detail="authentication failed")
-        except urllib.error.HTTPError as e:
-            self._disconnect()
-            return PrinterStatus(
-                online=e.code < 500, state=PrinterState.error,
-                detail=f"request rejected (HTTP {e.code})",
-            )
-        except (urllib.error.URLError, OSError):
-            return PrinterStatus(online=False, state=PrinterState.offline, detail="could not connect")
-        except ConnectorError:
-            self._disconnect()
-            return PrinterStatus(
-                online=True, state=PrinterState.error, detail="unexpected response from printer"
-            )
-        self._disconnect()
         raw = str(status.get("status") or "")
         state = _RRF_STATE.get(raw, PrinterState.error if raw else PrinterState.operational)
         nozzle, bed = self._temps(status)
@@ -319,21 +322,23 @@ class DuetConnector:
         return parsed if isinstance(parsed, dict) else {}
 
     def job_status(self, job_id: str) -> PrintJob:
+        # ENG-003: _disconnect() in a finally so the URLError/OSError arm can't leak an RRF
+        # session after a successful _connect() (a transient mid-poll blip).
+        # ENG-009: the offline detail is a clean fixed string, not raw urllib/WinError text.
         try:
-            self._connect()
-            status = self._status_json(3)
-        except AuthError:
+            try:
+                self._connect()
+                status = self._status_json(3)
+            except AuthError:
+                return PrintJob(job_id=job_id, state=JobState.error, detail="authentication failed")
+            except urllib.error.HTTPError as e:
+                return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
+            except (urllib.error.URLError, OSError):
+                return PrintJob(job_id=job_id, state=JobState.error, detail="could not reach the printer")
+            except ConnectorError:
+                return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
+        finally:
             self._disconnect()
-            return PrintJob(job_id=job_id, state=JobState.error, detail="authentication failed")
-        except urllib.error.HTTPError as e:
-            self._disconnect()
-            return PrintJob(job_id=job_id, state=JobState.error, detail=f"HTTP {e.code}")
-        except (urllib.error.URLError, OSError) as e:
-            return PrintJob(job_id=job_id, state=JobState.error, detail=f"unreachable: {e}")
-        except ConnectorError:
-            self._disconnect()
-            return PrintJob(job_id=job_id, state=JobState.error, detail="unexpected response")
-        self._disconnect()
         raw = str(status.get("status") or "")
         frac = status.get("fractionPrinted")
         progress = max(0.0, min(1.0, float(frac) / 100.0)) if frac is not None else 0.0

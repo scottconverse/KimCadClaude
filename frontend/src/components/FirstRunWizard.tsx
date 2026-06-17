@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { openExternal } from '../openExternal'
 import {
   getModelPullProgress,
@@ -17,7 +17,7 @@ import {
 // existing endpoints (/api/settings, /api/model-status) — there is no model download and no
 // installer/SmartScreen step here; those belong to the Stage-11 bundled installer.
 //
-// Two deliberate departures from the (stale) prototype: the model is gemma4:e4b shown as THE
+// Two deliberate departures from the (stale) prototype: the model is qwen2.5:7b shown as THE
 // model with its health — NOT a qwen-vs-gemma choice (trust rule 1: never offer alternatives) —
 // and the "direct printing" step is an honest download-vs-later choice rather than a fake
 // connect-and-test form (the connector setup UI lands later).

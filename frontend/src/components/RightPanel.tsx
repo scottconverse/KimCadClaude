@@ -671,6 +671,23 @@ export default function RightPanel({
   onTab: (t: InspectorTab) => void
 }) {
   const report = result?.report
+
+  // UX-002 (b4 audit): the WAI-ARIA APG Tabs keyboard model. Roving tabindex (above) keeps a single
+  // Tab stop; ArrowLeft/Right wrap, Home/End jump to the ends, and selection follows focus
+  // (automatic activation — apt for a 3-tab panel). The id/aria-controls wiring is already correct.
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next = index
+    if (e.key === 'ArrowRight') next = (index + 1) % _TABS.length
+    else if (e.key === 'ArrowLeft') next = (index - 1 + _TABS.length) % _TABS.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = _TABS.length - 1
+    else return
+    e.preventDefault()
+    onTab(_TABS[next].key)
+    tabRefs.current[next]?.focus()
+  }
+
   return (
     <aside className="kc-col-right">
       {/* The always-visible verdict strip (the reference design's "inspection band"): the
@@ -694,16 +711,21 @@ export default function RightPanel({
         </button>
       )}
       <div className="kc-insp-tabs" role="tablist" aria-label="Inspector">
-        {_TABS.map((t) => (
+        {_TABS.map((t, i) => (
           <button
             key={t.key}
+            ref={(el) => { tabRefs.current[i] = el }}
             type="button"
             role="tab"
             id={`kc-insp-tab-${t.key}`}
             aria-selected={tab === t.key}
             aria-controls={`kc-insp-panel-${t.key}`}
+            // UX-002 (b4 audit): WAI-ARIA APG Tabs roving tabindex — only the active tab is in the
+            // Tab order (0); the others are reachable via Arrow/Home/End, not Tab (-1).
+            tabIndex={tab === t.key ? 0 : -1}
             className={`kc-insp-tab${tab === t.key ? ' kc-insp-tab-active' : ''}`}
             onClick={() => onTab(t.key)}
+            onKeyDown={(e) => onTabKeyDown(e, i)}
           >
             {t.label}
           </button>

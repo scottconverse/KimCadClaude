@@ -22,6 +22,7 @@ driven until Kim's beta (Stage 11) — the same posture the other connectors shi
 from __future__ import annotations
 
 import io
+import logging
 import time
 import zipfile
 from contextlib import contextmanager
@@ -39,6 +40,8 @@ from kimcad.printer_connector import (
     PrintJob,
     ensure_sendable,
 )
+
+_LOG = logging.getLogger(__name__)
 
 # How the library's GcodeState names map onto KimCad's normalized PrinterState. UNKNOWN maps
 # to error (with a saying-so detail): we only read state AFTER the MQTT session reports
@@ -159,7 +162,14 @@ class BambuConnector:
             try:
                 printer.mqtt_client._client.disconnect()  # noqa: SLF001
             except Exception:  # noqa: BLE001
-                pass
+                # ENG-013: this reaches into a PRIVATE paho attr — a bambulabs-api/paho rename
+                # would make it raise here and silently re-leak the connection (the very thing
+                # ENG-1002 fixed). Log at debug so the shape change leaves a trace; the
+                # test asserts this path is reached against the fake, so a rename trips CI.
+                _LOG.debug(
+                    "%s: paho private-attr disconnect path failed — bambulabs-api/paho shape "
+                    "may have changed (mqtt_client._client.disconnect)", self.name, exc_info=True
+                )
 
     @staticmethod
     def _state_name(printer: Any) -> str:

@@ -254,6 +254,15 @@ def test_offline_job_status_returns_error():
     assert job.state is JobState.error
 
 
+def test_offline_job_status_detail_is_clean_not_raw_exception():
+    # ENG-009: job_status() must mirror status()'s QA-003 clean detail — never the raw
+    # urllib/WinError/serial exception string (which surfaces in the UI/API).
+    job = _connector("127.0.0.1:1").job_status("x")
+    assert job.detail == "could not reach the printer"
+    # the raw OSError text (a port number, "Connection refused", a WinError code) is gone
+    assert "Errno" not in (job.detail or "") and "127.0.0.1" not in (job.detail or "")
+
+
 # --- serial-port path (pyserial absent / present / failing) -------------------
 
 def test_serial_target_without_pyserial_is_a_clear_error(monkeypatch):

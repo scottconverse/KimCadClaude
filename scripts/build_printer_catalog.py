@@ -321,6 +321,30 @@ def verify_slices(cands: dict[str, dict]) -> dict[str, dict]:
     print("# ---- verified catalog YAML (paste into config/default.yaml under printers:) ----")
     for key, c in verified.items():
         print(_emit_yaml(key, c))
+    # TEST-103 (audit-team-b4): write a proof-of-record so the catalog-freshness hygiene test
+    # (tests/test_printer_catalog.py::test_catalog_was_reverified_after_its_last_edit) can assert
+    # the all-printer slice proof is newer than the catalog YAML. Real slices back this record —
+    # verify_slices only reaches here after live-slicing every kept printer. Records the catalog
+    # hash too, so a later edit that changes the printers block is detectable beyond mtime.
+    import hashlib
+    import json as _json
+    from datetime import datetime, timezone
+
+    rec_path = Path(__file__).resolve().parent.parent / "config" / "printer_catalog.verified.json"
+    catalog_blob = _json.dumps(cfg.raw.get("printers", {}), sort_keys=True).encode("utf-8")
+    rec_path.write_text(
+        _json.dumps(
+            {
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+                "catalog_sha256": hashlib.sha256(catalog_blob).hexdigest(),
+                "slice_proven_printers": sorted(verified),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    print(f"# wrote proof-of-record -> {rec_path}")
     return verified
 
 

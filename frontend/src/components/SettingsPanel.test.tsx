@@ -157,6 +157,37 @@ describe('SettingsPanel', () => {
     expect(navGroups.length).toBe(4)
   })
 
+  // UX-003 (b4 audit): the nav is now PER-ITEM — exactly one item is aria-current, and every
+  // sub-link points at its OWN unique anchor that resolves to a real card on the page.
+  it('marks exactly one nav item aria-current and gives each sub-link a distinct, resolvable anchor', async () => {
+    getConnections.mockResolvedValue({
+      connections: [{
+        name: 'bambu_p2s', type: 'bambu', simulated: false, configured: false,
+        note: 'No IP configured.', base_url: '', serial: '', use_ams: true,
+        api_key_env: 'BAMBU_P2S_ACCESS_CODE', env_set: false,
+      }],
+    })
+    render(<SettingsPanel />)
+    await screen.findByLabelText(/Default printer/i)
+    // Wait for the connections CARD heading (the nav link shares the same text), so its
+    // `set-connections` anchor exists before we assert anchors resolve.
+    await screen.findByRole('heading', { name: 'Printer connections' })
+
+    // Exactly one link carries aria-current (was two — a whole group lit at once).
+    const current = document.querySelectorAll('.kc-set-navlink[aria-current="true"]')
+    expect(current.length).toBe(1)
+
+    // Every sub-link's href is a unique #anchor, and each resolves to a card with that id.
+    const links = Array.from(document.querySelectorAll('a.kc-set-navlink')) as HTMLAnchorElement[]
+    const hrefs = links.map((l) => l.getAttribute('href'))
+    expect(hrefs.length).toBe(9)
+    expect(new Set(hrefs).size).toBe(9) // all distinct (was 4 shared group anchors)
+    for (const href of hrefs) {
+      const id = href!.replace(/^#/, '')
+      expect(document.getElementById(id), `anchor ${href} should resolve`).toBeTruthy()
+    }
+  })
+
   it('AI nav dot is warn when model is not running', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
     const { container } = render(<SettingsPanel />)

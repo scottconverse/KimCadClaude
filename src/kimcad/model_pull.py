@@ -64,7 +64,9 @@ def _friendly_error(raw: str) -> str:
         )
     if "file does not exist" in low or "not found" in low or "pull model manifest" in low:
         return "The model wasn't found on Ollama's registry — check your internet connection and try again."
-    return f"The download stopped: {raw}. Check your internet connection and try again."
+    # ENG-012: clip the untrusted upstream error before it lands in a display string (the
+    # codebase's [:300] bound — same as the connector _ERR_BODY_CAP).
+    return f"The download stopped: {raw[:300]}. Check your internet connection and try again."
 
 
 class ModelPullJob:
@@ -178,7 +180,9 @@ class ModelPullJob:
                 except (ValueError, TypeError):
                     continue  # a torn line mid-stream isn't an error
                 if line.get("error"):
-                    raise RuntimeError(str(line["error"]))
+                    # ENG-012: clip the untrusted streamed-JSON error text (it reaches a display
+                    # string via _friendly_error) — the codebase's [:300] bound.
+                    raise RuntimeError(str(line["error"])[:300])
                 if str(line.get("status", "")).lower() == "success":
                     saw_success = True
                 with self.lock:

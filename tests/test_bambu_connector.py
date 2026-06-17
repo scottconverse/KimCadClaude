@@ -308,6 +308,40 @@ def test_session_teardown_disconnects_the_paho_client():
     assert disconnected == [1]
 
 
+def test_session_teardown_reaches_the_private_disconnect_path_on_the_fake():
+    """ENG-013: pin that teardown REACHES printer.mqtt_client._client.disconnect() on the fake —
+    a bambulabs-api/paho rename of that private attr would make the FakePrinter (which has no
+    mqtt_client at all) the canary: the path must execute and call our recorder. With the real
+    private shape present, the recorder fires exactly once per session."""
+    from types import SimpleNamespace
+
+    reached: list = []
+    fake = FakePrinter()
+    fake.mqtt_client = SimpleNamespace(
+        _client=SimpleNamespace(disconnect=lambda: reached.append("disconnect"))
+    )
+    _connector(fake).status()
+    assert reached == ["disconnect"]  # the exact private-attr chain the connector depends on
+
+
+def test_session_teardown_logs_at_debug_when_the_private_attr_path_raises(caplog):
+    """ENG-013: a paho/bambulabs-api shape change makes the private-attr disconnect raise. The
+    broad except must keep swallowing (teardown can't crash the call) BUT leave a debug-level
+    trace, so the silent re-leak ENG-1002 fixed can't return unnoticed."""
+    import logging
+
+    fake = FakePrinter()  # the default FakePrinter has NO mqtt_client -> AttributeError here
+    with caplog.at_level(logging.DEBUG, logger="kimcad.bambu_connector"):
+        st = _connector(fake).status()  # must NOT raise — teardown is best-effort
+    assert st.state is PrinterState.operational  # the call's real result is unaffected
+    assert fake.mqtt_stopped is True
+    # the shape change left a trace naming the private attr we depend on
+    assert any(
+        "mqtt_client._client.disconnect" in r.getMessage() and r.levelno == logging.DEBUG
+        for r in caplog.records
+    )
+
+
 def test_send_surfaces_a_refused_start_with_a_next_step(tmp_path):
     fake = FakePrinter(start_ok=False)
     f = _write_gcode_3mf(tmp_path / "p.gcode.3mf")

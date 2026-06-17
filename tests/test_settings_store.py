@@ -233,6 +233,56 @@ def test_update_failure_rolls_back_the_vault(tmp_path, _fake_keyring, monkeypatc
     assert store.all()["openrouter_api_key"] == "sk-or-old"
 
 
+def test_transient_keyring_downgrade_is_flagged_once(tmp_path, monkeypatch):
+    """ENG-005 (audit-team-b4): a key save where the credential backend passes the pre-save
+    HEALTH PROBE but then refuses the set_password (a transient failure) downgrades keyring->file.
+    That moment must be SIGNALLED once — take_secret_downgraded() returns True exactly once, then
+    clears — and the key honestly lands in the file (key_storage()=="file")."""
+    import json
+
+    from kimcad import settings_store
+
+    class ProbeOkSetFails:
+        """Healthy get_password (the health probe + rollback read pass) but set_password raises —
+        models a backend that flaked precisely during the save."""
+
+        def __init__(self):
+            self.passwords: dict[tuple[str, str], str] = {}
+
+        def get_password(self, service, username):
+            return self.passwords.get((service, username))
+
+        def set_password(self, service, username, password):
+            raise RuntimeError("credential store busy")
+
+        def delete_password(self, service, username):
+            self.passwords.pop((service, username), None)
+
+    fake = ProbeOkSetFails()
+    monkeypatch.setattr(settings_store, "_keyring", lambda: fake)
+    path = tmp_path / "settings.json"
+    store = SettingsStore(path)
+    assert store.take_secret_downgraded() is False  # nothing happened yet
+
+    assert store.update({"openrouter_api_key": "sk-or-transient"}) is True
+    # The key honestly fell back to the file (the backend refused), and that's disclosed.
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["openrouter_api_key"] == "sk-or-transient"
+    assert store.key_storage() == "file"
+    # ...and the transient downgrade is signalled exactly ONCE (read-and-clear).
+    assert store.take_secret_downgraded() is True
+    assert store.take_secret_downgraded() is False
+
+
+def test_keyring_success_does_not_flag_a_downgrade(tmp_path, _fake_keyring):
+    """ENG-005: a normal save that lands in the keyring must NOT raise the downgrade signal —
+    the flag is only for the transient keyring->file fallback, not the healthy path."""
+    store = SettingsStore(tmp_path / "settings.json")
+    assert store.update({"openrouter_api_key": "sk-or-ok"}) is True
+    assert store.key_storage() == "keyring"
+    assert store.take_secret_downgraded() is False
+
+
 def test_broken_backend_is_disclosed_before_any_key_is_saved(tmp_path, monkeypatch):
     """QA-D-001 (stage-BCD gate): key_storage()'s pre-save answer must reflect backend
     HEALTH, not importability — a broken vault means a new key would land in the file."""

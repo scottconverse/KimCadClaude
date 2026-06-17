@@ -262,6 +262,47 @@ def test_job_status_maps_paused_and_halted_states(char, expected):
     assert job.state is expected
 
 
+@pytest.mark.parametrize("method", ["status", "job_status"])
+def test_disconnect_runs_when_status_blips_offline_after_connect(method):
+    # ENG-003: a transient URLError AFTER a successful _connect() must still release the RRF
+    # session (try/finally), or repeated polling through flaky Wi-Fi exhausts the board's
+    # small session table and locks the user out of their own printer.
+    import urllib.error
+
+    c = _connector("http://x", password="pw")  # a password => a session is opened
+    connects: list[int] = []
+    disconnects: list[int] = []
+
+    def fake_get_json(path: str):
+        if "rr_connect" in path:
+            connects.append(1)
+            return {"err": 0}  # _connect() succeeds and opens a session
+        raise urllib.error.URLError("mid-poll blip")  # _status_json then fails transiently
+
+    # _connect/_disconnect run their real logic; only the transport raises. _disconnect() calls
+    # self._request directly (not _get_json), so stub that to record the session release.
+    def fake_request(meth, path, *, data=None):
+        if "rr_disconnect" in path:
+            disconnects.append(1)
+            return 200, b"{}"
+        raise AssertionError("only rr_disconnect should reach _request in this test")
+
+    c._get_json = lambda path: fake_get_json(path)  # type: ignore[method-assign]
+    c._request = fake_request  # type: ignore[method-assign]
+
+    result = getattr(c, method)("job") if method == "job_status" else getattr(c, method)()
+
+    assert connects == [1]                 # the session WAS opened
+    assert disconnects == [1]              # ...and released on the offline path (the leak fix)
+    if method == "status":
+        assert result.online is False and result.state is PrinterState.offline
+    else:
+        assert result.state is JobState.error
+        # ENG-009: a clean fixed detail, not the raw URLError text.
+        assert result.detail == "could not reach the printer"
+        assert "URLError" not in result.detail and "blip" not in result.detail
+
+
 def test_done_is_latched_after_progress_then_idle(tmp_path):
     # ENG-004/TE-01/TE-02: RRF clears fractionPrinted on completion, so done is detected by the
     # LATCH (progress seen -> later idle == done), and a poll past done never regresses to queued.

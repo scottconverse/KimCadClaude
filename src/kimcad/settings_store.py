@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -106,6 +107,14 @@ class SettingsStore:
 
     def __init__(self, path: Path):
         self._path = path
+        # ENG-005 (audit-team-b4): a key save can silently downgrade keyring->file when the OS
+        # credential backend transiently fails DURING the save (the pre-save health probe passed,
+        # but set_password then raised). key_storage() discloses the resting location after the
+        # fact, but the *moment* of downgrade was invisible. This one-shot flag records that the
+        # most recent save fell back to the file because the vault refused mid-save, so the web
+        # layer can surface a one-time "your key was moved to file storage" notice. Consumed
+        # (cleared) on read so the notice fires once, not on every subsequent settings fetch.
+        self._secret_downgraded = False
         # One-time legacy migration: a pre-Stage-C settings.json holds the key in PLAINTEXT.
         # Move it into the credential store and rewrite the file with the sentinel. The WHOLE
         # read-migrate-write runs under _WRITE_LOCK (ENG-101: a read taken outside the lock and
@@ -150,6 +159,15 @@ class SettingsStore:
             return "file"
         # No key saved yet: report where a NEW key would go.
         return "keyring" if _keyring() is not None else "file"
+
+    def take_secret_downgraded(self) -> bool:
+        """ENG-005: True exactly once after a save transiently downgraded the secret from the OS
+        credential store to the file (the backend refused mid-save). Reading it CLEARS the flag so
+        the web layer surfaces a one-time "your key was moved to file storage" notice rather than
+        nagging on every subsequent settings fetch. False at every other time."""
+        flag = self._secret_downgraded
+        self._secret_downgraded = False
+        return flag
 
     def all(self) -> dict[str, Any]:
         """The saved settings as a dict, with the secret sentinel resolved from the credential
@@ -240,6 +258,16 @@ class SettingsStore:
                                 stored = True
                             except Exception:  # noqa: BLE001 - backend refusal → file fallback
                                 stored = False
+                                # ENG-005: the health probe just said keyring was usable, yet the
+                                # save raised — a transient backend failure. Record the downgrade so
+                                # the UI can warn ONCE, and log it (not silent like the migration).
+                                self._secret_downgraded = True
+                                print(
+                                    "[kimcad] WARNING: the OS credential store refused the API key "
+                                    "mid-save; it was stored in the settings file instead "
+                                    "(re-save once the credential backend recovers to re-secure it).",
+                                    file=sys.stderr,
+                                )
                         current[_SECRET_KEY] = _KEYRING_SENTINEL if stored else v
                     else:
                         current[k] = v

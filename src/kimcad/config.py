@@ -8,10 +8,14 @@ accessors for the parts the pipeline needs.
 
 from __future__ import annotations
 
+import ipaddress
+import os
 import threading
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -32,6 +36,24 @@ LOCAL_CONFIG = _user_config_path()
 class UnknownConfigKey(RuntimeError):
     """An unknown printer/material/backend/connector name (QA-301). A RuntimeError subclass so the
     CLI's RuntimeError handler prints it cleanly; the web layer catches it for a 400 (not a 500)."""
+
+
+class UntrustedCloudHost(RuntimeError):
+    """ENG-001 (audit-team-b4): a cloud LLM backend that would receive a SAVED API key resolves to a
+    base_url that is not on the shipped allow-list (or isn't https). A tampered/imported
+    ``config/local.yaml`` could otherwise point a saved key at an attacker host and exfiltrate it.
+    A RuntimeError subclass so the CLI prints it cleanly and the web layer can return a 400."""
+
+
+# ENG-001 (audit-team-b4): the explicit, documented escape hatch for advanced users who KNOWINGLY
+# add a custom cloud endpoint. Fail closed by default; this env var (set to "1"/"true"/"yes") opts
+# out of the cloud base_url allow-list for the whole process. Mirrors model_pull's loopback rigor:
+# the allow-list is the default; the opt-out must be a deliberate, visible action.
+_ALLOW_CUSTOM_CLOUD_ENV = "KIMCAD_ALLOW_CUSTOM_CLOUD_HOST"
+
+
+def _custom_cloud_host_allowed() -> bool:
+    return os.environ.get(_ALLOW_CUSTOM_CLOUD_ENV, "").strip().lower() in ("1", "true", "yes")
 
 
 @dataclass(frozen=True)
@@ -151,10 +173,39 @@ class Config:
 
     # --- binaries -----------------------------------------------------------
     def binary_path(self, name: str) -> Path:
-        """Resolve a configured binary path against the project root if relative."""
+        """Resolve a configured binary path against the project root if relative.
+
+        ENG-002 (audit-team-b4): the result is handed to ``subprocess.run`` (OrcaSlicer/OpenSCAD),
+        so assert it actually resolves to a file — a missing/typo'd path now fails with a typed,
+        readable message instead of an opaque downstream OSError — and warn when a configured
+        binary resolves OUTSIDE the install root (operator-controlled config only, so a warning,
+        not a hard error: an absolute bundled-binary path is honored by design). Mirrors the
+        existing :meth:`printproof3d_binary` existence check (the inconsistency it closes)."""
         raw = self._d["binaries"][name]
         p = Path(raw)
-        return p if p.is_absolute() else (PROJECT_ROOT / p)
+        p = p if p.is_absolute() else (PROJECT_ROOT / p)
+        if not p.is_file():
+            raise UnknownConfigKey(
+                f"configured binary '{name}' resolves to {p}, which is not a file. "
+                "Fix binaries." + name + " in config/local.yaml (or fetch the bundled binary)."
+            )
+        if not self._within_install_root(p):
+            warnings.warn(
+                f"configured binary '{name}' resolves to {p}, outside the install root "
+                f"{PROJECT_ROOT} — make sure this is intentional.",
+                stacklevel=2,
+            )
+        return p
+
+    @staticmethod
+    def _within_install_root(p: Path) -> bool:
+        """True when the resolved path sits under PROJECT_ROOT (the install/repo root). Used to
+        warn — not block — on a binary configured outside the bundle (ENG-002)."""
+        try:
+            p.resolve().relative_to(PROJECT_ROOT.resolve())
+            return True
+        except ValueError:
+            return False
 
     def orca_profiles_root(self) -> Path:
         """The shipped OrcaSlicer profile tree (``resources/profiles``) next to the
@@ -335,6 +386,73 @@ class Config:
             timeout_s=float(b.get("timeout_s", 1200.0)),
             vision_model=str(b.get("vision_model", "qwen2.5vl:3b")),
         )
+
+    @staticmethod
+    def _is_local_base_url(base_url: str) -> bool:
+        """ENG-001 (audit-team-b4): is this a local/loopback LLM endpoint (Ollama/LM Studio)?
+        The cloud allow-list applies ONLY to non-local hosts — a loopback key is never exfiltrated
+        off-box. Parsed as an IP when possible (so ``127.evil.example`` doesn't sneak through as a
+        loopback), mirroring :func:`kimcad.model_pull.is_loopback_url`."""
+        host = (urlsplit(base_url).hostname or "").lower()
+        if not host:
+            return False
+        if host == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
+
+    @classmethod
+    def shipped_cloud_hosts(cls) -> set[str]:
+        """The host allow-list for cloud LLM backends, read from the SHIPPED ``config/default.yaml``
+        backends (not from the merged config) so a tampered/imported ``local.yaml`` can never widen
+        it — every non-local ``base_url`` host the product ships with (today: ``openrouter.ai`` and
+        ``api.deepseek.com``). ENG-001: hosts are derived, not hardcoded, so adding a shipped cloud
+        backend keeps the guard correct automatically."""
+        try:
+            shipped = yaml.safe_load(DEFAULT_CONFIG.read_text(encoding="utf-8")) or {}
+        except OSError:
+            shipped = {}
+        hosts: set[str] = set()
+        for b in (shipped.get("llm", {}).get("backends", {}) or {}).values():
+            url = (b or {}).get("base_url") or ""
+            if cls._is_local_base_url(url):
+                continue
+            host = (urlsplit(url).hostname or "").lower()
+            if host:
+                hosts.add(host)
+        return hosts
+
+    @classmethod
+    def validate_cloud_base_url(cls, base_url: str) -> str:
+        """ENG-001 (audit-team-b4): validate a CLOUD ``base_url`` that is about to receive a saved
+        API key. Require ``https`` AND a host on the shipped allow-list (:meth:`shipped_cloud_hosts`).
+        Fails closed by default; an advanced user who knowingly adds a custom endpoint opts out with
+        ``KIMCAD_ALLOW_CUSTOM_CLOUD_HOST=1``. Local/loopback URLs are exempt (handled by the caller,
+        but re-checked here for safety). Raises :class:`UntrustedCloudHost` otherwise. Returns the
+        validated URL unchanged so callers can use it inline. Mirrors ``model_pull.is_loopback_url``
+        in spirit: validate the host at the boundary, parse as an IP where possible."""
+        if cls._is_local_base_url(base_url):
+            return base_url
+        if _custom_cloud_host_allowed():
+            return base_url
+        parts = urlsplit(base_url)
+        host = (parts.hostname or "").lower()
+        if parts.scheme != "https":
+            raise UntrustedCloudHost(
+                f"refusing to send a saved API key to a non-https cloud endpoint ({base_url!r}). "
+                "Cloud LLM endpoints must use https. To knowingly allow a custom endpoint, set "
+                f"{_ALLOW_CUSTOM_CLOUD_ENV}=1."
+            )
+        if host not in cls.shipped_cloud_hosts():
+            allowed = ", ".join(sorted(cls.shipped_cloud_hosts())) or "(none)"
+            raise UntrustedCloudHost(
+                f"refusing to send a saved API key to an unrecognized cloud host {host!r}. "
+                f"Allowed cloud hosts: {allowed}. If you knowingly added a custom endpoint, set "
+                f"{_ALLOW_CUSTOM_CLOUD_ENV}=1 to opt out of this check."
+            )
+        return base_url
 
     def llm_alt_backend(self) -> LLMBackend | None:
         """Return the configured alt/fallback LLM backend, or None if not set.

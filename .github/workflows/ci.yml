@@ -84,6 +84,29 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "tool fetch failed" }
           } else { "tools cached" }
 
+      # TEST-102: the real-LLM live tests (test_landing_examples + the TEST-101 pipeline test) plan
+      # with the configured default chat model via Ollama. Like the OrcaSlicer/CadQuery presence
+      # checks above, probe it BEFORE the gate so its ABSENCE fails the build LOUDLY here rather than
+      # turning the real-model contract into a silent green-by-skip. The model name is read from the
+      # shipped config so this can't drift from the product's actual default (qwen2.5:7b today).
+      - name: Probe Ollama + the default chat model (real-LLM contract must not skip)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $model = .\.venv\Scripts\python.exe -c "from kimcad.config import Config; print(Config.load().llm_backend(None).model_name)"
+          if ($LASTEXITCODE -ne 0) { throw "could not read the default chat model from config" }
+          $model = $model.Trim()
+          "default chat model: $model"
+          # `ollama list` must succeed (the daemon is up) AND list the configured model — otherwise
+          # the live real-LLM tests would pytest.skip and STRICT's skip-grep would be their only net.
+          $list = & ollama list
+          if ($LASTEXITCODE -ne 0) { throw "ollama not reachable (daemon down?) - real-LLM live tests would skip" }
+          $base = ($model -split ':')[0]
+          if (-not ($list | Select-String -SimpleMatch $base)) {
+            throw "default chat model '$model' not pulled (run: ollama pull $model) - real-LLM live tests would skip"
+          }
+          "ollama + '$model' present: real-LLM live contract will RUN"
+
       - name: Provision CadQuery worker venv (cached; proves the sandbox second layer)
         shell: powershell
         run: |

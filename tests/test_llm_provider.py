@@ -56,12 +56,19 @@ class _NativeResp(io.BytesIO):
 
 def _mock_native_chat(monkeypatch, content, capture=None):
     """Stub Ollama's native /api/chat — the LOCAL design-plan transport (schema-constrained
-    `format`). Returns `content` as the assistant message; optionally captures the request body."""
+    `format`). Returns `content` as the assistant message; optionally captures the request body.
+
+    ENG-007: the plan path first sends a cheap, body-less GET (``_native_responsive``) to fail-fast
+    on a wedged server; that probe is answered with an empty OK here, and only the POST that carries
+    a JSON body is captured — so the responsiveness pre-flight doesn't clobber the captured body."""
     import kimcad.llm_provider as lp
 
     def _urlopen(req, timeout=None):
+        data = getattr(req, "data", None)
+        if data is None:  # the GET responsiveness probe — answer OK, don't capture
+            return _NativeResp(b"{}")
         if capture is not None:
-            capture["body"] = json.loads(req.data)
+            capture["body"] = json.loads(data)
         return _NativeResp(json.dumps({"message": {"content": content}}).encode())
 
     monkeypatch.setattr(lp.urllib.request, "urlopen", _urlopen)
@@ -378,6 +385,91 @@ def test_non_404_vision_http_error_is_a_read_error_not_missing_model(monkeypatch
     except VisionReadError as e:
         assert e.code == 500
         assert "try again" in str(e).lower()
+
+
+def _cloud_backend(base_url: str) -> LLMBackend:
+    return LLMBackend(
+        key="cloud", provider="openai_compatible", base_url=base_url,
+        model_name="x", api_key_env=None, temperature=0.2, max_tokens=100,
+        supports_structured_output=True,
+    )
+
+
+def test_build_client_refuses_saved_key_to_unlisted_cloud_host(monkeypatch):
+    # ENG-001 (audit-team-b4): a tampered config naming an attacker cloud host must NOT receive a
+    # saved API key — building the client refuses before the OpenAI client (and the Bearer header)
+    # is ever constructed.
+    from kimcad.config import UntrustedCloudHost
+
+    monkeypatch.delenv("KIMCAD_ALLOW_CUSTOM_CLOUD_HOST", raising=False)
+    backend = _cloud_backend("https://attacker.example/v1")
+    try:
+        LLMProvider(backend, api_key="sk-secret-key")
+        raise AssertionError("expected UntrustedCloudHost")
+    except UntrustedCloudHost as e:
+        assert "attacker.example" in str(e)
+
+
+def test_build_client_allows_saved_key_to_shipped_cloud_hosts(monkeypatch):
+    # ENG-001: the shipped OpenRouter + DeepSeek endpoints accept a saved key (the in-app Settings
+    # path). The real OpenAI client is built; no exception.
+    monkeypatch.delenv("KIMCAD_ALLOW_CUSTOM_CLOUD_HOST", raising=False)
+    for url in ("https://openrouter.ai/api/v1", "https://api.deepseek.com/v1"):
+        provider = LLMProvider(_cloud_backend(url), api_key="sk-secret-key")
+        assert provider.client is not None
+
+
+def test_build_client_escape_hatch_allows_custom_cloud_host(monkeypatch):
+    # ENG-001: the documented opt-out lets an advanced user knowingly send a saved key to a custom
+    # endpoint. Fail closed without it (covered above); succeed with it set.
+    monkeypatch.setenv("KIMCAD_ALLOW_CUSTOM_CLOUD_HOST", "1")
+    provider = LLMProvider(_cloud_backend("https://my-proxy.internal/v1"), api_key="sk-secret-key")
+    assert provider.client is not None
+
+
+def test_build_client_keyless_cloud_backend_is_not_gated(monkeypatch):
+    # ENG-001: the validation guards SAVED KEYS. A backend with no key (the "not-needed" sentinel)
+    # sends no credential, so an arbitrary base_url is not a key-exfiltration path and is not gated.
+    monkeypatch.delenv("KIMCAD_ALLOW_CUSTOM_CLOUD_HOST", raising=False)
+    provider = LLMProvider(_cloud_backend("https://attacker.example/v1"))  # no api_key
+    assert provider.client is not None
+
+
+def test_native_plan_path_fails_fast_on_wedged_but_listening_server(monkeypatch):
+    # ENG-007 (audit-team-b4): a server that ACCEPTS the connection but never responds must fail
+    # fast (within the short connect/first-byte budget) instead of blocking for the full timeout_s.
+    # The responsiveness pre-flight GET times out -> the call raises promptly, never reaching the
+    # long-budget generation urlopen.
+    import socket
+
+    import kimcad.llm_provider as lp
+
+    backend = LLMBackend(
+        key="local", provider="ollama", base_url="http://localhost:11434/v1",
+        model_name="qwen2.5:7b", api_key_env=None, temperature=0.2,
+        max_tokens=100, supports_structured_output=False,
+        timeout_s=1200.0,  # the long generation budget we must NOT block on
+    )
+    calls: list[float | None] = []
+
+    def _wedged_urlopen(req, timeout=None):
+        # Record the timeout each urlopen was given, then emulate a wedged server: it accepts the
+        # connection but never answers, so the read times out after `timeout` seconds.
+        calls.append(timeout)
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(lp.urllib.request, "urlopen", _wedged_urlopen)
+    provider = LLMProvider(backend, client=FakeChatClient("unused"), max_attempts=6, retry_wait_s=0)
+    try:
+        provider.generate_design_plan("a box", BAMBU, PLA)
+        raise AssertionError("expected a transport error")
+    except Exception as e:  # noqa: BLE001 - asserting it fails fast, not which exact type
+        assert not isinstance(e, AssertionError)
+    # The FIRST urlopen (the responsiveness probe) used the SHORT budget, not the 1200 s read
+    # budget — proof the wedged server can't hold the call open for the full timeout_s.
+    assert calls, "the responsiveness probe should have run"
+    assert calls[0] == provider._NATIVE_CONNECT_TIMEOUT_S
+    assert all(t == provider._NATIVE_CONNECT_TIMEOUT_S for t in calls)
 
 
 def test_vision_refuses_a_non_local_host_structurally(monkeypatch):

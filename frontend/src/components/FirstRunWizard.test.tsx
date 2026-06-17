@@ -15,7 +15,7 @@ vi.mock('../api', () => ({
     cloud_enabled: false,
   }),
   getModelStatus: vi.fn().mockResolvedValue({
-    model: 'gemma4:e4b',
+    model: 'qwen2.5:7b',
     backend: 'local',
     running: true,
     model_present: true,
@@ -44,10 +44,13 @@ describe('FirstRunWizard', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('shows gemma4:e4b as THE design model with its health — no alternative chat model offered', async () => {
+  it('renders the API-reported design model (qwen2.5:7b) with its health — no alternative chat model offered', async () => {
+    // TEST-105 (audit-team-b4): the model name comes from the API (getModelStatus); this asserts the
+    // component renders THAT value + its health and offers no alternative chat model. The mock now
+    // returns the real default (qwen2.5:7b), not the stale gemma4:e4b the old test name implied.
     const { container } = render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i) // → Your AI model
-    expect(await screen.findByText('gemma4:e4b')).toBeTruthy()
+    expect(await screen.findByText('qwen2.5:7b')).toBeTruthy()
     // The model health is "Ready" (running + present) — scoped to the status element so it doesn’t
     // collide with the rail’s step-5 label, also named "Ready".
     expect(container.querySelector('.kc-wiz-model-stat')?.textContent).toMatch(/Ready/)
@@ -56,6 +59,22 @@ describe('FirstRunWizard', () => {
     // companion for reading images, not an alternative — its mention is allowed.
     expect(screen.queryByText(/qwen2\.5-coder/i)).toBeNull()
     expect(container.querySelectorAll('.kc-wiz-modelcard').length).toBe(1) // ONE model card
+  })
+
+  it('falls back to the real default model name (qwen2.5:7b) when the API reports no model', async () => {
+    // TEST-105: the component hardcodes `model?.model ?? 'qwen2.5:7b'`. When the API is reachable
+    // but reports no model name, the wizard must show the REAL default fallback (qwen2.5:7b), not
+    // the stale gemma4:e4b. This pins that literal.
+    const api = await import('../api')
+    vi.mocked(api.getModelStatus).mockResolvedValueOnce({
+      model: undefined as unknown as string,
+      backend: 'local',
+      running: false,
+      model_present: false,
+    })
+    render(<FirstRunWizard onClose={vi.fn()} />)
+    go(/continue/i) // → Your AI model
+    expect(await screen.findByText('qwen2.5:7b')).toBeTruthy()
   })
 
   it('persists the chosen printer via the settings endpoint', async () => {
@@ -73,7 +92,7 @@ describe('FirstRunWizard', () => {
     const onClose = vi.fn()
     render(<FirstRunWizard onClose={onClose} />)
     go(/continue/i) // model step
-    await screen.findByText('gemma4:e4b')
+    await screen.findByText('qwen2.5:7b')
     const cloudDetails = document.querySelector('details.kc-wiz-cloud') as HTMLDetailsElement
     cloudDetails.open = true
     fireEvent(cloudDetails, new Event('toggle'))
@@ -109,7 +128,7 @@ describe('FirstRunWizard', () => {
   it('recap does not claim "+ OpenRouter" for a key without a model (honest)', async () => {
     render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i) // model
-    await screen.findByText('gemma4:e4b')
+    await screen.findByText('qwen2.5:7b') // waypoint: the model step rendered (TEST-105: real default)
     const cloudDetails2 = document.querySelector('details.kc-wiz-cloud') as HTMLDetailsElement
     cloudDetails2.open = true
     fireEvent(cloudDetails2, new Event('toggle'))
@@ -117,9 +136,9 @@ describe('FirstRunWizard', () => {
     go(/continue/i) // printer
     go(/continue/i) // direct
     go(/continue/i) // ready
-    // The recap model reads plain gemma4:e4b — an exact match proves no "+ OpenRouter" suffix was
+    // The recap model reads plain qwen2.5:7b — an exact match proves no "+ OpenRouter" suffix was
     // appended (cloud isn’t usable without a model slug, so the recap must not imply it is).
-    expect(screen.getByText('gemma4:e4b')).toBeTruthy()
+    expect(screen.getByText('qwen2.5:7b')).toBeTruthy()
   })
 
   it('recap says "You’re all set" only when the model is actually ready (UX-002)', async () => {

@@ -887,6 +887,32 @@ def make_handler(
             if not getattr(self, "_head_only", False):
                 self.wfile.write(body)
 
+        def _stream_file(self, path: Path, content_type: str,
+                         filename: str | None = None) -> None:
+            """ENG-006 (audit-team-b4): stream an artifact straight from disk instead of buffering
+            the whole file in RAM. Content-Length comes from ``stat()`` and the body is copied in
+            bounded chunks via ``shutil.copyfileobj`` — so a large mesh/g-code/STEP (the render/slice
+            ceiling is 200 MiB, an imported mesh up to 64 MiB) no longer spikes RSS per concurrent
+            ThreadingHTTPServer connection. ``filename`` (when given) sets a download disposition;
+            a HEAD request still sends the headers with no body. Caller has already confirmed the
+            path exists."""
+            try:
+                size = path.stat().st_size
+            except OSError:
+                self._json(404, {"error": "Not found."})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            if filename is not None:
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(size))
+            self.end_headers()
+            if getattr(self, "_head_only", False):
+                return
+            with open(path, "rb") as fh:
+                # 64 KiB chunks: bounded memory regardless of artifact size.
+                shutil.copyfileobj(fh, self.wfile, 64 * 1024)
+
         def do_GET(self) -> None:
             if self.path in ("/", "/index.html"):
                 # ENG-405: serve the SPA shell fresh (via the freshness-cached static path) so a
@@ -1054,7 +1080,8 @@ def make_handler(
                 self._json(404, {"error": "g-code not found"})
                 return
             ctype = _MESH_CONTENT_TYPES.get(gcode_path.suffix.lower(), "application/octet-stream")
-            self._send_download(gcode_path.read_bytes(), ctype, gcode_path.name)
+            # ENG-006: stream from disk (Content-Length from stat()) — a 3MF g-code can be large.
+            self._stream_file(gcode_path, ctype, gcode_path.name)
 
         def _is_cross_site(self) -> bool:
             """True when a modern browser tells us this request came from a DIFFERENT origin.
@@ -1092,7 +1119,8 @@ def make_handler(
             # A safe, per-design filename: `sid` is the int-parsed id (no caller string -> no
             # Content-Disposition header-injection), so each download is uniquely named rather
             # than every STEP saving as the same "part.step".
-            self._send_download(step_path.read_bytes(), "application/step", f"kimcad-part-{sid}.step")
+            # ENG-006: stream from disk rather than buffering the whole STEP body in RAM.
+            self._stream_file(step_path, "application/step", f"kimcad-part-{sid}.step")
 
         def _build_template_step(self, sid: int) -> Path | None:
             """Build + cache the editable CAD for a template design from its trusted
@@ -1252,7 +1280,9 @@ def make_handler(
             content_type = _MESH_CONTENT_TYPES.get(
                 mesh_path.suffix.lower(), "application/octet-stream"
             )
-            self._send(200, mesh_path.read_bytes(), content_type)
+            # ENG-006: stream from disk (Content-Length from stat()) instead of read_bytes() —
+            # an imported mesh can be up to 64 MiB; buffering it per concurrent request spikes RSS.
+            self._stream_file(mesh_path, content_type)
 
         def _reject_oversized_body(self, declared: int, message: str) -> None:
             """Send a typed 413 for an over-limit request body WITHOUT leaving undrained bytes
@@ -1337,6 +1367,22 @@ def make_handler(
             # with no cookie-based auth to forge, so a constant per-boot bearer the attacker cannot
             # read is the proportionate defense-in-depth (a custom header also forces a CORS
             # preflight that a cross-origin POST can't satisfy).
+            #
+            # QA-001/QA-005 (audit-team-b4): for a KNOWN GET-only path, answer the method mismatch
+            # (405 + truthful Allow) BEFORE the session-token guard — a POST to e.g. /api/health is
+            # a wrong-verb error, and returning the token 403 first told an integrator "bad token"
+            # where "wrong method" is the truer signal. These routes are read-only (no state change),
+            # so evaluating the method check first weakens nothing — the token guard still runs first
+            # for every actual state-changing POST route below. The 405 uses _method_not_allowed so
+            # the JSON {"error":"Method not allowed."} envelope is emitted in BOTH paths (QA-005: the
+            # old inline block sent an empty body), keeping the error contract uniform.
+            _getonly_post = self.path in (
+                "/api/options", "/api/model-status", "/api/health", "/api/connectors",
+                "/api/model-pull/progress", "/api/designs",
+            ) or self.path.startswith(("/api/connector-status/", "/api/design/progress/"))
+            if _getonly_post:
+                self._method_not_allowed()
+                return
             if session_token and not hmac.compare_digest(
                 self.headers.get("X-KimCad-Session", ""), session_token
             ):
@@ -1400,20 +1446,10 @@ def make_handler(
                     if tail.endswith("/" + verb):
                         self._handle_design_mutate(tail[: -(len(verb) + 1)], verb)
                         return
-            # QA-002: a POST to an existing GET-only resource is 405 (method not allowed) with an
-            # Allow header — a 404 would wrongly imply the resource doesn't exist. QA-1002
-            # (stage-10 gate): the Stage 10 GET-only routes joined the list, and /api/designs
-            # (the GET collection) gets the same treatment.
-            getonly = self.path in (
-                "/api/options", "/api/model-status", "/api/health", "/api/connectors",
-                "/api/model-pull/progress", "/api/designs",
-            )
-            if getonly or self.path.startswith(("/api/connector-status/", "/api/design/progress/")):
-                self.send_response(405)
-                self.send_header("Allow", "GET, HEAD")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
+            # QA-001/QA-005 (audit-team-b4): POSTs to a known GET-only resource (405 + truthful
+            # Allow, JSON envelope) are now handled at the top of do_POST — BEFORE the token guard
+            # — via _method_not_allowed, so a wrong-verb call gets 405 not 403, with a body. Nothing
+            # reaching here is a GET-only path, so an unmatched POST is a genuine 404.
             self._json(404, {"error": "Not found."})
 
         # Stage 8.5 Slice 6 — the in-app Settings screen.
@@ -1748,6 +1784,12 @@ def make_handler(
                 key_storage=store.key_storage() if store is not None else None,
             )
             payload["saved"] = saved_ok
+            # ENG-005 (audit-team-b4): if this save just downgraded the key keyring->file because
+            # the OS credential backend transiently refused, signal it ONCE so the UI can warn the
+            # user to re-secure (key_storage already tells WHERE it lives; this names the moment it
+            # moved). Read-and-clear, so the notice doesn't repeat on every settings fetch.
+            if store is not None and store.take_secret_downgraded():
+                payload["key_downgraded"] = True
             self._json(200, payload)
 
         def _handle_connector_status(self, name: str) -> None:
@@ -2452,7 +2494,14 @@ def make_handler(
                     except (KeyError, UnknownConfigKey) as e:
                         # An unknown printer/material name is a client error (400), not a 500 —
                         # config now raises UnknownConfigKey (QA-301) instead of a bare KeyError.
-                        self._json(400, {"error": f"Unknown printer or material: {e}"})
+                        # QA-002 (audit-team-b4): config's message inlines the whole ~29-printer
+                        # catalog ("...'. Available: a, b, c, ..."). That's a huge unstructured
+                        # string for an SPA to surface, and the same list is already a structured
+                        # field on GET /api/options — so trim to just the bad key and point there.
+                        msg = str(e)
+                        bad = msg.split(". Available:", 1)[0]
+                        self._json(400, {"error": f"Unknown printer or material: {bad}. "
+                                                  f"See /api/options for the valid keys."})
                         return
                     except Exception as e:  # never leak a traceback to the browser
                         # QA-003: OrcaSlicer never fetched is a setup state with a recovery
@@ -2502,8 +2551,24 @@ def make_handler(
             if data is None:
                 return
             values = data.get("values")
-            if not isinstance(values, dict):
-                self._json(400, {"error": "Provide the parameter values to re-render."})
+            if not isinstance(values, dict) or not values:
+                # QA-003 (audit-team-b4): the old single message ("Provide the parameter values
+                # to re-render.") fired even when values WERE sent — just in a shape the handler
+                # didn't accept (e.g. nested under a `parameters` wrapper, or a non-dict) — which
+                # misled an integrator into thinking they'd supplied nothing. Distinguish "no
+                # values supplied" from "values present but in an unusable shape" so the diagnostic
+                # is honest. (The SPA's range-bounded sliders always send the right shape.)
+                # "Sent something" = any key other than `values`, or a `values` that's present but
+                # non-empty in a shape we couldn't use (a list/scalar). An absent/empty/null `values`
+                # with no other keys is a genuine "no values supplied".
+                other_keys = any(k != "values" for k in data)
+                values_present_unusable = "values" in data and data.get("values") not in (None, {}, [])
+                if other_keys or values_present_unusable:
+                    self._json(400, {"error": "Couldn't read the parameter values: send them as a "
+                                              "JSON object under a `values` key, e.g. "
+                                              '{"values": {"width": 50}}.'})
+                else:
+                    self._json(400, {"error": "Provide the parameter values to re-render."})
                 return
             base_plan, family_name = state
             try:

@@ -18,6 +18,33 @@ Get-FileHash .\KimCad-Setup-0.9.0b4.exe -Algorithm SHA256
 
 The hash must match the `.sha256` file from the same release page exactly.
 
+### Verifying the release files
+
+Beyond the single `.sha256` beside the installer, each release also publishes two files that let
+you verify everything in one pass and confirm exactly what source the build came from:
+
+- **`SHA256SUMS.txt`** — one line per release artifact (`<sha256>  <filename>`). Drop it next to
+  the files you downloaded and let PowerShell check them all at once:
+
+  ```
+  Get-Content .\SHA256SUMS.txt | ForEach-Object {
+    $hash, $name = $_ -split '\s+', 2
+    $actual = (Get-FileHash $name.Trim() -Algorithm SHA256).Hash
+    "{0}  {1}" -f ($(if ($actual -eq $hash.ToUpper()) {'OK   '} else {'FAIL '}), $name.Trim())
+  }
+  ```
+
+  Every line should report `OK`. A `FAIL` (or a missing file) means a tampered or incomplete
+  download — re-download from the release page.
+
+- **`release-manifest.json`** — records the build's metadata, including the **exact source commit**
+  the installer was built from and a `unsigned_build` flag. The flag is **expected**: KimCad's beta
+  is honestly unsigned (there is no code-signing certificate, and therefore **no signed
+  attestation**). The manifest is how you confirm provenance instead — match its commit against the
+  tagged release on GitHub.
+
+These two files are the release's integrity story; there is no signed attestation to look for.
+
 ## What the installer puts where
 
 - **The app** (Python runtime, the design engine, OpenSCAD, OrcaSlicer, the PrintProof3D
@@ -36,8 +63,9 @@ The hash must match the `.sha256` file from the same release page exactly.
 1. The wizard checks for **Ollama** (the free local AI runtime). Don't have it? The
    wizard's **Get Ollama** button takes you to the official download — install it, then
    come back and *check again*.
-2. The wizard's **Download now** button fetches KimCad's two AI models (about 13 GB
-   total) with a progress bar. Designing in words works as soon as the first finishes.
+2. The wizard's **Download now** button fetches KimCad's two AI models (about **8 GB**
+   total to download — chat ~4.7 GB + vision ~3 GB; keep **13–20 GB** of free disk for
+   headroom) with a progress bar. Designing in words works as soon as the first finishes.
 3. Pick your printer, and you're designing.
 
 Everything runs on your computer. Nothing you design, photograph, or sketch leaves your

@@ -284,7 +284,8 @@ STL mid-re-render.
 ## Local-first and the injectable seam
 
 KimCad is **local-first**: out of the box it talks to a local runtime (Ollama or LM
-Studio) running `gemma4:e4b`, so there's no API key and no network requirement. A cloud
+Studio) running the default planner `qwen2.5:7b` (with `gemma4:e4b` as the non-China
+fallback), so there's no API key and no network requirement. A cloud
 API (DeepSeek or any OpenAI-compatible endpoint) is an opt-in fallback configured in
 `config/local.yaml`.
 

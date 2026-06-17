@@ -4,7 +4,7 @@ import pytest
 
 import kimcad.cadquery_runner as cadquery_runner
 from kimcad.cadquery_runner import find_cadquery_interpreter
-from kimcad.config import Config
+from kimcad.config import Config, UnknownConfigKey, UntrustedCloudHost
 
 
 def test_unknown_printer_material_backend_raise_friendly_errors():
@@ -93,6 +93,81 @@ def test_binary_path_resolves_to_project_root():
     p = cfg.binary_path("openscad")
     assert p.is_absolute()
     assert "tools" in p.parts
+
+
+# --- ENG-002 (audit-team-b4): binary_path validates existence + warns on escape ----------
+
+def test_binary_path_raises_typed_error_when_not_a_file(tmp_path):
+    # ENG-002: a missing/typo'd binary path now fails with a typed, readable UnknownConfigKey
+    # (a RuntimeError subclass the CLI/web layer already handle) instead of an opaque downstream
+    # OSError from subprocess.run.
+    missing = tmp_path / "does-not-exist.exe"
+    cfg = Config({"binaries": {"openscad": str(missing)}})
+    with pytest.raises(UnknownConfigKey, match="not a file"):
+        cfg.binary_path("openscad")
+
+
+def test_binary_path_warns_when_binary_escapes_install_root(tmp_path):
+    # ENG-002: an absolute binary OUTSIDE the install root resolves (operator-controlled config is
+    # honored by design) but warns — defense-in-depth against a config that points the exec sink at
+    # an arbitrary system path. The file must exist so we pass the is_file() gate first.
+    outside = tmp_path / "rogue.exe"
+    outside.write_text("stub", encoding="utf-8")
+    cfg = Config({"binaries": {"openscad": str(outside)}})
+    with pytest.warns(UserWarning, match="outside the install root"):
+        p = cfg.binary_path("openscad")
+    assert p == outside
+
+
+# --- ENG-001 (audit-team-b4): cloud base_url is scheme/host-validated --------------------
+
+def test_shipped_cloud_hosts_are_derived_from_default_config():
+    # ENG-001: the allow-list is READ from the shipped default.yaml backends (not hardcoded), so it
+    # stays correct as backends are added. Today: openrouter.ai + api.deepseek.com.
+    hosts = Config.shipped_cloud_hosts()
+    assert "openrouter.ai" in hosts
+    assert "api.deepseek.com" in hosts
+    # localhost/loopback backends (the `local` default) must NOT be on the cloud allow-list.
+    assert "localhost" not in hosts
+
+
+def test_validate_cloud_base_url_accepts_shipped_https_hosts():
+    # The shipped OpenRouter + DeepSeek endpoints pass unchanged.
+    assert Config.validate_cloud_base_url("https://openrouter.ai/api/v1")
+    assert Config.validate_cloud_base_url("https://api.deepseek.com/v1")
+
+
+def test_validate_cloud_base_url_refuses_non_https():
+    # ENG-001: an http:// cloud endpoint (downgrade) is refused with a clear error.
+    with pytest.raises(UntrustedCloudHost, match="non-https"):
+        Config.validate_cloud_base_url("http://openrouter.ai/api/v1")
+
+
+def test_validate_cloud_base_url_refuses_unlisted_host():
+    # ENG-001: the core exfiltration vector — a tampered local.yaml naming an attacker host — is
+    # refused even over https.
+    with pytest.raises(UntrustedCloudHost, match="unrecognized cloud host"):
+        Config.validate_cloud_base_url("https://attacker.example/v1")
+
+
+def test_validate_cloud_base_url_exempts_loopback():
+    # A local/loopback endpoint never leaves the box, so the cloud allow-list doesn't apply
+    # (and a 127.x trick host is still treated as loopback only when it parses as a loopback IP).
+    assert Config.validate_cloud_base_url("http://localhost:11434/v1")
+    assert Config.validate_cloud_base_url("http://127.0.0.1:11434/v1")
+    # ...but a deceptive hostname that merely *starts* 127 is NOT loopback -> still gated.
+    with pytest.raises(UntrustedCloudHost):
+        Config.validate_cloud_base_url("http://127.evil.example/v1")
+
+
+def test_validate_cloud_base_url_escape_hatch_env_var(monkeypatch):
+    # ENG-001: the documented opt-out for advanced users who knowingly add a custom endpoint.
+    # Fail closed by default; KIMCAD_ALLOW_CUSTOM_CLOUD_HOST=1 lets a custom host through.
+    monkeypatch.delenv("KIMCAD_ALLOW_CUSTOM_CLOUD_HOST", raising=False)
+    with pytest.raises(UntrustedCloudHost):
+        Config.validate_cloud_base_url("https://my-proxy.internal/v1")
+    monkeypatch.setenv("KIMCAD_ALLOW_CUSTOM_CLOUD_HOST", "1")
+    assert Config.validate_cloud_base_url("https://my-proxy.internal/v1")
 
 
 # --- Stage 8: CadQuery interpreter discovery + config -------------------------------------

@@ -30,9 +30,11 @@ rather than folklore.
 
 ### 4. The first setup is downloading something huge. What and why?
 
-The local chat model is roughly a **9 GB** one-time download (the price of a capable AI
-that runs entirely on your machine). The setup wizard downloads it in-app with a live
-progress bar; your designs afterward need no network at all.
+The two local models total roughly **8 GB** as a one-time download — the chat/planner model
+(~4.7 GB) plus the vision model (~3 GB) — the price of a capable AI that runs entirely on your
+machine. The setup wizard downloads them in-app with a live progress bar; your designs afterward
+need no network at all. (Free-disk recommendation is higher — see the install guide — because
+that headroom covers more than the download itself.)
 
 ### 5. How long does a design take?
 
@@ -88,7 +90,8 @@ Three reference printers (Bambu Lab P2S, Bambu Lab A1, Elegoo Neptune 4 Max) are
 end-to-end with slicing **proven in CI**, and the installer bundles OrcaSlicer's full
 profile library — **~65 brands, 1,400+ machines** — with picker support for the rest of
 that library in active development. Direct send works over **your LAN, no printer cloud**:
-Bambu (native), OctoPrint, Moonraker/Klipper, and PrusaLink. No physical print is certified
+Bambu (native), OctoPrint, Moonraker/Klipper, PrusaLink, Duet/RepRapFirmware, and Marlin
+(Ender-class, over USB serial or a network bridge). No physical print is certified
 yet — that's exactly what this beta exists to prove; always watch first prints.
 
 ### 13. Why LAN-only for Bambu? Where's cloud mode?

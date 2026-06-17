@@ -133,6 +133,14 @@ def test_offline_job_status_returns_error():
     assert job.state is JobState.error
 
 
+def test_offline_job_status_detail_is_clean_not_raw_exception():
+    # ENG-009: job_status() must mirror status()'s QA-003 clean detail — never the raw
+    # urllib/WinError string (which surfaces in the UI/API).
+    job = _connector("http://127.0.0.1:1").job_status("x")
+    assert job.detail == "could not reach the printer"
+    assert "Errno" not in (job.detail or "") and "127.0.0.1" not in (job.detail or "")
+
+
 def test_job_status_http_error_is_error_not_unreachable():
     # A 401/403 on job_status is reachable-but-rejected — reported as the HTTP code, NOT
     # mislabeled "unreachable" (HTTPError must be caught before its URLError superclass).

@@ -35,6 +35,9 @@ function DesignCard({
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(design.name)
   const [busy, setBusy] = useState(false)
+  // UX-007 (b4 audit): a thumbnail that 404s / decodes empty must not paint a black void — the
+  // card falls back to the designed object-type tile (same as a thumb-less import) on error.
+  const [thumbFailed, setThumbFailed] = useState(false)
   // UX-007: a per-card error so a failed Rename/Duplicate/Delete can't silently read as success.
   const [err, setErr] = useState<string | null>(null)
   // Two-step delete: the first click arms it, a second confirms — so a saved design isn't lost to
@@ -92,8 +95,16 @@ function DesignCard({
         onClick={() => onOpen(design.id)}
         aria-label={`Open ${design.name}`}
       >
-        {design.thumb_url ? (
-          <img className="kc-design-thumb" src={design.thumb_url} alt="" loading="lazy" />
+        {design.thumb_url && !thumbFailed ? (
+          <img
+            className="kc-design-thumb"
+            src={design.thumb_url}
+            alt=""
+            loading="lazy"
+            // UX-007: a failed/empty thumbnail (despite has_thumb:true) swaps to the designed tile
+            // below instead of a black square.
+            onError={() => setThumbFailed(true)}
+          />
         ) : (
           <div className="kc-design-thumb kc-design-thumb-empty" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor"

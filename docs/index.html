@@ -396,7 +396,7 @@
     <div class="note">
       <h3>This is a beta, and we won't pretend otherwise.</h3>
       <p>All eleven build stages are complete and gate-passed. But <b>real-hardware print validation is the beta's own job</b> — every send-to-printer connector is validated against a runnable conformance mock of the printer's real protocol, <b>not yet on physical metal (#11)</b>. If you have a printer, your report is the single most valuable thing you can give back.</p>
-      <p>The installer is <b>unsigned</b> (no code-signing certificate yet), so Windows SmartScreen will warn <code>"Windows protected your PC"</code> — that's expected; click <b>More info → Run anyway</b>. The install guide shows how to verify the SHA-256 checksum and the signed attestation attached to each release.</p>
+      <p>The installer is <b>unsigned</b> (no code-signing certificate yet), so Windows SmartScreen will warn <code>"Windows protected your PC"</code> — that's expected; click <b>More info → Run anyway</b>. The install guide shows how to verify the SHA-256 checksums (<code>SHA256SUMS.txt</code>) and the build manifest (<code>release-manifest.json</code>, which records the exact source commit and is flagged <code>unsigned_build</code>) attached to each release.</p>
     </div>
   </div>
 </section>

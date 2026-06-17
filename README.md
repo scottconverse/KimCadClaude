@@ -37,7 +37,7 @@ The installer (`KimCad-Setup-<version>.exe`) — one double-click, **zero termin
 ### Beta notes — honest status
 
 - **It's a beta.** All eleven build stages are complete and gate-passed at 0/0/0/0/0, but **real-hardware print validation is the beta's own job** — connectors are proven against each printer's real software protocol with runnable mock servers, not yet on physical metal. If you have a printer, [your report](docs/beta/first-hardware-contact.md) is the most valuable thing you can give.
-- **The installer is unsigned** (no code-signing cert yet), so Windows **SmartScreen** will show a blue *"Windows protected your PC"* warning. That's expected — click **More info → Run anyway**; the [install guide](docs/install-guide.md) walks it through and shows how to verify the SHA-256 checksum + the signed attestation attached to the release.
+- **The installer is unsigned** (no code-signing cert yet), so Windows **SmartScreen** will show a blue *"Windows protected your PC"* warning. That's expected — click **More info → Run anyway**; the [install guide](docs/install-guide.md) walks it through and shows how to verify the SHA-256 checksums (`SHA256SUMS.txt`) and the build manifest (`release-manifest.json`, which records the exact source commit and is flagged `unsigned_build`) attached to the release.
 - **A curated catalog of ~29 printers** across the top makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol) — each build-volume-gated and **slice-proven in CI**; three of them (Bambu P2S, A1, Elegoo Neptune 4 Max) are **reference printers** also wired for native direct-send. The rest of the 1,400-profile library is on disk and promoted into the picker as each machine clears the slice bar ([supported printers](docs/supported-printers.md)).
 
 > **For beta testers — the fastest path:** [Download](../../releases/latest) → run the installer (SmartScreen → *More info* → *Run anyway*) → open KimCad → describe a part → slice it → if you have a printer, send it and [tell us what happened](../../discussions/2).
@@ -461,7 +461,7 @@ recipe (briefcase `.app` / AppImage), and what's left to build.
 | Read this | If you want to |
 |---|---|
 | **[User manual](docs/USER-MANUAL.md)** | the complete guide — everyday use, the CLI/power-user surface, and the architecture |
-| [FAQ](docs/FAQ.md) | quick answers — SmartScreen, the 9 GB download, printers, privacy, recovery |
+| [FAQ](docs/FAQ.md) | quick answers — SmartScreen, the model download, printers, privacy, recovery |
 | [Part-library catalog](docs/templates.md) | every one of the 86 template families, grouped by theme, with its honesty tier |
 | [Install guide](docs/install-guide.md) | install the Windows beta (double-click, no terminal) |
 | [Troubleshooting](docs/troubleshooting.md) | fix a setup or runtime snag, symptom-first |

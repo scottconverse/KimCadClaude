@@ -364,5 +364,7 @@ class MarlinConnector:
                 return PrintJob(job_id=job_id, state=JobState.printing, progress=round(progress, 4))
 
             return self._converse(run)
-        except (PrinterOffline, ConnectorError) as e:
-            return PrintJob(job_id=job_id, state=JobState.error, detail=str(e)[:120])
+        except (PrinterOffline, ConnectorError):
+            # ENG-009: mirror the QA-003 status() treatment — a clean fixed detail, not the raw
+            # exception text (a noisy urllib/WinError/serial string), which the UI/API surfaces.
+            return PrintJob(job_id=job_id, state=JobState.error, detail="could not reach the printer")

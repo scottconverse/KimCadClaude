@@ -38,7 +38,7 @@ export default function ConnectionsCard() {
   // failed load would be a dead end. Say so, offer a retry.
   if (failed) {
     return (
-      <section className="kc-set-card">
+      <section id="set-connections" className="kc-set-card">
         <h2 className="kc-set-h">Printer connections</h2>
         <p className="kc-muted-note">
           Couldn’t load your printer connections just now.{' '}
@@ -83,7 +83,10 @@ export default function ConnectionsCard() {
   }
 
   return (
-    <section className="kc-set-card">
+    // UX-003 (b4 audit): the `set-connections` anchor for the Settings section-nav lives on the
+    // real card (this section only renders when there's a connection), so the nav link resolves
+    // to actual content rather than an empty placeholder.
+    <section id="set-connections" className="kc-set-card">
       <h2 className="kc-set-h">Printer connections</h2>
       <p className="kc-set-sub">
         Send finished prints straight from KimCad. Fill in a printer’s address (and for

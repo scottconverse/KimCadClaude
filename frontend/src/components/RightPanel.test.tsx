@@ -167,6 +167,42 @@ describe('RightPanel Inspector tabs', () => {
     expect(screen.queryByText('Passed')).toBeNull()
     expect(screen.getAllByRole('tab')).toHaveLength(3)
   })
+
+  // UX-002 (b4 audit): the WAI-ARIA APG Tabs keyboard model. Arrow/Home/End move BOTH selection
+  // and focus, with wrap; roving tabindex keeps a single Tab stop (active=0, others=-1).
+  it('moves selection + focus with Arrow/Home/End and wraps (roving tabindex)', () => {
+    stubFetch()
+    renderPanel({ result: passResult })
+    const parameters = screen.getByRole('tab', { name: 'Parameters' })
+    const quality = screen.getByRole('tab', { name: 'Quality' })
+    const exportTab = screen.getByRole('tab', { name: 'Export' })
+
+    // Roving tabindex at rest: only the active (Parameters) tab is in the Tab order.
+    expect(parameters.getAttribute('tabindex')).toBe('0')
+    expect(quality.getAttribute('tabindex')).toBe('-1')
+    expect(exportTab.getAttribute('tabindex')).toBe('-1')
+
+    // ArrowRight from Parameters → Quality (selection follows focus, focus moves).
+    parameters.focus()
+    fireEvent.keyDown(parameters, { key: 'ArrowRight' })
+    expect(quality.getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(quality)
+    expect(quality.getAttribute('tabindex')).toBe('0')
+    expect(parameters.getAttribute('tabindex')).toBe('-1')
+
+    // ArrowLeft wraps from Quality → Parameters → (again) Export.
+    fireEvent.keyDown(quality, { key: 'ArrowLeft' })
+    expect(screen.getByRole('tab', { name: 'Parameters' }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Parameters' }), { key: 'ArrowLeft' })
+    expect(screen.getByRole('tab', { name: 'Export' }).getAttribute('aria-selected')).toBe('true')
+
+    // End jumps to the last tab, Home back to the first.
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Export' }), { key: 'Home' })
+    expect(screen.getByRole('tab', { name: 'Parameters' }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Parameters' }), { key: 'End' })
+    expect(screen.getByRole('tab', { name: 'Export' }).getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Export' }))
+  })
 })
 
 describe('RightPanel', () => {

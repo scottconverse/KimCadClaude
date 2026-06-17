@@ -460,6 +460,66 @@ def test_cadquery_part_exposes_a_step_download(tmp_path):
         assert "application/step" in (resp.headers.get("Content-Type") or "")
 
 
+class _BigMeshPipeline:
+    """ENG-006: a pipeline whose oriented mesh is moderately large (a real exported STL of a
+    high-segment cylinder, comfortably bigger than the 64 KiB stream chunk) so the streamed mesh
+    download is forced to cross multiple copyfileobj chunk boundaries."""
+
+    def run(self, prompt, out_dir, **kw):  # noqa: ANN001
+        import trimesh
+
+        from kimcad.ir import DesignPlan
+        from kimcad.pipeline import PipelineResult, PipelineStatus, PrintReport
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        mesh = out_dir / "part.oriented.stl"
+        # ~hundreds of KiB of real STL geometry (many triangles) — multiple 64 KiB chunks.
+        trimesh.creation.cylinder(radius=10, height=20, sections=2000).export(str(mesh))
+        plan = DesignPlan(object_type="block", summary="s", bounding_box_mm=[20, 20, 20])
+        report = PrintReport(
+            object_type="block", summary="s", printer="P", material="M",
+            gate_status="pass", headline="", target_bbox_mm=[20, 20, 20],
+            actual_bbox_mm=(20.0, 20.0, 20.0), findings=[], watertight=True,
+            repaired=False, repairs=[], n_bodies=1, volume_mm3=8000.0,
+            orientation="flat", orientation_stability=1.0, sanitizer_removed=[],
+        )
+        return PipelineResult(
+            status=PipelineStatus.completed, prompt=prompt, plan=plan,
+            report=report, mesh_path=mesh,
+        )
+
+
+def test_mesh_download_streams_correct_bytes_and_content_length(tmp_path):
+    """ENG-006 (audit-team-b4): the mesh download is now streamed from disk
+    (shutil.copyfileobj in bounded chunks) instead of buffered whole into RAM. A
+    moderately-sized artifact must still come back byte-identical with a Content-Length
+    equal to the file size on disk — i.e. streaming preserves the response contract."""
+    import json
+    import urllib.request
+    from pathlib import Path
+
+    with _serve(_BigMeshPipeline(), tmp_path) as (host, port):
+        base = f"http://{host}:{port}"
+        data = json.load(urllib.request.urlopen(urllib.request.Request(
+            base + "/api/design",
+            data=json.dumps({"prompt": "a part"}).encode(),
+            headers={"Content-Type": "application/json"},
+        ), timeout=30))
+        assert data.get("mesh_url"), data
+        resp = urllib.request.urlopen(base + data["mesh_url"], timeout=10)
+        body = resp.read()
+        declared = int(resp.headers.get("Content-Length"))
+
+    # Locate the exported mesh on disk and compare byte-for-byte.
+    meshes = list(Path(tmp_path).rglob("part.oriented.stl"))
+    assert meshes, "the pipeline should have written an oriented STL"
+    on_disk = meshes[0].read_bytes()
+    assert len(on_disk) > 64 * 1024, "the test mesh must exceed one stream chunk to be meaningful"
+    assert declared == len(on_disk)  # Content-Length from stat(), not a truncated/buffered length
+    assert body == on_disk           # streamed bytes are identical to the file
+    assert len(body) == declared
+
+
 def test_openscad_part_has_no_step_url_and_unknown_step_is_404(tmp_path):
     import json
     import urllib.error
@@ -593,6 +653,53 @@ def test_session_token_guard_blocks_state_changing_posts_without_the_token(tmp_p
             assert conn.getresponse().status == 200  # GETs are never gated
         finally:
             conn.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_token_on_post_to_get_only_route_is_405_with_json_body(tmp_path):
+    """QA-001 + QA-005 (audit-team-b4): with a session token configured, a POST to a KNOWN
+    GET-only route returns 405 (method not allowed) — the wrong-verb signal — NOT the 403 token
+    error, because the method check now runs before the token guard for those read-only paths.
+    The 405 carries the truthful Allow header AND the JSON {"error":"Method not allowed."} envelope
+    (the old emitter sent an empty body). The token guard is NOT weakened: a tokenless POST to an
+    actual state-changing route is still refused, proven below."""
+    import http.client
+    import json as _j
+
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    httpd = _serve_with_token(pipe, tmp_path, "s3cret-token")
+    host, port = "127.0.0.1", httpd.server_address[1]
+
+    def _post(path, headers=None):
+        conn = http.client.HTTPConnection(host, port, timeout=10)
+        try:
+            conn.request("POST", path, body=b"{}",
+                         headers={"Content-Type": "application/json", **(headers or {})})
+            resp = conn.getresponse()
+            return resp.status, resp.getheader("Allow"), resp.read()
+        finally:
+            conn.close()
+
+    try:
+        # A POST (even tokenless) to a GET-only route is 405 + truthful Allow + JSON body,
+        # not the 403 token error — across a representative spread of GET-only paths.
+        for path in ("/api/health", "/api/options", "/api/model-status", "/api/connectors",
+                     "/api/model-pull/progress", "/api/designs",
+                     "/api/connector-status/mock", "/api/design/progress/1"):
+            status, allow, body = _post(path)
+            assert status == 405, f"{path} should be 405 (wrong verb), got {status}"
+            assert (allow or "") == "GET, HEAD", f"{path} Allow header wrong: {allow!r}"
+            # QA-005: the JSON error envelope is present (not an empty body).
+            assert _j.loads(body) == {"error": "Method not allowed."}, f"{path} body: {body!r}"
+        # Even WITH the correct token, a GET-only route POST is still 405 (it's a verb error).
+        status, allow, body = _post("/api/health", {"X-KimCad-Session": "s3cret-token"})
+        assert status == 405 and (allow or "") == "GET, HEAD"
+        # Guard NOT weakened: a tokenless POST to an actual state-changing route is still 403.
+        status, _allow, body = _post("/api/design")
+        assert status == 403, "the token guard must still refuse a tokenless state-changing POST"
+        assert _j.loads(body).get("reason") == "session"
     finally:
         httpd.shutdown()
         httpd.server_close()
@@ -1155,7 +1262,9 @@ def test_non_string_prompt_is_400(tmp_path):
 
 
 def test_unknown_printer_key_is_400(tmp_path):
-    """TEST-004: slicing with a printer key the config doesn't know is a clean 400."""
+    """TEST-004: slicing with a printer key the config doesn't know is a clean 400.
+    QA-002 (audit-team-b4): the message names the bad key and points at /api/options for the
+    valid list — it must NOT inline the whole ~29-printer catalog (a huge unstructured string)."""
     import json
     import urllib.error
     import urllib.request
@@ -1179,7 +1288,14 @@ def test_unknown_printer_key_is_400(tmp_path):
             raise AssertionError("expected 400")
         except urllib.error.HTTPError as e:
             assert e.code == 400
-            assert b"Unknown printer or material" in e.read()
+            body = json.loads(e.read())
+            err = body["error"]
+            assert "Unknown printer or material" in err
+            assert "no_such_printer" in err          # QA-002: the bad key is still named
+            assert "/api/options" in err             # QA-002: a pointer to the structured list
+            assert "Available:" not in err           # QA-002: the full catalog is NOT inlined
+            # The shipped catalog is sizeable; the trimmed message stays short.
+            assert len(err) < 200, f"error string should be trimmed, got {len(err)} chars"
 
 
 def test_unexpected_pipeline_error_is_clean_500_no_traceback(tmp_path):
@@ -1894,14 +2010,33 @@ def test_render_endpoint_rejects_non_template_design(tmp_path):
 
 
 def test_render_endpoint_rejects_bad_values(tmp_path):
-    # A template-backed design, but a malformed body (no/non-dict "values") -> clean 400.
+    """A template-backed design, but a body that doesn't carry usable `values` -> clean 400.
+
+    QA-003 (audit-team-b4): the message now distinguishes "no values supplied" from "values were
+    sent but in a shape the handler couldn't use" (e.g. nested under a `parameters` wrapper, or a
+    non-dict), so an integrator isn't told "provide values" when they did send some."""
     pipe = _pipeline(FakeProvider(_box_plan()), _box_renderer((80, 60, 40)))
     with _serve(pipe, tmp_path) as (host, port):
         _s, d = _req_json(host, port, "POST", "/api/design", {"prompt": "a box"})
         rid = int(d["mesh_url"].rsplit("/", 1)[-1])
-        status, body = _req_json(host, port, "POST", f"/api/render/{rid}", {"nope": 1})
-    assert status == 400
-    assert "parameter values" in body["error"]
+
+        # (a) A genuinely empty body -> the "no values supplied" message.
+        status, body = _req_json(host, port, "POST", f"/api/render/{rid}", {})
+        assert status == 400
+        assert "Provide the parameter values" in body["error"]
+
+        # (b) Values sent under the WRONG wrapper key (the QA-003 case) -> a DISTINCT message
+        # that doesn't claim nothing was sent, and points at the expected `values` shape.
+        status, body = _req_json(
+            host, port, "POST", f"/api/render/{rid}", {"parameters": {"width": 50}})
+        assert status == 400
+        assert "Provide the parameter values" not in body["error"]
+        assert "values" in body["error"]  # names the expected key/shape
+
+        # (c) A non-dict `values` (still "sent something unusable") -> the distinct message.
+        status, body = _req_json(host, port, "POST", f"/api/render/{rid}", {"values": [1, 2, 3]})
+        assert status == 400
+        assert "Provide the parameter values" not in body["error"]
 
 
 def test_render_endpoint_unknown_id_is_design_not_found(tmp_path):
@@ -2914,6 +3049,45 @@ def test_cloud_key_saves_masked_persists_and_never_leaks(tmp_path, monkeypatch, 
         assert g2["has_cloud_key"] is True
         assert g2["cloud_key_masked"].endswith(secret[-5:])
         assert g2["key_storage"] == "keyring"
+
+
+def test_transient_keyring_downgrade_is_signalled_in_the_settings_response(tmp_path, monkeypatch):
+    """ENG-005 (audit-team-b4): when a key save transiently downgrades keyring->file (the backend
+    passed the health probe but refused the set mid-save), the settings POST response carries a
+    one-time `key_downgraded: True` so the UI can warn the user to re-secure — and `key_storage`
+    honestly reports "file". The signal fires ONCE: a subsequent settings POST doesn't repeat it."""
+
+    from kimcad import config as config_mod
+    from kimcad import settings_store
+
+    class _ProbeOkSetFails:
+        def __init__(self):
+            self.passwords: dict = {}
+
+        def get_password(self, service, username):
+            return self.passwords.get((service, username))
+
+        def set_password(self, service, username, password):
+            raise RuntimeError("credential store busy")
+
+        def delete_password(self, service, username):
+            self.passwords.pop((service, username), None)
+
+    monkeypatch.setattr(settings_store, "_keyring", lambda: _ProbeOkSetFails())
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(config_mod.Config, "settings_path", lambda self: settings_file)
+    secret = "sk-or-v1-transient-xyz"
+    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
+    with _serve(pipe, tmp_path) as (host, port):
+        st, resp = _jreq(host, port, "POST", "/api/settings",
+                         {"cloud_enabled": True, "openrouter_api_key": secret})
+        assert st == 200 and resp["saved"] is True
+        assert resp.get("key_downgraded") is True       # the one-time downgrade signal
+        assert resp["key_storage"] == "file"            # honestly disclosed as file-stored
+        # ...and the signal is one-shot: a later POST (no new downgrade) doesn't repeat it.
+        st, resp2 = _jreq(host, port, "POST", "/api/settings", {"cloud_enabled": False})
+        assert st == 200
+        assert "key_downgraded" not in resp2
 
 
 # --- Stage 8.5 Slice 6 MS-5: tools health + version ----------------------------

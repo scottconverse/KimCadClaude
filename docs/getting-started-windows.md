@@ -43,7 +43,7 @@ see [troubleshooting](troubleshooting.md#python-isnt-found) ("Python isn't found
 1. Go to <https://ollama.com/download> and download **Ollama for Windows**.
 2. Run the installer. When it finishes, Ollama runs quietly in the background (you'll see
    a llama icon in the system tray).
-3. In your terminal, pull KimCad's two AI models — the designer (~5–10 GB, the big
+3. In your terminal, pull KimCad's two AI models — the designer (~4.7 GB, the big
    download) and the small vision model that reads photos and sketches (~3 GB):
 
 ```

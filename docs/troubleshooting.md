@@ -93,8 +93,9 @@ folder you chose at install time.
 The setup wizard's **Download now** asks your local Ollama to fetch KimCad's models, so a
 failure there is almost always one of three things:
 
-- **"Not enough disk space"** — the two models need about 13 GB together (KimCad checks
-  before downloading). Free up space, then press **try again**.
+- **"Not enough disk space"** — the two models download to about 8 GB together (chat ~4.7 GB +
+  vision ~3 GB), but keep **13–20 GB** free for headroom (KimCad checks before downloading).
+  Free up space, then press **try again**.
 - **"Your local AI (Ollama) isn't running"** — start Ollama, then **try again**.
 - **The download stopped partway** — usually the internet connection. Ollama resumes a
   partial download, so pressing **try again** continues rather than starting over.

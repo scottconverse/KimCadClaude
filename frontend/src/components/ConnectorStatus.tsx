@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getConnectors, getConnectorStatus, type ConnectorStatusResponse } from '../api'
-import { connectorLabel, connectorTone } from '../connectorStatus'
+import { connectorLabel, connectorTone, displayName } from '../connectorStatus'
 
 // Read-only readiness of the default printer connection, shown at the top of Export & print.
 // The direct-print send UI itself is SendPanel (Stage 10), offered under a finished slice;
@@ -35,7 +35,7 @@ export default function ConnectorStatus() {
   return (
     <div className="kc-connector">
       <span className={`kc-status-dot kc-tone-${connectorTone(status)}`} aria-hidden="true" />
-      <span className="kc-connector-name">{name}</span>
+      <span className="kc-connector-name">{displayName(name)}</span>
       <span className="kc-connector-label" role="status">
         {connectorLabel(status)}
       </span>
