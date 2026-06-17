@@ -9,17 +9,6 @@ import PhotoOnramp from './PhotoOnramp'
 // "Refine your part" input so the user can follow up without leaving the workspace.
 // A clarifying question from the model is just another assistant turn — the user types their
 // answer in the refine input and the conversation continues in context.
-function CubeGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
-      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 2 21 7v10l-9 5-9-5V7Z" />
-      <path d="M3 7l9 5 9-5" />
-      <path d="M12 12v10" />
-    </svg>
-  )
-}
-
 // Axis labels for the bbox delta (target_bbox_mm is [width, depth, height]).
 const BBOX_AXES = ['W', 'D', 'H']
 
@@ -177,7 +166,7 @@ export default function ChatPanel({
             <div key={i} className="kc-msg kc-msg-user">{msg.content}</div>
           ) : (
             <div key={i} className="kc-ai-row">
-              <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+              <span className="kc-ava" aria-hidden="true" />
               <div className={`kc-msg kc-msg-ai${msg.tone === 'error' ? ' kc-msg-error' : ''}`}>
                 {msg.content}
               </div>
@@ -196,7 +185,7 @@ export default function ChatPanel({
             session can measure it — changing log semantics blind risks making SR worse. */}
         {busy && result !== null && (
           <div className="kc-ai-row" aria-hidden="true">
-            <span className="kc-ava"><CubeGlyph /></span>
+            <span className="kc-ava" aria-hidden="true" />
             <div className="kc-think">
               <span className="kc-spin" />
               <span>{restoring ? 'Reopening your design…' : 'Refining your part…'}</span>
@@ -208,7 +197,7 @@ export default function ChatPanel({
             user explicitly opts in here, or re-describes the part in the refine input below. */}
         {!busy && result?.status === 'needs_experimental' && (
           <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+            <span className="kc-ava" aria-hidden="true" />
             <div className="kc-exp-offer">
               <p className="kc-exp-warn">
                 <b>Experimental · may not be perfect.</b> It runs in a locked sandbox and still has to
@@ -227,7 +216,7 @@ export default function ChatPanel({
             this adds a one-click "Try again" (re-runs the same attempt) so recovery isn't a retype. */}
         {!busy && result?.status === 'model_unavailable' && onRetry && (
           <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+            <span className="kc-ava" aria-hidden="true" />
             <div className="kc-exp-offer">
               <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onRetry}>
                 Try again
@@ -243,7 +232,7 @@ export default function ChatPanel({
         {/* Top-level network error (not a pipeline failure — those go into the thread) */}
         {!busy && error !== null && messages.every(m => m.content !== error) && (
           <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true"><CubeGlyph /></span>
+            <span className="kc-ava" aria-hidden="true" />
             <div className="kc-msg kc-msg-ai kc-msg-error">{error}</div>
           </div>
         )}
