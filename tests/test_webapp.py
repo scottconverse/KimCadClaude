@@ -549,16 +549,6 @@ def test_web_options_lists_per_printer_available_materials():
     assert "tpu" not in by_key["elegoo_neptune_4_max"]["materials"]
 
 
-def test_web_options_carries_toolhead_count():
-    # TEST-005: the per-printer toolhead_count surfaces in /api/options. Every shipped printer is
-    # single-head today (the multi-toolhead Snapmaker U1 was pulled until multi-material is real),
-    # so the value is 1 across the catalog; the field stays for when multi-material ships.
-    opts = web_options(Config.load())
-    by_key = {p["key"]: p for p in opts["printers"]}
-    assert by_key["bambu_p2s"]["toolhead_count"] == 1
-    assert all(p["toolhead_count"] == 1 for p in opts["printers"])
-
-
 def _serve_with_token(pipe, root, token):
     """A server booted WITH a session token (production injects a per-boot one); tests/dev default
     to an empty token, so the guard is opt-in here."""
@@ -1494,64 +1484,6 @@ def test_slice_is_idempotent_one_real_slice_per_key(tmp_path, monkeypatch):
         d2 = slice_once()
     assert calls["n"] == 1  # the second identical request was served from cache
     assert d1["gcode_url"] == d2["gcode_url"]
-
-
-# --- TEST-003 / QA-003: multi-head filament_slots wiring through /api/slice -------------------
-
-
-def _recording_slice():
-    """A slice_registered_mesh stub that records every call's filament_slots (and counts calls),
-    writes a real (per-slots) gcode file, and returns a minimal sliced=True payload. Accepts the
-    optional filament_slots kwarg the multi-head path passes (single-head omits it entirely)."""
-    calls = []
-
-    def stub(config, mesh_path, printer, material, *, filament_slots=None):
-        calls.append({"printer": printer, "material": material, "filament_slots": filament_slots})
-        tag = "_".join(filament_slots) if filament_slots else material
-        gp = mesh_path.parent / f"{mesh_path.name.split('.')[0]}_{printer}_{tag}.gcode.3mf"
-        gp.write_bytes(b"PKfake")
-        return (
-            {"sliced": True, "printer": printer, "material": material, "gcode_lines": 5,
-             "estimate": "", "profiles": {"machine": "m", "process": "p", "filament": "f"}},
-            gp,
-        )
-
-    return stub, calls
-
-
-def _slice_post(base, rid, body):
-    import json
-    import urllib.request
-    return json.load(urllib.request.urlopen(
-        urllib.request.Request(
-            base + f"/api/slice/{rid}",
-            data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json"},
-        ), timeout=30))
-
-
-# NOTE (2026-06-16): the multi-head webapp POST tests (TEST-003) were removed alongside the
-# Snapmaker U1 — they exercised the multi-toolhead slice path through the only multi-head printer,
-# which is now pulled until multi-material is real. The single-head guard below stays (it protects
-# the shipped path: a single-head printer must IGNORE stray filament_slot_* fields). When
-# multi-material ships, real multi-head HTTP tests return with a real multi-head printer fixture.
-def test_slice_single_head_ignores_filament_slots(tmp_path, monkeypatch):
-    """TEST-003: filament_slot_* fields POSTed to a SINGLE-head printer (toolhead_count 1) are
-    ignored — the slicer is called WITHOUT a filament_slots kwarg (it stays None)."""
-    import kimcad.webapp as webapp_mod
-
-    stub, calls = _recording_slice()
-    monkeypatch.setattr(webapp_mod, "slice_registered_mesh", stub)
-    pipe = _pipeline(FakeProvider(_plan([20, 20, 20])), _box_renderer((20, 20, 20)))
-    with _serve(pipe, tmp_path) as (host, port):
-        base = f"http://{host}:{port}"
-        rid = _design_rid(base)
-        _slice_post(base, rid, {
-            "printer": "bambu_p2s", "material": "pla",
-            "filament_slot_0": "pla", "filament_slot_1": "petg",
-        })
-    assert len(calls) == 1
-    assert calls[0]["filament_slots"] is None
 
 
 def test_slice_response_carries_structured_estimate_and_filename(tmp_path, monkeypatch):

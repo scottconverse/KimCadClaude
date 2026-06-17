@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -118,7 +118,7 @@ describe('SettingsPanel', () => {
       model: 'anthropic/claude', backend: 'cloud', running: true, model_present: true,
     })
     const { container } = render(<SettingsPanel />)
-    // The description text spans a <code> child; assert on this render’s container text after the
+    // The description text spans a <code> child; assert on this render's container text after the
     // async model-status load resolves.
     await waitFor(() => expect(container.textContent).toMatch(/sent to the cloud/i))
     expect(container.textContent).not.toMatch(/nothing leaves your computer/i)
@@ -134,43 +134,20 @@ describe('SettingsPanel', () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
     render(<SettingsPanel />)
     expect(await screen.findByText('Not running')).toBeTruthy()
-    // Single action line: text says "Ollama isn’t running", Get Ollama is still an inline button.
-    const actionLine = screen.getByText(/Ollama isn.t running/i).closest('.kc-model-action-line')
-    expect(actionLine).toBeTruthy()
+    // The clean-box case is served: not just "start it" — Get Ollama is a real button.
+    const action = screen.getByText(/runs on Ollama \(free\)/i)
+    expect(action.textContent).toMatch(/start it/i)
     expect(screen.getByRole('button', { name: /get ollama/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy()
   })
 
   it('tells the user to get the model when Ollama is up but it isn’t installed', async () => {
     getModelStatus.mockResolvedValue({ ...RUNNING, running: true, model_present: false })
     render(<SettingsPanel />)
     expect(await screen.findByText('Model not pulled')).toBeTruthy()
-    // Single action line: concise message + "Open setup" CTA opens the wizard.
-    expect(screen.getByText(/model isn.t downloaded yet/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /open setup/i })).toBeTruthy()
-  })
-
-  it('renders all 4 section-nav groups', async () => {
-    render(<SettingsPanel />)
-    await screen.findByLabelText(/Default printer/i)
-    const navGroups = document.querySelectorAll('.kc-set-navgroup')
-    expect(navGroups.length).toBe(4)
-  })
-
-  it('AI nav dot is warn when model is not running', async () => {
-    getModelStatus.mockResolvedValue({ ...RUNNING, running: false, model_present: false })
-    const { container } = render(<SettingsPanel />)
-    await screen.findByText('Not running')
-    // The AI model nav item (first in grp-ai) should carry a warn status dot.
-    const aiNavLink = container.querySelector('.kc-set-navgroup:nth-child(2) .kc-set-navlink .nstat')
-    expect(aiNavLink).toBeTruthy()
-    expect(aiNavLink?.className).toMatch(/warn/)
-  })
-
-  it('exactly one .kc-model-action-line renders regardless of model state', async () => {
-    render(<SettingsPanel />)
-    await screen.findByText('Running')
-    expect(document.querySelectorAll('.kc-model-action-line').length).toBe(1)
+    // DOC-1005 (stage-10 gate): the in-app download is the first-named path now.
+    const action = screen.getByText(/isn.t downloaded yet/i)
+    expect(action.textContent).toMatch(/wizard.s Download button/i)
+    expect(action.textContent).toMatch(/ollama pull/i) // the manual path stays named
   })
 
   it('Refresh re-checks the model status', async () => {

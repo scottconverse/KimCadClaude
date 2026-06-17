@@ -24,15 +24,6 @@ Honesty key — four different claims, kept separate on purpose:
 - **Metal-validated:** a real part printed on the real machine. *Nothing is metal-validated
   yet* — that's the beta's own job (see `docs/beta/first-hardware-contact.md`).
 
-> **Coming soon — multi-material printing.** KimCad currently slices **single-material for every
-> printer**: you pick one filament, and a Bambu printer with an AMS unit is driven as single-material
-> too (KimCad does not yet drive AMS multi-color). Multi-material / multi-toolhead printers — like
-> the **Snapmaker U1** (a 4-toolhead machine), which was pulled from the catalog for now — are **in
-> development**. The reason is honest: KimCad builds a single solid mesh, so there's nothing yet to
-> assign extra materials to; the U1 is held until real multi-material ships rather than shipped as a
-> misleading single-material "U1". The `snapmaker` connector type still exists in the code, but no
-> shipped printer uses it today.
-
 ## Reference printers (catalog + direct-send connection)
 
 | Printer | Design checks | Slice profile | Connection |

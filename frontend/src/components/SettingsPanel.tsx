@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getHealth,
   getModelPullProgress,
@@ -20,7 +20,7 @@ import ConnectionsCard from './ConnectionsCard'
 // micro-slices add the AI model status, the cloud opt-in, the experimental-generator toggle, the
 // tools health, and About — each as another <section className="kc-set-card"> in this same screen.
 //
-// Printer/material persist server-side (~/.kimcad/settings.json via /api/settings) so they’re the
+// Printer/material persist server-side (~/.kimcad/settings.json via /api/settings) so they're the
 // app-wide default. Units stay in the shared client store (useUnits) — toggling here re-renders the
 // whole app (the Parameters card, the dims table) in lockstep, exactly like the in-workspace toggle.
 
@@ -47,7 +47,7 @@ export default function SettingsPanel() {
   const { pref: themePref, setTheme } = useTheme()
 
   // The model status loads independently of the printer/material settings: the Ollama probe can
-  // take a moment, so it shouldn’t hold up the rest of the screen.
+  // take a moment, so it shouldn't hold up the rest of the screen.
   const [model, setModel] = useState<ModelStatus | null>(null)
   const [modelState, setModelState] = useState<'checking' | 'ready' | 'error'>('checking')
 
@@ -64,7 +64,7 @@ export default function SettingsPanel() {
   const [confirmingReset, setConfirmingReset] = useState(false)
 
   // UX-1002 (stage-10 gate): the vision row must know about a RUNNING in-app download —
-  // telling the user to start a manual pull while the wizard’s download is mid-flight
+  // telling the user to start a manual pull while the wizard's download is mid-flight
   // sets up a competing second pull. Checked alongside the model status.
   const [pull, setPull] = useState<ModelPullSnapshot | null>(null)
 
@@ -92,7 +92,7 @@ export default function SettingsPanel() {
 
   useEffect(() => { checkModel() }, [checkModel])
 
-  // KC-2 (#8): re-checkable — the CAD-export card’s "check again" passes recheck=true so the
+  // KC-2 (#8): re-checkable — the CAD-export card's "check again" passes recheck=true so the
   // server re-probes for a just-installed engine (no restart needed); passive loads stay cached.
   const [healthChecking, setHealthChecking] = useState(false)
   const checkHealth = useCallback((recheck = false) => {
@@ -105,34 +105,13 @@ export default function SettingsPanel() {
 
   useEffect(() => { checkHealth() }, [checkHealth])
 
-  // Section-nav: drives aria-current on the sticky left nav when the user scrolls.
-  const [activeGroup, setActiveGroup] = useState<string>('grp-design')
-  useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return
-    const ids = ['grp-design', 'grp-ai', 'grp-output', 'grp-system']
-    const els = ids.map(id => document.getElementById(id)).filter(Boolean) as HTMLElement[]
-    if (!els.length) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter(e => e.isIntersecting)
-        if (visible.length) {
-          const topmost = visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-          setActiveGroup(topmost.target.id)
-        }
-      },
-      { rootMargin: '-60px 0px -60% 0px', threshold: 0 },
-    )
-    els.forEach(el => io.observe(el))
-    return () => io.disconnect()
-  }, [settings])
-
   async function change(updates: Parameters<typeof postSettings>[0]) {
     setSaveNote('saving')
     try {
       const next = await postSettings(updates)
       setSettings(next)
       // The server tells us honestly whether the choice persisted (saved:false if the local store
-      // couldn’t be written) so we never claim "Saved" when it didn’t stick.
+      // couldn't be written) so we never claim "Saved" when it didn't stick.
       setSaveNote(next.saved === false ? 'error' : 'saved')
       // A cloud change flips which model handles requests — re-check so the AI section reflects it.
       if ('cloud_enabled' in updates || 'cloud_model' in updates || 'openrouter_api_key' in updates) {
@@ -170,7 +149,7 @@ export default function SettingsPanel() {
 
   function saveModel() {
     const m = modelDraft.trim()
-    if (m === (settings?.cloud_model ?? '')) return // no change — don’t fire a redundant save
+    if (m === (settings?.cloud_model ?? '')) return // no change — don't fire a redundant save
     void change({ cloud_model: m })
   }
 
@@ -208,56 +187,7 @@ export default function SettingsPanel() {
       ) : !settings ? (
         <p className="kc-muted-note kc-settings-empty">Loading your settings…</p>
       ) : (
-        <div className="kc-settings-layout">
-          {/* Sticky left section nav */}
-          <nav className="kc-set-nav" aria-label="Settings sections">
-            {[
-              {
-                id: 'grp-design', label: 'Design defaults', items: [
-                  { label: 'Printer & material' },
-                  { label: 'Display' },
-                ],
-              },
-              {
-                id: 'grp-ai', label: 'AI', items: [
-                  { label: 'AI model', dot: model ? modelTone(model) : undefined },
-                  { label: 'Cloud acceleration' },
-                  { label: 'Experimental' },
-                ],
-              },
-              {
-                id: 'grp-output', label: 'Output & tools', items: [
-                  { label: 'Printer connections' },
-                  { label: 'Editable CAD', dot: health ? (health.cadquery ? 'ok' as const : 'warn' as const) : undefined },
-                  { label: 'Tools', dot: health ? ((health.openscad && health.orcaslicer) ? 'ok' as const : 'warn' as const) : undefined },
-                ],
-              },
-              {
-                id: 'grp-system', label: 'System', items: [
-                  { label: 'About & reset' },
-                ],
-              },
-            ].map((g) => (
-              <div key={g.id} className="kc-set-navgroup">
-                <span>{g.label}</span>
-                {g.items.map((it) => (
-                  <a
-                    key={it.label}
-                    href={`#${g.id}`}
-                    className="kc-set-navlink"
-                    aria-current={activeGroup === g.id ? 'true' : undefined}
-                  >
-                    {it.label}
-                    {it.dot && <span className={`nstat ${it.dot}`} aria-hidden />}
-                  </a>
-                ))}
-              </div>
-            ))}
-          </nav>
-
-          <div className="kc-settings-body">
-          {/* ── Design defaults ── */}
-          <div id="grp-design" className="kc-set-group">
+        <div className="kc-settings-body">
           {/* Printer & material — the app-wide defaults new designs use. */}
           <section className="kc-set-card">
             <h2 className="kc-set-h">Printer &amp; material</h2>
@@ -291,6 +221,10 @@ export default function SettingsPanel() {
               </select>
             </div>
           </section>
+
+          {/* Stage 11 Slice 11.2 — printer connections (the venue the Stage-10 gate found
+              missing: send-flow copy finally has a real Settings section to point at). */}
+          <ConnectionsCard />
 
           {/* Units & appearance — the shared display preferences. */}
           <section className="kc-set-card">
@@ -335,10 +269,7 @@ export default function SettingsPanel() {
               </div>
             </div>
           </section>
-          </div>{/* /grp-design */}
 
-          {/* ── AI ── */}
-          <div id="grp-ai" className="kc-set-group">
           {/* AI model (Surface A) — gemma4:e4b shown as THE model with its health. No menu of
               alternatives; the manual backend override stays CLI-only (trust rule 1). */}
           <section className="kc-set-card">
@@ -364,7 +295,7 @@ export default function SettingsPanel() {
             </div>
             {/* UX-001: the description MUST track the live backend — when cloud is on, the model runs
                 off-machine, so the on-device privacy copy would be a flat contradiction of the
-                product’s core promise. Branch on the same `model` status object the badge uses. */}
+                product's core promise. Branch on the same `model` status object the badge uses. */}
             {model?.backend === 'cloud' ? (
               <p className="kc-set-sub">
                 <code className="kc-mono">{model?.model ?? 'your cloud model'}</code> — your chosen
@@ -382,7 +313,7 @@ export default function SettingsPanel() {
             {/* Slice 10.4 (Stage 9 watchlist #3): the SECOND local model — the photo & sketch
                 reader — gets its own row, so a user diagnosing an image failure finds the
                 answer here, not just in the moment the upload fails. Absent vision fields
-                (e.g. a cloud chat backend can’t probe it) mean unknown — say nothing. */}
+                (e.g. a cloud chat backend can't probe it) mean unknown — say nothing. */}
             {model?.backend === 'local' && model.vision_present !== undefined && (
               <p className="kc-set-sub kc-set-vision-row">
                 Photo &amp; sketch reader (<code className="kc-mono">{model.vision_model}</code>):{' '}
@@ -430,52 +361,54 @@ export default function SettingsPanel() {
                 )}
               </p>
             )}
-            {/* Single precedence action line — tone + CTA determined by priority order. */}
-            {(() => {
-              let tone: 'ok' | 'warn' = 'ok'
-              let text: React.ReactNode = model?.backend === 'cloud'
-                ? 'Running via cloud (OpenRouter).'
-                : 'Running on your machine.'
-              let cta = 'Refresh'
-              let onCta: () => void = checkModel
-              if (modelState === 'error') {
-                tone = 'warn'; text = "Couldn’t reach Ollama."; cta = 'Check again'
-              } else if (model?.backend === 'local' && !model.running) {
-                tone = 'warn'
-                text = (
-                  <>
-                    Ollama isn’t running. Start it (or{' '}
-                    <button type="button" className="kc-link-btn"
-                      onClick={() => openExternal('https://ollama.com/download')}>
-                      get Ollama
-                    </button>
-                    ), then check again.
-                  </>
-                )
-                cta = 'Check again'
-              } else if (model?.backend === 'local' && model.running && !model.model_present) {
-                tone = 'warn'
-                text = "The model isn’t downloaded yet."
-                cta = 'Open setup'
-                onCta = () => {
-                  try { localStorage.removeItem('kc-first-run-done') } catch {}
+            {/* A concrete next action whenever it isn't simply running (no dead-end). */}
+            {modelState === 'ready' && model?.backend === 'local' && !model.running && (
+              <p className="kc-model-action">
+                {/* BG-U002 (beta gate): Settings must serve the clean-box skipper too —
+                    Get Ollama (it may not be installed at all), not just "start it". */}
+                KimCad’s AI runs on Ollama (free). Don’t have it?{' '}
+                <button
+                  type="button"
+                  className="kc-link-btn"
+                  onClick={() => openExternal('https://ollama.com/download')}
+                >
+                  Get Ollama
+                </button>
+                {' '}— or if it’s installed, start it. Then{' '}
+                <button type="button" className="kc-link-btn" onClick={checkModel}>check again</button>.
+              </p>
+            )}
+            {/* BG-U002: the one-shot wizard gets a re-entry — the skipper's path back to
+                the guided setup (and its model Download button). */}
+            <p className="kc-set-sub">
+              <button
+                type="button"
+                className="kc-link-btn"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('kc-first-run-done')
+                  } catch {
+                    /* storage unavailable — the event alone still opens it this session */
+                  }
                   window.dispatchEvent(new Event('kimcad-rerun-setup'))
-                }
-              }
-              return (
-                <div className={`kc-model-action-line ${tone}`} aria-live="polite">
-                  <span>{modelState === 'checking' ? 'Checking…' : text}</span>
-                  <button
-                    type="button"
-                    className="kc-btn-sm"
-                    disabled={modelState === 'checking'}
-                    onClick={onCta}
-                  >
-                    {modelState === 'checking' ? 'checking…' : cta}
-                  </button>
-                </div>
-              )
-            })()}
+                }}
+              >
+                Run the setup walkthrough again
+              </button>{' '}
+              (the guided model download lives there).
+            </p>
+            {modelState === 'ready' && model?.backend === 'local' && model.running && !model.model_present && (
+              <p className="kc-model-action">
+                The model isn’t downloaded yet — the setup wizard’s Download button fetches it
+                (or run <code className="kc-mono">ollama pull {model.model}</code>), then{' '}
+                <button type="button" className="kc-link-btn" onClick={checkModel}>check again</button>.
+              </p>
+            )}
+            {(modelState === 'error' || (modelState === 'ready' && model?.running && model?.model_present)) && (
+              <button type="button" className="kc-link-btn kc-model-refresh" onClick={checkModel}>
+                Refresh
+              </button>
+            )}
           </section>
 
           {/* Cloud acceleration (Surface B) — opt-in, OFF by default. Per spec §7.3, KimCad does NOT
@@ -552,7 +485,7 @@ export default function SettingsPanel() {
                         Save
                       </button>
                       {/* KC-1 (#7): a way back from Replace to the saved (masked) key. Only
-                          shown when there’s a stored key to return to. */}
+                          shown when there's a stored key to return to. */}
                       {settings.has_cloud_key && replacingKey && (
                         <button type="button" className="kc-btn-sm" onClick={cancelReplace}>
                           Cancel
@@ -633,29 +566,10 @@ export default function SettingsPanel() {
                 : 'Off — a part with no template offers the generator rather than running it.'}
             </div>
           </section>
-          {/* BG-U002: re-entry to the setup wizard (model download lives there). */}
-          <p className="kc-set-sub kc-set-group-footer">
-            <button
-              type="button"
-              className="kc-link-btn"
-              onClick={() => {
-                try { localStorage.removeItem('kc-first-run-done') } catch {}
-                window.dispatchEvent(new Event('kimcad-rerun-setup'))
-              }}
-            >
-              Run the setup walkthrough again
-            </button>{' '}
-            (the guided model download lives there).
-          </p>
-          </div>{/* /grp-ai */}
 
-          {/* ── Output & tools ── */}
-          <div id="grp-output" className="kc-set-group">
-          {/* Stage 11 Slice 11.2 — printer connections. */}
-          <ConnectionsCard />
           {/* KC-2 (#8) — the editable-CAD export engine (Option F: guided manual install).
               KimCad is already wired for CadQuery; this card explains what it gives, shows
-              whether it’s installed, and walks a power user through the one-time setup. */}
+              whether it's installed, and walks a power user through the one-time setup. */}
           <section className="kc-set-card">
             <div className="kc-set-cardhead">
               <h2 className="kc-set-h">Editable CAD export (.STEP)</h2>
@@ -744,10 +658,6 @@ export default function SettingsPanel() {
             ))}
           </section>
 
-          </div>{/* /grp-output */}
-
-          {/* ── System ── */}
-          <div id="grp-system" className="kc-set-group">
           {/* About + reset (MS-5). */}
           <section className="kc-set-card">
             <h2 className="kc-set-h">About</h2>
@@ -758,7 +668,7 @@ export default function SettingsPanel() {
               </span>
             </div>
             <div className="kc-set-row">
-              {/* N-3 (slice-11.2 audit): the reset’s blast radius is DISCLOSED — it wipes
+              {/* N-3 (slice-11.2 audit): the reset's blast radius is DISCLOSED — it wipes
                   the printer-connection addresses too, not just the dropdown defaults. */}
               <span>
                 Reset all settings to defaults
@@ -780,8 +690,6 @@ export default function SettingsPanel() {
               )}
             </div>
           </section>
-          </div>
-          </div>
         </div>
       )}
     </main>

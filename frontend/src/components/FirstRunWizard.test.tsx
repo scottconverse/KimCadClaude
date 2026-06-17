@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import FirstRunWizard from './FirstRunWizard'
@@ -48,8 +48,8 @@ describe('FirstRunWizard', () => {
     const { container } = render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i) // → Your AI model
     expect(await screen.findByText('gemma4:e4b')).toBeTruthy()
-    // The model health is "Ready" (running + present) — scoped to the status element so it doesn’t
-    // collide with the rail’s step-5 label, also named "Ready".
+    // The model health is "Ready" (running + present) — scoped to the status element so it doesn't
+    // collide with the rail's step-5 label, also named "Ready".
     expect(container.querySelector('.kc-wiz-model-stat')?.textContent).toMatch(/Ready/)
     // Trust rule 1: the wizard never offers an ALTERNATIVE chat model (the Stage-6-rejected
     // qwen2.5-coder, or any menu of choices). The Stage 9 vision model (qwen2.5vl:3b) is a
@@ -74,9 +74,7 @@ describe('FirstRunWizard', () => {
     render(<FirstRunWizard onClose={onClose} />)
     go(/continue/i) // model step
     await screen.findByText('gemma4:e4b')
-    const cloudDetails = document.querySelector('details.kc-wiz-cloud') as HTMLDetailsElement
-    cloudDetails.open = true
-    fireEvent(cloudDetails, new Event('toggle'))
+    fireEvent.click(screen.getByLabelText(/Add an OpenRouter key/i))
     fireEvent.change(screen.getByLabelText('OpenRouter API key'), { target: { value: 'sk-or-abc' } })
     go(/continue/i) // printer
     go(/continue/i) // direct printing
@@ -110,15 +108,13 @@ describe('FirstRunWizard', () => {
     render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i) // model
     await screen.findByText('gemma4:e4b')
-    const cloudDetails2 = document.querySelector('details.kc-wiz-cloud') as HTMLDetailsElement
-    cloudDetails2.open = true
-    fireEvent(cloudDetails2, new Event('toggle'))
+    fireEvent.click(screen.getByLabelText(/Add an OpenRouter key/i))
     fireEvent.change(screen.getByLabelText('OpenRouter API key'), { target: { value: 'sk-or-x' } })
     go(/continue/i) // printer
     go(/continue/i) // direct
     go(/continue/i) // ready
     // The recap model reads plain gemma4:e4b — an exact match proves no "+ OpenRouter" suffix was
-    // appended (cloud isn’t usable without a model slug, so the recap must not imply it is).
+    // appended (cloud isn't usable without a model slug, so the recap must not imply it is).
     expect(screen.getByText('gemma4:e4b')).toBeTruthy()
   })
 
@@ -243,13 +239,13 @@ describe('FirstRunWizard', () => {
     })
     ;(api.startModelPull as ReturnType<typeof vi.fn>).mockResolvedValue({
       status: 'ollama_down', running: false,
-      error: "Your local AI (Ollama) isn’t running — start it, then try again.",
+      error: "Your local AI (Ollama) isn't running — start it, then try again.",
     })
     render(<FirstRunWizard onClose={vi.fn()} />)
     go(/continue/i)
     fireEvent.click(await screen.findByRole('button', { name: /download now/i }))
     // The message lands twice by design: the visible action line AND the sr-only live region.
-    expect((await screen.findAllByText(/isn’t running/)).length).toBeGreaterThanOrEqual(1)
+    expect((await screen.findAllByText(/isn't running/)).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
   })
 

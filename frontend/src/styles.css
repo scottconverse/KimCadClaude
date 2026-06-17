@@ -222,13 +222,14 @@ input {
 }
 
 .kc-logo {
-  display: block;
-  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: #dbe7f3 url('./assets/kim-avatar.png') center/cover no-repeat;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--kc-accent) 30%, transparent);
+  border-radius: 9px;
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
 }
 
 .kc-wordmark {
@@ -1957,16 +1958,6 @@ input {
   border-color: var(--kc-accent);
 }
 
-/* UX-003: a multi-head printer can have many extruders — lay the per-slot material pickers out
-   in a compact wrapping grid so they group together and never push the Slice button off-screen. */
-.kc-material-slots {
-  display: grid;
-  /* UX-201: auto-fit (not auto-fill) collapses empty tracks so a 2-slot row fills the width
-     instead of leaving a phantom empty column. */
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 8px;
-}
-
 .kc-slice-actions {
   display: flex;
   gap: 8px;
@@ -2469,7 +2460,7 @@ input {
   }
 }
 
-/* Assistant message rows carry Kim's avatar. */
+/* Assistant message rows carry a small cube avatar. */
 .kc-ai-row {
   display: flex;
   align-items: flex-start;
@@ -2484,14 +2475,16 @@ input {
 }
 
 .kc-ava {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
   margin-top: 2px;
-  border-radius: 50%;
-  background: #dbe7f3 url('./assets/kim-avatar.png') center/cover no-repeat;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kc-accent) 25%, transparent);
+  border-radius: 9px;
+  background: var(--kc-accent);
+  color: var(--kc-on-accent);
 }
 
 /* --------------------------------------------------- My Designs library (Stage 8.5 Slice 1) */
@@ -2973,91 +2966,9 @@ input {
 
 /* ------------------------------------------------ Slice 6: the Settings screen */
 .kc-settings {
-  max-width: 936px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 28px 22px 80px;
-}
-.kc-settings-layout {
-  display: grid;
-  grid-template-columns: 192px 1fr;
-  gap: 28px;
-  align-items: start;
-}
-.kc-set-nav {
-  position: sticky;
-  top: 70px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.kc-set-navgroup > span {
-  display: block;
-  font: 600 10px/1 var(--kc-font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--kc-muted);
-  padding: 0 8px 6px;
-}
-.kc-set-navlink {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--kc-muted);
-  text-decoration: none;
-}
-.kc-set-navlink:hover {
-  color: var(--kc-ink);
-  background: var(--kc-surface-2);
-}
-.kc-set-navlink[aria-current='true'] {
-  color: var(--kc-ink);
-  background: color-mix(in srgb, var(--kc-accent) 12%, var(--kc-surface));
-  box-shadow: inset 2px 0 0 var(--kc-accent);
-}
-.kc-set-navlink .nstat {
-  margin-left: auto;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.nstat.ok { background: var(--kc-pass); }
-.nstat.warn { background: var(--kc-warn-accent); }
-.kc-set-group + .kc-set-group {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--kc-hair);
-}
-.kc-set-group-footer {
-  margin-top: 8px;
-  margin-left: 2px;
-}
-.kc-model-action-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 10px 13px;
-  border-radius: var(--kc-r-btn);
-  background: var(--kc-surface-2);
-  font-size: 12.5px;
-}
-.kc-model-action-line.warn {
-  background: color-mix(in srgb, var(--kc-warn-accent) 14%, var(--kc-surface));
-}
-.kc-model-action-line button {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-@media (max-width: 860px) {
-  .kc-settings-layout { grid-template-columns: 1fr; }
-  .kc-set-nav { position: static; flex-flow: row wrap; gap: 8px; }
-  .kc-set-navgroup { display: contents; }
-  .kc-set-navgroup > span { display: none; }
 }
 .kc-settings-head {
   display: flex;
@@ -3303,26 +3214,6 @@ input {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-/* UX-001: per-toolhead temperature readouts render as distinct inline pill badges so they
-   read as discrete data, not as part of the surrounding muted status prose. */
-.kc-send-temps {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-.kc-temp-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  border: 1px solid var(--kc-hair-strong);
-  border-radius: var(--kc-r-chip);
-  background: var(--kc-surface-2);
-  color: var(--kc-ink);
-  font-family: var(--kc-font-mono);
-  font-size: 11.5px;
-  line-height: 1.5;
-  white-space: nowrap;
 }
 .kc-print-outcome {
   margin-top: 10px;
@@ -4221,37 +4112,14 @@ input {
 }
 .kc-wiz-cloud {
   margin-top: 16px;
-  border: 1px solid var(--kc-hair);
-  border-radius: var(--kc-r-card);
-  background: var(--kc-surface);
-  overflow: hidden;
 }
-.kc-wiz-cloud-summary {
+.kc-wiz-cloud-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 13px 16px;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  color: var(--kc-ink);
   cursor: pointer;
-  list-style: none;
-}
-.kc-wiz-cloud-summary::-webkit-details-marker {
-  display: none;
-}
-.kc-wiz-cloud-summary::after {
-  content: '›';
-  margin-left: auto;
-  color: var(--kc-muted);
-  font-size: 18px;
-  transition: transform 0.15s;
-}
-.kc-wiz-cloud[open] .kc-wiz-cloud-summary::after {
-  transform: rotate(90deg);
-}
-.kc-wiz-cloud-summary:focus-visible {
-  outline: 2px solid var(--kc-accent);
-  outline-offset: -2px;
 }
 .kc-opt {
   color: var(--kc-muted);
@@ -4261,8 +4129,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 0;
-  padding: 0 16px 16px;
+  margin-top: 10px;
 }
 .kc-text-input {
   width: 100%;

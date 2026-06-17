@@ -117,7 +117,6 @@ export interface PrinterOption {
   sliceable: boolean
   materials: string[]
   generic_materials: string[]
-  toolhead_count?: number
 }
 
 export interface MaterialOption {
@@ -169,9 +168,6 @@ export interface ConnectorStatusResponse {
   reason?: string
   simulated: boolean
   note?: string
-  nozzle_temp_c?: number | null
-  // ENG-101: index-stable per-head temps; a present-but-non-reporting head is null at its index.
-  toolhead_temps?: (number | null)[] | null
 }
 
 export interface ConnectorsResponse {
@@ -635,13 +631,8 @@ export function postSlice(
   printer: string,
   material: string,
   signal?: AbortSignal,
-  materialSlots?: string[],
 ): Promise<SliceResponse> {
-  const body: Record<string, unknown> = { printer, material }
-  if (materialSlots && materialSlots.length > 1) {
-    materialSlots.forEach((m, i) => { body[`filament_slot_${i}`] = m })
-  }
-  return postJson<SliceResponse>(`/api/slice/${designId}`, body, signal)
+  return postJson<SliceResponse>(`/api/slice/${designId}`, { printer, material }, signal)
 }
 
 /** The design id is the trailing path segment of mesh_url (`/api/mesh/<id>`); slicing + g-code

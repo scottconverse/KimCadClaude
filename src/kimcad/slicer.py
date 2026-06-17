@@ -129,7 +129,6 @@ class SliceSettings:
     machine: Path
     process: Path
     filament: Path
-    filaments: tuple[Path, ...] | None = None  # multi-toolhead: T0..TN-1 filament paths
 
 
 @dataclass(frozen=True)
@@ -214,18 +213,9 @@ def slice_model(
         "1",
         "--load-settings",
         f"{settings.machine};{settings.process}",
+        "--load-filaments",
+        str(settings.filament),
     ]
-    # Multi-material is IN DEVELOPMENT and currently UNREACHABLE: no shipped printer has
-    # toolhead_count > 1 (the Snapmaker U1 was pulled until multi-material is real), so
-    # settings.filaments is always None here. When multi-material returns it must NOT use the
-    # invented `--filament-config` flag (OrcaSlicer rejects it: "Invalid option"); the real flag
-    # is `--load-filaments` with `;`-separated paths (mirrors --load-settings above). NB: real
-    # multi-material also needs assignment-bearing models (multi-part 3MF that map regions ->
-    # extruders), not just N filaments on a single solid — a single mesh prints in one material.
-    if settings.filaments:
-        cmd += ["--load-filaments", ";".join(str(fp) for fp in settings.filaments)]
-    else:
-        cmd += ["--load-filaments", str(settings.filament)]
     if allow_newer:
         cmd.append("--allow-newer-file")
     cmd += ["--export-3mf", str(gcode_path), str(input_mesh)]
@@ -411,28 +401,6 @@ def _find_profile_json(root: Path, kind: str, name: str) -> Path:
             f"({where}); disambiguate the configured profile name"
         )
     return matches[0]
-
-
-def resolve_filament_slots(
-    profiles_root: Path, printer: Printer, material_keys: list[str]
-) -> list[Path]:
-    """Resolve a list of per-toolhead material keys into on-disk filament profile JSONs.
-
-    Used for multi-toolhead slicing (``Printer.toolhead_count > 1``): each key in
-    ``material_keys`` maps T0..TN-1 to a filament profile via ``printer.orca_filament_profiles``.
-
-    Raises :class:`OrcaProfileError` when any key has no profile configured on this printer.
-    """
-    paths: list[Path] = []
-    for key in material_keys:
-        name = printer.orca_filament_profiles.get(key)
-        if not name:
-            raise OrcaProfileError(
-                f"material {key!r} is not available on printer {printer.name!r}: "
-                "no filament profile configured"
-            )
-        paths.append(_find_profile_json(profiles_root, "filament", name))
-    return paths
 
 
 def resolve_slice_settings(

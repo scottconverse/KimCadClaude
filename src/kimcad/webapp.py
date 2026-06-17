@@ -552,7 +552,6 @@ def web_options(config: Any, saved_settings: dict[str, Any] | None = None) -> di
             # Of those, the ones still using a vendor "Generic <MAT>" profile (vs a tuned,
             # brand-specific one) — so the UI can honestly flag only the generic combinations.
             "generic_materials": [m for m, name in fp.items() if name.startswith("Generic")],
-            "toolhead_count": p.toolhead_count,
         }
 
     printers = [_printer_entry(key) for key in config.raw.get("printers", {})]
@@ -613,12 +612,7 @@ def _regate_mesh(config: Any, mesh_path: Path, plan_dict: Any) -> str | None:
 
 
 def slice_registered_mesh(
-    config: Any,
-    mesh_path: Path,
-    printer_key: str | None,
-    material_key: str | None,
-    *,
-    filament_slots: tuple[str, ...] | None = None,
+    config: Any, mesh_path: Path, printer_key: str | None, material_key: str | None
 ) -> tuple[dict[str, Any], Path | None]:
     """Slice an already-validated, oriented mesh for the chosen printer + material.
 
@@ -626,21 +620,8 @@ def slice_registered_mesh(
     with no process profile — ``info`` reports ``sliced: False`` with a plain-English
     note and ``gcode_path`` is None, rather than raising: the validated mesh is still
     downloadable, so the user just falls back to a plain model export.
-
-    ``filament_slots`` is an ordered tuple of material keys for multi-toolhead slicing
-    (T0..TN-1); when provided it overrides the single ``material_key`` for filament selection.
-
-    ENG-003: the toolhead count this is sliced for comes from the printer CONFIG
-    (``config/default.yaml``), which is authoritative — KimCad slices for the printer MODEL as
-    configured, NOT the live hardware state. Slicing must work while the printer is off/unreachable
-    (you commonly slice before the printer is plugged in), so we deliberately do NOT query a live
-    connector here. A user whose hardware has fewer heads mounted than the config declares must
-    reconcile their config; this is a deliberate design decision, not a missing live probe.
     """
-    from kimcad.slicer import (
-        OrcaProfileError, SliceError, SliceSettings, resolve_filament_slots,
-        resolve_slice_settings, slice_model,
-    )
+    from kimcad.slicer import OrcaProfileError, SliceError, resolve_slice_settings, slice_model
 
     printer = config.printer(printer_key)
     material = config.material(material_key)
@@ -655,19 +636,6 @@ def slice_registered_mesh(
         if not orca.is_file():
             raise ToolMissingError("OrcaSlicer", orca)
         settings = resolve_slice_settings(config.orca_profiles_root(), printer, material)
-        # ENG-002: any non-empty filament_slots tuple (a length-1 tuple included) drives the
-        # per-toolhead --filament-config path; the caller only passes slots for a multi-head printer.
-        if filament_slots:
-            filament_paths = resolve_filament_slots(
-                config.orca_profiles_root(), printer, list(filament_slots)
-            )
-            settings = SliceSettings(
-                machine=settings.machine,
-                process=settings.process,
-                filament=settings.filament,
-                filaments=tuple(filament_paths),
-            )
-        material_tag = "_".join(filament_slots) if filament_slots else material.key
         result = slice_model(
             mesh_path,
             binary=config.binary_path("orcaslicer"),
@@ -677,7 +645,7 @@ def slice_registered_mesh(
             # printer/material writes a distinct file rather than overwriting. The mesh is always
             # named `part.oriented.<suffix>` by the pipeline, so the segment before the first dot
             # is the stable base name.
-            basename=f"{mesh_path.name.partition('.')[0]}_{printer.key}_{material_tag}",
+            basename=f"{mesh_path.name.partition('.')[0]}_{printer.key}_{material.key}",
             timeout_s=config.limit("slice_timeout_s"),
         )
     except OrcaProfileError as e:
@@ -1817,10 +1785,6 @@ def make_handler(
             # "authentication failed (HTTP 401)") rather than a generic "busy" (UX-002/UX-003).
             resp = {"name": name, "ready": ready, "online": st.online, "state": st.state.value,
                     "detail": st.detail, "simulated": simulated}
-            if st.nozzle_temp_c is not None:
-                resp["nozzle_temp_c"] = st.nozzle_temp_c
-            if st.toolhead_temps:
-                resp["toolhead_temps"] = list(st.toolhead_temps)
             # QA-001/QA-002: a not-ready live snapshot carries a typed `reason` too (not just the
             # build/config branch), so a `reason`-only consumer (agent/MCP/future SPA) sees a
             # uniform contract. The state maps onto the vocabulary; an online-but-faulted printer
@@ -2468,28 +2432,7 @@ def make_handler(
             data = self._read_json_body()
             if data is None:
                 return
-            printer_key = data.get("printer") or None
-            material_key = data.get("material") or None
-            filament_slots: tuple[str, ...] | None = None
-            try:
-                # ENG-003: toolhead_count is read from the printer CONFIG (authoritative), not a
-                # live connector — slicing must work while the printer is off (see
-                # slice_registered_mesh's docstring for the design rationale).
-                printer_cfg = get_config().printer(printer_key)
-                if printer_cfg.toolhead_count > 1:
-                    slots = tuple(
-                        str(data.get(f"filament_slot_{i}") or material_key or "")
-                        for i in range(printer_cfg.toolhead_count)
-                    )
-                    # ENG-001: for a multi-head printer set filament_slots UNCONDITIONALLY. Each slot
-                    # already falls back to material_key, so `slots` is a fully-populated length-N
-                    # tuple even when no slot fields are sent. The cache key must stay a tuple for
-                    # multi-head so it never collapses to the single-head string key (which would let
-                    # a stale single-head slice be served for a multi-head request).
-                    filament_slots = slots
-            except Exception:
-                pass
-            key = (rid, printer_key, filament_slots if filament_slots else material_key)
+            key = (rid, data.get("printer") or None, data.get("material") or None)
             with reg.lock:
                 cached = reg.slice_cache.get(key)
             if cached is not None and cached[1] is not None and cached[1].exists():
@@ -2503,13 +2446,8 @@ def make_handler(
                 else:
                     from kimcad.config import UnknownConfigKey
                     try:
-                        # ENG-005: with ENG-001, filament_slots is either None (single-head) or a
-                        # full length-N tuple (multi-head) — never an empty tuple — so the `is None`
-                        # check is the correct single-vs-multi discriminator, and existing test stubs
-                        # that take 4 positional args (no filament_slots kwarg) stay unbroken.
-                        _slot_kw = {} if filament_slots is None else {"filament_slots": filament_slots}
                         info, gcode_path = slice_registered_mesh(
-                            get_config(), mesh_path, printer_key, material_key, **_slot_kw
+                            get_config(), mesh_path, key[1], key[2]
                         )
                     except (KeyError, UnknownConfigKey) as e:
                         # An unknown printer/material name is a client error (400), not a 500 —

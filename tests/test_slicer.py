@@ -14,7 +14,6 @@ from kimcad.slicer import (
     SliceTimeout,
     _find_profile_json,
     prove_gcode_3mf,
-    resolve_filament_slots,
     resolve_slice_settings,
     slice_model,
 )
@@ -84,67 +83,6 @@ def test_slice_builds_expected_command(tmp_path, monkeypatch):
     assert result.gcode_proof is not None
     assert result.gcode_proof.has_motion
     assert result.gcode_proof.line_count >= 4
-
-
-def test_slice_multi_filament_uses_load_filaments_semicolon(tmp_path, monkeypatch):
-    # Multi-material is IN DEVELOPMENT and unreachable in production (no shipped printer has
-    # toolhead_count > 1 — the Snapmaker U1 was pulled until multi-material is real). This pins the
-    # intended OrcaSlicer CLI form for when it returns: ONE --load-filaments with ;-separated paths
-    # (NOT the invented --filament-config, which OrcaSlicer rejects). Command construction only —
-    # real multi-material also needs assignment-bearing models; see slicer.py / ROADMAP.
-    seen = {}
-
-    def _run(cmd, **kwargs):
-        seen["cmd"] = cmd
-        _write_gcode_3mf(Path(cmd[cmd.index("--export-3mf") + 1]))
-        return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
-
-    monkeypatch.setattr(slicer_mod.subprocess, "run", _run)
-    settings = SliceSettings(
-        machine=Path("machine.json"),
-        process=Path("process.json"),
-        filament=Path("filament.json"),
-        filaments=(Path("f0.json"), Path("f1.json"), Path("f2.json"), Path("f3.json")),
-    )
-    slice_model(
-        tmp_path / "part.stl",
-        binary=_stub_binary(tmp_path),
-        out_dir=tmp_path,
-        settings=settings,
-        basename="part",
-    )
-    cmd = seen["cmd"]
-    assert "--filament-config" not in cmd
-    assert cmd[cmd.index("--load-filaments") + 1] == "f0.json;f1.json;f2.json;f3.json"
-
-
-def test_slice_single_element_filaments_uses_load_filaments(tmp_path, monkeypatch):
-    # A length-1 filaments tuple uses --load-filaments with that single path (same flag as the
-    # single-head path). Command construction only; multi-material is in development.
-    seen = {}
-
-    def _run(cmd, **kwargs):
-        seen["cmd"] = cmd
-        _write_gcode_3mf(Path(cmd[cmd.index("--export-3mf") + 1]))
-        return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
-
-    monkeypatch.setattr(slicer_mod.subprocess, "run", _run)
-    settings = SliceSettings(
-        machine=Path("machine.json"),
-        process=Path("process.json"),
-        filament=Path("filament.json"),
-        filaments=(Path("f0.json"),),
-    )
-    slice_model(
-        tmp_path / "part.stl",
-        binary=_stub_binary(tmp_path),
-        out_dir=tmp_path,
-        settings=settings,
-        basename="part",
-    )
-    cmd = seen["cmd"]
-    assert "--filament-config" not in cmd
-    assert cmd[cmd.index("--load-filaments") + 1] == "f0.json"
 
 
 def test_slice_fails_when_3mf_has_no_gcode(tmp_path, monkeypatch):
@@ -308,33 +246,6 @@ def test_resolve_unmapped_material_is_not_available(tmp_path):
     root = _profile_tree(tmp_path)
     with pytest.raises(OrcaProfileError, match="not available on printer"):
         resolve_slice_settings(root, _p2s(), _PETG)
-
-
-def test_resolve_filament_slots_happy_path(tmp_path):
-    # TEST-001: valid per-toolhead material keys, each present in the printer's
-    # orca_filament_profiles, resolve to one filament Path per slot (T0..TN-1).
-    root = _profile_tree(tmp_path)
-    printer = _p2s(
-        orca_filament_profiles={
-            "pla": "Bambu PLA Basic @BBL P2S",
-            "petg": "Generic PETG",
-        }
-    )
-    paths = resolve_filament_slots(root, printer, ["pla", "petg", "pla"])
-    assert len(paths) == 3
-    assert all(p.exists() and "filament" in p.parts for p in paths)
-    assert paths[0].stem == "Bambu PLA Basic @BBL P2S"
-    assert paths[1].stem == "Generic PETG"
-    assert paths[2].stem == "Bambu PLA Basic @BBL P2S"
-
-
-def test_resolve_filament_slots_missing_profile_key_raises(tmp_path):
-    # TEST-001: a material key with NO filament profile configured on this printer raises
-    # OrcaProfileError rather than silently slicing a head with the wrong/absent filament.
-    root = _profile_tree(tmp_path)
-    printer = _p2s(orca_filament_profiles={"pla": "Bambu PLA Basic @BBL P2S"})
-    with pytest.raises(OrcaProfileError, match="not available on printer"):
-        resolve_filament_slots(root, printer, ["pla", "petg"])
 
 
 def test_resolve_raises_when_no_process_profile(tmp_path):

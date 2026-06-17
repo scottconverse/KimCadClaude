@@ -9,6 +9,17 @@ import { getOptions } from '../api'
 // printer-status chip are later Stage 8.5 slices — absent until built rather than dead controls.
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
+function CubeGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2 21 7v10l-9 5-9-5V7Z" />
+      <path d="M3 7l9 5 9-5" />
+      <path d="M12 12v10" />
+    </svg>
+  )
+}
+
 export default function Topbar({
   showNewDesign,
   onNewDesign,
@@ -66,7 +77,9 @@ export default function Topbar({
   return (
     <header className="kc-topbar">
       <button type="button" className="kc-brand" onClick={onHome} aria-label="KimCad — home">
-        <span className="kc-logo" aria-hidden="true" />
+        <span className="kc-logo">
+          <CubeGlyph />
+        </span>
         <span className="kc-wordmark">
           Kim<span className="kc-wordmark-accent">Cad</span>
         </span>

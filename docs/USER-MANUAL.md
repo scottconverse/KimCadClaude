@@ -195,16 +195,10 @@ When a part passes the gate, you can:
   **test connection** (`mock`) proves the whole send path without any hardware.
 
 KimCad's picker offers a **curated catalog of ~29 popular current machines** across the top
-makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each
-build-volume-checked and slice-proven, on top of the full ~1,400-profile OrcaSlicer library on
-disk. Direct send today covers seven connection types — Bambu native LAN, OctoPrint, Moonraker
-(Klipper), PrusaLink, and the **Duet** and **Marlin** connectors.
-
-### Multi-material printing
-
-Multi-material / multi-toolhead printing is in development — for now KimCad slices every
-printer as single-material (you pick one filament). That includes Bambu printers with an AMS:
-KimCad treats them as single-material today.
+makers (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each build-volume-checked and
+slice-proven, on top of the full ~1,400-profile OrcaSlicer library on disk. Direct send today
+covers six connection types — Bambu native LAN, OctoPrint, Moonraker (Klipper), PrusaLink,
+and the new **Duet** and **Marlin** connectors.
 
 > **Beta status:** connections are validated against the printers' real software protocols
 > (against a faithful conformance mock) but **not yet on physical hardware** — that's the
@@ -246,7 +240,7 @@ Plain-language definitions of the recurring terms in this manual and on screen.
 | **`.STL`** | A universal 3D-model file (just the mesh, no editability). Always downloadable for every part. |
 | **`.STEP`** | A precision, *editable* CAD model you can reopen in Fusion 360 / FreeCAD / SolidWorks. Offered for template parts when the optional CadQuery engine is installed. |
 | **`.kimcad`** | KimCad's own portable design backup (re-importable on another machine) — *not* a printable file. |
-| **AMS** | Bambu's Automatic Material System — the multi-spool unit that auto-feeds filament. The Bambu connector has a `use_ams` option, but KimCad slices every printer (Bambu+AMS included) as single-material today; multi-material is in development. |
+| **AMS** | Bambu's Automatic Material System — the multi-spool unit that auto-feeds filament. The Bambu connector has a `use_ams` option. |
 | **Ollama** | The free local AI runtime KimCad talks to. It hosts the two models on your machine; nothing leaves the computer. |
 | **manifold (the verb) / harden** | The final "make it watertight" step (using the Manifold3D library) that guarantees a 2-manifold mesh before slicing. |
 
@@ -501,7 +495,7 @@ prompt → DesignPlan (validated JSON) → OpenSCAD / CadQuery → render → me
 | `validation.py` / `printability.py` / `orientation.py` / `hardening.py` | the validation → gate → orient → harden stack |
 | `slicer.py` | the OrcaSlicer CLI integration |
 | `pipeline.py` | the orchestrator that wires it all and builds the report |
-| `printer_connector.py` + `*_connector.py` | the send abstraction + leaf connectors (`bambu_`, `octoprint_`, `moonraker_`, `snapmaker_`, `prusalink_`, `duet_`, `marlin_`) |
+| `printer_connector.py` + `*_connector.py` | the send abstraction + leaf connectors (`bambu_`, `octoprint_`, `moonraker_`, `prusalink_`, `duet_`, `marlin_`) |
 | `webapp.py` / `shell.py` | the local web layer (incl. the session-token guard) and the WebView2 app window |
 | `design_registry.py` | per-design server state + its locking protocols |
 | `paths.py` | the dev↔installed + per-OS path seam (read root vs writable root) |

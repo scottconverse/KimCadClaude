@@ -2,7 +2,7 @@
 
 **Describe a functional 3D-printable part in plain English — or a photo, or a sketch — and get a checked, print-ready file, entirely on your own machine. No CAD skills, no account, no cloud.**
 
-![beta](https://img.shields.io/badge/beta-0.9.0b6-2563eb)
+![beta](https://img.shields.io/badge/beta-0.9.0b4-2563eb)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![python](https://img.shields.io/badge/python-3.13-3776AB)
 ![license](https://img.shields.io/badge/license-Apache--2.0-1d7a4e)
@@ -22,7 +22,7 @@
 - **Local-first & private** — runs entirely on your computer; no account, no cloud, no API key required. Prompts, photos, and sketches never leave the machine unless you opt into a cloud model. The core path is CPU-only — no discrete GPU.
 - **Deterministic geometry** — common shapes come from a parametric template engine ([86 families](docs/templates.md)), *not* a neural net, so the output is solid, watertight, and dimensionally meaningful. Drag a slider and the part re-renders locally in under a second.
 - **Real printability** — every part is validated against your printer and material *before* it can be sliced; the bundled PrintProof3D engine adds overhang / bridge / bed-adhesion analysis and a 0–100 readiness score.
-- **Slice & print** — download a print-ready file or send it straight to your printer (Bambu LAN, OctoPrint, Moonraker, PrusaLink), always behind an explicit confirmation. Every printer is single-material — you pick one filament. *(Multi-material / multi-toolhead printing, e.g. the Snapmaker U1, is in development — coming soon.)*
+- **Slice & print** — download a print-ready file or send it straight to your printer (Bambu LAN, OctoPrint, Moonraker, PrusaLink), always behind an explicit confirmation.
 - **Editable CAD out** — with the optional [CadQuery](https://cadquery.readthedocs.io/) engine, template-built parts also export an editable `.STEP` you can keep modeling in Fusion / FreeCAD / SolidWorks.
 
 ### What the installer puts on your machine
