@@ -1,0 +1,5 @@
+{
+  "version_found": "0.9.2",
+  "model_path_text": "NO model-store text in Settings/About",
+  "ollama_in_settings_text": false
+}

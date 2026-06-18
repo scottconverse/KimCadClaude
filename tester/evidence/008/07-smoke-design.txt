@@ -1,0 +1,7 @@
+{
+  "prompt": "a small coin tray, 80 mm across",
+  "elapsed_s": 84.5,
+  "readiness": 92,
+  "print_file_produced": true,
+  "orca_error": false
+}

@@ -1,0 +1,6 @@
+{
+  "nav_click": "clicked nav: Experimental",
+  "url_before": "http://127.0.0.1:8766/#/settings",
+  "url_after": "http://127.0.0.1:8766/#/settings",
+  "panel_stayed_open": true
+}

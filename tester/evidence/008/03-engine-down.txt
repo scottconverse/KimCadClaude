@@ -1,0 +1,11 @@
+{
+  "expected": "KimCad couldn't reach your local AI \u2014 it isn't running. You can restart it from Settings, then try again.",
+  "canvas_message": "KimCad couldn't reach your local AI \u2014 it isn't running. You can restart it from Settings, then try again.",
+  "settings_message": "KimCad couldn't reach your local AI \u2014 it isn't running. You can restart it from Settings, then try again.",
+  "exact_match": true,
+  "near_match": true,
+  "ollama_anywhere": false,
+  "ollama_com": false,
+  "canvas_body_excerpt": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nMy Designs\nSettings\n?\nNew design\nCONVERSATION\na small test cube 30mm\nKimCad couldn't reach your local AI \u2014 it isn't running. You can restart it from Settings, then try again.\nTry again\n\nSet up your local AI first \u2014 see Settings.\n\nSend\nEnter to send \u00b7 Shift+Enter for a new line\nDescribe with a photo\n\u2014 or drop an image here\nStart from a sketch\n\u2014 or drop an image here\nYour 3D preview appears here.\nParameters\nQuality\nExport\nParameters\nmm\nin\n\nNo part was produced, so there\u2019s nothing to adjust. Try describing it a little differently on the left.",
+  "settings_body_excerpt": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nMy Designs\nSettings\n?\nSettings\nDESIGN DEFAULTS\nPrinter & material\nDisplay\nAI\nAI model\nCloud acceleration\nExperimental\nOUTPUT & TOOLS\nPrinter connections\nEditable CAD\nTools\nSYSTEM\nAbout & reset\nPrinter & material\n\nThe default printer and material new designs are checked against.\n\nDefault printer\nBambu Lab P2S\nBambu Lab A1\nElegoo Neptune 4 Max\nBambu Lab P1P\nBambu Lab P1S\nBambu Lab X1 Carbon\nBambu Lab X1E\nBambu Lab A1 mini\nCreality K1\nCrealit"
+}
