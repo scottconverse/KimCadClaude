@@ -557,8 +557,17 @@ def test_serves_spa_index_and_assets_and_rejects_traversal(tmp_path):
         html = r.read().decode("utf-8")
         assert 'id="root"' in html
         favicon = urllib.request.urlopen(base + "/favicon.ico", timeout=10)
-        assert favicon.status == 204
-        assert favicon.read() == b""
+        # Kim Everywhere (0.9.3): the route serves WEB_DIR/favicon.ico (200) when the file is
+        # present (the shipped build always carries it); falls back to 204 if the file is
+        # absent (a dev tree where the SPA hasn't been built). Either is acceptable; what is
+        # NOT acceptable is the route 404ing or returning an unrelated payload.
+        assert favicon.status in (200, 204), f"unexpected favicon status {favicon.status}"
+        if favicon.status == 200:
+            assert "image/x-icon" in favicon.headers.get("Content-Type", ""), (
+                "favicon.ico must be served as image/x-icon when present"
+            )
+        else:
+            assert favicon.read() == b""
         # Every /assets/ bundle the shell references is served with the right content type.
         refs = re.findall(r'(?:src|href)="/assets/([^"]+)"', html)
         assert refs, "the served shell should reference at least one /assets/ bundle"

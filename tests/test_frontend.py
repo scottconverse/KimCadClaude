@@ -70,12 +70,13 @@ def _built_css() -> str:
     return "\n".join(p.read_text(encoding="utf-8") for p in css_files)
 
 
-def test_built_css_carries_workshop_tokens():
-    """The Workshop theme's signature tokens survive the build: the terracotta accent, the
-    dark viewport colour, and the three named font families."""
+def test_built_css_carries_zen_tokens():
+    """The Zen Design World theme's signature tokens survive the build: the gold accent (light
+    + dark variants), the deep-black viewport colour, and the three named font families."""
     css = _built_css()
-    assert "#c8623a" in css, "built CSS missing the Workshop accent (terracotta)"
-    assert "#14171c" in css, "built CSS missing the dark viewport colour"
+    assert "#d4af37" in css, "built CSS missing the Zen accent (gold, light theme)"
+    assert "#e3c24f" in css, "built CSS missing the Zen accent (gold, dark theme)"
+    assert "#0c0a06" in css, "built CSS missing the deep-black viewport / dark surface colour"
     for family in ("Bricolage Grotesque", "Hanken Grotesk", "JetBrains Mono"):
         assert family in css, f"built CSS missing the {family} font family"
 
