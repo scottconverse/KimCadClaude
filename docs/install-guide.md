@@ -13,7 +13,7 @@ How to know the file is genuine: every release publishes the installer's **SHA-2
 checksum** beside it. To check yours, in PowerShell:
 
 ```
-Get-FileHash .\KimCad-Setup-0.9.1.exe -Algorithm SHA256
+Get-FileHash .\KimCad-Setup-0.9.2.exe -Algorithm SHA256
 ```
 
 The hash must match the `.sha256` file from the same release page exactly.

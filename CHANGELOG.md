@@ -3,7 +3,7 @@
 All notable changes to KimCad are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); this project uses semantic versioning.
 
-## [Unreleased]
+## [0.9.2] — 2026-06-17
 
 ### Fixed
 - **Engine-down message no longer leaks "Ollama."** When the managed engine isn't running
