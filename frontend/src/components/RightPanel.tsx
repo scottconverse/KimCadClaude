@@ -432,7 +432,7 @@ function ReadinessBody({
       {readiness.risks.length > 0 && (
         <div className="kc-readiness-sec">
           <div className="kc-risks-head kc-tip-host">
-            <h3 className="kc-readiness-h">Risks<InfoTip term="risks" /></h3>
+            <h3 className="kc-readiness-h">Risks</h3>
             {anyLocatable && onToggleHighlights && (
               <label className="kc-hl-toggle">
                 <input
@@ -489,7 +489,7 @@ function ReadinessBody({
 
       {readiness.recommendations.length > 0 && (
         <div className="kc-readiness-sec">
-          <h3 className="kc-readiness-h kc-tip-host">Recommendations<InfoTip term="recommendations" /></h3>
+          <h3 className="kc-readiness-h">Recommendations</h3>
           <ul className="kc-recs">
             {readiness.recommendations.map((rec) => (
               <li key={rec} className="kc-rec">
@@ -516,24 +516,29 @@ function ReadinessCard({
   onFocusRisk,
   highlightsOn,
   onToggleHighlights,
+  children,
 }: {
   result: DesignResponse | null
   onFocusRisk?: (issueId: string) => void
   highlightsOn?: boolean
   onToggleHighlights?: () => void
+  children?: React.ReactNode
 }) {
   const readiness = result?.report?.readiness
   return (
     <section className="kc-card kc-card-readiness">
       <h2 className="kc-card-title kc-tip-host">Readiness<InfoTip term="readiness" /></h2>
       {readiness ? (
-        <ReadinessBody
-          readiness={readiness}
-          gateStatus={result?.report?.gate_status}
-          onFocusRisk={onFocusRisk}
-          highlightsOn={highlightsOn}
-          onToggleHighlights={onToggleHighlights}
-        />
+        <>
+          <ReadinessBody
+            readiness={readiness}
+            gateStatus={result?.report?.gate_status}
+            onFocusRisk={onFocusRisk}
+            highlightsOn={highlightsOn}
+            onToggleHighlights={onToggleHighlights}
+          />
+          {children}
+        </>
       ) : isFailureStatus(result?.status) ? (
         <p className="kc-muted-note" role="status">
           No part to assess — the last attempt didn&rsquo;t produce a model.
@@ -548,92 +553,62 @@ function ReadinessCard({
   )
 }
 
-function PrintabilityCard({ result }: { result: DesignResponse | null }) {
+function PrintabilityBody({ result }: { result: DesignResponse | null }) {
   const report = result?.report
-  // Slice 4: dims table shows converted values in the user's chosen unit.
   const { unit, formatMm } = useUnits()
+  if (!report) {
+    return isFailureStatus(result?.status) ? (
+      <p className="kc-muted-note" role="status">
+        No part to check — the last attempt didn&rsquo;t produce a model.
+      </p>
+    ) : (
+      <p className="kc-muted-note">
+        The printability check — dimensions, wall thickness, build-volume fit — appears here
+        after a part is designed.
+      </p>
+    )
+  }
   return (
-    <section className="kc-card kc-card-report">
-      <h2 className="kc-card-title kc-tip-host">Printability<InfoTip term="printability" /></h2>
-      {report ? (
-        <>
-          {/* UX-009 (2026-06-09 audit): say the relationship out loud — this card is the
-              detail BEHIND the readiness score above it, not a second opinion to reconcile. */}
-          <p className="kc-muted-note kc-card-rel">The detail behind the readiness score above.</p>
-          <div className="kc-gate-row kc-tip-host">
-            {/* UX-008: no "Gate:" jargon in the trust moment — the card title supplies the
-                subject; the badge carries the plain verdict ("Passed" / "Needs review").
-                UX-109 (stage-BCD gate): the separate badge tip is gone too — it restated the
-                card title's own Printability tip under a different name. */}
-            <span className={`kc-status-badge kc-tone-${gateTone(report.gate_status)}`}>
-              {gateLabel(report.gate_status)}
-            </span>
-            {/* UX-001: state which geometry engine built this part — a neutral provenance chip,
-                so the STEP affordance's presence/absence isn't the only (inferred) signal.
-                UX-107 (stage-BCD gate): the explanation is an InfoTip (keyboard/touch
-                reachable), not a hover-only title. */}
-            {report.backend && (
-              <span className="kc-engine-badge kc-tip-host">
-                Engine: {report.backend === 'cadquery' ? 'CadQuery' : 'OpenSCAD'}
-                <InfoTip term="engine" />
-              </span>
-            )}
-          </div>
-          {report.headline && <p className="kc-muted-note">{report.headline}</p>}
-
-          {report.dims.length > 0 && (
-            <table className="kc-dims">
-              <thead>
-                <tr>
-                  <th scope="col">Axis</th>
-                  <th scope="col">Target ({unit})</th>
-                  <th scope="col">Actual ({unit})</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.dims.map((d) => (
-                  <tr key={d.axis} className={d.ok ? undefined : 'kc-dim-off'}>
-                    <td>{d.axis}</td>
-                    <td className="kc-mono">{formatMm(d.target)}</td>
-                    <td className="kc-mono">
-                      {formatMm(d.actual)}
-                      {d.ok ? '' : ' ⚠'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {report.findings.length > 0 && (
-            // UX-002: scannable icon-led checks (✓ pass / ⚠ needs-review) — the gate is the core
-            // trust moment; a glanceable verdict list reads better than a flat bullet list. The
-            // icon is reinforced by an SR-only word so the status isn't conveyed by colour alone.
-            <ul className="kc-checks">
-              {report.findings.map((f) => {
-                const warn = f.level !== 'pass'
-                return (
-                  <li key={`${f.code}:${f.message}`} className={`kc-check${warn ? ' kc-check-warn' : ''}`}>
-                    <span className="kc-check-ico" aria-hidden="true">{warn ? '⚠' : '✓'}</span>
-                    <span className="kc-sr-only">{warn ? 'Needs review: ' : 'OK: '}</span>
-                    <span>{f.message}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </>
-      ) : isFailureStatus(result?.status) ? (
-        <p className="kc-muted-note" role="status">
-          No part to check — the last attempt didn&rsquo;t produce a model.
-        </p>
-      ) : (
-        <p className="kc-muted-note">
-          The printability check — dimensions, wall thickness, build-volume fit — appears here
-          after a part is designed.
-        </p>
+    <>
+      {report.headline && <p className="kc-muted-note">{report.headline}</p>}
+      {report.dims.length > 0 && (
+        <table className="kc-dims">
+          <thead>
+            <tr>
+              <th scope="col">Axis</th>
+              <th scope="col">Target ({unit})</th>
+              <th scope="col">Actual ({unit})</th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.dims.map((d) => (
+              <tr key={d.axis} className={d.ok ? undefined : 'kc-dim-off'}>
+                <td>{d.axis}</td>
+                <td className="kc-mono">{formatMm(d.target)}</td>
+                <td className="kc-mono">
+                  {formatMm(d.actual)}
+                  {d.ok ? '' : ' ⚠'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
-    </section>
+      {report.findings.length > 0 && (
+        <ul className="kc-checks">
+          {report.findings.map((f) => {
+            const warn = f.level !== 'pass'
+            return (
+              <li key={`${f.code}:${f.message}`} className={`kc-check${warn ? ' kc-check-warn' : ''}`}>
+                <span className="kc-check-ico" aria-hidden="true">{warn ? '⚠' : '✓'}</span>
+                <span className="kc-sr-only">{warn ? 'Needs review: ' : 'OK: '}</span>
+                <span>{f.message}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
   )
 }
 
@@ -759,8 +734,19 @@ export default function RightPanel({
           onFocusRisk={onFocusRisk}
           highlightsOn={highlightsOn}
           onToggleHighlights={onToggleHighlights}
-        />
-        <PrintabilityCard result={result} />
+        >
+          <details className="kc-quality-detail">
+            <summary>
+              Printability detail
+              {result?.report?.backend && (
+                <span className="kc-engine-badge">
+                  {result.report.backend === 'cadquery' ? 'CadQuery' : 'OpenSCAD'}
+                </span>
+              )}
+            </summary>
+            <PrintabilityBody result={result} />
+          </details>
+        </ReadinessCard>
       </div>
       <div
         role="tabpanel"

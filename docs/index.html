@@ -35,7 +35,7 @@
   header.nav{position:sticky;top:0;z-index:20;background:rgba(240,235,224,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair);}
   .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 24px;max-width:var(--maxw);margin:0 auto;}
   .brand{display:flex;align-items:center;gap:11px;}
-  .cube{width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;}
+  .cube{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;}
   .wordmark{font-family:var(--fd);font-size:20px;font-weight:600;letter-spacing:-.015em;}
   .wordmark b{font-weight:800;color:var(--accent);}
   .nav-links{display:flex;align-items:center;gap:22px;font-size:14.5px;font-weight:600;}
@@ -142,7 +142,7 @@
 <header class="nav">
   <div class="nav-inner">
     <a class="brand" href="#top" style="color:inherit">
-      <span class="cube"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5V21.5"/></svg></span>
+      <img class="cube" src="kim-avatar.png" alt="Kim" width="34" height="34" />
       <span class="wordmark">Kim<b>Cad</b></span>
     </a>
     <nav class="nav-links">
@@ -438,7 +438,7 @@
 <footer>
   <div class="wrap foot-inner">
     <div class="brand">
-      <span class="cube" style="width:28px;height:28px;border-radius:8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5V21.5"/></svg></span>
+      <img class="cube" src="kim-avatar.png" alt="Kim" width="28" height="28" style="width:28px;height:28px;" />
       <span class="wordmark" style="font-size:17px">Kim<b>Cad</b></span>
     </div>
     <div>Local-first AI → parametric CAD → 3D print · Apache-2.0 · <a href="https://github.com/scottconverse/KimCadClaude">scottconverse/KimCadClaude</a></div>
