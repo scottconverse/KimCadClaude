@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Landing page — before / after review</title>
+<style>
+  :root {
+    --bg: #faf8f3;
+    --surface: #ffffff;
+    --ink: #1a1814;
+    --muted: #5a554c;
+    --line: #e6e1d6;
+    --gold: #d4af37;
+    --gold-deep: #b8901f;
+    --bad: #b04632;
+    --good: #2f6f4f;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 28px; }
+  header { background: #1a1814; color: #fafaf8; padding: 48px 0; border-bottom: 4px solid var(--gold); }
+  header h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -0.02em; }
+  header h1 b { color: var(--gold); font-weight: 700; }
+  header p { margin: 0; color: #c8c4ba; max-width: 70ch; }
+  main { padding: 56px 0 96px; }
+
+  .section-head { margin: 56px 0 20px; }
+  .section-head h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.01em; }
+  .section-head .lead { color: var(--muted); margin: 0; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .col { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .col header.colhead { background: var(--surface); color: var(--ink); padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .col header.colhead .tag { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; }
+  .col.old header.colhead .tag { background: rgba(176, 70, 50, 0.1); color: var(--bad); border: 1px solid rgba(176, 70, 50, 0.3); }
+  .col.new header.colhead .tag { background: rgba(47, 111, 79, 0.1); color: var(--good); border: 1px solid rgba(47, 111, 79, 0.3); }
+  .col header.colhead .label { font-size: 13px; color: var(--muted); }
+  .col img { display: block; width: 100%; height: auto; background: #f0ece2; }
+  .col.dark img { background: #0c0a08; }
+
+  .full-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .full-pair .col img { max-height: 1400px; object-fit: cover; object-position: top; }
+
+  .mobile-pair { display: grid; grid-template-columns: repeat(3, 280px); gap: 20px; justify-content: center; }
+  .mobile-pair .col img { max-width: 280px; margin: 0 auto; }
+
+  .verdict { margin: 56px 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 32px; }
+  .verdict h2 { margin: 0 0 16px; font-size: 22px; }
+  .verdict ul { margin: 0; padding: 0 0 0 22px; }
+  .verdict li { margin: 8px 0; }
+  .verdict .group { margin: 20px 0; padding: 18px 22px; border-radius: 8px; }
+  .verdict .group.go { background: rgba(47, 111, 79, 0.07); border-left: 4px solid var(--good); }
+  .verdict .group.hold { background: rgba(212, 175, 55, 0.08); border-left: 4px solid var(--gold); }
+  .verdict .group.decide { background: rgba(26, 24, 20, 0.04); border-left: 4px solid var(--ink); }
+  .verdict .group h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: -0.005em; }
+  .verdict .group p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+  .verdict code { background: rgba(26, 24, 20, 0.06); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+
+  .diagnosis { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 32px; margin: 0 0 36px; }
+  .diagnosis h2 { margin: 0 0 14px; font-size: 20px; }
+  .diagnosis ol { margin: 0; padding: 0 0 0 22px; }
+  .diagnosis ol li { margin: 8px 0; }
+  .diagnosis b { color: var(--ink); }
+
+  @media (max-width: 880px) {
+    .pair, .full-pair { grid-template-columns: 1fr; }
+    .mobile-pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Landing page — before <b>/ after</b> review</h1>
+    <p>The amateur-hour page you rejected, paired with the Zen Design World redesign. One page, three sections: the diagnosis, the captures, and what's safe to ship vs what needs your sign-off.</p>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <section class="diagnosis">
+      <h2>The diagnosis</h2>
+      <ol>
+        <li><b>The cube logo was never yours.</b> Your brief says <i>"Kim as brand mark + assistant avatar."</i> The copper cube was a Claude artifact. <b>Kim's face is the brand</b> — confirmed.</li>
+        <li><b>Kim's aesthetic is "Design in Balance"</b> — gold/black/white, Helvetica, refined minimalism, "minimal and modern without being cold." The old page was the opposite: cramped, one cream wall, hand-drawn cartoon, fake "94" score.</li>
+        <li><b>The product is good.</b> Eleven real screenshots from the live app replaced the cartoon. Workspace, Smart Mesh gate, 86-family library now visible. Honest beta candor kept but calmed.</li>
+      </ol>
+    </section>
+
+    <!-- Hero -->
+    <div class="section-head">
+      <h2>1. Hero (first impression)</h2>
+      <p class="lead">What a visitor sees in the first 800ms.</p>
+    </div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead">
+          <span class="tag">Before</span>
+          <span class="label">Amateur hour — cramped, flat, cartoon</span>
+        </header>
+        <img src="compare/old-hero.png" alt="Old landing page hero — small Kim avatar, flat cream background, cluttered" />
+      </div>
+      <div class="col new">
+        <header class="colhead">
+          <span class="tag">After</span>
+          <span class="label">184px Kim portrait with gold ring, calm hierarchy, real workspace screenshot</span>
+        </header>
+        <img src="compare/new-hero.png" alt="New landing page hero — large Kim portrait, balanced typography, real product screenshot" />
+      </div>
+    </div>
+
+    <!-- Full page -->
+    <div class="section-head">
+      <h2>2. Full page (scroll narrative)</h2>
+      <p class="lead">How the story unfolds end to end — sections, rhythm, real screenshots throughout.</p>
+    </div>
+    <div class="full-pair">
+      <div class="col old">
+        <header class="colhead">
+          <span class="tag">Before</span>
+          <span class="label">One flat cream wall, no rhythm</span>
+        </header>
+        <img src="compare/old-full.png" alt="Old landing page full scroll — flat, monotonous, no visual hierarchy" />
+      </div>
+      <div class="col new">
+        <header class="colhead">
+          <span class="tag">After</span>
+          <span class="label">Light → premium dark gold band → light. Real screenshots in every section.</span>
+        </header>
+        <img src="compare/new-full.png" alt="New landing page full scroll — varied sections, gold-on-black premium band, real product imagery" />
+      </div>
+    </div>
+
+    <!-- Dark mode (new only) -->
+    <div class="section-head">
+      <h2>3. Dark mode (new — old had none)</h2>
+      <p class="lead">Auto-detects <code>prefers-color-scheme</code>, persists via localStorage, manual toggle in nav.</p>
+    </div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead">
+          <span class="tag">Before</span>
+          <span class="label">No dark mode</span>
+        </header>
+        <div style="padding: 80px 40px; text-align: center; color: var(--muted); background: #f7f4ec; font-size: 14px;">
+          <div style="font-size: 48px; margin-bottom: 16px;">◐</div>
+          The old page had no dark-mode implementation at all.<br />A direct visual comparison isn't possible.
+        </div>
+      </div>
+      <div class="col new dark">
+        <header class="colhead">
+          <span class="tag">After</span>
+          <span class="label">Gold on deep black — Kim's "premium" register</span>
+        </header>
+        <img src="compare/new-dark.png" alt="New landing page hero in dark mode — gold accents on deep black" />
+      </div>
+    </div>
+
+    <!-- Mobile -->
+    <div class="section-head">
+      <h2>4. Mobile (responsive)</h2>
+      <p class="lead">Hamburger menu, single-column hero, full-width buttons. The old page had unfixed overflow at small widths.</p>
+    </div>
+    <div class="mobile-pair">
+      <div class="col old">
+        <header class="colhead">
+          <span class="tag">Before</span>
+          <span class="label">Cramped</span>
+        </header>
+        <img src="compare/old-mobile.png" alt="Old landing page on mobile — squeezed layout" />
+      </div>
+      <div class="col new">
+        <header class="colhead">
+          <span class="tag">After</span>
+          <span class="label">Balanced</span>
+        </header>
+        <img src="compare/new-mobile.png" alt="New landing page on mobile — calm single-column hero" />
+      </div>
+    </div>
+
+    <!-- App palette mockups -->
+    <div class="section-head">
+      <h2>5. App palette — current terracotta vs proposed gold/black</h2>
+      <p class="lead">The right-hand column is a <b>mockup</b> — generated by injecting Zen Design World gold/black CSS variables into the live demo app. No app source has been modified. Layout, content, components are identical; only the palette tokens change. Decide here before I rewrite <code>frontend/src/styles.css</code>.</p>
+    </div>
+
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">5a. First-run / empty state (light)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Warm terracotta workshop</span></header>
+        <img src="palette/before/01-empty-light.png" alt="Current empty state in terracotta palette" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Zen gold on warm white</span></header>
+        <img src="palette/after/01-empty-light.png" alt="Proposed empty state in gold/black palette" />
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">5b. Workspace — the main design view (light)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Terracotta accents on cream</span></header>
+        <img src="palette/before/02-workspace-light.png" alt="Current workspace in terracotta palette" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Gold accents on white</span></header>
+        <img src="palette/after/02-workspace-light.png" alt="Proposed workspace in gold/black palette" />
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">5c. Smart Mesh quality gate (light)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Terracotta score ring</span></header>
+        <img src="palette/before/03-quality-light.png" alt="Current quality gate" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Gold score ring</span></header>
+        <img src="palette/after/03-quality-light.png" alt="Proposed quality gate in gold/black palette" />
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">5d. Part library browser (light)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Terracotta category chips</span></header>
+        <img src="palette/before/04-library-light.png" alt="Current library browser" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Gold category chips</span></header>
+        <img src="palette/after/04-library-light.png" alt="Proposed library browser in gold/black palette" />
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">5e. Workspace — DARK MODE (the premium register where gold sings)</h3></div>
+    <div class="pair">
+      <div class="col old dark">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Warm orange on dark brown</span></header>
+        <img src="palette/before/05-workspace-dark.png" alt="Current workspace dark — warm orange on brown" />
+      </div>
+      <div class="col new dark">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Gold on deep black — Kim's aesthetic</span></header>
+        <img src="palette/after/05-workspace-dark.png" alt="Proposed workspace dark — gold on black" />
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">5f. First-run wizard (the humanizing moment)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Terracotta rail, no Kim face</span></header>
+        <img src="palette/before/06-wizard.png" alt="Current first-run wizard" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed (palette only)</span><span class="label">Gold rail. Kim's face in rail + above H1 comes in the wizard rewrite (separate change).</span></header>
+        <img src="palette/after/06-wizard.png" alt="Proposed first-run wizard in gold/black" />
+      </div>
+    </div>
+
+    <!-- In-app branding mockups -->
+    <div class="section-head">
+      <h2>6. Held-for-sign-off mockups — every in-app branding surface</h2>
+      <p class="lead">Each item below shows the surface as it ships today (left) and as it would look with the proposed change (right). In-app captures are <b>real</b> — produced by injecting DOM into the live demo with Playwright, no app source changed. OS-chrome surfaces (favicon, window, installer) are HTML/SVG mockups since they live outside the browser.</p>
+    </div>
+
+    <!-- 6a. Avatar source upgrade -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6a. Avatar source asset — 64px → 256px (quality)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">64px source — soft when displayed large</span></header>
+        <div style="padding:36px; background:var(--bg); display:flex; gap:32px; align-items:center; justify-content:center;">
+          <div style="text-align:center"><img src="assets/kim-current-64.png" style="width:32px;height:32px;border-radius:50%;display:block;margin:0 auto 8px" alt=""><span style="font-size:11px;color:var(--muted)">chat avatar · 32px</span></div>
+          <div style="text-align:center"><img src="assets/kim-current-64.png" style="width:56px;height:56px;border-radius:50%;display:block;margin:0 auto 8px" alt=""><span style="font-size:11px;color:var(--muted)">wizard rail · 56px</span></div>
+          <div style="text-align:center"><img src="assets/kim-current-64.png" style="width:96px;height:96px;border-radius:50%;display:block;margin:0 auto 8px" alt=""><span style="font-size:11px;color:var(--muted)">landing hero · 96px <b style="color:var(--bad)">← visible blur</b></span></div>
+        </div>
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">256px source from 1254px master — sharp at every scale</span></header>
+        <div style="padding:36px; background:var(--bg); display:flex; gap:32px; align-items:center; justify-content:center;">
+          <div style="text-align:center"><img src="assets/kim-256.png" style="width:32px;height:32px;border-radius:50%;display:block;margin:0 auto 8px" alt=""><span style="font-size:11px;color:var(--muted)">chat avatar · 32px</span></div>
+          <div style="text-align:center"><img src="assets/kim-256.png" style="width:56px;height:56px;border-radius:50%;display:block;margin:0 auto 8px" alt=""><span style="font-size:11px;color:var(--muted)">wizard rail · 56px</span></div>
+          <div style="text-align:center"><img src="assets/kim-256.png" style="width:96px;height:96px;border-radius:50%;display:block;margin:0 auto 8px" alt=""><span style="font-size:11px;color:var(--muted)">landing hero · 96px <b style="color:var(--good)">← crisp</b></span></div>
+        </div>
+      </div>
+    </div>
+    <p style="margin:10px 4px 0; font-size:13px; color:var(--muted)">Most visible at the larger sizes. On retina displays, the 64px source is up-sampled by the browser and softens noticeably above ~50px.</p>
+
+    <!-- 6b. Favicon -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6b. Favicon — browser tab + WebView2 window chrome</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label"><code>webapp.py:938-942</code> returns 204 — blank</span></header>
+        <div style="padding:36px 24px; background:#e8e6e0;">
+          <!-- Chrome tab strip mockup -->
+          <div style="background:#dee1e6;border-radius:8px 8px 0 0;padding:8px 8px 0;max-width:520px;margin:0 auto;font-family:Segoe UI, system-ui, sans-serif;">
+            <div style="display:flex;gap:1px;align-items:flex-end;">
+              <div style="background:#ffffff;border-radius:8px 8px 0 0;padding:8px 14px 8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;color:#333;min-width:200px;">
+                <span style="display:inline-block;width:16px;height:16px;border:1px dashed #c0bcb5;border-radius:3px;background:#f7f5f1"></span>
+                KimCad — Local-first 3D design
+                <span style="margin-left:auto;color:#888;cursor:default">✕</span>
+              </div>
+              <div style="background:#cccfd5;border-radius:8px 8px 0 0;padding:8px 14px;font-size:12px;color:#666;min-width:160px;">github.com</div>
+            </div>
+            <div style="background:#ffffff;height:36px;border-top:1px solid #d8d5cf;display:flex;align-items:center;padding:0 12px;font-size:12px;color:#444;">
+              <span style="color:#999">← →  ⟳  </span>
+              <span style="margin-left:14px;background:#f1efe9;border-radius:6px;padding:4px 10px;flex:1;color:#555">localhost:8714/</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Serve <code>kim.ico</code>, add <code>&lt;link rel="icon"&gt;</code></span></header>
+        <div style="padding:36px 24px; background:#e8e6e0;">
+          <div style="background:#dee1e6;border-radius:8px 8px 0 0;padding:8px 8px 0;max-width:520px;margin:0 auto;font-family:Segoe UI, system-ui, sans-serif;">
+            <div style="display:flex;gap:1px;align-items:flex-end;">
+              <div style="background:#ffffff;border-radius:8px 8px 0 0;padding:8px 14px 8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;color:#333;min-width:200px;">
+                <img src="assets/kim-32.png" style="width:16px;height:16px;border-radius:50%;flex:none" alt="Kim">
+                KimCad — Local-first 3D design
+                <span style="margin-left:auto;color:#888;cursor:default">✕</span>
+              </div>
+              <div style="background:#cccfd5;border-radius:8px 8px 0 0;padding:8px 14px;font-size:12px;color:#666;min-width:160px;">github.com</div>
+            </div>
+            <div style="background:#ffffff;height:36px;border-top:1px solid #d8d5cf;display:flex;align-items:center;padding:0 12px;font-size:12px;color:#444;">
+              <span style="color:#999">← →  ⟳  </span>
+              <span style="margin-left:14px;background:#f1efe9;border-radius:6px;padding:4px 10px;flex:1;color:#555">localhost:8714/</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6c. Welcome wizard -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6c. First-run "Welcome to KimCad" wizard — adding Kim's face</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Wordmark only — the warmest moment is faceless</span></header>
+        <img src="inapp/wizard-before.png" alt="Wizard without Kim portrait" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Kim in rail (56px) + above H1 (120px). She greets you on first run.</span></header>
+        <img src="inapp/wizard-after.png" alt="Wizard with Kim portrait" />
+      </div>
+    </div>
+
+    <!-- 6d. Native window icon -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6d. Native window — title bar / taskbar / Alt-Tab</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label"><code>shell.py:124</code> passes no icon — pywebview default</span></header>
+        <div style="padding:24px;background:#e8e6e0;font-family:Segoe UI, system-ui, sans-serif;">
+          <!-- Windows title bar -->
+          <div style="background:#fafafa;border:1px solid #c8c6c2;border-radius:8px 8px 0 0;padding:8px 12px;display:flex;align-items:center;gap:10px;max-width:480px;margin:0 auto 16px;">
+            <span style="display:inline-block;width:18px;height:18px;border:1px dashed #c0bcb5;border-radius:3px;background:#f0eee8"></span>
+            <span style="font-size:13px;color:#202020">KimCad</span>
+            <span style="margin-left:auto;color:#999;font-size:14px">−  □  ✕</span>
+          </div>
+          <!-- Alt-Tab thumbnail mockup -->
+          <div style="display:flex;gap:14px;justify-content:center">
+            <div style="background:#202020;border:2px solid #d4af37;border-radius:8px;padding:10px;width:140px;color:#fff">
+              <div style="height:64px;background:#2a2622;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#666;font-size:10px">app preview</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px">
+                <span style="display:inline-block;width:14px;height:14px;border:1px dashed #888;border-radius:2px"></span>
+                <span>KimCad</span>
+              </div>
+            </div>
+          </div>
+          <p style="margin:14px 0 0;font-size:12px;color:var(--muted);text-align:center">Alt-Tab thumbnail · taskbar · title bar</p>
+        </div>
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Pass <code>kim.ico</code> to <code>webview.create_window()</code></span></header>
+        <div style="padding:24px;background:#e8e6e0;font-family:Segoe UI, system-ui, sans-serif;">
+          <div style="background:#fafafa;border:1px solid #c8c6c2;border-radius:8px 8px 0 0;padding:8px 12px;display:flex;align-items:center;gap:10px;max-width:480px;margin:0 auto 16px;">
+            <img src="assets/kim-32.png" style="width:18px;height:18px;border-radius:50%;flex:none" alt="Kim">
+            <span style="font-size:13px;color:#202020">KimCad</span>
+            <span style="margin-left:auto;color:#999;font-size:14px">−  □  ✕</span>
+          </div>
+          <div style="display:flex;gap:14px;justify-content:center">
+            <div style="background:#202020;border:2px solid #d4af37;border-radius:8px;padding:10px;width:140px;color:#fff">
+              <div style="height:64px;background:#2a2622;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#666;font-size:10px">app preview</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px">
+                <img src="assets/kim-32.png" style="width:14px;height:14px;border-radius:50%;flex:none" alt="">
+                <span>KimCad</span>
+              </div>
+            </div>
+          </div>
+          <p style="margin:14px 0 0;font-size:12px;color:var(--muted);text-align:center">Alt-Tab thumbnail · taskbar · title bar</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6e. Empty-state Landing -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6e. Empty-state / Landing — Kim mark near the hero</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Kim's voice with no face</span></header>
+        <img src="inapp/landing-before.png" alt="Empty state without Kim portrait" />
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">96px round Kim above the headline</span></header>
+        <img src="inapp/landing-after.png" alt="Empty state with Kim portrait" />
+      </div>
+    </div>
+
+    <!-- 6f. A11y -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6f. Accessibility — brand mark visible to screen readers</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">CSS background on <code>aria-hidden</code> span</span></header>
+        <div style="padding:28px;background:var(--bg);font-family:ui-monospace, Consolas, monospace;font-size:12px;line-height:1.65;color:#333">
+          <div style="background:#fafaf6;padding:18px;border-radius:8px;border:1px solid #d8d4ca;color:#202020;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:10px"><span style="display:inline-block;width:34px;height:34px;background:#fff;border:1px solid #d8d4ca;border-radius:50%;background-image:url('assets/kim-32.png');background-size:cover" aria-hidden="true"></span><span style="color:#1a1814;font-family:system-ui,sans-serif;font-weight:600">Kim</span></div>
+          </div>
+<pre style="margin:0;background:#1a1814;color:#e8e4d8;padding:14px;border-radius:8px;font-size:11px;overflow-x:auto"><code>&lt;span class="kc-ava" aria-hidden="true"&gt;&lt;/span&gt;
+.kc-ava { background-image: url(...); }</code></pre>
+          <p style="margin:14px 4px 0;font-size:12px;color:var(--bad);font-family:system-ui,sans-serif"><b>Screen-reader hears:</b> nothing. Brand mark is invisible to assistive tech.</p>
+        </div>
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label">Real <code>&lt;img alt="Kim"&gt;</code></span></header>
+        <div style="padding:28px;background:var(--bg);font-family:ui-monospace, Consolas, monospace;font-size:12px;line-height:1.65;color:#333">
+          <div style="background:#fafaf6;padding:18px;border-radius:8px;border:1px solid #d8d4ca;color:#202020;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:10px"><img src="assets/kim-32.png" style="width:34px;height:34px;border-radius:50%;border:1px solid #d8d4ca" alt="Kim"><span style="color:#1a1814;font-family:system-ui,sans-serif;font-weight:600">Kim</span></div>
+          </div>
+<pre style="margin:0;background:#1a1814;color:#e8e4d8;padding:14px;border-radius:8px;font-size:11px;overflow-x:auto"><code>&lt;img src="kim-avatar.png" alt="Kim"
+     class="kc-ava" /&gt;</code></pre>
+          <p style="margin:14px 4px 0;font-size:12px;color:var(--good);font-family:system-ui,sans-serif"><b>Screen-reader hears:</b> "Kim, image." Survives high-contrast mode and printing.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6g. Installer / Start-menu / Desktop -->
+    <div class="section-head" style="margin-top:32px"><h3 style="margin:0;font-size:16px;color:var(--muted);font-weight:600">6g. Installer .exe + desktop shortcut + Start-menu (the OS surfaces)</h3></div>
+    <div class="pair">
+      <div class="col old">
+        <header class="colhead"><span class="tag">Current</span><span class="label">Inno Setup default + Python snake</span></header>
+        <div style="padding:24px;background:#e8e6e0;font-family:Segoe UI, system-ui, sans-serif;">
+          <!-- Installer dialog -->
+          <div style="background:#fafafa;border:1px solid #c8c6c2;border-radius:6px;max-width:380px;margin:0 auto 16px;box-shadow:0 6px 20px rgba(0,0,0,.12)">
+            <div style="background:#0078d4;color:#fff;padding:6px 10px;display:flex;align-items:center;gap:8px;font-size:12px;border-radius:6px 6px 0 0">
+              <span style="display:inline-block;width:14px;height:14px;background:#fff;border-radius:2px;color:#0078d4;text-align:center;font-size:10px;line-height:14px;font-weight:700">⚙</span>
+              Setup - KimCad
+            </div>
+            <div style="padding:18px 20px;text-align:center;font-size:13px;color:#202020">
+              <div style="display:flex;align-items:center;justify-content:center;width:64px;height:64px;border:1px dashed #b8b4ac;border-radius:8px;margin:8px auto 14px;background:#f4f2ec;color:#888;font-size:11px;line-height:1.2">Inno default</div>
+              <p style="margin:0 0 6px;font-weight:600">Welcome to the KimCad Setup Wizard</p>
+              <p style="margin:0;color:#666;font-size:12px;line-height:1.5">This will install KimCad 0.9.1 on your computer.</p>
+            </div>
+          </div>
+          <!-- Desktop shortcut + Start tile -->
+          <div style="display:flex;gap:24px;justify-content:center">
+            <div style="text-align:center;color:#202020;font-size:11px;width:80px">
+              <div style="width:48px;height:48px;border:1px dashed #b8b4ac;background:#f0eee8;border-radius:4px;margin:0 auto 6px;color:#888;font-size:9px;display:flex;align-items:center;justify-content:center;line-height:1.1">python</div>
+              KimCad
+            </div>
+            <div style="text-align:center;color:#202020;font-size:11px;width:80px">
+              <div style="width:48px;height:48px;background:#202020;border-radius:6px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center"><span style="color:#666;font-size:10px">python</span></div>
+              <span style="color:#777">Start menu</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col new">
+        <header class="colhead"><span class="tag">Proposed</span><span class="label"><code>SetupIconFile</code> + per-shortcut <code>IconFilename</code> — Kim everywhere</span></header>
+        <div style="padding:24px;background:#e8e6e0;font-family:Segoe UI, system-ui, sans-serif;">
+          <div style="background:#fafafa;border:1px solid #c8c6c2;border-radius:6px;max-width:380px;margin:0 auto 16px;box-shadow:0 6px 20px rgba(0,0,0,.12)">
+            <div style="background:#0078d4;color:#fff;padding:6px 10px;display:flex;align-items:center;gap:8px;font-size:12px;border-radius:6px 6px 0 0">
+              <img src="assets/kim-32.png" style="width:14px;height:14px;border-radius:50%" alt="Kim">
+              Setup - KimCad
+            </div>
+            <div style="padding:18px 20px;text-align:center;font-size:13px;color:#202020">
+              <img src="assets/kim-avatar.png" style="width:64px;height:64px;border-radius:50%;box-shadow:0 0 0 2px #d4af37;margin:8px auto 14px;display:block" alt="Kim">
+              <p style="margin:0 0 6px;font-weight:600">Welcome to the KimCad Setup Wizard</p>
+              <p style="margin:0;color:#666;font-size:12px;line-height:1.5">This will install KimCad 0.9.1 on your computer.</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:24px;justify-content:center">
+            <div style="text-align:center;color:#202020;font-size:11px;width:80px">
+              <img src="assets/kim-48.png" style="width:48px;height:48px;border-radius:50%;display:block;margin:0 auto 6px;box-shadow:0 0 0 2px #d4af37" alt="">
+              KimCad
+            </div>
+            <div style="text-align:center;color:#202020;font-size:11px;width:80px">
+              <div style="width:48px;height:48px;background:#202020;border-radius:6px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center">
+                <img src="assets/kim-48.png" style="width:32px;height:32px;border-radius:50%" alt="">
+              </div>
+              <span style="color:#777">Start menu</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p style="margin:24px 4px 0; font-size:13px; color:var(--muted)"><b>Two notes.</b> (1) In-app mockups (6c, 6e) inject Kim into the live demo via DOM — no app source changed. (2) OS-chrome mockups (6b, 6d, 6g) are HTML/SVG approximations of Windows 11 chrome since the real surfaces only appear after installer rebuild. The asset files (<code>kim.ico</code>, <code>kim-32/48/96/180/512.png</code>) used in the proposals are already on disk in <code>docs/assets/</code>.</p>
+
+    <!-- Verdict -->
+    <section class="verdict">
+      <h2>What's safe to ship vs what needs your sign-off</h2>
+
+      <div class="group go">
+        <h3>✅ Safe to ship (landing page only)</h3>
+        <p>Everything you see in the <b>After</b> column is fully built. <code>main</code> untouched, work is on <code>kim-branding-overhaul</code>.</p>
+        <ul>
+          <li>Replace <code>docs/index.html</code> with the redesign (done locally — promoted to <code>docs/</code> root).</li>
+          <li>Asset folders <code>docs/assets/</code> and <code>docs/shots/</code> already populated.</li>
+          <li>Commit the branch, open a PR for review, or merge straight to <code>main</code> on your nod.</li>
+        </ul>
+      </div>
+
+      <div class="group decide">
+        <h3>🟡 Decisions you've now made</h3>
+        <ul>
+          <li><b>Palette — APPROVED:</b> evolve whole app toward Kim's gold/black. <i>You want screenshot mockups first before I touch app source.</i></li>
+          <li><b>"Kim Everywhere" — APPROVED:</b> Kim's face is the brand mark; carry through every app surface.</li>
+        </ul>
+      </div>
+
+      <div class="group hold">
+        <h3>⏸ Held for your sign-off (in-app branding)</h3>
+        <p>None of these have been applied yet. Specified to file:line in <a href="APP-BRANDING-PLAN.md">APP-BRANDING-PLAN.md</a>; assets staged in <code>docs/assets/</code>.</p>
+        <ul>
+          <li><b>Gold/black app mockups</b> — building next, before touching any app source.</li>
+          <li><b>256px avatar upgrade</b> — replace <code>frontend/src/assets/kim-avatar.png</code> (currently 64px).</li>
+          <li><b>Favicon</b> — flip the deliberate 204 in <code>webapp.py:938-942</code>, ship <code>kim.ico</code> + <code>kim-96.png</code> from <code>frontend/public/</code>.</li>
+          <li><b>Welcome wizard</b> — Kim's face in rail + larger above the H1 (<code>FirstRunWizard.tsx</code>).</li>
+          <li><b>Native window icon</b> — pass <code>kim.ico</code> to <code>webview.create_window()</code> in <code>shell.py:124</code>.</li>
+          <li><b>Empty-state landing</b> — round Kim mark near the hero (<code>Landing.tsx:110</code>).</li>
+          <li><b>A11y</b> — replace background-image brand spans with real <code>&lt;img alt="Kim"&gt;</code> (<code>styles.css:224, 2486</code>).</li>
+          <li><b>Installer .exe + Start-menu icon</b> — add <code>SetupIconFile</code> + per-shortcut <code>IconFilename</code> to <code>installer/kimcad.iss</code>, <b>rebuild installer</b>. Heavy/reviewable.</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+</body>
+</html>

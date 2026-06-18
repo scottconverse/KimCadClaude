@@ -118,10 +118,10 @@ header.nav{
   backdrop-filter:saturate(1.2) blur(12px);
   border-bottom:1px solid var(--line);
 }
-.nav-in{display:flex; align-items:center; gap:18px; height:72px}
-.brand{display:flex; align-items:center; gap:13px; margin-right:auto}
-.brand img{width:44px; height:44px; border-radius:50%; box-shadow:0 0 0 1.5px var(--gold), 0 2px 8px rgba(22,20,15,.18)}
-.brand .wm{font-size:22px; font-weight:700; letter-spacing:-0.03em}
+.nav-in{display:flex; align-items:center; gap:18px; height:88px}
+.brand{display:flex; align-items:center; gap:16px; margin-right:auto}
+.brand img{width:64px; height:64px; border-radius:50%; box-shadow:0 0 0 2px var(--gold), 0 3px 12px rgba(22,20,15,.22)}
+.brand .wm{font-size:24px; font-weight:700; letter-spacing:-0.03em}
 .brand .wm b{color:var(--gold-deep); font-weight:700}
 html[data-theme="dark"] .brand .wm b{color:var(--gold)}
 .nav-links{display:flex; align-items:center; gap:28px}
@@ -134,7 +134,10 @@ html[data-theme="dark"] .brand .wm b{color:var(--gold)}
 .menu-toggle, .menu-cb, .mobile-menu{display:none}
 
 /* ---------- hero ---------- */
-.hero{padding:84px 0 36px; text-align:center}
+.hero{padding:72px 0 36px; text-align:center}
+.hero .hero-portrait{display:block; margin:0 auto 28px; width:184px; height:184px; border-radius:50%;
+  box-shadow:0 0 0 3px var(--gold), 0 10px 36px rgba(22,20,15,.18); background:var(--surface)}
+html[data-theme="dark"] .hero .hero-portrait{box-shadow:0 0 0 3px var(--gold), 0 10px 36px rgba(0,0,0,.45)}
 .hero .eyebrow{display:inline-block; margin-bottom:22px}
 .hero h1{margin:0 auto; max-width:16ch}
 .hero .lead{margin:24px auto 0; text-align:center}
@@ -257,7 +260,7 @@ html[data-theme="dark"] .foot-brand .wm b{color:var(--gold)}
 <header class="nav">
   <div class="wrap nav-in">
     <a class="brand" href="#top" aria-label="KimCad home">
-      <img src="assets/kim-512.png" alt="Kim, the KimCad assistant" width="44" height="44" />
+      <img src="assets/kim-512.png" alt="Kim, the KimCad assistant" width="64" height="64" />
       <span class="wm">Kim<b>Cad</b></span>
     </a>
     <nav class="nav-links" aria-label="Primary">
@@ -287,6 +290,7 @@ html[data-theme="dark"] .foot-brand .wm b{color:var(--gold)}
   <!-- HERO -->
   <section class="hero">
     <div class="wrap">
+      <img class="hero-portrait" src="assets/kim-avatar.png" alt="Kim — the KimCad assistant" width="184" height="184" />
       <span class="eyebrow">Local-first · precision 3D-print design</span>
       <h1>Describe a part.<br>Get a print-ready file.</h1>
       <p class="lead">KimCad turns plain words — or a photo, or a dimensioned sketch — into solid,

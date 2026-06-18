@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KimCad — describe a part, get a print-ready file, on your own machine</title>
+<meta name="description" content="KimCad turns plain words, a photo, or a sketch into a checked, print-ready 3D file — entirely on your own Windows machine. Local-first, no account, no cloud. Open-source beta." />
+<meta property="og:title" content="KimCad — words to a print-ready part, locally" />
+<meta property="og:description" content="Local-first AI to parametric CAD to 3D print. 86 template families, ~29-printer catalog, runs fully offline. Windows beta." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,400..800&family=Hanken+Grotesk:wght@300..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#f0ebe0; --surface:#faf6ee; --surface-2:#f4eee2; --ink:#272219; --muted:#6f6857;
+    --hair:rgba(39,34,25,.12); --accent:#c8623a; --accent-soft:rgba(200,98,58,.10);
+    --green:#2f9e6a;
+    --fd:"Bricolage Grotesque",system-ui,sans-serif;
+    --fb:"Hanken Grotesk",system-ui,sans-serif;
+    --fm:"JetBrains Mono",ui-monospace,monospace;
+    --maxw:1080px;
+  }
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);font-family:var(--fb);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  h1,h2,h3{font-family:var(--fd);letter-spacing:-.02em;line-height:1.08;}
+  code,kbd{font-family:var(--fm);font-size:.9em;}
+  .wrap{width:100%;max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+  section{padding:64px 0;}
+
+  /* ---- top nav ---- */
+  header.nav{position:sticky;top:0;z-index:20;background:rgba(240,235,224,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair);}
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 24px;max-width:var(--maxw);margin:0 auto;}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .cube{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;}
+  .wordmark{font-family:var(--fd);font-size:20px;font-weight:600;letter-spacing:-.015em;}
+  .wordmark b{font-weight:800;color:var(--accent);}
+  .nav-links{display:flex;align-items:center;gap:22px;font-size:14.5px;font-weight:600;}
+  .nav-links a{color:var(--ink);}
+  .nav-links .dl{color:#fff;background:var(--accent);padding:8px 15px;border-radius:9px;}
+  .nav-links .dl:hover{text-decoration:none;background:#b1532f;}
+  @media(max-width:720px){ .nav-links a:not(.dl){display:none;} }
+
+  /* ---- hero ---- */
+  .hero{padding-top:62px;padding-bottom:40px;}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;}
+  @media(max-width:880px){ .hero-grid{grid-template-columns:1fr;gap:34px;} }
+  .badge{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--muted);padding:7px 14px;border-radius:999px;border:1px solid var(--hair);background:var(--surface);margin-bottom:22px;width:fit-content;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(47,158,106,.22);}
+  .hero h1{font-size:clamp(34px,5vw,52px);font-weight:700;max-width:15ch;margin-bottom:20px;}
+  .hero h1 .em{color:var(--accent);}
+  .hero p.lede{font-size:clamp(16px,2.1vw,18.5px);color:var(--muted);max-width:54ch;margin-bottom:28px;}
+  .cta-row{display:flex;flex-wrap:wrap;gap:13px;align-items:center;}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-weight:700;font-size:15.5px;padding:13px 22px;border-radius:11px;border:1px solid transparent;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:#b1532f;text-decoration:none;}
+  .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--hair);}
+  .btn-ghost:hover{background:var(--surface-2);text-decoration:none;}
+  .cta-note{font-size:12.5px;color:var(--muted);margin-top:14px;max-width:46ch;}
+  .chips{margin-top:26px;display:flex;flex-wrap:wrap;gap:9px;}
+  .chip{font-size:12.5px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;}
+  .hero-art{width:100%;height:auto;border:1px solid var(--hair);border-radius:16px;box-shadow:0 22px 50px -28px rgba(39,34,25,.55);background:var(--surface);}
+
+  /* ---- quick start ---- */
+  .qs{background:var(--surface);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);}
+  .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+  .sec-head{margin-bottom:34px;max-width:62ch;}
+  .sec-head h2{font-size:clamp(26px,3.4vw,34px);font-weight:700;margin-bottom:12px;}
+  .sec-head p{color:var(--muted);font-size:16px;}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  @media(max-width:760px){ .steps{grid-template-columns:1fr;} }
+  .step{background:var(--bg);border:1px solid var(--hair);border-radius:14px;padding:22px;}
+  .step .n{font-family:var(--fm);font-size:13px;font-weight:700;color:var(--accent);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--accent-soft);margin-bottom:13px;}
+  .step h3{font-size:18px;margin-bottom:7px;}
+  .step p{font-size:14.5px;color:var(--muted);}
+  .step code{display:block;margin-top:11px;background:var(--ink);color:#f0ebe0;padding:9px 11px;border-radius:8px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;}
+
+  /* ---- pipeline / architecture ---- */
+  .pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:0;align-items:stretch;margin-top:6px;}
+  @media(max-width:860px){ .pipe{grid-template-columns:1fr;} }
+  .pnode{background:var(--surface);border:1px solid var(--hair);border-radius:13px;padding:18px;position:relative;margin:6px;}
+  .pnode .k{font-family:var(--fm);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
+  .pnode h3{font-size:15.5px;margin-bottom:6px;}
+  .pnode p{font-size:13px;color:var(--muted);}
+  .gate-flag{display:inline-block;margin-top:9px;font-size:11px;font-weight:700;color:var(--green);background:rgba(47,158,106,.12);border-radius:6px;padding:2px 7px;}
+
+  /* ---- feature/spec grid ---- */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:760px){ .grid2{grid-template-columns:1fr;} }
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:22px 24px;}
+  .card h3{font-size:18px;margin-bottom:9px;display:flex;align-items:center;gap:9px;}
+  .card h3 .ic{color:var(--accent);flex:none;}
+  .card p{font-size:14.5px;color:var(--muted);}
+  .card ul{list-style:none;margin-top:6px;}
+  .card li{font-size:14px;color:var(--muted);padding-left:18px;position:relative;margin-bottom:5px;}
+  .card li::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .card li b{color:var(--ink);font-weight:700;}
+
+  /* ---- specs table ---- */
+  .spectable{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--hair);border-radius:14px;overflow:hidden;font-size:14.5px;}
+  .spectable th,.spectable td{text-align:left;padding:12px 18px;border-bottom:1px solid var(--hair);vertical-align:top;}
+  .spectable tr:last-child td{border-bottom:none;}
+  .spectable th{width:34%;font-family:var(--fd);font-weight:700;color:var(--ink);font-size:14px;}
+  .spectable td{color:var(--muted);}
+  .spectable td b{color:var(--ink);font-weight:700;}
+  @media(max-width:600px){ .spectable th{width:42%;font-size:13px;} .spectable th,.spectable td{padding:10px 12px;} }
+
+  /* ---- cli ---- */
+  .cli{background:var(--ink);color:#eadfce;border-radius:14px;padding:24px 26px;font-family:var(--fm);font-size:13.5px;line-height:1.85;overflow-x:auto;}
+  .cli .cm{color:#a89a82;}
+  .cli .pr{color:var(--accent);font-weight:700;}
+  .cli .fl{color:#7fb8a0;}
+
+  /* ---- honest beta ---- */
+  .note{background:var(--accent-soft);border:1px solid rgba(200,98,58,.28);border-radius:14px;padding:22px 24px;}
+  .note h3{font-size:18px;margin-bottom:8px;color:var(--ink);}
+  .note p{font-size:14.5px;color:var(--ink);opacity:.86;}
+  .note p+p{margin-top:9px;}
+  .note code{background:rgba(39,34,25,.08);padding:1px 5px;border-radius:5px;}
+
+  /* ---- links ---- */
+  .linkgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;}
+  @media(max-width:760px){ .linkgrid{grid-template-columns:1fr 1fr;} }
+  @media(max-width:460px){ .linkgrid{grid-template-columns:1fr;} }
+  .lk{display:flex;flex-direction:column;gap:3px;background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:15px 17px;}
+  .lk:hover{border-color:var(--accent);text-decoration:none;background:var(--surface-2);}
+  .lk .t{font-family:var(--fd);font-weight:700;font-size:15px;color:var(--ink);}
+  .lk .d{font-size:12.5px;color:var(--muted);}
+
+  /* ---- footer ---- */
+  footer{border-top:1px solid var(--hair);padding:34px 0 48px;color:var(--muted);font-size:13.5px;}
+  .foot-inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:18px;align-items:center;}
+  footer a{color:var(--muted);font-weight:600;}
+  footer a:hover{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top" style="color:inherit">
+      <img class="cube" src="kim-avatar.png" alt="Kim" width="34" height="34" />
+      <span class="wordmark">Kim<b>Cad</b></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#specs">Specs</a>
+      <a href="#cli">CLI</a>
+      <a href="#docs">Docs</a>
+      <a class="dl" href="https://github.com/scottconverse/KimCadClaude/releases/latest">Download</a>
+    </nav>
+  </div>
+</header>
+
+<a id="top"></a>
+<section class="hero wrap">
+  <div class="hero-grid">
+    <div>
+      <span class="badge"><span class="dot"></span> Open-source Windows beta · local-first · no account</span>
+      <h1>Describe a part in plain words. Get a <span class="em">checked, print-ready</span> file — on your own machine.</h1>
+      <p class="lede">KimCad turns a description — or a photo, or a dimensioned sketch — into solid, parametric, 3D-printable geometry, validates it against your printer and material, and exports or sends it. The AI runs locally through Ollama, so your prompts, photos, and sketches never leave the computer. No CAD skills, no account, no cloud.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/scottconverse/KimCadClaude/releases/latest">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+          Download for Windows
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/scottconverse/KimCadClaude">View on GitHub</a>
+      </div>
+      <p class="cta-note">The installer is an <b>unsigned</b> beta — Windows SmartScreen shows a blue warning; click <b>More info → Run anyway</b>. One double-click, no terminal; bundles Python, OpenSCAD, OrcaSlicer, and the printability engine.</p>
+      <div class="chips">
+        <span class="chip">86 template families</span>
+        <span class="chip">~29-printer catalog</span>
+        <span class="chip">Editable .STEP export</span>
+        <span class="chip">Runs fully offline</span>
+        <span class="chip">Apache-2.0</span>
+      </div>
+    </div>
+
+    <div>
+      <!-- Self-contained hero illustration: words → checked part -->
+      <svg class="hero-art" viewBox="0 0 520 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A plain-English prompt becomes a checked, print-ready 3D part">
+        <defs>
+          <linearGradient id="bedG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f7f1e6"/><stop offset="1" stop-color="#ece4d4"/>
+          </linearGradient>
+          <linearGradient id="partG" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#d8744d"/><stop offset="1" stop-color="#bb5530"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="520" height="440" fill="#faf6ee"/>
+
+        <!-- prompt card -->
+        <rect x="28" y="26" width="464" height="64" rx="13" fill="#fff" stroke="rgba(39,34,25,.12)"/>
+        <circle cx="52" cy="58" r="9" fill="#c8623a" opacity="0.15"/>
+        <path d="M47 58l4 4 7-8" fill="none" stroke="#c8623a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="72" y="54" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#272219">"a wall hook with two M4 holes</text>
+        <text x="72" y="74" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#272219"> 30&#160;mm apart and a 35&#160;mm arm"</text>
+
+        <!-- arrow down -->
+        <path d="M260 96v22" stroke="#c8623a" stroke-width="2" stroke-linecap="round"/>
+        <path d="M254 112l6 8 6-8" fill="none" stroke="#c8623a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- build plate -->
+        <g transform="translate(0,16)">
+          <polygon points="100,300 260,360 420,300 260,240" fill="url(#bedG)" stroke="rgba(39,34,25,.16)"/>
+          <!-- grid lines on plate -->
+          <g stroke="rgba(39,34,25,.10)" stroke-width="1">
+            <line x1="153" y1="260" x2="313" y2="320"/>
+            <line x1="207" y1="260" x2="367" y2="320"/>
+            <line x1="207" y1="340" x2="367" y2="280"/>
+            <line x1="153" y1="340" x2="313" y2="280"/>
+          </g>
+
+          <!-- the part: a wall hook (back plate + arm) in isometric -->
+          <g>
+            <!-- back plate -->
+            <polygon points="210,150 270,180 270,250 210,220" fill="url(#partG)"/>
+            <polygon points="210,150 230,140 290,170 270,180" fill="#e08a64"/>
+            <polygon points="270,180 290,170 290,240 270,250" fill="#a84d2b"/>
+            <!-- two screw holes -->
+            <ellipse cx="240" cy="178" rx="5" ry="3" fill="#7a3a20"/>
+            <ellipse cx="240" cy="206" rx="5" ry="3" fill="#7a3a20"/>
+            <!-- arm projecting forward -->
+            <polygon points="270,205 330,235 330,250 270,220" fill="#c05c34"/>
+            <polygon points="270,205 286,197 346,227 330,235" fill="#d8744d"/>
+            <polygon points="330,235 346,227 346,242 330,250" fill="#9c4626"/>
+          </g>
+
+          <!-- dimension pills -->
+          <g font-family="JetBrains Mono, monospace" font-size="11" font-weight="700">
+            <rect x="150" y="206" width="46" height="20" rx="6" fill="#272219"/>
+            <text x="158" y="220" fill="#f0ebe0">X 60</text>
+            <rect x="340" y="218" width="46" height="20" rx="6" fill="#272219"/>
+            <text x="348" y="232" fill="#f0ebe0">Z 39</text>
+          </g>
+        </g>
+
+        <!-- readiness badge -->
+        <g transform="translate(330,118)">
+          <rect x="0" y="0" width="162" height="56" rx="12" fill="#fff" stroke="rgba(39,34,25,.12)"/>
+          <circle cx="30" cy="28" r="18" fill="none" stroke="rgba(47,158,106,.2)" stroke-width="5"/>
+          <circle cx="30" cy="28" r="18" fill="none" stroke="#2f9e6a" stroke-width="5" stroke-linecap="round" stroke-dasharray="100 113" transform="rotate(-90 30 28)"/>
+          <text x="30" y="33" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="800" fill="#272219">94</text>
+          <text x="58" y="24" font-family="Hanken Grotesk, sans-serif" font-size="12.5" font-weight="700" fill="#272219">Print-ready</text>
+          <text x="58" y="41" font-family="Hanken Grotesk, sans-serif" font-size="11" fill="#6f6857">Gate passed · watertight</text>
+        </g>
+
+        <!-- caption strip -->
+        <rect x="28" y="392" width="464" height="30" rx="9" fill="#f4eee2" stroke="rgba(39,34,25,.10)"/>
+        <text x="260" y="412" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="12.5" font-weight="600" fill="#6f6857">parametric geometry · checked before slicing · the real mesh you print</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- QUICK START -->
+<section class="qs" id="start">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Quick start</div>
+      <h2>Three steps to a print-ready part</h2>
+      <p>No terminal, no account, no CAD. The first AI design takes roughly one to two minutes; template parts then re-render from sliders instantly.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="n">1</span>
+        <h3>Install &amp; open</h3>
+        <p>Download the installer, run it past SmartScreen (<b>More info → Run anyway</b>), and open KimCad. One <b>Set up KimCad's AI</b> button sets up the local AI engine (reusing a system Ollama, or downloading its own portable ~1.4&#160;GB build) and fetches the two AI models (~7.7&#160;GB) — all with a progress bar. No manual Ollama install.</p>
+      </div>
+      <div class="step">
+        <span class="n">2</span>
+        <h3>Describe your part</h3>
+        <p>Type what you want — or drop in a photo or a dimensioned sketch. KimCad asks at most one clarifying question, then builds checked, parametric geometry and shows a live 3D preview.</p>
+      </div>
+      <div class="step">
+        <span class="n">3</span>
+        <h3>Export or print</h3>
+        <p>Tune it with live sliders, then download an STL / editable <code>.STEP</code>, or — after an explicit confirmation — slice it and send it straight to your printer.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS / PIPELINE -->
+<section class="wrap" id="how">
+  <div class="sec-head">
+    <div class="eyebrow">Architecture</div>
+    <h2>How a description becomes a printable part</h2>
+    <p>One deterministic pipeline, the same whether you drive it from the browser UI or the CLI. The geometry comes from a parametric template engine — not a neural net — so the output is closed, watertight, and dimensionally meaningful by construction.</p>
+  </div>
+  <div class="pipe">
+    <div class="pnode">
+      <div class="k">01 · Input</div>
+      <h3>Words, photo, or sketch</h3>
+      <p>Plain English, a photo of a part, or a dimensioned sketch. Images are read by a local vision model and never leave the machine.</p>
+    </div>
+    <div class="pnode">
+      <div class="k">02 · Plan</div>
+      <h3>AI design plan</h3>
+      <p>The local planner turns your request into a structured design plan (JSON), asking one clarifying question only when a load-bearing dimension is missing.</p>
+    </div>
+    <div class="pnode">
+      <div class="k">03 · Geometry</div>
+      <h3>Template / OpenSCAD</h3>
+      <p>A matching parametric family (or generated OpenSCAD) renders to a real mesh with live, deterministic sliders.</p>
+    </div>
+    <div class="pnode">
+      <div class="k">04 · Check</div>
+      <h3>Printability gate</h3>
+      <p>Every part is validated against your printer and material, auto-oriented and hardened, and scored 0–100 for readiness.</p>
+      <span class="gate-flag">✓ Must pass before slicing</span>
+    </div>
+    <div class="pnode">
+      <div class="k">05 · Deliver</div>
+      <h3>Slice · export · send</h3>
+      <p>Download the STL or editable .STEP, or slice to G-code and send to a printer — always behind an explicit confirmation.</p>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:22px">
+    <div class="card">
+      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span> Real printability, before you slice</h3>
+      <p>The bundled PrintProof3D engine adds overhang, bridge, and bed-adhesion analysis on top of the deterministic gate, and writes a Smart Mesh readiness card — a 0–100 score, a plain verdict, the risks, and concrete recommendations. A part that fails the gate can never be sliced or sent — only downloaded to inspect.</p>
+    </div>
+    <div class="card">
+      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span> 86 parametric template families</h3>
+      <p>Boxes, hooks, brackets and organizers; a decor world of frames, dishes, planters, ornaments and stands; and engineering hardware — washers, plates, brackets, standoffs, Gridfinity, fasteners. Each family carries an honest tier (<b>benchmarked</b> = what-you-set-is-what-you-get, or <b>baseline</b> = real geometry with a real-world fit caveat to verify) and a trusted CadQuery <code>.STEP</code> twin.</p>
+    </div>
+    <div class="card">
+      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 1 0 20 0 10 10 0 0 0-20 0Z"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg></span> Local-first &amp; private</h3>
+      <p>Out of the box KimCad talks to a local runtime (Ollama or LM Studio) — no API key, no network, nothing leaves the machine. The core path is CPU-only; no discrete GPU required. A cloud model is an off-by-default opt-in: <b>Settings → Cloud acceleration</b> routes prompts (never images) through OpenRouter with your own key.</p>
+    </div>
+    <div class="card">
+      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2"/><path d="M9 19v2m6-2v2M8 9h8M8 13h5"/></svg></span> Direct send to your printer</h3>
+      <p>A sliced job can go straight to a printer connection, always after an explicit confirmation. Supported connectors: <b>Bambu</b> (native LAN), <b>OctoPrint</b>, <b>Moonraker</b>, <b>PrusaLink</b>, <b>Duet/RepRapFirmware</b>, and <b>Marlin</b> (serial or network bridge). Each connector is validated against a conformance mock of the printer's real protocol.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SPECS -->
+<section class="qs" id="specs">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Technical specs</div>
+      <h2>What it runs on</h2>
+    </div>
+    <table class="spectable">
+      <tr><th>Platform</th><td><b>Windows 10 / 11</b> — zero-terminal installer (the beta). macOS &amp; Linux run from source (<code>pip install</code>, then <code>kimcad web</code>); code-verified cross-platform, not yet exercised on real mac/Linux hardware.</td></tr>
+      <tr><th>Local AI — planning</th><td><b>qwen2.5:7b</b> (~4.7&#160;GB) via Ollama — the on-device planner that won the on-machine bake-off 4/4. Turns your words into a validated design plan.</td></tr>
+      <tr><th>Local AI — vision</th><td><b>qwen2.5vl:3b</b> (~3&#160;GB) — the dedicated reader for photos and dimensioned sketches. Images are always processed locally and never persisted.</td></tr>
+      <tr><th>Runs offline</th><td><b>Fully.</b> No account, no API key, no network required after setup. KimCad even sets up its own AI engine on first run — reusing a system Ollama if present, else downloading Ollama's portable build (~1.4&#160;GB) into its own data folder — so there's no manual install. The cloud path is an opt-in OpenRouter escape hatch for hard prompts only.</td></tr>
+      <tr><th>Hardware</th><td>CPU-only core path (no discrete GPU). Reference box: a recent CPU with 32&#160;GB RAM; the model advisor downshifts smaller machines.</td></tr>
+      <tr><th>Bundled engines</th><td>Embedded CPython 3.13, OpenSCAD, OrcaSlicer (full ~65-brand / 1,400+ machine-profile library), and the PrintProof3D validation engine — each run at arm's length as a subprocess.</td></tr>
+      <tr><th>Printer catalog</th><td>A curated <b>~29-printer catalog</b> (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each build-volume-gated and slice-proven in CI; three are reference printers also wired for native direct-send.</td></tr>
+      <tr><th>Outputs</th><td>STL / 3MF mesh, sliced G-code 3MF, and an editable <b>.STEP</b> (with the optional CadQuery engine) you can keep modeling in Fusion / FreeCAD / SolidWorks.</td></tr>
+      <tr><th>License</th><td><b>Apache-2.0</b> core. Bundled GPL/AGPL engines are invoked as separate subprocesses, never linked.</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- CLI -->
+<section class="wrap" id="cli">
+  <div class="sec-head">
+    <div class="eyebrow">For power users</div>
+    <h2>There's a CLI too</h2>
+    <p>The same pipeline, from the terminal. A bare prompt is treated as the <code>design</code> verb; <code>--slice</code> is the explicit print confirmation, and <code>--send</code> dispatches to a configured connector.</p>
+  </div>
+  <div class="cli">
+<span class="cm"># Describe a part — writes a checked, validated model to output/</span>
+<span class="pr">kimcad</span> "a wall hook with two M4 screw holes 30 mm apart and a 35 mm arm"
+
+<span class="cm"># Design, slice, and send to a printer (each flag is an explicit confirm)</span>
+<span class="pr">kimcad</span> "a 40 mm cable clip" <span class="fl">--printer</span> bambu_a1 <span class="fl">--material</span> pla <span class="fl">--slice</span>
+<span class="pr">kimcad</span> design "a cable clip" <span class="fl">--send</span> octoprint
+
+<span class="cm"># Launch the local browser UI (loopback-only by default)</span>
+<span class="pr">kimcad</span> web
+
+<span class="cm"># Pick a hardware-matched local model · run the 10-prompt done-gate</span>
+<span class="pr">kimcad</span> models
+<span class="pr">kimcad</span> bench <span class="fl">--min-success-rate</span> 0.8
+  </div>
+  <p class="cta-note" style="margin-top:16px">The browser UI is served at <code>http://127.0.0.1:8765</code> and is a thin SPA over a documented local JSON API — see the <a href="https://github.com/scottconverse/KimCadClaude/blob/main/docs/api.md">API reference</a>. An MCP server (<code>python -m kimcad.mcp_server</code>) exposes the printer as agent tools.</p>
+</section>
+
+<!-- HONEST BETA -->
+<section class="qs">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:22px">
+      <div class="eyebrow">Honest beta status</div>
+      <h2>What's proven — and what isn't yet</h2>
+    </div>
+    <div class="note">
+      <h3>This is a beta, and we won't pretend otherwise.</h3>
+      <p>All eleven build stages are complete and gate-passed. But <b>real-hardware print validation is the beta's own job</b> — every send-to-printer connector is validated against a runnable conformance mock of the printer's real protocol, <b>not yet on physical metal (#11)</b>. If you have a printer, your report is the single most valuable thing you can give back.</p>
+      <p>The installer is <b>unsigned</b> (no code-signing certificate yet), so Windows SmartScreen will warn <code>"Windows protected your PC"</code> — that's expected; click <b>More info → Run anyway</b>. The install guide shows how to verify the SHA-256 checksums (<code>SHA256SUMS.txt</code>) and the build manifest (<code>release-manifest.json</code>, which records the exact source commit and is flagged <code>unsigned_build</code>) attached to each release.</p>
+    </div>
+  </div>
+</section>
+
+<!-- LINKS / DOCS -->
+<section class="wrap" id="docs">
+  <div class="sec-head">
+    <div class="eyebrow">Learn more</div>
+    <h2>Documentation &amp; downloads</h2>
+  </div>
+  <div class="linkgrid">
+    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/releases/latest">
+      <span class="t">⬇ Download (latest release)</span>
+      <span class="d">The current Windows beta installer</span>
+    </a>
+    <a class="lk" href="https://github.com/scottconverse/KimCadClaude">
+      <span class="t">GitHub repository</span>
+      <span class="d">Source, issues, and discussions</span>
+    </a>
+    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/README.md">
+      <span class="t">README</span>
+      <span class="d">The project at a glance</span>
+    </a>
+    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/docs/USER-MANUAL.md">
+      <span class="t">User manual</span>
+      <span class="d">The complete everyday + power-user guide</span>
+    </a>
+    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/docs/MODEL-GUIDE.md">
+      <span class="t">Model guide</span>
+      <span class="d">Which AI runs locally, and why</span>
+    </a>
+    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/CHANGELOG.md">
+      <span class="t">Changelog</span>
+      <span class="d">Release history &amp; what's new in 0.9.2</span>
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div class="brand">
+      <img class="cube" src="kim-avatar.png" alt="Kim" width="28" height="28" style="width:28px;height:28px;" />
+      <span class="wordmark" style="font-size:17px">Kim<b>Cad</b></span>
+    </div>
+    <div>Local-first AI → parametric CAD → 3D print · Apache-2.0 · <a href="https://github.com/scottconverse/KimCadClaude">scottconverse/KimCadClaude</a></div>
+  </div>
+</footer>
+
+</body>
+</html>

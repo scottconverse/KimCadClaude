@@ -7,7 +7,8 @@ Good morning. Here's what I did while you slept, and the few things only you sho
 ---
 
 ## How to look at it (60 seconds)
-- **The redesigned landing page:** open `docs/redesign/index.html` in a browser (it's self-contained).
+- **The redesigned landing page:** open **[http://localhost:8720/redesign/index.html](http://localhost:8720/redesign/index.html)** in any browser.
+  (The page uses relative asset paths — it must be served, not opened as a file. The local server runs on port 8720.)
   Or skim the captures: [light hero](preview/redesign-light-hero.png) ·
   [full page](preview/v2-fullpage.png) · [dark hero](preview/v2-dark-hero.png) ·
   [mobile](preview/v2-mobile-hero.png).

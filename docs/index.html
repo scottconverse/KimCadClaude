@@ -1,449 +1,486 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" data-theme="light">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KimCad — describe a part, get a print-ready file, on your own machine</title>
-<meta name="description" content="KimCad turns plain words, a photo, or a sketch into a checked, print-ready 3D file — entirely on your own Windows machine. Local-first, no account, no cloud. Open-source beta." />
-<meta property="og:title" content="KimCad — words to a print-ready part, locally" />
-<meta property="og:description" content="Local-first AI to parametric CAD to 3D print. 86 template families, ~29-printer catalog, runs fully offline. Windows beta." />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KimCad — Describe a part. Get a print-ready file.</title>
+<meta name="description" content="KimCad turns plain words, a photo, or a sketch into solid, printable 3D geometry — checked against your printer and ready to slice. The AI runs entirely on your own machine. Local-first, no account." />
+
+<!-- Brand mark: Kim. -->
+<link rel="icon" type="image/png" sizes="32x32" href="assets/kim-32.png" />
+<link rel="icon" type="image/png" sizes="96x96" href="assets/kim-96.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/kim-180.png" />
+<link rel="icon" href="assets/kim.ico" sizes="any" />
+
+<!-- Social / share -->
 <meta property="og:type" content="website" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,400..800&family=Hanken+Grotesk:wght@300..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet" />
+<meta property="og:title" content="KimCad — Describe a part. Get a print-ready file." />
+<meta property="og:description" content="Plain words to printable, validated 3D geometry — running entirely on your own machine. Local-first. No account." />
+<meta property="og:image" content="assets/og-card.png" />
+<meta property="og:url" content="https://scottconverse.github.io/KimCadClaude/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="KimCad — Describe a part. Get a print-ready file." />
+<meta name="twitter:description" content="Plain words to printable, validated 3D geometry — on your own machine." />
+<meta name="twitter:image" content="assets/og-card.png" />
+
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  :root{
-    --bg:#f0ebe0; --surface:#faf6ee; --surface-2:#f4eee2; --ink:#272219; --muted:#6f6857;
-    --hair:rgba(39,34,25,.12); --accent:#c8623a; --accent-soft:rgba(200,98,58,.10);
-    --green:#2f9e6a;
-    --fd:"Bricolage Grotesque",system-ui,sans-serif;
-    --fb:"Hanken Grotesk",system-ui,sans-serif;
-    --fm:"JetBrains Mono",ui-monospace,monospace;
-    --maxw:1080px;
-  }
-  html{scroll-behavior:smooth;}
-  body{background:var(--bg);font-family:var(--fb);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
-  a{color:var(--accent);text-decoration:none;}
-  a:hover{text-decoration:underline;}
-  h1,h2,h3{font-family:var(--fd);letter-spacing:-.02em;line-height:1.08;}
-  code,kbd{font-family:var(--fm);font-size:.9em;}
-  .wrap{width:100%;max-width:var(--maxw);margin:0 auto;padding:0 24px;}
-  section{padding:64px 0;}
+/* ============================================================
+   KimCad — "Design in Balance"
+   Aesthetic study from Kim's Zen Design World brand book:
+   refined minimalism, warm-not-cold, generous whitespace,
+   gold (#D4AF37) used sparingly as the premium accent,
+   near-black ink, gallery presentation of real product shots.
+   ============================================================ */
+:root{
+  --bg:#faf8f4;          /* warm gallery paper */
+  --bg-2:#f2ede4;        /* a half-tone deeper for bands */
+  --surface:#ffffff;
+  --ink:#16140f;         /* near-black, warm */
+  --ink-2:#403b32;
+  --muted:#857f72;
+  --faint:#a8a294;
+  --line:rgba(22,20,15,.10);
+  --line-2:rgba(22,20,15,.16);
+  --gold:#d4af37;        /* Kim's brand gold */
+  --gold-deep:#b18f24;
+  --gold-soft:rgba(212,175,55,.14);
+  --black:#0d0c0b;       /* premium register */
+  --shadow:0 1px 2px rgba(22,20,15,.05), 0 18px 50px -28px rgba(22,20,15,.35);
+  --shadow-lift:0 1px 2px rgba(22,20,15,.06), 0 40px 90px -40px rgba(22,20,15,.45);
+  --radius:18px;
+  --maxw:1120px;
+  --font: "Helvetica Neue", Helvetica, Inter, "Segoe UI", system-ui, Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0d0c0b;
+  --bg-2:#141210;
+  --surface:#1a1814;
+  --ink:#f4efe6;
+  --ink-2:#cfc7b8;
+  --muted:#9b9384;
+  --faint:#6d665a;
+  --line:rgba(244,239,230,.10);
+  --line-2:rgba(244,239,230,.16);
+  --gold:#e3c24f;
+  --gold-deep:#d4af37;
+  --gold-soft:rgba(227,194,79,.12);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 24px 60px -30px rgba(0,0,0,.7);
+  --shadow-lift:0 1px 2px rgba(0,0,0,.5), 0 50px 100px -40px rgba(0,0,0,.8);
+}
 
-  /* ---- top nav ---- */
-  header.nav{position:sticky;top:0;z-index:20;background:rgba(240,235,224,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair);}
-  .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 24px;max-width:var(--maxw);margin:0 auto;}
-  .brand{display:flex;align-items:center;gap:11px;}
-  .cube{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;}
-  .wordmark{font-family:var(--fd);font-size:20px;font-weight:600;letter-spacing:-.015em;}
-  .wordmark b{font-weight:800;color:var(--accent);}
-  .nav-links{display:flex;align-items:center;gap:22px;font-size:14.5px;font-weight:600;}
-  .nav-links a{color:var(--ink);}
-  .nav-links .dl{color:#fff;background:var(--accent);padding:8px 15px;border-radius:9px;}
-  .nav-links .dl:hover{text-decoration:none;background:#b1532f;}
-  @media(max-width:720px){ .nav-links a:not(.dl){display:none;} }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font); font-size:17px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  letter-spacing:-0.006em;
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+img{max-width:100%; display:block}
+a{color:inherit; text-decoration:none}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
 
-  /* ---- hero ---- */
-  .hero{padding-top:62px;padding-bottom:40px;}
-  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;}
-  @media(max-width:880px){ .hero-grid{grid-template-columns:1fr;gap:34px;} }
-  .badge{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--muted);padding:7px 14px;border-radius:999px;border:1px solid var(--hair);background:var(--surface);margin-bottom:22px;width:fit-content;}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(47,158,106,.22);}
-  .hero h1{font-size:clamp(34px,5vw,52px);font-weight:700;max-width:15ch;margin-bottom:20px;}
-  .hero h1 .em{color:var(--accent);}
-  .hero p.lede{font-size:clamp(16px,2.1vw,18.5px);color:var(--muted);max-width:54ch;margin-bottom:28px;}
-  .cta-row{display:flex;flex-wrap:wrap;gap:13px;align-items:center;}
-  .btn{display:inline-flex;align-items:center;gap:9px;font-weight:700;font-size:15.5px;padding:13px 22px;border-radius:11px;border:1px solid transparent;}
-  .btn-primary{background:var(--accent);color:#fff;}
-  .btn-primary:hover{background:#b1532f;text-decoration:none;}
-  .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--hair);}
-  .btn-ghost:hover{background:var(--surface-2);text-decoration:none;}
-  .cta-note{font-size:12.5px;color:var(--muted);margin-top:14px;max-width:46ch;}
-  .chips{margin-top:26px;display:flex;flex-wrap:wrap;gap:9px;}
-  .chip{font-size:12.5px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;}
-  .hero-art{width:100%;height:auto;border:1px solid var(--hair);border-radius:16px;box-shadow:0 22px 50px -28px rgba(39,34,25,.55);background:var(--surface);}
+h1,h2,h3{margin:0; font-weight:700; letter-spacing:-0.025em; line-height:1.05}
+h1{font-size:clamp(40px,6.2vw,72px)}
+h2{font-size:clamp(28px,4vw,44px); letter-spacing:-0.03em}
+h3{font-size:19px; letter-spacing:-0.01em}
+p{margin:0}
+.eyebrow{
+  font-family:var(--mono); font-size:12px; font-weight:600;
+  letter-spacing:.22em; text-transform:uppercase; color:var(--gold-deep);
+}
+html[data-theme="dark"] .eyebrow{color:var(--gold)}
+.lead{font-size:clamp(17px,1.6vw,20px); color:var(--ink-2); line-height:1.62; max-width:62ch}
+.muted{color:var(--muted)}
 
-  /* ---- quick start ---- */
-  .qs{background:var(--surface);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);}
-  .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
-  .sec-head{margin-bottom:34px;max-width:62ch;}
-  .sec-head h2{font-size:clamp(26px,3.4vw,34px);font-weight:700;margin-bottom:12px;}
-  .sec-head p{color:var(--muted);font-size:16px;}
-  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
-  @media(max-width:760px){ .steps{grid-template-columns:1fr;} }
-  .step{background:var(--bg);border:1px solid var(--hair);border-radius:14px;padding:22px;}
-  .step .n{font-family:var(--fm);font-size:13px;font-weight:700;color:var(--accent);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--accent-soft);margin-bottom:13px;}
-  .step h3{font-size:18px;margin-bottom:7px;}
-  .step p{font-size:14.5px;color:var(--muted);}
-  .step code{display:block;margin-top:11px;background:var(--ink);color:#f0ebe0;padding:9px 11px;border-radius:8px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;}
+/* buttons */
+.btn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+  font-size:15.5px; font-weight:600; letter-spacing:-0.01em;
+  padding:14px 22px; border-radius:12px; border:1px solid transparent;
+  transition:transform .12s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--ink); color:var(--bg); box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.btn-primary:hover{box-shadow:0 0 0 3px var(--gold-soft), 0 10px 24px -12px rgba(22,20,15,.5)}
+.btn-ghost{background:transparent; color:var(--ink); border-color:var(--line-2)}
+.btn-ghost:hover{border-color:var(--gold); color:var(--gold-deep)}
+html[data-theme="dark"] .btn-ghost:hover{color:var(--gold)}
+.btn-gold{background:var(--gold); color:#1a1407; font-weight:700}
+.btn-gold:hover{background:var(--gold-deep); box-shadow:0 12px 30px -14px rgba(212,175,55,.7)}
 
-  /* ---- pipeline / architecture ---- */
-  .pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:0;align-items:stretch;margin-top:6px;}
-  @media(max-width:860px){ .pipe{grid-template-columns:1fr;} }
-  .pnode{background:var(--surface);border:1px solid var(--hair);border-radius:13px;padding:18px;position:relative;margin:6px;}
-  .pnode .k{font-family:var(--fm);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
-  .pnode h3{font-size:15.5px;margin-bottom:6px;}
-  .pnode p{font-size:13px;color:var(--muted);}
-  .gate-flag{display:inline-block;margin-top:9px;font-size:11px;font-weight:700;color:var(--green);background:rgba(47,158,106,.12);border-radius:6px;padding:2px 7px;}
+/* ---------- nav ---------- */
+header.nav{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter:saturate(1.2) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.nav-in{display:flex; align-items:center; gap:18px; height:88px}
+.brand{display:flex; align-items:center; gap:16px; margin-right:auto}
+.brand img{width:64px; height:64px; border-radius:50%; box-shadow:0 0 0 2px var(--gold), 0 3px 12px rgba(22,20,15,.22)}
+.brand .wm{font-size:24px; font-weight:700; letter-spacing:-0.03em}
+.brand .wm b{color:var(--gold-deep); font-weight:700}
+html[data-theme="dark"] .brand .wm b{color:var(--gold)}
+.nav-links{display:flex; align-items:center; gap:28px}
+.nav-links a{font-size:15px; color:var(--ink-2); font-weight:500}
+.nav-links a:hover{color:var(--ink)}
+.nav-cta{display:flex; align-items:center; gap:10px}
+.icon-btn{display:inline-grid; place-items:center; width:40px; height:40px; border-radius:10px;
+  border:1px solid var(--line-2); background:transparent; color:var(--ink-2); cursor:pointer}
+.icon-btn:hover{color:var(--gold-deep); border-color:var(--gold)}
+.menu-toggle, .menu-cb, .mobile-menu{display:none}
 
-  /* ---- feature/spec grid ---- */
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-  @media(max-width:760px){ .grid2{grid-template-columns:1fr;} }
-  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:22px 24px;}
-  .card h3{font-size:18px;margin-bottom:9px;display:flex;align-items:center;gap:9px;}
-  .card h3 .ic{color:var(--accent);flex:none;}
-  .card p{font-size:14.5px;color:var(--muted);}
-  .card ul{list-style:none;margin-top:6px;}
-  .card li{font-size:14px;color:var(--muted);padding-left:18px;position:relative;margin-bottom:5px;}
-  .card li::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent);}
-  .card li b{color:var(--ink);font-weight:700;}
+/* ---------- hero ---------- */
+.hero{padding:72px 0 36px; text-align:center}
+.hero .hero-portrait{display:block; margin:0 auto 28px; width:184px; height:184px; border-radius:50%;
+  box-shadow:0 0 0 3px var(--gold), 0 10px 36px rgba(22,20,15,.18); background:var(--surface)}
+html[data-theme="dark"] .hero .hero-portrait{box-shadow:0 0 0 3px var(--gold), 0 10px 36px rgba(0,0,0,.45)}
+.hero .eyebrow{display:inline-block; margin-bottom:22px}
+.hero h1{margin:0 auto; max-width:16ch}
+.hero .lead{margin:24px auto 0; text-align:center}
+.hero-cta{display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:34px}
+.hero-note{margin-top:16px; font-size:13px; color:var(--faint)}
+.hero-shot{margin:56px auto 0; max-width:1000px; position:relative}
+.frame{
+  border-radius:var(--radius); overflow:hidden; background:var(--surface);
+  border:1px solid var(--line); box-shadow:var(--shadow-lift); min-width:0;
+}
+.frame img{width:100%; height:auto; display:block}
+/* let image grid/flex items shrink below their intrinsic width (else they clip tall) */
+.step, .copy, .premium-grid > *, .split > * { min-width:0 }
+.hero-shot::after{ /* soft gold halo grounding the product */
+  content:""; position:absolute; inset:auto 8% -26px 8%; height:60px;
+  background:radial-gradient(60% 100% at 50% 0%, var(--gold-soft), transparent 70%); z-index:-1;
+}
 
-  /* ---- specs table ---- */
-  .spectable{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--hair);border-radius:14px;overflow:hidden;font-size:14.5px;}
-  .spectable th,.spectable td{text-align:left;padding:12px 18px;border-bottom:1px solid var(--hair);vertical-align:top;}
-  .spectable tr:last-child td{border-bottom:none;}
-  .spectable th{width:34%;font-family:var(--fd);font-weight:700;color:var(--ink);font-size:14px;}
-  .spectable td{color:var(--muted);}
-  .spectable td b{color:var(--ink);font-weight:700;}
-  @media(max-width:600px){ .spectable th{width:42%;font-size:13px;} .spectable th,.spectable td{padding:10px 12px;} }
+/* ---------- proof strip ---------- */
+.proof{border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-top:72px}
+.proof-in{display:flex; flex-wrap:wrap; gap:14px 40px; justify-content:center; padding:22px 0}
+.proof span{font-size:14px; color:var(--ink-2); display:inline-flex; align-items:center; gap:9px}
+.proof .dot{width:6px; height:6px; border-radius:50%; background:var(--gold)}
 
-  /* ---- cli ---- */
-  .cli{background:var(--ink);color:#eadfce;border-radius:14px;padding:24px 26px;font-family:var(--fm);font-size:13.5px;line-height:1.85;overflow-x:auto;}
-  .cli .cm{color:#a89a82;}
-  .cli .pr{color:var(--accent);font-weight:700;}
-  .cli .fl{color:#7fb8a0;}
+/* ---------- section scaffolding ---------- */
+section{padding:96px 0}
+.sec-head{max-width:64ch; margin-bottom:48px}
+.sec-head .eyebrow{display:block; margin-bottom:16px}
+.sec-head p{margin-top:16px}
 
-  /* ---- honest beta ---- */
-  .note{background:var(--accent-soft);border:1px solid rgba(200,98,58,.28);border-radius:14px;padding:22px 24px;}
-  .note h3{font-size:18px;margin-bottom:8px;color:var(--ink);}
-  .note p{font-size:14.5px;color:var(--ink);opacity:.86;}
-  .note p+p{margin-top:9px;}
-  .note code{background:rgba(39,34,25,.08);padding:1px 5px;border-radius:5px;}
+/* steps */
+.steps{display:grid; grid-template-columns:repeat(3,1fr); gap:30px}
+.step .frame{margin-bottom:18px}
+.step h3{display:flex; align-items:baseline; gap:10px}
+.step h3 .n{font-family:var(--mono); font-size:13px; color:var(--gold-deep)}
+html[data-theme="dark"] .step h3 .n{color:var(--gold)}
+.step p{margin-top:8px; font-size:15px; color:var(--muted); line-height:1.55}
 
-  /* ---- links ---- */
-  .linkgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;}
-  @media(max-width:760px){ .linkgrid{grid-template-columns:1fr 1fr;} }
-  @media(max-width:460px){ .linkgrid{grid-template-columns:1fr;} }
-  .lk{display:flex;flex-direction:column;gap:3px;background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:15px 17px;}
-  .lk:hover{border-color:var(--accent);text-decoration:none;background:var(--surface-2);}
-  .lk .t{font-family:var(--fd);font-weight:700;font-size:15px;color:var(--ink);}
-  .lk .d{font-size:12.5px;color:var(--muted);}
+/* ---------- premium dark band ---------- */
+.premium{background:var(--black); color:#f4efe6; position:relative; overflow:hidden}
+.premium::before{content:""; position:absolute; inset:0;
+  background:radial-gradient(120% 80% at 80% -10%, rgba(212,175,55,.14), transparent 55%); pointer-events:none}
+.premium .eyebrow{color:var(--gold)}
+.premium h2{color:#f7f2e8; max-width:18ch}
+.premium .lead{color:#cbc4b6}
+.premium-grid{display:grid; grid-template-columns:1.05fr 1fr; gap:56px; align-items:center}
+.premium .frame{border-color:rgba(244,239,230,.10); box-shadow:0 50px 120px -50px rgba(0,0,0,.9)}
+.gold-list{list-style:none; padding:0; margin:26px 0 0; display:grid; gap:16px}
+.gold-list li{display:flex; gap:13px; font-size:15.5px; color:#ddd6c8; line-height:1.5}
+.gold-list .k{flex:none; width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+  background:var(--gold-soft); color:var(--gold); font-size:13px; margin-top:1px}
+.balance-tag{display:inline-flex; align-items:center; gap:10px; margin-top:34px; font-family:var(--mono);
+  font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold)}
+.balance-tag::before{content:""; width:26px; height:1px; background:var(--gold)}
 
-  /* ---- footer ---- */
-  footer{border-top:1px solid var(--hair);padding:34px 0 48px;color:var(--muted);font-size:13.5px;}
-  .foot-inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:18px;align-items:center;}
-  footer a{color:var(--muted);font-weight:600;}
-  footer a:hover{color:var(--accent);}
+/* ---------- gallery (library) ---------- */
+.split{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center}
+.split.rev .copy{order:2}
+.pill-row{display:flex; flex-wrap:wrap; gap:9px; margin-top:22px}
+.pill{font-size:13px; color:var(--ink-2); padding:7px 13px; border:1px solid var(--line-2); border-radius:999px}
+
+/* ---------- printers ---------- */
+.firm-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:8px}
+.firm{border:1px solid var(--line); border-radius:14px; padding:20px; background:var(--surface)}
+.firm h3{font-size:16px}
+.firm p{margin-top:6px; font-size:13.5px; color:var(--muted); line-height:1.5}
+.confirm-note{margin-top:26px; font-size:14.5px; color:var(--ink-2);
+  border-left:2px solid var(--gold); padding:4px 0 4px 16px}
+
+/* ---------- honest beta ---------- */
+.beta{background:var(--bg-2)}
+.beta .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:32px 34px; box-shadow:var(--shadow); max-width:none}
+.beta p+p{margin-top:14px}
+code{font-family:var(--mono); font-size:.86em; background:var(--gold-soft); color:var(--gold-deep);
+  padding:2px 7px; border-radius:6px}
+html[data-theme="dark"] code{color:var(--gold)}
+
+/* ---------- final CTA ---------- */
+.cta{background:var(--black); color:#f4efe6; text-align:center; position:relative; overflow:hidden}
+.cta::before{content:""; position:absolute; inset:0;
+  background:radial-gradient(80% 120% at 50% 120%, rgba(212,175,55,.18), transparent 60%)}
+.cta .inner{position:relative}
+.cta h2{color:#f7f2e8; max-width:20ch; margin:0 auto}
+.cta p{color:#cbc4b6; margin:18px auto 0; max-width:54ch}
+.cta .hero-cta{margin-top:32px}
+
+/* ---------- footer ---------- */
+footer{padding:56px 0 64px; border-top:1px solid var(--line)}
+.foot-in{display:flex; gap:30px; align-items:center; flex-wrap:wrap}
+.foot-brand{display:flex; align-items:center; gap:12px; margin-right:auto}
+.foot-brand img{width:34px; height:34px; border-radius:50%; box-shadow:0 0 0 1.5px var(--gold)}
+.foot-brand .wm{font-weight:700; letter-spacing:-0.02em}
+.foot-brand .wm b{color:var(--gold-deep)}
+html[data-theme="dark"] .foot-brand .wm b{color:var(--gold)}
+.foot-links{display:flex; flex-wrap:wrap; gap:22px; font-size:14px; color:var(--muted)}
+.foot-links a:hover{color:var(--gold-deep)}
+.foot-fine{width:100%; margin-top:26px; padding-top:22px; border-top:1px solid var(--line);
+  font-size:13px; color:var(--faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px}
+
+/* ---------- responsive ---------- */
+@media (max-width:880px){
+  .steps{grid-template-columns:1fr; gap:36px}
+  .premium-grid, .split{grid-template-columns:1fr; gap:32px}
+  .split.rev .copy{order:0}
+  .firm-grid{grid-template-columns:1fr}
+  section{padding:72px 0}
+  .nav-links, .nav-cta .btn{display:none}
+  .menu-toggle{display:inline-grid}
+  .menu-cb:checked ~ .mobile-menu{display:block}
+  .mobile-menu{display:none; position:absolute; left:0; right:0; top:72px; background:var(--surface);
+    border-bottom:1px solid var(--line); box-shadow:var(--shadow); padding:14px 28px 22px}
+  .mobile-menu a{display:block; padding:12px 0; font-size:16px; color:var(--ink); border-bottom:1px solid var(--line)}
+  .mobile-menu .btn{display:inline-flex; margin-top:16px; width:100%; justify-content:center}
+}
 </style>
 </head>
 <body>
 
 <header class="nav">
-  <div class="nav-inner">
-    <a class="brand" href="#top" style="color:inherit">
-      <img class="cube" src="kim-avatar.png" alt="Kim" width="34" height="34" />
-      <span class="wordmark">Kim<b>Cad</b></span>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="KimCad home">
+      <img src="assets/kim-512.png" alt="Kim, the KimCad assistant" width="64" height="64" />
+      <span class="wm">Kim<b>Cad</b></span>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" aria-label="Primary">
       <a href="#how">How it works</a>
-      <a href="#specs">Specs</a>
-      <a href="#cli">CLI</a>
-      <a href="#docs">Docs</a>
-      <a class="dl" href="https://github.com/scottconverse/KimCadClaude/releases/latest">Download</a>
+      <a href="#library">Part library</a>
+      <a href="#printers">Printers</a>
+      <a href="#trust">Trust</a>
     </nav>
+    <div class="nav-cta">
+      <button class="icon-btn" id="theme" aria-label="Toggle dark mode" title="Toggle theme">◐</button>
+      <a class="btn btn-primary" href="#download">Download</a>
+      <label class="icon-btn menu-toggle" for="menu" aria-label="Menu">☰</label>
+    </div>
+  </div>
+  <input type="checkbox" id="menu" class="menu-cb" hidden />
+  <div class="mobile-menu wrap">
+    <a href="#how">How it works</a>
+    <a href="#library">Part library</a>
+    <a href="#printers">Printers</a>
+    <a href="#trust">Trust</a>
+    <a class="btn btn-primary" href="#download">Download for Windows</a>
   </div>
 </header>
 
-<a id="top"></a>
-<section class="hero wrap">
-  <div class="hero-grid">
-    <div>
-      <span class="badge"><span class="dot"></span> Open-source Windows beta · local-first · no account</span>
-      <h1>Describe a part in plain words. Get a <span class="em">checked, print-ready</span> file — on your own machine.</h1>
-      <p class="lede">KimCad turns a description — or a photo, or a dimensioned sketch — into solid, parametric, 3D-printable geometry, validates it against your printer and material, and exports or sends it. The AI runs locally through Ollama, so your prompts, photos, and sketches never leave the computer. No CAD skills, no account, no cloud.</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="https://github.com/scottconverse/KimCadClaude/releases/latest">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
-          Download for Windows
-        </a>
-        <a class="btn btn-ghost" href="https://github.com/scottconverse/KimCadClaude">View on GitHub</a>
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <img class="hero-portrait" src="assets/kim-avatar.png" alt="Kim — the KimCad assistant" width="184" height="184" />
+      <span class="eyebrow">Local-first · precision 3D-print design</span>
+      <h1>Describe a part.<br>Get a print-ready file.</h1>
+      <p class="lead">KimCad turns plain words — or a photo, or a dimensioned sketch — into solid,
+        parametric geometry, checks it against your printer and material, and hands you the file.
+        The AI runs entirely on your own machine. No CAD skills. No account. No cloud.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#download">↓ Download for Windows</a>
+        <a class="btn btn-ghost" href="#how">See how it works</a>
       </div>
-      <p class="cta-note">The installer is an <b>unsigned</b> beta — Windows SmartScreen shows a blue warning; click <b>More info → Run anyway</b>. One double-click, no terminal; bundles Python, OpenSCAD, OrcaSlicer, and the printability engine.</p>
-      <div class="chips">
-        <span class="chip">86 template families</span>
-        <span class="chip">~29-printer catalog</span>
-        <span class="chip">Editable .STEP export</span>
-        <span class="chip">Runs fully offline</span>
-        <span class="chip">Apache-2.0</span>
+      <p class="hero-note">Open-source · Apache-2.0 · Windows beta — unsigned installer, double-click to run</p>
+      <div class="hero-shot">
+        <div class="frame"><img src="shots/02-workspace-light.png" alt="The KimCad workspace: a conversation with Kim on the left, the 3D part in the centre viewport with live dimensions, and the parameter sliders on the right." width="2880" height="1800" loading="eager"></div>
       </div>
     </div>
+  </section>
 
-    <div>
-      <!-- Self-contained hero illustration: words → checked part -->
-      <svg class="hero-art" viewBox="0 0 520 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A plain-English prompt becomes a checked, print-ready 3D part">
-        <defs>
-          <linearGradient id="bedG" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#f7f1e6"/><stop offset="1" stop-color="#ece4d4"/>
-          </linearGradient>
-          <linearGradient id="partG" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#d8744d"/><stop offset="1" stop-color="#bb5530"/>
-          </linearGradient>
-        </defs>
-        <rect x="0" y="0" width="520" height="440" fill="#faf6ee"/>
-
-        <!-- prompt card -->
-        <rect x="28" y="26" width="464" height="64" rx="13" fill="#fff" stroke="rgba(39,34,25,.12)"/>
-        <circle cx="52" cy="58" r="9" fill="#c8623a" opacity="0.15"/>
-        <path d="M47 58l4 4 7-8" fill="none" stroke="#c8623a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <text x="72" y="54" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#272219">"a wall hook with two M4 holes</text>
-        <text x="72" y="74" font-family="JetBrains Mono, monospace" font-size="13.5" fill="#272219"> 30&#160;mm apart and a 35&#160;mm arm"</text>
-
-        <!-- arrow down -->
-        <path d="M260 96v22" stroke="#c8623a" stroke-width="2" stroke-linecap="round"/>
-        <path d="M254 112l6 8 6-8" fill="none" stroke="#c8623a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-
-        <!-- build plate -->
-        <g transform="translate(0,16)">
-          <polygon points="100,300 260,360 420,300 260,240" fill="url(#bedG)" stroke="rgba(39,34,25,.16)"/>
-          <!-- grid lines on plate -->
-          <g stroke="rgba(39,34,25,.10)" stroke-width="1">
-            <line x1="153" y1="260" x2="313" y2="320"/>
-            <line x1="207" y1="260" x2="367" y2="320"/>
-            <line x1="207" y1="340" x2="367" y2="280"/>
-            <line x1="153" y1="340" x2="313" y2="280"/>
-          </g>
-
-          <!-- the part: a wall hook (back plate + arm) in isometric -->
-          <g>
-            <!-- back plate -->
-            <polygon points="210,150 270,180 270,250 210,220" fill="url(#partG)"/>
-            <polygon points="210,150 230,140 290,170 270,180" fill="#e08a64"/>
-            <polygon points="270,180 290,170 290,240 270,250" fill="#a84d2b"/>
-            <!-- two screw holes -->
-            <ellipse cx="240" cy="178" rx="5" ry="3" fill="#7a3a20"/>
-            <ellipse cx="240" cy="206" rx="5" ry="3" fill="#7a3a20"/>
-            <!-- arm projecting forward -->
-            <polygon points="270,205 330,235 330,250 270,220" fill="#c05c34"/>
-            <polygon points="270,205 286,197 346,227 330,235" fill="#d8744d"/>
-            <polygon points="330,235 346,227 346,242 330,250" fill="#9c4626"/>
-          </g>
-
-          <!-- dimension pills -->
-          <g font-family="JetBrains Mono, monospace" font-size="11" font-weight="700">
-            <rect x="150" y="206" width="46" height="20" rx="6" fill="#272219"/>
-            <text x="158" y="220" fill="#f0ebe0">X 60</text>
-            <rect x="340" y="218" width="46" height="20" rx="6" fill="#272219"/>
-            <text x="348" y="232" fill="#f0ebe0">Z 39</text>
-          </g>
-        </g>
-
-        <!-- readiness badge -->
-        <g transform="translate(330,118)">
-          <rect x="0" y="0" width="162" height="56" rx="12" fill="#fff" stroke="rgba(39,34,25,.12)"/>
-          <circle cx="30" cy="28" r="18" fill="none" stroke="rgba(47,158,106,.2)" stroke-width="5"/>
-          <circle cx="30" cy="28" r="18" fill="none" stroke="#2f9e6a" stroke-width="5" stroke-linecap="round" stroke-dasharray="100 113" transform="rotate(-90 30 28)"/>
-          <text x="30" y="33" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="800" fill="#272219">94</text>
-          <text x="58" y="24" font-family="Hanken Grotesk, sans-serif" font-size="12.5" font-weight="700" fill="#272219">Print-ready</text>
-          <text x="58" y="41" font-family="Hanken Grotesk, sans-serif" font-size="11" fill="#6f6857">Gate passed · watertight</text>
-        </g>
-
-        <!-- caption strip -->
-        <rect x="28" y="392" width="464" height="30" rx="9" fill="#f4eee2" stroke="rgba(39,34,25,.10)"/>
-        <text x="260" y="412" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="12.5" font-weight="600" fill="#6f6857">parametric geometry · checked before slicing · the real mesh you print</text>
-      </svg>
+  <div class="proof">
+    <div class="wrap proof-in">
+      <span><i class="dot"></i> Runs fully offline</span>
+      <span><i class="dot"></i> 86 measured part families</span>
+      <span><i class="dot"></i> Checked before every slice</span>
+      <span><i class="dot"></i> Six printer firmwares</span>
+      <span><i class="dot"></i> Apache-2.0, yours to keep</span>
     </div>
   </div>
-</section>
 
-<!-- QUICK START -->
-<section class="qs" id="start">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">Quick start</div>
-      <h2>Three steps to a print-ready part</h2>
-      <p>No terminal, no account, no CAD. The first AI design takes roughly one to two minutes; template parts then re-render from sliders instantly.</p>
-    </div>
-    <div class="steps">
-      <div class="step">
-        <span class="n">1</span>
-        <h3>Install &amp; open</h3>
-        <p>Download the installer, run it past SmartScreen (<b>More info → Run anyway</b>), and open KimCad. One <b>Set up KimCad's AI</b> button sets up the local AI engine (reusing a system Ollama, or downloading its own portable ~1.4&#160;GB build) and fetches the two AI models (~7.7&#160;GB) — all with a progress bar. No manual Ollama install.</p>
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">How it works</span>
+        <h2>Three calm steps to a part you can actually print.</h2>
+        <p class="lead muted">No terminal, no account, no CAD. Describe it, let Kim check it, download or send it to your printer.</p>
       </div>
-      <div class="step">
-        <span class="n">2</span>
-        <h3>Describe your part</h3>
-        <p>Type what you want — or drop in a photo or a dimensioned sketch. KimCad asks at most one clarifying question, then builds checked, parametric geometry and shows a live 3D preview.</p>
-      </div>
-      <div class="step">
-        <span class="n">3</span>
-        <h3>Export or print</h3>
-        <p>Tune it with live sliders, then download an STL / editable <code>.STEP</code>, or — after an explicit confirmation — slice it and send it straight to your printer.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="frame"><img src="shots/02-workspace-light.png" alt="Describing a part to Kim and watching it render with live, adjustable dimensions." width="2880" height="1800" loading="lazy"></div>
+          <h3><span class="n">01</span> Describe it</h3>
+          <p>Type what you want, drop a photo, or start from a sketch. Kim asks at most one clarifying question, then builds real parametric geometry — adjustable with sliders, no AI round-trip.</p>
+        </div>
+        <div class="step">
+          <div class="frame"><img src="shots/03-quality-light.png" alt="The Smart Mesh readiness report: a 92 of 100 score ring, a ready-to-print verdict, confidence and recommendations." width="2880" height="1800" loading="lazy"></div>
+          <h3><span class="n">02</span> Let Kim check it</h3>
+          <p>Every part is scored against your printer and material before you commit — a 0–100 readiness score, a plain verdict, the risks, and concrete recommendations. Nothing prints unchecked.</p>
+        </div>
+        <div class="step">
+          <div class="frame"><img src="shots/04-export-light.png" alt="The export panel offering STL, 3MF, STEP and sliced G-code outputs." width="2880" height="1800" loading="lazy"></div>
+          <h3><span class="n">03</span> Print or export</h3>
+          <p>Download STL, 3MF, or an editable STEP — or slice and send it straight to your printer. Always behind an explicit confirmation. KimCad never auto-starts a print.</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- HOW IT WORKS / PIPELINE -->
-<section class="wrap" id="how">
-  <div class="sec-head">
-    <div class="eyebrow">Architecture</div>
-    <h2>How a description becomes a printable part</h2>
-    <p>One deterministic pipeline, the same whether you drive it from the browser UI or the CLI. The geometry comes from a parametric template engine — not a neural net — so the output is closed, watertight, and dimensionally meaningful by construction.</p>
-  </div>
-  <div class="pipe">
-    <div class="pnode">
-      <div class="k">01 · Input</div>
-      <h3>Words, photo, or sketch</h3>
-      <p>Plain English, a photo of a part, or a dimensioned sketch. Images are read by a local vision model and never leave the machine.</p>
+  <!-- PREMIUM DARK BAND: the gate -->
+  <section class="premium">
+    <div class="wrap premium-grid">
+      <div class="frame"><img src="shots/07-workspace-dark.png" alt="KimCad in its dark cockpit theme, a part centred in the 3D viewport." width="2880" height="1800" loading="lazy"></div>
+      <div class="copy">
+        <span class="eyebrow">Checked before it's printed</span>
+        <h2>Confidence you can see, before a gram of filament is spent.</h2>
+        <p class="lead">The geometry comes from a parametric template engine — not a neural net — so the output is closed, watertight, and dimensionally meaningful by construction. Then the printability gate scores it.</p>
+        <ul class="gold-list">
+          <li><span class="k">✓</span><span>A real 0–100 readiness score, with a <strong>ready / caution / not-ready</strong> verdict.</span></li>
+          <li><span class="k">✓</span><span>Risks ranked by severity, kept separate from concrete recommendations.</span></li>
+          <li><span class="k">✓</span><span>Confidence that blends the validator with your own local print history.</span></li>
+          <li><span class="k">✓</span><span>A part that fails the gate can never be sliced or sent — only downloaded to inspect.</span></li>
+        </ul>
+        <span class="balance-tag">Designed in balance</span>
+      </div>
     </div>
-    <div class="pnode">
-      <div class="k">02 · Plan</div>
-      <h3>AI design plan</h3>
-      <p>The local planner turns your request into a structured design plan (JSON), asking one clarifying question only when a load-bearing dimension is missing.</p>
-    </div>
-    <div class="pnode">
-      <div class="k">03 · Geometry</div>
-      <h3>Template / OpenSCAD</h3>
-      <p>A matching parametric family (or generated OpenSCAD) renders to a real mesh with live, deterministic sliders.</p>
-    </div>
-    <div class="pnode">
-      <div class="k">04 · Check</div>
-      <h3>Printability gate</h3>
-      <p>Every part is validated against your printer and material, auto-oriented and hardened, and scored 0–100 for readiness.</p>
-      <span class="gate-flag">✓ Must pass before slicing</span>
-    </div>
-    <div class="pnode">
-      <div class="k">05 · Deliver</div>
-      <h3>Slice · export · send</h3>
-      <p>Download the STL or editable .STEP, or slice to G-code and send to a printer — always behind an explicit confirmation.</p>
-    </div>
-  </div>
+  </section>
 
-  <div class="grid2" style="margin-top:22px">
-    <div class="card">
-      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span> Real printability, before you slice</h3>
-      <p>The bundled PrintProof3D engine adds overhang, bridge, and bed-adhesion analysis on top of the deterministic gate, and writes a Smart Mesh readiness card — a 0–100 score, a plain verdict, the risks, and concrete recommendations. A part that fails the gate can never be sliced or sent — only downloaded to inspect.</p>
+  <!-- LIBRARY -->
+  <section id="library">
+    <div class="wrap split">
+      <div class="copy">
+        <span class="eyebrow">A real library, not five toys</span>
+        <h2>86 measured part families. Browse them, or just describe one.</h2>
+        <p class="lead muted">Brackets and hooks, enclosures and faceplates, gridfinity storage, fasteners and standoffs, knobs and adapters — a whole maker's catalogue. Each family is a precise, adjustable template: change a wall thickness or a hole diameter and it re-renders instantly.</p>
+        <div class="pill-row">
+          <span class="pill">Mounting &amp; brackets</span>
+          <span class="pill">Enclosures &amp; panels</span>
+          <span class="pill">Storage &amp; gridfinity</span>
+          <span class="pill">Fasteners &amp; hardware</span>
+          <span class="pill">Functional parts</span>
+          <span class="pill">Zen frames &amp; decor</span>
+        </div>
+      </div>
+      <div class="frame"><img src="shots/05-library-light.png" alt="The KimCad part library: a searchable gallery of part families, each one a measured, adjustable template." width="2880" height="1800" loading="lazy"></div>
     </div>
-    <div class="card">
-      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span> 86 parametric template families</h3>
-      <p>Boxes, hooks, brackets and organizers; a decor world of frames, dishes, planters, ornaments and stands; and engineering hardware — washers, plates, brackets, standoffs, Gridfinity, fasteners. Each family carries an honest tier (<b>benchmarked</b> = what-you-set-is-what-you-get, or <b>baseline</b> = real geometry with a real-world fit caveat to verify) and a trusted CadQuery <code>.STEP</code> twin.</p>
+  </section>
+
+  <!-- PRINTERS -->
+  <section id="printers" class="beta">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Send it home</span>
+        <h2>Speaks your printer's language — six firmwares.</h2>
+        <p class="lead muted">Pick your maker and KimCad adapts the connection to its firmware. Slice with the bundled engine, then send — over your own LAN, never the cloud.</p>
+      </div>
+      <div class="firm-grid">
+        <div class="firm"><h3>Bambu LAN</h3><p>P1S · X1C · A1 · A1 mini — the most-proven path.</p></div>
+        <div class="firm"><h3>Moonraker / Klipper</h3><p>Creality K1, Voron, Neptune, and most Klipper machines.</p></div>
+        <div class="firm"><h3>OctoPrint</h3><p>Anything fronted by an OctoPrint server.</p></div>
+        <div class="firm"><h3>PrusaLink</h3><p>Prusa MK4 · MINI+ · XL.</p></div>
+        <div class="firm"><h3>RepRapFirmware / Duet</h3><p>Duet-based machines over the network.</p></div>
+        <div class="firm"><h3>Marlin (serial)</h3><p>Stock-Marlin printers over USB.</p></div>
+      </div>
+      <p class="confirm-note">Every send is gated behind an explicit confirmation dialog. <strong>KimCad never auto-starts a print.</strong></p>
     </div>
-    <div class="card">
-      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 1 0 20 0 10 10 0 0 0-20 0Z"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg></span> Local-first &amp; private</h3>
-      <p>Out of the box KimCad talks to a local runtime (Ollama or LM Studio) — no API key, no network, nothing leaves the machine. The core path is CPU-only; no discrete GPU required. A cloud model is an off-by-default opt-in: <b>Settings → Cloud acceleration</b> routes prompts (never images) through OpenRouter with your own key.</p>
+  </section>
+
+  <!-- TRUST / LOCAL + HONEST BETA -->
+  <section id="trust">
+    <div class="wrap split rev">
+      <div class="copy">
+        <span class="eyebrow">Yours, on your machine</span>
+        <h2>Private by default — nothing leaves your computer.</h2>
+        <p class="lead muted">The AI runs locally through Ollama. Your prompts, your photos, your sketches, your designs — none of it is uploaded. There's no account and no API key to run KimCad. A cloud model is an off-by-default opt-in, with your own key, for hard prompts only.</p>
+        <div class="pill-row">
+          <span class="pill">No account</span>
+          <span class="pill">No telemetry</span>
+          <span class="pill">CPU-only core path</span>
+          <span class="pill">Open source</span>
+        </div>
+      </div>
+      <div class="frame"><img src="shots/09-wizard.png" alt="The first-run setup wizard welcoming a new user to KimCad." width="2880" height="1800" loading="lazy"></div>
     </div>
-    <div class="card">
-      <h3><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2"/><path d="M9 19v2m6-2v2M8 9h8M8 13h5"/></svg></span> Direct send to your printer</h3>
-      <p>A sliced job can go straight to a printer connection, always after an explicit confirmation. Supported connectors: <b>Bambu</b> (native LAN), <b>OctoPrint</b>, <b>Moonraker</b>, <b>PrusaLink</b>, <b>Duet/RepRapFirmware</b>, and <b>Marlin</b> (serial or network bridge). Each connector is validated against a conformance mock of the printer's real protocol.</p>
+
+    <div class="wrap" style="margin-top:72px">
+      <div class="card beta">
+        <span class="eyebrow" style="display:block;margin-bottom:14px">Honest beta status</span>
+        <h3 style="font-size:22px;margin-bottom:12px">This is a beta, and we won't pretend otherwise.</h3>
+        <p class="muted">All eleven build stages are complete and gate-passed. The remaining work is <strong>real-hardware print validation</strong> — every send-to-printer connector is validated against a conformance model of the printer's real protocol, not yet against physical metal. If you have a printer, your report is the most valuable thing you can give back.</p>
+        <p class="muted">The installer is <strong>unsigned</strong> (no code-signing certificate yet), so Windows SmartScreen will warn <code>Windows protected your PC</code> — that's expected; click <strong>More info → Run anyway</strong>. Every release ships <code>SHA256SUMS.txt</code> and a <code>release-manifest.json</code> recording the exact source commit.</p>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- SPECS -->
-<section class="qs" id="specs">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">Technical specs</div>
-      <h2>What it runs on</h2>
+  <!-- FINAL CTA -->
+  <section id="download" class="cta">
+    <div class="wrap inner">
+      <span class="eyebrow">Get started</span>
+      <h2>Bring your idea to the plate.</h2>
+      <p>Download the Windows beta, double-click, and describe your first part. It runs on your machine, checks its own work, and keeps your ideas yours.</p>
+      <div class="hero-cta">
+        <a class="btn btn-gold" href="https://github.com/scottconverse/KimCadClaude/releases/latest">↓ Download for Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/scottconverse/KimCadClaude" style="color:#f4efe6;border-color:rgba(244,239,230,.25)">View on GitHub</a>
+      </div>
     </div>
-    <table class="spectable">
-      <tr><th>Platform</th><td><b>Windows 10 / 11</b> — zero-terminal installer (the beta). macOS &amp; Linux run from source (<code>pip install</code>, then <code>kimcad web</code>); code-verified cross-platform, not yet exercised on real mac/Linux hardware.</td></tr>
-      <tr><th>Local AI — planning</th><td><b>qwen2.5:7b</b> (~4.7&#160;GB) via Ollama — the on-device planner that won the on-machine bake-off 4/4. Turns your words into a validated design plan.</td></tr>
-      <tr><th>Local AI — vision</th><td><b>qwen2.5vl:3b</b> (~3&#160;GB) — the dedicated reader for photos and dimensioned sketches. Images are always processed locally and never persisted.</td></tr>
-      <tr><th>Runs offline</th><td><b>Fully.</b> No account, no API key, no network required after setup. KimCad even sets up its own AI engine on first run — reusing a system Ollama if present, else downloading Ollama's portable build (~1.4&#160;GB) into its own data folder — so there's no manual install. The cloud path is an opt-in OpenRouter escape hatch for hard prompts only.</td></tr>
-      <tr><th>Hardware</th><td>CPU-only core path (no discrete GPU). Reference box: a recent CPU with 32&#160;GB RAM; the model advisor downshifts smaller machines.</td></tr>
-      <tr><th>Bundled engines</th><td>Embedded CPython 3.13, OpenSCAD, OrcaSlicer (full ~65-brand / 1,400+ machine-profile library), and the PrintProof3D validation engine — each run at arm's length as a subprocess.</td></tr>
-      <tr><th>Printer catalog</th><td>A curated <b>~29-printer catalog</b> (Bambu, Creality, Prusa, Anycubic, Elegoo, Qidi, Sovol), each build-volume-gated and slice-proven in CI; three are reference printers also wired for native direct-send.</td></tr>
-      <tr><th>Outputs</th><td>STL / 3MF mesh, sliced G-code 3MF, and an editable <b>.STEP</b> (with the optional CadQuery engine) you can keep modeling in Fusion / FreeCAD / SolidWorks.</td></tr>
-      <tr><th>License</th><td><b>Apache-2.0</b> core. Bundled GPL/AGPL engines are invoked as separate subprocesses, never linked.</td></tr>
-    </table>
-  </div>
-</section>
+  </section>
 
-<!-- CLI -->
-<section class="wrap" id="cli">
-  <div class="sec-head">
-    <div class="eyebrow">For power users</div>
-    <h2>There's a CLI too</h2>
-    <p>The same pipeline, from the terminal. A bare prompt is treated as the <code>design</code> verb; <code>--slice</code> is the explicit print confirmation, and <code>--send</code> dispatches to a configured connector.</p>
-  </div>
-  <div class="cli">
-<span class="cm"># Describe a part — writes a checked, validated model to output/</span>
-<span class="pr">kimcad</span> "a wall hook with two M4 screw holes 30 mm apart and a 35 mm arm"
-
-<span class="cm"># Design, slice, and send to a printer (each flag is an explicit confirm)</span>
-<span class="pr">kimcad</span> "a 40 mm cable clip" <span class="fl">--printer</span> bambu_a1 <span class="fl">--material</span> pla <span class="fl">--slice</span>
-<span class="pr">kimcad</span> design "a cable clip" <span class="fl">--send</span> octoprint
-
-<span class="cm"># Launch the local browser UI (loopback-only by default)</span>
-<span class="pr">kimcad</span> web
-
-<span class="cm"># Pick a hardware-matched local model · run the 10-prompt done-gate</span>
-<span class="pr">kimcad</span> models
-<span class="pr">kimcad</span> bench <span class="fl">--min-success-rate</span> 0.8
-  </div>
-  <p class="cta-note" style="margin-top:16px">The browser UI is served at <code>http://127.0.0.1:8765</code> and is a thin SPA over a documented local JSON API — see the <a href="https://github.com/scottconverse/KimCadClaude/blob/main/docs/api.md">API reference</a>. An MCP server (<code>python -m kimcad.mcp_server</code>) exposes the printer as agent tools.</p>
-</section>
-
-<!-- HONEST BETA -->
-<section class="qs">
-  <div class="wrap">
-    <div class="sec-head" style="margin-bottom:22px">
-      <div class="eyebrow">Honest beta status</div>
-      <h2>What's proven — and what isn't yet</h2>
-    </div>
-    <div class="note">
-      <h3>This is a beta, and we won't pretend otherwise.</h3>
-      <p>All eleven build stages are complete and gate-passed. But <b>real-hardware print validation is the beta's own job</b> — every send-to-printer connector is validated against a runnable conformance mock of the printer's real protocol, <b>not yet on physical metal (#11)</b>. If you have a printer, your report is the single most valuable thing you can give back.</p>
-      <p>The installer is <b>unsigned</b> (no code-signing certificate yet), so Windows SmartScreen will warn <code>"Windows protected your PC"</code> — that's expected; click <b>More info → Run anyway</b>. The install guide shows how to verify the SHA-256 checksums (<code>SHA256SUMS.txt</code>) and the build manifest (<code>release-manifest.json</code>, which records the exact source commit and is flagged <code>unsigned_build</code>) attached to each release.</p>
-    </div>
-  </div>
-</section>
-
-<!-- LINKS / DOCS -->
-<section class="wrap" id="docs">
-  <div class="sec-head">
-    <div class="eyebrow">Learn more</div>
-    <h2>Documentation &amp; downloads</h2>
-  </div>
-  <div class="linkgrid">
-    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/releases/latest">
-      <span class="t">⬇ Download (latest release)</span>
-      <span class="d">The current Windows beta installer</span>
-    </a>
-    <a class="lk" href="https://github.com/scottconverse/KimCadClaude">
-      <span class="t">GitHub repository</span>
-      <span class="d">Source, issues, and discussions</span>
-    </a>
-    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/README.md">
-      <span class="t">README</span>
-      <span class="d">The project at a glance</span>
-    </a>
-    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/docs/USER-MANUAL.md">
-      <span class="t">User manual</span>
-      <span class="d">The complete everyday + power-user guide</span>
-    </a>
-    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/docs/MODEL-GUIDE.md">
-      <span class="t">Model guide</span>
-      <span class="d">Which AI runs locally, and why</span>
-    </a>
-    <a class="lk" href="https://github.com/scottconverse/KimCadClaude/blob/main/CHANGELOG.md">
-      <span class="t">Changelog</span>
-      <span class="d">Release history &amp; what's new in 0.9.2</span>
-    </a>
-  </div>
-</section>
+</main>
 
 <footer>
-  <div class="wrap foot-inner">
-    <div class="brand">
-      <img class="cube" src="kim-avatar.png" alt="Kim" width="28" height="28" style="width:28px;height:28px;" />
-      <span class="wordmark" style="font-size:17px">Kim<b>Cad</b></span>
+  <div class="wrap foot-in">
+    <a class="foot-brand" href="#top">
+      <img src="assets/kim-512.png" alt="Kim" width="34" height="34" />
+      <span class="wm">Kim<b>Cad</b></span>
+    </a>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/scottconverse/KimCadClaude/releases/latest">Download</a>
+      <a href="https://github.com/scottconverse/KimCadClaude">GitHub</a>
+      <a href="https://github.com/scottconverse/KimCadClaude#readme">README</a>
+      <a href="https://github.com/scottconverse/KimCadClaude/blob/main/CHANGELOG.md">Changelog</a>
+    </nav>
+    <div class="foot-fine">
+      <span>Local-first AI → parametric CAD → 3D print · Apache-2.0</span>
+      <span>Made for makers. Named for one.</span>
     </div>
-    <div>Local-first AI → parametric CAD → 3D print · Apache-2.0 · <a href="https://github.com/scottconverse/KimCadClaude">scottconverse/KimCadClaude</a></div>
   </div>
 </footer>
 
+<script>
+(function(){
+  var root=document.documentElement, key='kc-site-theme';
+  var saved=localStorage.getItem(key);
+  if(saved){root.setAttribute('data-theme',saved);}
+  else if(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches){root.setAttribute('data-theme','dark');}
+  var btn=document.getElementById('theme');
+  if(btn){btn.addEventListener('click',function(){
+    var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next); localStorage.setItem(key,next);
+  });}
+  // close mobile menu on link tap
+  document.querySelectorAll('.mobile-menu a').forEach(function(a){
+    a.addEventListener('click',function(){var cb=document.getElementById('menu'); if(cb)cb.checked=false;});
+  });
+})();
+</script>
 </body>
 </html>
