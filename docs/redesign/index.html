@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KimCad — Describe a part. Get a print-ready file.</title>
+<meta name="description" content="KimCad turns plain words, a photo, or a sketch into solid, printable 3D geometry — checked against your printer and ready to slice. The AI runs entirely on your own machine. Local-first, no account." />
+
+<!-- Brand mark: Kim. -->
+<link rel="icon" type="image/png" sizes="32x32" href="assets/kim-32.png" />
+<link rel="icon" type="image/png" sizes="96x96" href="assets/kim-96.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/kim-180.png" />
+<link rel="icon" href="assets/kim.ico" sizes="any" />
+
+<!-- Social / share -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="KimCad — Describe a part. Get a print-ready file." />
+<meta property="og:description" content="Plain words to printable, validated 3D geometry — running entirely on your own machine. Local-first. No account." />
+<meta property="og:image" content="assets/og-card.png" />
+<meta property="og:url" content="https://scottconverse.github.io/KimCadClaude/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="KimCad — Describe a part. Get a print-ready file." />
+<meta name="twitter:description" content="Plain words to printable, validated 3D geometry — on your own machine." />
+<meta name="twitter:image" content="assets/og-card.png" />
+
+<style>
+/* ============================================================
+   KimCad — "Design in Balance"
+   Aesthetic study from Kim's Zen Design World brand book:
+   refined minimalism, warm-not-cold, generous whitespace,
+   gold (#D4AF37) used sparingly as the premium accent,
+   near-black ink, gallery presentation of real product shots.
+   ============================================================ */
+:root{
+  --bg:#faf8f4;          /* warm gallery paper */
+  --bg-2:#f2ede4;        /* a half-tone deeper for bands */
+  --surface:#ffffff;
+  --ink:#16140f;         /* near-black, warm */
+  --ink-2:#403b32;
+  --muted:#857f72;
+  --faint:#a8a294;
+  --line:rgba(22,20,15,.10);
+  --line-2:rgba(22,20,15,.16);
+  --gold:#d4af37;        /* Kim's brand gold */
+  --gold-deep:#b18f24;
+  --gold-soft:rgba(212,175,55,.14);
+  --black:#0d0c0b;       /* premium register */
+  --shadow:0 1px 2px rgba(22,20,15,.05), 0 18px 50px -28px rgba(22,20,15,.35);
+  --shadow-lift:0 1px 2px rgba(22,20,15,.06), 0 40px 90px -40px rgba(22,20,15,.45);
+  --radius:18px;
+  --maxw:1120px;
+  --font: "Helvetica Neue", Helvetica, Inter, "Segoe UI", system-ui, Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0d0c0b;
+  --bg-2:#141210;
+  --surface:#1a1814;
+  --ink:#f4efe6;
+  --ink-2:#cfc7b8;
+  --muted:#9b9384;
+  --faint:#6d665a;
+  --line:rgba(244,239,230,.10);
+  --line-2:rgba(244,239,230,.16);
+  --gold:#e3c24f;
+  --gold-deep:#d4af37;
+  --gold-soft:rgba(227,194,79,.12);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 24px 60px -30px rgba(0,0,0,.7);
+  --shadow-lift:0 1px 2px rgba(0,0,0,.5), 0 50px 100px -40px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font); font-size:17px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  letter-spacing:-0.006em;
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+img{max-width:100%; display:block}
+a{color:inherit; text-decoration:none}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
+
+h1,h2,h3{margin:0; font-weight:700; letter-spacing:-0.025em; line-height:1.05}
+h1{font-size:clamp(40px,6.2vw,72px)}
+h2{font-size:clamp(28px,4vw,44px); letter-spacing:-0.03em}
+h3{font-size:19px; letter-spacing:-0.01em}
+p{margin:0}
+.eyebrow{
+  font-family:var(--mono); font-size:12px; font-weight:600;
+  letter-spacing:.22em; text-transform:uppercase; color:var(--gold-deep);
+}
+html[data-theme="dark"] .eyebrow{color:var(--gold)}
+.lead{font-size:clamp(17px,1.6vw,20px); color:var(--ink-2); line-height:1.62; max-width:62ch}
+.muted{color:var(--muted)}
+
+/* buttons */
+.btn{
+  display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+  font-size:15.5px; font-weight:600; letter-spacing:-0.01em;
+  padding:14px 22px; border-radius:12px; border:1px solid transparent;
+  transition:transform .12s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--ink); color:var(--bg); box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.btn-primary:hover{box-shadow:0 0 0 3px var(--gold-soft), 0 10px 24px -12px rgba(22,20,15,.5)}
+.btn-ghost{background:transparent; color:var(--ink); border-color:var(--line-2)}
+.btn-ghost:hover{border-color:var(--gold); color:var(--gold-deep)}
+html[data-theme="dark"] .btn-ghost:hover{color:var(--gold)}
+.btn-gold{background:var(--gold); color:#1a1407; font-weight:700}
+.btn-gold:hover{background:var(--gold-deep); box-shadow:0 12px 30px -14px rgba(212,175,55,.7)}
+
+/* ---------- nav ---------- */
+header.nav{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter:saturate(1.2) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.nav-in{display:flex; align-items:center; gap:18px; height:72px}
+.brand{display:flex; align-items:center; gap:13px; margin-right:auto}
+.brand img{width:44px; height:44px; border-radius:50%; box-shadow:0 0 0 1.5px var(--gold), 0 2px 8px rgba(22,20,15,.18)}
+.brand .wm{font-size:22px; font-weight:700; letter-spacing:-0.03em}
+.brand .wm b{color:var(--gold-deep); font-weight:700}
+html[data-theme="dark"] .brand .wm b{color:var(--gold)}
+.nav-links{display:flex; align-items:center; gap:28px}
+.nav-links a{font-size:15px; color:var(--ink-2); font-weight:500}
+.nav-links a:hover{color:var(--ink)}
+.nav-cta{display:flex; align-items:center; gap:10px}
+.icon-btn{display:inline-grid; place-items:center; width:40px; height:40px; border-radius:10px;
+  border:1px solid var(--line-2); background:transparent; color:var(--ink-2); cursor:pointer}
+.icon-btn:hover{color:var(--gold-deep); border-color:var(--gold)}
+.menu-toggle, .menu-cb, .mobile-menu{display:none}
+
+/* ---------- hero ---------- */
+.hero{padding:84px 0 36px; text-align:center}
+.hero .eyebrow{display:inline-block; margin-bottom:22px}
+.hero h1{margin:0 auto; max-width:16ch}
+.hero .lead{margin:24px auto 0; text-align:center}
+.hero-cta{display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:34px}
+.hero-note{margin-top:16px; font-size:13px; color:var(--faint)}
+.hero-shot{margin:56px auto 0; max-width:1000px; position:relative}
+.frame{
+  border-radius:var(--radius); overflow:hidden; background:var(--surface);
+  border:1px solid var(--line); box-shadow:var(--shadow-lift); min-width:0;
+}
+.frame img{width:100%; height:auto; display:block}
+/* let image grid/flex items shrink below their intrinsic width (else they clip tall) */
+.step, .copy, .premium-grid > *, .split > * { min-width:0 }
+.hero-shot::after{ /* soft gold halo grounding the product */
+  content:""; position:absolute; inset:auto 8% -26px 8%; height:60px;
+  background:radial-gradient(60% 100% at 50% 0%, var(--gold-soft), transparent 70%); z-index:-1;
+}
+
+/* ---------- proof strip ---------- */
+.proof{border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-top:72px}
+.proof-in{display:flex; flex-wrap:wrap; gap:14px 40px; justify-content:center; padding:22px 0}
+.proof span{font-size:14px; color:var(--ink-2); display:inline-flex; align-items:center; gap:9px}
+.proof .dot{width:6px; height:6px; border-radius:50%; background:var(--gold)}
+
+/* ---------- section scaffolding ---------- */
+section{padding:96px 0}
+.sec-head{max-width:64ch; margin-bottom:48px}
+.sec-head .eyebrow{display:block; margin-bottom:16px}
+.sec-head p{margin-top:16px}
+
+/* steps */
+.steps{display:grid; grid-template-columns:repeat(3,1fr); gap:30px}
+.step .frame{margin-bottom:18px}
+.step h3{display:flex; align-items:baseline; gap:10px}
+.step h3 .n{font-family:var(--mono); font-size:13px; color:var(--gold-deep)}
+html[data-theme="dark"] .step h3 .n{color:var(--gold)}
+.step p{margin-top:8px; font-size:15px; color:var(--muted); line-height:1.55}
+
+/* ---------- premium dark band ---------- */
+.premium{background:var(--black); color:#f4efe6; position:relative; overflow:hidden}
+.premium::before{content:""; position:absolute; inset:0;
+  background:radial-gradient(120% 80% at 80% -10%, rgba(212,175,55,.14), transparent 55%); pointer-events:none}
+.premium .eyebrow{color:var(--gold)}
+.premium h2{color:#f7f2e8; max-width:18ch}
+.premium .lead{color:#cbc4b6}
+.premium-grid{display:grid; grid-template-columns:1.05fr 1fr; gap:56px; align-items:center}
+.premium .frame{border-color:rgba(244,239,230,.10); box-shadow:0 50px 120px -50px rgba(0,0,0,.9)}
+.gold-list{list-style:none; padding:0; margin:26px 0 0; display:grid; gap:16px}
+.gold-list li{display:flex; gap:13px; font-size:15.5px; color:#ddd6c8; line-height:1.5}
+.gold-list .k{flex:none; width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+  background:var(--gold-soft); color:var(--gold); font-size:13px; margin-top:1px}
+.balance-tag{display:inline-flex; align-items:center; gap:10px; margin-top:34px; font-family:var(--mono);
+  font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold)}
+.balance-tag::before{content:""; width:26px; height:1px; background:var(--gold)}
+
+/* ---------- gallery (library) ---------- */
+.split{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center}
+.split.rev .copy{order:2}
+.pill-row{display:flex; flex-wrap:wrap; gap:9px; margin-top:22px}
+.pill{font-size:13px; color:var(--ink-2); padding:7px 13px; border:1px solid var(--line-2); border-radius:999px}
+
+/* ---------- printers ---------- */
+.firm-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:8px}
+.firm{border:1px solid var(--line); border-radius:14px; padding:20px; background:var(--surface)}
+.firm h3{font-size:16px}
+.firm p{margin-top:6px; font-size:13.5px; color:var(--muted); line-height:1.5}
+.confirm-note{margin-top:26px; font-size:14.5px; color:var(--ink-2);
+  border-left:2px solid var(--gold); padding:4px 0 4px 16px}
+
+/* ---------- honest beta ---------- */
+.beta{background:var(--bg-2)}
+.beta .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:32px 34px; box-shadow:var(--shadow); max-width:none}
+.beta p+p{margin-top:14px}
+code{font-family:var(--mono); font-size:.86em; background:var(--gold-soft); color:var(--gold-deep);
+  padding:2px 7px; border-radius:6px}
+html[data-theme="dark"] code{color:var(--gold)}
+
+/* ---------- final CTA ---------- */
+.cta{background:var(--black); color:#f4efe6; text-align:center; position:relative; overflow:hidden}
+.cta::before{content:""; position:absolute; inset:0;
+  background:radial-gradient(80% 120% at 50% 120%, rgba(212,175,55,.18), transparent 60%)}
+.cta .inner{position:relative}
+.cta h2{color:#f7f2e8; max-width:20ch; margin:0 auto}
+.cta p{color:#cbc4b6; margin:18px auto 0; max-width:54ch}
+.cta .hero-cta{margin-top:32px}
+
+/* ---------- footer ---------- */
+footer{padding:56px 0 64px; border-top:1px solid var(--line)}
+.foot-in{display:flex; gap:30px; align-items:center; flex-wrap:wrap}
+.foot-brand{display:flex; align-items:center; gap:12px; margin-right:auto}
+.foot-brand img{width:34px; height:34px; border-radius:50%; box-shadow:0 0 0 1.5px var(--gold)}
+.foot-brand .wm{font-weight:700; letter-spacing:-0.02em}
+.foot-brand .wm b{color:var(--gold-deep)}
+html[data-theme="dark"] .foot-brand .wm b{color:var(--gold)}
+.foot-links{display:flex; flex-wrap:wrap; gap:22px; font-size:14px; color:var(--muted)}
+.foot-links a:hover{color:var(--gold-deep)}
+.foot-fine{width:100%; margin-top:26px; padding-top:22px; border-top:1px solid var(--line);
+  font-size:13px; color:var(--faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px}
+
+/* ---------- responsive ---------- */
+@media (max-width:880px){
+  .steps{grid-template-columns:1fr; gap:36px}
+  .premium-grid, .split{grid-template-columns:1fr; gap:32px}
+  .split.rev .copy{order:0}
+  .firm-grid{grid-template-columns:1fr}
+  section{padding:72px 0}
+  .nav-links, .nav-cta .btn{display:none}
+  .menu-toggle{display:inline-grid}
+  .menu-cb:checked ~ .mobile-menu{display:block}
+  .mobile-menu{display:none; position:absolute; left:0; right:0; top:72px; background:var(--surface);
+    border-bottom:1px solid var(--line); box-shadow:var(--shadow); padding:14px 28px 22px}
+  .mobile-menu a{display:block; padding:12px 0; font-size:16px; color:var(--ink); border-bottom:1px solid var(--line)}
+  .mobile-menu .btn{display:inline-flex; margin-top:16px; width:100%; justify-content:center}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="KimCad home">
+      <img src="assets/kim-512.png" alt="Kim, the KimCad assistant" width="44" height="44" />
+      <span class="wm">Kim<b>Cad</b></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#library">Part library</a>
+      <a href="#printers">Printers</a>
+      <a href="#trust">Trust</a>
+    </nav>
+    <div class="nav-cta">
+      <button class="icon-btn" id="theme" aria-label="Toggle dark mode" title="Toggle theme">◐</button>
+      <a class="btn btn-primary" href="#download">Download</a>
+      <label class="icon-btn menu-toggle" for="menu" aria-label="Menu">☰</label>
+    </div>
+  </div>
+  <input type="checkbox" id="menu" class="menu-cb" hidden />
+  <div class="mobile-menu wrap">
+    <a href="#how">How it works</a>
+    <a href="#library">Part library</a>
+    <a href="#printers">Printers</a>
+    <a href="#trust">Trust</a>
+    <a class="btn btn-primary" href="#download">Download for Windows</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Local-first · precision 3D-print design</span>
+      <h1>Describe a part.<br>Get a print-ready file.</h1>
+      <p class="lead">KimCad turns plain words — or a photo, or a dimensioned sketch — into solid,
+        parametric geometry, checks it against your printer and material, and hands you the file.
+        The AI runs entirely on your own machine. No CAD skills. No account. No cloud.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#download">↓ Download for Windows</a>
+        <a class="btn btn-ghost" href="#how">See how it works</a>
+      </div>
+      <p class="hero-note">Open-source · Apache-2.0 · Windows beta — unsigned installer, double-click to run</p>
+      <div class="hero-shot">
+        <div class="frame"><img src="shots/02-workspace-light.png" alt="The KimCad workspace: a conversation with Kim on the left, the 3D part in the centre viewport with live dimensions, and the parameter sliders on the right." width="2880" height="1800" loading="eager"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="proof">
+    <div class="wrap proof-in">
+      <span><i class="dot"></i> Runs fully offline</span>
+      <span><i class="dot"></i> 86 measured part families</span>
+      <span><i class="dot"></i> Checked before every slice</span>
+      <span><i class="dot"></i> Six printer firmwares</span>
+      <span><i class="dot"></i> Apache-2.0, yours to keep</span>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">How it works</span>
+        <h2>Three calm steps to a part you can actually print.</h2>
+        <p class="lead muted">No terminal, no account, no CAD. Describe it, let Kim check it, download or send it to your printer.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="frame"><img src="shots/02-workspace-light.png" alt="Describing a part to Kim and watching it render with live, adjustable dimensions." width="2880" height="1800" loading="lazy"></div>
+          <h3><span class="n">01</span> Describe it</h3>
+          <p>Type what you want, drop a photo, or start from a sketch. Kim asks at most one clarifying question, then builds real parametric geometry — adjustable with sliders, no AI round-trip.</p>
+        </div>
+        <div class="step">
+          <div class="frame"><img src="shots/03-quality-light.png" alt="The Smart Mesh readiness report: a 92 of 100 score ring, a ready-to-print verdict, confidence and recommendations." width="2880" height="1800" loading="lazy"></div>
+          <h3><span class="n">02</span> Let Kim check it</h3>
+          <p>Every part is scored against your printer and material before you commit — a 0–100 readiness score, a plain verdict, the risks, and concrete recommendations. Nothing prints unchecked.</p>
+        </div>
+        <div class="step">
+          <div class="frame"><img src="shots/04-export-light.png" alt="The export panel offering STL, 3MF, STEP and sliced G-code outputs." width="2880" height="1800" loading="lazy"></div>
+          <h3><span class="n">03</span> Print or export</h3>
+          <p>Download STL, 3MF, or an editable STEP — or slice and send it straight to your printer. Always behind an explicit confirmation. KimCad never auto-starts a print.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREMIUM DARK BAND: the gate -->
+  <section class="premium">
+    <div class="wrap premium-grid">
+      <div class="frame"><img src="shots/07-workspace-dark.png" alt="KimCad in its dark cockpit theme, a part centred in the 3D viewport." width="2880" height="1800" loading="lazy"></div>
+      <div class="copy">
+        <span class="eyebrow">Checked before it's printed</span>
+        <h2>Confidence you can see, before a gram of filament is spent.</h2>
+        <p class="lead">The geometry comes from a parametric template engine — not a neural net — so the output is closed, watertight, and dimensionally meaningful by construction. Then the printability gate scores it.</p>
+        <ul class="gold-list">
+          <li><span class="k">✓</span><span>A real 0–100 readiness score, with a <strong>ready / caution / not-ready</strong> verdict.</span></li>
+          <li><span class="k">✓</span><span>Risks ranked by severity, kept separate from concrete recommendations.</span></li>
+          <li><span class="k">✓</span><span>Confidence that blends the validator with your own local print history.</span></li>
+          <li><span class="k">✓</span><span>A part that fails the gate can never be sliced or sent — only downloaded to inspect.</span></li>
+        </ul>
+        <span class="balance-tag">Designed in balance</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIBRARY -->
+  <section id="library">
+    <div class="wrap split">
+      <div class="copy">
+        <span class="eyebrow">A real library, not five toys</span>
+        <h2>86 measured part families. Browse them, or just describe one.</h2>
+        <p class="lead muted">Brackets and hooks, enclosures and faceplates, gridfinity storage, fasteners and standoffs, knobs and adapters — a whole maker's catalogue. Each family is a precise, adjustable template: change a wall thickness or a hole diameter and it re-renders instantly.</p>
+        <div class="pill-row">
+          <span class="pill">Mounting &amp; brackets</span>
+          <span class="pill">Enclosures &amp; panels</span>
+          <span class="pill">Storage &amp; gridfinity</span>
+          <span class="pill">Fasteners &amp; hardware</span>
+          <span class="pill">Functional parts</span>
+          <span class="pill">Zen frames &amp; decor</span>
+        </div>
+      </div>
+      <div class="frame"><img src="shots/05-library-light.png" alt="The KimCad part library: a searchable gallery of part families, each one a measured, adjustable template." width="2880" height="1800" loading="lazy"></div>
+    </div>
+  </section>
+
+  <!-- PRINTERS -->
+  <section id="printers" class="beta">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Send it home</span>
+        <h2>Speaks your printer's language — six firmwares.</h2>
+        <p class="lead muted">Pick your maker and KimCad adapts the connection to its firmware. Slice with the bundled engine, then send — over your own LAN, never the cloud.</p>
+      </div>
+      <div class="firm-grid">
+        <div class="firm"><h3>Bambu LAN</h3><p>P1S · X1C · A1 · A1 mini — the most-proven path.</p></div>
+        <div class="firm"><h3>Moonraker / Klipper</h3><p>Creality K1, Voron, Neptune, and most Klipper machines.</p></div>
+        <div class="firm"><h3>OctoPrint</h3><p>Anything fronted by an OctoPrint server.</p></div>
+        <div class="firm"><h3>PrusaLink</h3><p>Prusa MK4 · MINI+ · XL.</p></div>
+        <div class="firm"><h3>RepRapFirmware / Duet</h3><p>Duet-based machines over the network.</p></div>
+        <div class="firm"><h3>Marlin (serial)</h3><p>Stock-Marlin printers over USB.</p></div>
+      </div>
+      <p class="confirm-note">Every send is gated behind an explicit confirmation dialog. <strong>KimCad never auto-starts a print.</strong></p>
+    </div>
+  </section>
+
+  <!-- TRUST / LOCAL + HONEST BETA -->
+  <section id="trust">
+    <div class="wrap split rev">
+      <div class="copy">
+        <span class="eyebrow">Yours, on your machine</span>
+        <h2>Private by default — nothing leaves your computer.</h2>
+        <p class="lead muted">The AI runs locally through Ollama. Your prompts, your photos, your sketches, your designs — none of it is uploaded. There's no account and no API key to run KimCad. A cloud model is an off-by-default opt-in, with your own key, for hard prompts only.</p>
+        <div class="pill-row">
+          <span class="pill">No account</span>
+          <span class="pill">No telemetry</span>
+          <span class="pill">CPU-only core path</span>
+          <span class="pill">Open source</span>
+        </div>
+      </div>
+      <div class="frame"><img src="shots/09-wizard.png" alt="The first-run setup wizard welcoming a new user to KimCad." width="2880" height="1800" loading="lazy"></div>
+    </div>
+
+    <div class="wrap" style="margin-top:72px">
+      <div class="card beta">
+        <span class="eyebrow" style="display:block;margin-bottom:14px">Honest beta status</span>
+        <h3 style="font-size:22px;margin-bottom:12px">This is a beta, and we won't pretend otherwise.</h3>
+        <p class="muted">All eleven build stages are complete and gate-passed. The remaining work is <strong>real-hardware print validation</strong> — every send-to-printer connector is validated against a conformance model of the printer's real protocol, not yet against physical metal. If you have a printer, your report is the most valuable thing you can give back.</p>
+        <p class="muted">The installer is <strong>unsigned</strong> (no code-signing certificate yet), so Windows SmartScreen will warn <code>Windows protected your PC</code> — that's expected; click <strong>More info → Run anyway</strong>. Every release ships <code>SHA256SUMS.txt</code> and a <code>release-manifest.json</code> recording the exact source commit.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section id="download" class="cta">
+    <div class="wrap inner">
+      <span class="eyebrow">Get started</span>
+      <h2>Bring your idea to the plate.</h2>
+      <p>Download the Windows beta, double-click, and describe your first part. It runs on your machine, checks its own work, and keeps your ideas yours.</p>
+      <div class="hero-cta">
+        <a class="btn btn-gold" href="https://github.com/scottconverse/KimCadClaude/releases/latest">↓ Download for Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/scottconverse/KimCadClaude" style="color:#f4efe6;border-color:rgba(244,239,230,.25)">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <a class="foot-brand" href="#top">
+      <img src="assets/kim-512.png" alt="Kim" width="34" height="34" />
+      <span class="wm">Kim<b>Cad</b></span>
+    </a>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/scottconverse/KimCadClaude/releases/latest">Download</a>
+      <a href="https://github.com/scottconverse/KimCadClaude">GitHub</a>
+      <a href="https://github.com/scottconverse/KimCadClaude#readme">README</a>
+      <a href="https://github.com/scottconverse/KimCadClaude/blob/main/CHANGELOG.md">Changelog</a>
+    </nav>
+    <div class="foot-fine">
+      <span>Local-first AI → parametric CAD → 3D print · Apache-2.0</span>
+      <span>Made for makers. Named for one.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root=document.documentElement, key='kc-site-theme';
+  var saved=localStorage.getItem(key);
+  if(saved){root.setAttribute('data-theme',saved);}
+  else if(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches){root.setAttribute('data-theme','dark');}
+  var btn=document.getElementById('theme');
+  if(btn){btn.addEventListener('click',function(){
+    var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next); localStorage.setItem(key,next);
+  });}
+  // close mobile menu on link tap
+  document.querySelectorAll('.mobile-menu a').forEach(function(a){
+    a.addEventListener('click',function(){var cb=document.getElementById('menu'); if(cb)cb.checked=false;});
+  });
+})();
+</script>
+</body>
+</html>
