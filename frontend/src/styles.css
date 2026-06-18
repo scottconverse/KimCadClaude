@@ -1,11 +1,11 @@
-/* KimCad SPA — Workshop design system (Stage 4, Slice 2).
+/* KimCad SPA — Zen Design World design system.
  *
- * Token values are the "Workshop" theme from docs/design (warm sand / terracotta / dark
- * viewport). Fonts are the self-hosted @fontsource-variable families, declared latin-only
- * below (Vite bundles the referenced woff2 into the committed build — no CDN, fully offline;
- * latin only because the UI is English). This file defines the @font-face rules, the design
- * tokens, the base reset, and the chrome built so far (topbar + landing); the three-column
- * workspace, panels, and viewport styling are added in the following slices. */
+ * Token values are the "Zen" theme — Kim's Zen Design World aesthetic (warm white / deep black /
+ * gold accent, "Design in Balance"). Fonts are the self-hosted @fontsource-variable families,
+ * declared latin-only below (Vite bundles the referenced woff2 into the committed build — no CDN,
+ * fully offline; latin only because the UI is English). This file defines the @font-face rules,
+ * the design tokens, the base reset, and the chrome built so far (topbar + landing); the
+ * three-column workspace, panels, and viewport styling are added in the following slices. */
 
 /* ------------------------------------------------------ Self-hosted fonts (latin only) */
 @font-face {
@@ -40,23 +40,23 @@
 }
 
 :root {
-  /* Surfaces & ink */
-  --kc-bg: #f0ebe0;
-  --kc-surface: #faf6ee;
-  --kc-surface-2: #f4eee2;
-  --kc-ink: #272219;
-  --kc-muted: #6f6857;
-  --kc-hair: rgba(39, 34, 25, 0.1);
-  --kc-hair-strong: rgba(39, 34, 25, 0.16);
-  --kc-viewport-bg: #14171c;
+  /* Surfaces & ink — Zen Design World "Design in Balance" */
+  --kc-bg: #fafaf7;
+  --kc-surface: #ffffff;
+  --kc-surface-2: #f4f1ea;
+  --kc-ink: #0c0a06;
+  --kc-muted: #5a554c;
+  --kc-hair: #e8e4d8;
+  --kc-hair-strong: #d6d0bf;
+  --kc-viewport-bg: #0c0a06;
 
-  /* Accent (Workshop terracotta). `--kc-accent` is the brand fill for NON-text accents (logo,
+  /* Accent (Zen Design World gold). `--kc-accent` is the brand fill for NON-text accents (logo,
    * dots, focus rings, badges). Text-bearing fills + accent text use the darker `-strong` /
    * `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
-  --kc-accent: #c8623a;
-  --kc-accent-strong: #b1542f;
-  --kc-accent-deep: #9a4828;
-  --kc-on-accent: #ffffff;
+  --kc-accent: #d4af37;
+  --kc-accent-strong: #b8901f;
+  --kc-accent-deep: #8f6e15;
+  --kc-on-accent: #1a1408;
 
   /* Semantic status (constant across themes). `--kc-pass` is the bright pass green for NON-text
    * fills (gauge, dots, tint backgrounds, large gauge number); `--kc-pass-text` is a darker green
@@ -106,19 +106,19 @@
  * just deeper here. Applied as a class on <html> by frontend/src/useTheme.ts. */
 :root.kc-theme-dark {
   color-scheme: dark;
-  --kc-bg: #181715;
-  --kc-surface: #211f1b;
-  --kc-surface-2: #2a2722;
+  --kc-bg: #0c0a06;
+  --kc-surface: #161310;
+  --kc-surface-2: #1f1c17;
   --kc-ink: #f5efe5;
-  --kc-muted: #b3a896;
-  --kc-hair: rgba(245, 239, 229, 0.12);
-  --kc-hair-strong: rgba(245, 239, 229, 0.2);
-  --kc-viewport-bg: #0e1116;
+  --kc-muted: #b8b1a3;
+  --kc-hair: #2a2620;
+  --kc-hair-strong: #3a3530;
+  --kc-viewport-bg: #050402;
 
-  --kc-accent: #ff8a4b;
-  --kc-accent-strong: #ff9d66;
-  --kc-accent-deep: #e0732f;
-  --kc-on-accent: #2a1407; /* dark ink on the light dark-theme accent fill (≈8:1) */
+  --kc-accent: #e3c24f;
+  --kc-accent-strong: #efd06b;
+  --kc-accent-deep: #c9a634;
+  --kc-on-accent: #1a1408; /* dark ink on the light dark-theme gold fill (≈10:1) */
 
   --kc-pass: #75d89c;
   --kc-pass-text: #8fe5b0;
@@ -227,8 +227,8 @@ input {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #dbe7f3 url('./assets/kim-avatar.png') center/cover no-repeat;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--kc-accent) 30%, transparent);
+  object-fit: cover;
+  box-shadow: 0 0 0 1.5px var(--kc-accent);
 }
 
 .kc-wordmark {
@@ -236,6 +236,35 @@ input {
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.015em;
+}
+
+/* Kim Everywhere — branded avatars for wizard rail / welcome / landing hero. */
+.kc-wiz-avatar {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 0 12px;
+  box-shadow: 0 0 0 2px var(--kc-accent), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.kc-wiz-welcome-avatar {
+  display: block;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 24px;
+  box-shadow: 0 0 0 3px var(--kc-accent), 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.kc-landing-avatar {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 18px;
+  box-shadow: 0 0 0 2.5px var(--kc-accent), 0 6px 18px rgba(0, 0, 0, 0.14);
 }
 
 .kc-wordmark-accent {
@@ -2490,8 +2519,8 @@ input {
   height: 28px;
   margin-top: 2px;
   border-radius: 50%;
-  background: #dbe7f3 url('./assets/kim-avatar.png') center/cover no-repeat;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kc-accent) 25%, transparent);
+  object-fit: cover;
+  box-shadow: 0 0 0 1px var(--kc-accent);
 }
 
 /* --------------------------------------------------- My Designs library (Stage 8.5 Slice 1) */

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import kimAvatar from '../assets/kim-avatar.png'
 import { getOptions } from '../api'
 
 // Top chrome: brand on the left; a save indicator + "My Designs" + "New design" on the right.
@@ -66,7 +67,7 @@ export default function Topbar({
   return (
     <header className="kc-topbar">
       <button type="button" className="kc-brand" onClick={onHome} aria-label="KimCad — home">
-        <span className="kc-logo" aria-hidden="true" />
+        <img src={kimAvatar} alt="Kim" className="kc-logo" />
         <span className="kc-wordmark">
           Kim<span className="kc-wordmark-accent">Cad</span>
         </span>

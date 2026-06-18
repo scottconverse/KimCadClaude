@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import kimAvatar from '../assets/kim-avatar.png'
 import LibraryModal from './LibraryModal'
 import ModelHealthPill from './ModelHealthPill'
 import PhotoOnramp from './PhotoOnramp'
@@ -110,6 +111,7 @@ export default function Landing({
   return (
     <main id="kimcad-main" className="kc-landing">
       <div className="kc-landing-inner">
+        <img src={kimAvatar} alt="Kim" className="kc-landing-avatar" />
         <span className="kc-badge">
           <span className="kc-badge-dot" aria-hidden="true" />
           Ready to print in ~15 minutes · no CAD skills

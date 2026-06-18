@@ -31,6 +31,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 LicenseFile={#StagingDir}\LICENSE
+; Kim Everywhere: setup .exe + uninstall entry get Kim's branded ico.
+SetupIconFile=kim.ico
+UninstallDisplayIcon={app}\kim.ico
 ; The app payload is ~1.5 GB unpacked (Python + tools); the AI models are ANOTHER ~7.7 GB
 ; (plus a ~1.4 GB portable AI engine downloaded on first run) that the in-app wizard
 ; downloads — said plainly on the final page below.
@@ -39,13 +42,16 @@ UninstallDisplayName=KimCad {#AppVersion}
 
 [Files]
 Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+; Kim Everywhere: kim.ico ships at the install root so [Icons] entries can reference it.
+Source: "kim.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\KimCad"; Filename: "{app}\python\pythonw.exe"; \
-  Parameters: """{app}\kimcad_launcher.py"""; WorkingDir: "{app}"; Comment: "KimCad"
+  Parameters: """{app}\kimcad_launcher.py"""; WorkingDir: "{app}"; Comment: "KimCad"; \
+  IconFilename: "{app}\kim.ico"
 Name: "{autodesktop}\KimCad"; Filename: "{app}\python\pythonw.exe"; \
   Parameters: """{app}\kimcad_launcher.py"""; WorkingDir: "{app}"; \
-  Comment: "KimCad"; Tasks: desktopicon
+  Comment: "KimCad"; Tasks: desktopicon; IconFilename: "{app}\kim.ico"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"

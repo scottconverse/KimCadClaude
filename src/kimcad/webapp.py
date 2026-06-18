@@ -936,9 +936,13 @@ def make_handler(
                 self._serve_index_shell(WEB_DIR / "index.html")
                 return
             if urlsplit(self.path).path == "/favicon.ico":
-                # Browsers request this automatically even though the SPA doesn't ship a brand
-                # asset yet. A clean 204 keeps the runtime console/network audit quiet without
-                # inventing a visual favicon.
+                # Serve Kim's branded favicon (the SPA build copies frontend/public/favicon.ico
+                # into WEB_DIR at build time). Falls back to a clean 204 if the file is missing
+                # so dev/test boots without a built bundle stay quiet.
+                ico = WEB_DIR / "favicon.ico"
+                if ico.is_file():
+                    self._serve_static(ico, "image/x-icon")
+                    return
                 self._send(204, b"", "image/x-icon")
                 return
             if self.path == "/api/options":

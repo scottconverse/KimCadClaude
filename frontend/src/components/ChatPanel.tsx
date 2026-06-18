@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import kimAvatar from '../assets/kim-avatar.png'
 import type { CompareMessage, DesignResponse, Message } from '../api'
 import { gateLabel, gateTone } from '../designStatus'
 import { useUnits } from '../useUnits'
@@ -166,7 +167,7 @@ export default function ChatPanel({
             <div key={i} className="kc-msg kc-msg-user">{msg.content}</div>
           ) : (
             <div key={i} className="kc-ai-row">
-              <span className="kc-ava" aria-hidden="true" />
+              <img src={kimAvatar} alt="Kim" className="kc-ava" />
               <div className={`kc-msg kc-msg-ai${msg.tone === 'error' ? ' kc-msg-error' : ''}`}>
                 {msg.content}
               </div>
@@ -185,7 +186,7 @@ export default function ChatPanel({
             session can measure it — changing log semantics blind risks making SR worse. */}
         {busy && result !== null && (
           <div className="kc-ai-row" aria-hidden="true">
-            <span className="kc-ava" aria-hidden="true" />
+            <img src={kimAvatar} alt="Kim" className="kc-ava" />
             <div className="kc-think">
               <span className="kc-spin" />
               <span>{restoring ? 'Reopening your design…' : 'Refining your part…'}</span>
@@ -197,7 +198,7 @@ export default function ChatPanel({
             user explicitly opts in here, or re-describes the part in the refine input below. */}
         {!busy && result?.status === 'needs_experimental' && (
           <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true" />
+            <img src={kimAvatar} alt="Kim" className="kc-ava" />
             <div className="kc-exp-offer">
               <p className="kc-exp-warn">
                 <b>Experimental · may not be perfect.</b> It runs in a locked sandbox and still has to
@@ -216,7 +217,7 @@ export default function ChatPanel({
             this adds a one-click "Try again" (re-runs the same attempt) so recovery isn't a retype. */}
         {!busy && result?.status === 'model_unavailable' && onRetry && (
           <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true" />
+            <img src={kimAvatar} alt="Kim" className="kc-ava" />
             <div className="kc-exp-offer">
               <button type="button" className="kc-btn kc-btn-accent kc-exp-try" onClick={onRetry}>
                 Try again
@@ -232,7 +233,7 @@ export default function ChatPanel({
         {/* Top-level network error (not a pipeline failure — those go into the thread) */}
         {!busy && error !== null && messages.every(m => m.content !== error) && (
           <div className="kc-ai-row">
-            <span className="kc-ava" aria-hidden="true" />
+            <img src={kimAvatar} alt="Kim" className="kc-ava" />
             <div className="kc-msg kc-msg-ai kc-msg-error">{error}</div>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import kimAvatar from '../assets/kim-avatar.png'
 import {
   getModelPullProgress,
   getModelStatus,
@@ -246,6 +247,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
     >
       <div className="kc-wiz">
         <aside className="kc-wiz-rail">
+          <img src={kimAvatar} alt="Kim" className="kc-wiz-avatar" />
           <div className="kc-wiz-brand">
             Kim<b>Cad</b>
           </div>
@@ -273,6 +275,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
           <div className="kc-wiz-content">
             {step === 0 && (
               <>
+                <img src={kimAvatar} alt="Kim" className="kc-wiz-welcome-avatar" />
                 <h1 id={headingId} className="kc-wiz-h1">
                   Welcome to KimCad
                 </h1>

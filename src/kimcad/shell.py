@@ -148,11 +148,17 @@ def build_shell(
         # localStorage (first-run flag, saved UI state) survives restarts like a normal
         # app, in a profile dir the uninstaller can name (SHELL-005).
         try:
-            webview.start(
-                gui="edgechromium",
-                private_mode=False,
-                storage_path=str(_webview_storage_dir()),
-            )
+            # Kim Everywhere: title bar + taskbar + Alt-Tab thumbnail use Kim's branded ico,
+            # shipped in src/kimcad/web/kim.ico. Silently skipped if the file is missing.
+            _icon_path = Path(__file__).resolve().parent / "web" / "kim.ico"
+            _start_kwargs: dict[str, object] = {
+                "gui": "edgechromium",
+                "private_mode": False,
+                "storage_path": str(_webview_storage_dir()),
+            }
+            if _icon_path.is_file():
+                _start_kwargs["icon"] = str(_icon_path)
+            webview.start(**_start_kwargs)
         except KeyboardInterrupt:  # SHELL-009: Ctrl+C in the console = close, not a traceback
             pass
         except Exception as e:  # SHELL-003: a missing WebView2 runtime must end friendly
