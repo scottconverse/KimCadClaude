@@ -881,8 +881,8 @@ input {
   background: rgba(255, 255, 255, 0.18);
 }
 .kc-measure-toggle-on {
-  border-color: #ff8a4b;
-  color: #ffb38a;
+  border-color: var(--kc-accent);
+  color: var(--kc-accent-strong);
 }
 .kc-measure-readout {
   position: absolute;
@@ -2362,13 +2362,10 @@ input {
 }
 
 .kc-quality-detail { margin-top: 14px; border-top: 1px solid var(--kc-hair); }
-.kc-quality-detail > summary {
+.kc-quality-detail-head {
   display: flex; align-items: center; gap: 8px; padding: 12px 0 0;
-  font-size: 12.5px; font-weight: 700; color: var(--kc-ink); cursor: pointer; list-style: none;
+  font-size: 12.5px; font-weight: 700; color: var(--kc-ink);
 }
-.kc-quality-detail > summary::-webkit-details-marker { display: none; }
-.kc-quality-detail > summary::after { content: "⌄"; margin-left: auto; color: var(--kc-muted); }
-.kc-quality-detail[open] > summary::after { content: "⌃"; }
 .kc-quality-detail .kc-engine-badge { margin-left: 0; }
 
 /* UX-003 / UX-010: refine-by-talking chips + a persistent hint above the composer. */

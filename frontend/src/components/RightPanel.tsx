@@ -529,26 +529,24 @@ function ReadinessCard({
     <section className="kc-card kc-card-readiness">
       <h2 className="kc-card-title kc-tip-host">Readiness<InfoTip term="readiness" /></h2>
       {readiness ? (
-        <>
-          <ReadinessBody
-            readiness={readiness}
-            gateStatus={result?.report?.gate_status}
-            onFocusRisk={onFocusRisk}
-            highlightsOn={highlightsOn}
-            onToggleHighlights={onToggleHighlights}
-          />
-          {children}
-        </>
+        <ReadinessBody
+          readiness={readiness}
+          gateStatus={result?.report?.gate_status}
+          onFocusRisk={onFocusRisk}
+          highlightsOn={highlightsOn}
+          onToggleHighlights={onToggleHighlights}
+        />
       ) : isFailureStatus(result?.status) ? (
         <p className="kc-muted-note" role="status">
           No part to assess — the last attempt didn&rsquo;t produce a model.
         </p>
-      ) : (
+      ) : !result?.report ? (
         <p className="kc-muted-note">
           A print-readiness score — with the risks and concrete next steps — appears here once a
           part is designed.
         </p>
-      )}
+      ) : null}
+      {children}
     </section>
   )
 }
@@ -735,17 +733,17 @@ export default function RightPanel({
           highlightsOn={highlightsOn}
           onToggleHighlights={onToggleHighlights}
         >
-          <details className="kc-quality-detail">
-            <summary>
+          <div className="kc-quality-detail">
+            <div className="kc-quality-detail-head">
               Printability detail
               {result?.report?.backend && (
                 <span className="kc-engine-badge">
                   {result.report.backend === 'cadquery' ? 'CadQuery' : 'OpenSCAD'}
                 </span>
               )}
-            </summary>
+            </div>
             <PrintabilityBody result={result} />
-          </details>
+          </div>
         </ReadinessCard>
       </div>
       <div

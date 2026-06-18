@@ -9,8 +9,8 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 // space); Z is up (build-plate orientation). Print-aware affordances: a bounding box + projected
 // X/Y/Z dimension labels (so the centerpiece reads as an instrumented preview, not a decoration).
 
-const VIEWPORT_BG = 0x14171c // Workshop dark viewport
-const ACCENT = 0xc8623a // Workshop terracotta
+const VIEWPORT_BG = 0x0c0a06 // Zen deep-black viewport (matches --kc-viewport-bg)
+const ACCENT = 0xd4af37 // Zen Design World gold (matches --kc-accent light)
 const PLATE = 0xffffff
 
 export interface DimLabels {
@@ -647,7 +647,7 @@ export class KCViewport {
     const markerR = Math.max(1.2, (this.dims ? Math.max(this.dims.x, this.dims.y, this.dims.z) : 80) / 70)
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(markerR, 16, 12),
-      new THREE.MeshBasicMaterial({ color: 0xff8a4b, depthTest: false }),
+      new THREE.MeshBasicMaterial({ color: 0xe3c24f, depthTest: false }),
     )
     marker.renderOrder = 3
     marker.position.copy(hit.point)
@@ -656,7 +656,7 @@ export class KCViewport {
       const [a, b] = this.measurePoints
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([a, b]),
-        new THREE.LineBasicMaterial({ color: 0xff8a4b, depthTest: false }),
+        new THREE.LineBasicMaterial({ color: 0xe3c24f, depthTest: false }),
       )
       line.renderOrder = 3
       this.measureGroup.add(line)

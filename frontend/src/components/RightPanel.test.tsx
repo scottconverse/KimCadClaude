@@ -210,9 +210,11 @@ describe('RightPanel', () => {
     stubFetch()
     renderPanel({ result: passResult, initialTab: 'quality' })
     // UX-008 (stage-D): the badge carries the plain verdict — the card title supplies the
-    // subject; no "Gate:" jargon in the trust moment. Slice 2: the verdict appears TWICE
-    // by design — the always-visible Inspector strip + the printability card itself.
-    expect(screen.getAllByText('Passed')).toHaveLength(2)
+    // subject; no "Gate:" jargon in the trust moment. After the Inspector quality merge
+    // (Task 3) the verdict only shows ONCE — on the always-visible Inspector strip; the
+    // separate Printability card was folded into Readiness and no longer carries its own
+    // verdict badge.
+    expect(screen.getAllByText('Passed')).toHaveLength(1)
     expect(screen.queryByText(/Gate:/)).toBeNull()
     expect(screen.getByText('Dimensions match')).toBeTruthy()
     expect(screen.getByText(/80 × 60 × 40 mm/)).toBeTruthy()
@@ -227,14 +229,23 @@ describe('RightPanel', () => {
 
   it('shows the geometry-engine provenance chip (UX-001)', () => {
     stubFetch()
-    renderPanel({ result: { ...passResult, report: { ...passResult.report!, backend: 'cadquery' } } })
-    expect(screen.getByText('Engine: CadQuery')).toBeTruthy()
+    // After Task 3's quality-card merge the engine chip lives inside the merged Quality
+    // tab's printability detail (as a "CadQuery"/"OpenSCAD" badge — the name carries the
+    // provenance; "Engine:" prefix retired).
+    renderPanel({
+      result: { ...passResult, report: { ...passResult.report!, backend: 'cadquery' } },
+      initialTab: 'quality',
+    })
+    expect(screen.getByText('CadQuery')).toBeTruthy()
   })
 
   it('names OpenSCAD as the engine for an OpenSCAD part', () => {
     stubFetch()
-    renderPanel({ result: { ...passResult, report: { ...passResult.report!, backend: 'openscad' } } })
-    expect(screen.getByText('Engine: OpenSCAD')).toBeTruthy()
+    renderPanel({
+      result: { ...passResult, report: { ...passResult.report!, backend: 'openscad' } },
+      initialTab: 'quality',
+    })
+    expect(screen.getByText('OpenSCAD')).toBeTruthy()
   })
 
   it('shows a read-only note (no sliders) for an LLM-backed part with no parameters', () => {
@@ -416,17 +427,22 @@ describe('RightPanel readiness card', () => {
 describe('RightPanel help tips (Slice 9 MS-2)', () => {
   const tip = (term: string) => new RegExp(`what does .*${term}.* mean`, 'i')
 
-  it('renders a help (i) tip on every jargon term across the readiness + printability cards', () => {
+  it('renders a help (i) tip on every jargon term across the merged Quality card', () => {
     stubFetch()
-    // readinessResult carries risks, recommendations, and a confidence. (UX-109, stage-BCD:
-    // the standalone Gate tip was removed — the Printability title tip carries the concept.)
+    // After Task 3's Inspector quality merge: the only remaining InfoTips are Readiness +
+    // Confidence. Risks/Recommendations/Printability tips were retired as redundant inside
+    // the merged card.
     renderPanel({ initialTab: 'quality', result: readinessResult })
-    for (const term of ['Readiness', 'Confidence', 'Risks', 'Recommendations', 'Printability']) {
+    for (const term of ['Readiness', 'Confidence']) {
       expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
+    }
+    // The retired tips are no longer rendered.
+    for (const term of ['Risks', 'Recommendations', 'Printability']) {
+      expect(screen.queryByRole('button', { name: tip(term) })).toBeNull()
     }
   })
 
-  it('omits the Risks tip when there are no risks (its block is conditional), keeping the rest', () => {
+  it('still renders Readiness + Confidence tips when there are no risks', () => {
     stubFetch()
     const noRisks: DesignResponse = {
       status: 'completed',
@@ -451,8 +467,7 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
       },
     }
     renderPanel({ initialTab: 'quality', result: noRisks })
-    expect(screen.queryByRole('button', { name: tip('Risks') })).toBeNull()
-    for (const term of ['Readiness', 'Recommendations', 'Printability', 'Confidence']) {
+    for (const term of ['Readiness', 'Confidence']) {
       expect(screen.getByRole('button', { name: tip(term) })).toBeTruthy()
     }
   })
@@ -460,8 +475,8 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
   it('clicking a card tip reveals its plain-language definition inline', () => {
     stubFetch()
     renderPanel({ initialTab: 'quality', result: readinessResult })
-    fireEvent.click(screen.getByRole('button', { name: tip('Printability') }))
-    expect(screen.getByRole('note').textContent).toMatch(/pass/i)
+    fireEvent.click(screen.getByRole('button', { name: tip('Readiness') }))
+    expect(screen.getByRole('note').textContent).toMatch(/print/i)
   })
 })
 
