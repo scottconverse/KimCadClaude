@@ -39,7 +39,7 @@ ACCENT = (99, 102, 241)   # indigo-500
 
 
 class KimCadPDF(FPDF):
-    VERSION = "0.9.2"
+    VERSION = "0.9.3"
 
     def header(self):
         if self.page_no() == 1:
@@ -413,7 +413,7 @@ def part1(pdf: KimCadPDF):
         "no developer tools needed."
     )
     bullet(pdf, [
-        "Download KimCad-Setup-0.9.2.exe from the Releases page on GitHub.",
+        "Download KimCad-Setup-0.9.3.exe from the Releases page on GitHub.",
         "Double-click it. Windows will warn you because the beta isn't code-signed — "
         "click More info → Run anyway. (The release page publishes a checksum you can verify first.)",
         "Follow the wizard. KimCad installs to Program Files by default.",
@@ -762,7 +762,7 @@ def part3(pdf: KimCadPDF):
 
     h2(pdf, "Testing Philosophy")
     body(pdf,
-        "The test suite (1,680 tests as of 0.9.2) is structured to prove the actual runtime "
+        "The test suite (1,680+ tests as of 0.9.3) is structured to prove the actual runtime "
         "contract, not just that the code runs:"
     )
     bullet(pdf, [

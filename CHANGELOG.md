@@ -3,6 +3,41 @@
 All notable changes to KimCad are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); this project uses semantic versioning.
 
+## [0.9.3] — 2026-06-18
+
+The **Zen Design World branding** release: KimCad is named after Kim, and her face is now the
+brand mark on every surface a user sees. The whole app evolves to Kim's "Design in Balance"
+palette — warm white + gold (light), deep black + gold (dark) — replacing the older Workshop
+terracotta. No functional, API, or pipeline changes; this is a visual/identity overhaul.
+
+### Changed
+- **Palette → Zen Design World gold/black** across the whole app. CSS tokens rewritten in
+  `frontend/src/styles.css`: `--kc-accent: #d4af37` (light) / `#e3c24f` (dark); surfaces
+  `#fafaf7` / `#0c0a06`. The Three.js viewport accents follow the same palette.
+- **Avatar source** upgraded from 64×64px to 256×256px (cropped from the 1254px master), so
+  Kim renders crisply at every size used in the app.
+- **A11y** — the brand mark + chat avatars are now real `<img alt="Kim">` elements instead of
+  CSS-background-image `aria-hidden` spans. Screen readers announce "Kim, image" where the
+  brand identifies the assistant.
+- **Inspector quality merge polished** — the `PrintabilityCard` body now renders inside
+  `ReadinessCard` as a labeled detail section (not a collapsed disclosure), so the dims table
+  + verdict are visible without an extra click on the Quality tab.
+
+### Added
+- **Kim Everywhere** — Kim's face is now the brand mark on every visible surface:
+  - First-run wizard: 56px round avatar in the rail + 120px portrait above the Welcome H1.
+  - In-app empty state / Landing: 96px round avatar above the "What do you want to make today?"
+    headline.
+  - Topbar logo (32px round).
+  - Chat conversation avatars (28px round on every assistant turn).
+  - Browser tab / WebView2 window chrome (favicon, served from `/favicon.ico`).
+  - Native pywebview window: title bar / taskbar / Alt-Tab thumbnail icon (`kim.ico` passed to
+    `webview.start()`).
+  - Installer `.exe` + desktop shortcut + Start-menu tile (`SetupIconFile` +
+    `IconFilename` in `installer/kimcad.iss`).
+- **New landing page** at `docs/index.html` — full Zen rebrand with real product screenshots,
+  proper hero, dark mode, mobile responsive, OG card.
+
 ## [0.9.2] — 2026-06-17
 
 ### Fixed
