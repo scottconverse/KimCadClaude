@@ -68,10 +68,10 @@ def is_loopback_url(base_url: str) -> bool:
 
 
 def _free_gb_on_receiving_drive(probe_dir: Path | None = None) -> float:
-    """Free space (GB) on the drive that will actually receive the blobs. Ollama stores models
-    under the user profile by default, or wherever ``OLLAMA_MODELS`` points (ENG-003) — measure
-    THAT drive. A bad env var never blocks: fall back to home. Shared by both the per-model
-    ``start`` pre-check and the cold ``_run_setup`` pre-check (ENG-GG-002), so the two agree."""
+    """Free space (GB) on the drive that will actually receive the blobs. In installed mode,
+    KimCad stores models under writable_root()/"models" (%LOCALAPPDATA%/KimCad/models).
+    A bad env var never blocks: fall back to home. Shared by both the per-model ``start``
+    pre-check and the cold ``_run_setup`` pre-check (ENG-GG-002), so the two agree."""
     # ENG-002: OLLAMA_MODELS is set in the child's env by _child_env(), not the parent's.
     # Use writable_root()/"models" directly in installed mode; fall back to probe_dir or home.
     from kimcad.paths import writable_root, is_installed
@@ -141,9 +141,8 @@ class ModelPullJob:
                 self._models = {}
                 return self._snapshot_locked()
 
-            # The disk pre-check: fail friendly BEFORE gigabytes move. Ollama stores models
-            # under the user profile by default, or wherever OLLAMA_MODELS points (ENG-003) —
-            # measure the drive that will actually receive the blobs.
+            # The disk pre-check: fail friendly BEFORE gigabytes move. In installed mode,
+            # models land in writable_root()/"models" — measure THAT drive.
             need_gb = sum(_EST_GB.get(kind, 5.0) for _, kind in missing)
             free_gb = _free_gb_on_receiving_drive(probe_dir)
             if free_gb < need_gb:
