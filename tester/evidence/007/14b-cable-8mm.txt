@@ -1,0 +1,37 @@
+{
+  "sliders": [
+    {
+      "name": "cable_d",
+      "min": "2",
+      "max": "40",
+      "val": "8",
+      "label": "Cable diameter8mm"
+    },
+    {
+      "name": "width",
+      "min": "8",
+      "max": "80",
+      "val": "16",
+      "label": "Clip widthX16mm"
+    }
+  ],
+  "cable_param": {
+    "name": "cable_d",
+    "min": "2",
+    "max": "40",
+    "val": "8",
+    "label": "Cable diameter8mm"
+  },
+  "convo": "CONVERSATION\na desk cable clip for an 8 mm cable\nHere you go \u2014 A cable clip designed to hold an 8 mm cable.\nRefine by talking \u2014 tap a change or describe your own:\nMake it bigger\nMake it smaller\nMake it taller\nThicker walls\nSend\nEnter to send \u00b7 Shift+Enter for a new line\nDescribe with a photo\n\u2014 or drop an image here\nSta",
+  "dims": [
+    "256 mm",
+    "8 mm",
+    "8 mm",
+    "16 mm",
+    "27 mm",
+    "10 mm",
+    "8mm",
+    "16mm"
+  ],
+  "note": "checking 8mm cable honored (ENG-GG-002) vs silent 6mm default"
+}

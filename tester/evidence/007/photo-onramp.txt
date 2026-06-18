@@ -1,0 +1,4 @@
+{
+  "seeded": true,
+  "body": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nMy Designs\nSettings\n?\nReady to print in ~15 minutes \u00b7 no CAD skills\nWhat do you want to make today?\n\nDescribe a functional part in plain words \u2014 I\u2019ll design it, check that it\u2019s actually printable, and get it ready for your printer. Runs entirely on your machine.\n\nDesign it\nEnter to send \u00b7 Shift+Enter for a new line\nReading your photo\u2026\n\nYour "
+}

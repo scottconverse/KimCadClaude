@@ -1,0 +1,1 @@
+{"has_snapmaker":false,"connectors":["Bambu","Bambu","Bambu","Bambu","Bambu","Bambu","Bambu","Bambu","Bambu","Octoprint","octoprint","OCTOPRINT","OCTOPRINT","Moonraker","moonraker","MOONRAKER","MOONRAKER","Prusalink","prusalink","PRUSALINK","PRUSALINK","Duet","duet","DUET","DUET","Marlin","marlin","Bambu","bambu","BAMBU","BAMBU","Bambu","bambu","BAMBU","BAMBU"]}

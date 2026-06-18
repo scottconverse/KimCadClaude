@@ -1,0 +1,20 @@
+=== DIRECTIVE-007 PHASE 4: model fetch complete (managed engine) ===
+Captured: 2026-06-17 18:21:08
+
+Download timeline (d007-model-download.log):
+  18:18:37 running=True, model/vision present=False (engine up, models downloading)
+  18:19:09 qwen2.5:7b present
+  18:19:41 qwen2.5vl:3b present -> BOTH MODELS PRESENT
+  (engine fetch began ~18:14 on click; full ~7.9 GB models pulled in ~5 min on this connection)
+
+Managed engine /api/tags (port 11434) confirms BOTH models real:
+{"models":[{"name":"qwen2.5vl:3b","model":"qwen2.5vl:3b","modified_at":"2026-06-17T18:19:18.8397036-06:00","size":3200627168,"digest":"fb90415cde1ef08aa669ae74b082d49b158729b6db1ab183c941417d507e71a1","details":{"parent_model":"","format":"gguf","family":"qwen25vl","families":["qwen25vl"],"parameter_size":"3.8B","quantization_level":"Q4_K_M","context_length":128000,"embedding_length":2048},"capabilities":["vision","completion"]},{"name":"qwen2.5:7b","model":"qwen2.5:7b","modified_at":"2026-06-17T18:18:38.3806194-06:00","size":4683087332,"digest":"845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e","details":{"parent_model":"","format":"gguf","family":"qwen2","families":["qwen2"],"parameter_size":"7.6B","quantization_level":"Q4_K_M","context_length":32768,"embedding_length":3584},"capabilities":["completion","tools"]}]}
+
+STORAGE LOCATIONS (nuance for DEV):
+  - Managed engine BINARY: %LOCALAPPDATA%\KimCad\ollama\ollama.exe  (1.84 GB dir)
+  - MODELS: %USERPROFILE%\.ollama\models  (7.34 GB)  <-- default Ollama location, NOT under KimCad data
+    => the managed engine uses the conventional ~/.ollama for model blobs.
+    => Phase 8 must check whether uninstall removes BOTH (engine under KimCad) AND the ~/.ollama models,
+       else ~7.34 GB is orphaned after uninstall.
+
+VERDICT: managed-engine cold setup WORKS - user never installed Ollama; app fetched engine+models itself.

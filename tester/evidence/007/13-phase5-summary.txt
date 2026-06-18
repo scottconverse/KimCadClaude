@@ -1,0 +1,11 @@
+=== DIRECTIVE-007 PHASE 5/5b SUMMARY (managed model) ===
+3 chips (managed qwen2.5:7b): 3/3 PASS, 0 console errors each
+  chip1 project box: 74.4s R86 | chip2 cable clip: 28.2s R92 | chip3 trinket dish: 34.2s R92
+WebGL: ANGLE (AMD Radeon 780M ... D3D11) - real iGPU
+Custom design (75mm coaster): 22s; Slice & prepare: orca_err=FALSE, print-file button present,
+  real sliced print file part_bambu_p2s_pla.gcode.3mf = 115,338 bytes (16-sliced-print-file.3mf)
+  geometry: part.3mf 9,683 + part.oriented.stl 38,284
+8mm cable (ENG-GG-002): cable_d slider min2/max40/val=8 "Cable diameter 8mm" - HONORED (not silent 6mm)
+Photo on-ramp: seeded TRUE (vision qwen2.5vl:3b)
+Phase 5b: 29 printers, has_snapmaker=FALSE, 1 material dropdown, 0 Extruder labels (single-material confirmed)
+Settings connections: no Snapmaker; normal templates (Octoprint/Moonraker/Prusalink/Duet/Marlin/Bambu)

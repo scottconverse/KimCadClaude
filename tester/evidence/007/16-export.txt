@@ -1,0 +1,10 @@
+{
+  "orca_error": false,
+  "print_file_button": true,
+  "output_sizes": {
+    "part.3mf": 9683,
+    "part.oriented.stl": 38284,
+    "part_bambu_p2s_pla.gcode.3mf": 115338
+  },
+  "newest_dir": "C:\\Users\\a7207\\AppData\\Local\\KimCad\\output\\web\\4"
+}
