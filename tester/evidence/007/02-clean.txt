@@ -1,0 +1,27 @@
+=== DIRECTIVE-007 PHASE 0: TRULY CLEAN MACHINE ===
+Date: 2026-06-17 18:03:21
+Box: DESKTOP-2BR3SJR (SER8)
+
+OS Name:                       Microsoft Windows 11 Pro
+OS Build Type:                 Multiprocessor Free
+System Model:                  SER8
+Processor(s):                  1 Processor(s) Installed.
+Total Physical Memory:         28,450 MB
+
+
+
+Windows:  Microsoft Windows [Version 10.0.26200.8655]
+
+--- CRITICAL PRECONDITION (no Ollama, no models) ---
+node command:          NOT FOUND (correct)
+ollama command:        NOT FOUND (correct)
+kimcad command:        NOT FOUND (correct)
+Programs\Ollama\ollama.exe:  False  (must be False)
+~/.ollama/models:            False  (must be False/absent)
+Ollama running process:      none (correct)
+Ollama registry:             GONE (correct)
+KimCad registry:             GONE (correct)
+WebView2 Runtime:            149.0.4022.69 (present)
+Free disk on C:              854.5 GB (need ~12 GB for engine+models)
+
+PHASE 0 VERDICT: PASS - truly clean, valid for the cold-start headline
