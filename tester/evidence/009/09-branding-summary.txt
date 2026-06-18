@@ -1,0 +1,25 @@
+=== DIRECTIVE-009 PHASE 4 — KIM EVERYWHERE checklist ===
+IN-APP surfaces (verified live via Playwright on the real WebView2 shell):
+  4f wizard rail:    PASS - <img alt="Kim" src="kim-avatar.png"> 56px, gold ring (15-wizard-rail.png)
+  4g Welcome portrait: PASS - Kim img 120px, gold ring (16-wizard-welcome.png)
+  4h topbar logo:    PASS - Kim img 32px gold ring + "Kim[Cad]" wordmark, gold "Cad" (17-topbar-logo.png)
+  4i landing hero:   PASS - Kim img 96px gold ring above H1 (18-landing-hero.png)
+  4j chat avatars:   (Phase 6 - needs a design; captured in 19/44)
+  4k favicon:        PASS - favicon.ico == kim.ico (same Kim asset, hash-identical) (20-favicon.png)
+  4l palette:        PASS - light: accent #d4af37, warm-white bg rgb(250,250,247), black text;
+                     dark: accent #e3c24f, deep-black bg rgb(12,10,6), warm-white text. NO terracotta.
+                     (21-palette-light.png, 22-palette-dark.png, 21-palette.txt)
+  4m a11y:           PASS - every Kim mark is real <img alt="Kim"> (a11y-correct). Narrator not run in
+                     autonomous mode; alt-text presence verified via DOM instead. (23-a11y.txt)
+
+NATIVE OS surfaces (cannot screenshot autonomously — computer-use needs human approval on a watchdog
+tick; verified via icon ASSETS + WIRING on disk instead, disclosed):
+  Installer .exe icon (Phase 2A): PASS - extracted embedded icon = Kim (04-installer-icon.png), 0% green (not Python snake)
+  4a desktop shortcut:  WIRED - Desktop\KimCad.lnk IconLocation = kim.ico,0 (verified on disk)
+  4b start-menu tile:   WIRED - Start Menu\KimCad\KimCad.lnk IconLocation = kim.ico,0
+  4c title bar / 4d taskbar / 4e Alt-Tab: the app window icon derives from the same kim.ico the
+     shortcuts use (pythonw + kim.ico). kim.ico ships at install root + web dir, == favicon (Kim).
+  => Recommend Scott eyeball the actual desktop/taskbar/Alt-Tab to confirm on-screen render; the
+     asset+wiring evidence shows the correct Kim icon ships and is referenced everywhere.
+
+Avatar asset: kim-avatar.png 256px source (76 KB), stylized Kim portrait (09b-kim-avatar-asset.png).

@@ -1,0 +1,4 @@
+{
+  "has_setup_btn": true,
+  "ollama_deadend": false
+}

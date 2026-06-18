@@ -1,0 +1,6 @@
+{
+    "DisplayName":  "KimCad 0.9.3",
+    "DisplayVersion":  "0.9.3",
+    "DisplayIcon":  "C:\\Users\\a7207\\AppData\\Local\\Programs\\KimCad\\kim.ico",
+    "InstallLocation":  "C:\\Users\\a7207\\AppData\\Local\\Programs\\KimCad\\"
+}

@@ -1,0 +1,13 @@
+=== PHASE 2: INSTALL (silent fallback, disclosed) ===
+Date: 2026-06-18 12:48:26
+
+
+DisplayName     : KimCad 0.9.3
+DisplayVersion  : 0.9.3
+DisplayIcon     : C:\Users\a7207\AppData\Local\Programs\KimCad\kim.ico
+InstallLocation : C:\Users\a7207\AppData\Local\Programs\KimCad\
+
+
+
+
+DisplayIcon resolves to kim.ico: True

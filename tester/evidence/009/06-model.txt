@@ -1,0 +1,8 @@
+{
+  "model": "qwen2.5:7b",
+  "backend": "local",
+  "vision_model": "qwen2.5vl:3b",
+  "running": false,
+  "model_present": false,
+  "vision_present": false
+}

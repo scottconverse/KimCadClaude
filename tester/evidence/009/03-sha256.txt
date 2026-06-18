@@ -1,0 +1,7 @@
+=== PHASE 1: DOWNLOAD + INTEGRITY ===
+Source: https://github.com/scottconverse/KimCadClaude/releases/download/v0.9.3/KimCad-Setup-0.9.3.exe
+Size: 204050711 (expected 204,050,711) MATCH: True
+SHA-256:  f2c97eceb2bdd624fff1d2c861ea22fd176cbac7acb351e8da41587ee0dd25b8
+Expected: f2c97eceb2bdd624fff1d2c861ea22fd176cbac7acb351e8da41587ee0dd25b8
+MATCH: True
+VERDICT: PASS

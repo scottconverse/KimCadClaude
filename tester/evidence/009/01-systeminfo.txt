@@ -1,0 +1,16 @@
+=== DIRECTIVE-009 PHASE 0: TRULY CLEAN MACHINE ===
+Date: 2026-06-18 12:46:56
+Box: DESKTOP-2BR3SJR (SER8) | AMD Radeon 780M Graphics
+Windows:  Microsoft Windows [Version 10.0.26200.8655]
+
+node:                       NOT FOUND (ok)
+ollama command:             NOT FOUND (ok)
+Programs\Ollama\ollama.exe: False (expect False)
+~/.ollama/models:           False (expect False)
+%LOCALAPPDATA%\KimCad:       False (expect False)
+~/.kimcad:                  False (expect False)
+KimCad uninstall registry:  GONE (ok)
+WebView2:                   149.0.4022.69
+Free disk C:                852.6 GB (need ~12)
+
+PHASE 0 VERDICT: PASS - truly clean

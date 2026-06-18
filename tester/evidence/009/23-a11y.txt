@@ -1,0 +1,12 @@
+{
+  "note": "Kim brand marks are real <img alt> (a11y-correct), captured via DOM. Narrator not run in autonomous mode; alt-text presence verified instead.",
+  "imgs": [
+    {
+      "alt": "Kim",
+      "src": "kim-avatar.png",
+      "w": 32,
+      "h": 32
+    }
+  ],
+  "all_kim_imgs_have_alt": true
+}

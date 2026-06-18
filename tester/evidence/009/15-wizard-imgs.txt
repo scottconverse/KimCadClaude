@@ -1,0 +1,26 @@
+[
+  {
+    "alt": "Kim",
+    "src": "kim-avatar.png",
+    "w": 56,
+    "h": 56
+  },
+  {
+    "alt": "Kim",
+    "src": "kim-avatar.png",
+    "w": 120,
+    "h": 120
+  },
+  {
+    "alt": "Kim",
+    "src": "kim-avatar.png",
+    "w": 32,
+    "h": 32
+  },
+  {
+    "alt": "Kim",
+    "src": "kim-avatar.png",
+    "w": 96,
+    "h": 96
+  }
+]

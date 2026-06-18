@@ -1,0 +1,5 @@
+{
+  "an 80 \u00d7 60 \u00d7 40 mm project box with a lid": true,
+  "a desk cable clip for an 8 mm cable": true,
+  "a round trinket dish, 90 mm across": true
+}
