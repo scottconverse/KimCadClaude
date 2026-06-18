@@ -1,0 +1,80 @@
+# DEV SIGN-OFF — directive-007 (KCT-007-20260617-091)
+
+**Date:** 2026-06-17
+**Build under test:** v0.9.1 (tag `v0.9.1`, source commit `3322936`)
+**Post-007 fix commit:** `9ddea46` (on origin/main, gated 1679 pytest / 405 vitest / build-repro)
+
+## Verdict: ACCEPTED — SHIP
+
+**The headline works.** A brand-new user with no Ollama installed, downloading the installer
+from the GitHub release and running it, reaches a working design without manually installing
+anything. The "Get Ollama → install it → check again" dead-end is gone.
+
+**The tester ran a genuinely clean machine** (proved: no Ollama exe, no `~/.ollama` models, no
+Node). Every prior clean-machine run had Ollama pre-installed. This is the first time the
+fresh-machine first-run was actually walked — it passed.
+
+## Phase verification (DEV cross-check)
+
+All claims in report-007 are consistent with the shipped artifact and architecture:
+
+| Phase | DEV check |
+|-------|-----------|
+| 0 | Clean machine confirmed — this was the critical precondition every earlier run lacked. |
+| 1 | SHA `6FDD91E9…14629C` + size `203502135` B match the published v0.9.1 asset exactly. |
+| 2 | Silent fallback (`/VERYSILENT`) per directive heads-up; the installed app is the real product. |
+| 3 | `verify_install.py` ALL GREEN, `qwen2.5:7b`, 3 chips, `3322936` — all consistent with the build. |
+| 4 | Managed engine in `%LOCALAPPDATA%\KimCad\ollama` (`managed_dir()` = `writable_root() / "ollama"`). NOT on PATH by design — KimCad never modifies PATH. Managed `ollama serve` running under KimCad's data dir = expected. |
+| 5 | 8 mm cable honored (`cable_d=8`) — `bind_prompt_dimensions` fix confirmed. 3/3 chips on managed qwen2.5:7b. Real `.3mf` (115,338 B, `orca_err=False`). 29 printers, no Snapmaker U1. |
+| 6 | ENG-GG-001 teardown: window-X close → managed `ollama` gone, port 11434 freed. The harness-path orphan was the tester's own non-faithful run path; re-test on the faithful path was clean. |
+| 7 | Graceful failure states — "the engine isn't running" + "Set up your local AI first — see Settings", no 500. Non-geometric prompt handled gracefully. |
+| 8 | KimCad dirs cleanly removed; user designs (`~/.kimcad`) retained. Model orphan noted (see Minor-2 fix below). |
+
+## DEV responses to open questions
+
+**Q1 — Model storage location (`~/.ollama`):** Was a deliberate design decision that turned out
+to be wrong from a user perspective. FIXED in `9ddea46`: `_child_env()` now sets `OLLAMA_MODELS`
+to `writable_root() / "models"` = `%LOCALAPPDATA%\KimCad\models`. The uninstaller's existing
+`DelTree({localappdata}\KimCad)` prompt covers them. The reuse-system-Ollama path is unaffected
+(that path never calls `_child_env`; system Ollama uses its own dir).
+
+**Q2 — Down-state wording ("Make sure Ollama is running"):** FIXED in `9ddea46`:
+`MODEL_UNAVAILABLE_MESSAGE` now reads "the engine isn't running — restart from Settings, then
+try again." No "Ollama" anywhere the managed-AI user will see.
+
+**Q3 — Reuse-of-system-Ollama path (not tested this run):** Confirmed by architecture: if
+`find_system_ollama()` returns a path, `ensure_serving()` uses it directly without calling
+`_child_env()`, so the managed-engine path (with `OLLAMA_MODELS` pinned) is never entered.
+The real-tool test in `test_ollama_runtime_real.py` covers the spawn/teardown branch; the
+reuse branch is covered by `test_ensure_serving_reuses_already_up_server`. Full live reuse
+will be verified on a box with a system Ollama in a future run.
+
+**Q4 — Silent install:** Acceptable per directive heads-up (GUI automation isn't drivable
+unattended on the tester harness). The directive explicitly permitted it as an automation
+fallback. The app under test was the real installed product; method disclosed in the report.
+
+## Finding resolution
+
+| Finding | Severity | Status |
+|---------|----------|--------|
+| Engine-down message says "Make sure Ollama is running" | Minor | **FIXED** in `9ddea46` — now "engine isn't running — restart from Settings" |
+| Uninstall orphans 7.34 GB of models in `~/.ollama` | Minor | **FIXED** in `9ddea46` — `OLLAMA_MODELS` now pinned to `%LOCALAPPDATA%\KimCad\models` |
+
+Post-fix gate: `1679 pytest` (incl. live OrcaSlicer + real Ollama spawn/teardown) + `405 vitest`
++ build-repro — **all green**. 0/0/0/0/0 findings in source at HEAD `9ddea46`.
+
+## Campaign status
+
+Directives 001–007 complete. The `0.9.1` pre-release is accepted.
+
+The published GitHub pre-release (`v0.9.1`, installer SHA `6FDD91E9…14629C`) reflects
+`3322936`; the two Minor fixes are in `9ddea46` and will be included in the next installer
+build. The pre-release stays published for reference — the minor fixes do not change the
+install-and-reach-a-working-design verdict.
+
+Open items for future builds:
+- **#11** — real-printer send (hardware not on the test box; out of scope for software gate)
+- **System-Ollama reuse live test** — needs a box with a system Ollama pre-installed
+- **Native FS sandbox** (ENG-004 partial) — OS-level AppContainer / firewall; admin required
+
+— DEV (2026-06-17)
