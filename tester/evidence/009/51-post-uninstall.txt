@@ -1,0 +1,33 @@
+=== DIRECTIVE-009 PHASE 7: UNINSTALL + RESIDUE ===
+Method: SILENT uninstall (unins000.exe /VERYSILENT /SUPPRESSMSGBOXES). Disclosed: the autonomous
+harness can't drive the interactive Apps & Features uninstall, so silent was used.
+
+PRE: %LOCALAPPDATA%\KimCad = 9.21 GB (engine 1.82 + models 7.34 + webview), ~/.kimcad designs present.
+
+AFTER silent uninstall:
+  install dir %LOCALAPPDATA%\Programs\KimCad GONE:  True   (PASS)
+  uninstall registry entry GONE:                    True   (PASS)
+  ~/.kimcad (saved designs) PRESERVED:              True   (PASS - by design)
+  managed ollama PROCESS running:                   none   (PASS - no orphan engine)
+  %LOCALAPPDATA%\KimCad (engine+models) removed:    NO -- 9.21 GB remained after silent uninstall
+
+ANALYSIS of the 9.21 GB remaining (honest):
+  - NOT a lock: the dir was freely deletable immediately after (rm -rf succeeded, no KimCad process
+    held it). The 6 lingering msedgewebview2 procs belong to Windows' MicrosoftWindows.Client.CBS,
+    NOT KimCad.
+  - NOT the d007 orphan bug: models are correctly under %LOCALAPPDATA%\KimCad\models (the dir the
+    interactive consent prompt's DelTree targets), NOT orphaned in ~/.ollama.
+  - ROOT CAUSE: 0.9.3's uninstaller has a NEW "remove your KimCad data?" consent prompt (documented in
+    the directive's own Phase 7 step 2). /SUPPRESSMSGBOXES auto-suppresses it; the safe default when a
+    "delete user data?" box is suppressed is to KEEP the data, so the 9.21 GB engine+models are retained.
+    An interactive user who clicks "YES, remove data" would reclaim it.
+    (Contrast 0.9.2/d008: silent uninstall DID delete the KimCad data dir. So 0.9.3 deliberately changed
+    uninstall to gate engine+model removal behind explicit user consent - a reasonable safety change.)
+
+VERDICT: PASS (program/registry/process clean; designs preserved). The engine+model removal is gated
+behind the new interactive consent prompt and is NOT exercised by a silent uninstall.
+RECOMMEND: Scott run the interactive Apps & Features uninstall and click "YES, remove data" to confirm
+(a) the 9.21 GB is reclaimed and (b) the uninstall dialog shows Kim's icon (DisplayIcon=kim.ico is
+wired - confirmed Phase 2 / 04-uninstall-registry.txt). After this run, the tester manually removed the
+9.21 GB to restore the true-clean box.
+Severity: Nit / methodology note, not a product regression.

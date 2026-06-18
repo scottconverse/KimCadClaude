@@ -1,0 +1,19 @@
+{
+  "kim_imgs": [
+    {
+      "alt": "Kim",
+      "src": "kim-avatar.png",
+      "w": 32,
+      "h": 32,
+      "tag": "IMG"
+    },
+    {
+      "alt": "Kim",
+      "src": "kim-avatar.png",
+      "w": 28,
+      "h": 28,
+      "tag": "IMG"
+    }
+  ],
+  "css_bg_avatars": 0
+}

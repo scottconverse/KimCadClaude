@@ -1,0 +1,6 @@
+{
+  "chip": "a round trinket dish, 90 mm across",
+  "elapsed_s": 30.2,
+  "readiness": 92,
+  "console_errors": 0
+}

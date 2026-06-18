@@ -1,0 +1,13 @@
+=== DIRECTIVE-009 PHASE 5: managed engine (d007 fix didn't regress) ===
+Date: 2026-06-18 12:55:45
+Download timeline (d009-download.log): engine+models in ~2.5 min, both present.
+  engine -> %LOCALAPPDATA%\KimCad\ollama (1867 MB)
+  models -> %LOCALAPPDATA%\KimCad\models (7518 MB)  <-- d007 Minor-2 fix holds (NOT ~/.ollama)
+
+ollama on PATH:                          NOT FOUND (correct)
+system install Programs\Ollama:          False (correct: False)
+KimCad managed engine ollama.exe:        True (correct: True)
+managed ollama process running:          YES PID 460
+C:\Users\a7207\AppData\Local\KimCad\ollama\ollama.exe serve
+
+VERDICT: PASS - user reached working AI w/o installing Ollama; engine is KimCad's own.

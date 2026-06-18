@@ -1,0 +1,7 @@
+{
+  "print_file_button": true,
+  "orca_error": false,
+  "sliced_sizes": {
+    "part_bambu_p2s_pla.gcode.3mf": 115360
+  }
+}

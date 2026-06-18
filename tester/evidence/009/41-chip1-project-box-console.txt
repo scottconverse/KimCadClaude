@@ -1,0 +1,6 @@
+{
+  "chip": "an 80 \u00d7 60 \u00d7 40 mm project box with a lid",
+  "elapsed_s": 73.4,
+  "readiness": 86,
+  "console_errors": 0
+}
