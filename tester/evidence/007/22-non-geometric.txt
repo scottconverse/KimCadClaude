@@ -1,0 +1,6 @@
+{
+  "refine_chips_offered": false,
+  "curated_chips_shown": false,
+  "graceful": true,
+  "body": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nMy Designs\nSettings\n?\nNew design\nCONVERSATION\na feeling of nostalgia\nI don't have a precise template for that. I can try an experimental generator that writes the shape directly \u2014 it isn't always right, it runs in a locked sandbox, and it still has to pass the printability check.\n\nExperimental \u00b7 may not be perfect. It runs in a locked sandbox and still has to pass the printability check \u2014 you\u2019ll see exactly what happens. It writes the design on your computer\u2019s AI, so it can take a few minutes; you can cancel anytime.\n\nTry the experimenta"
+}

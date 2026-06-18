@@ -1,0 +1,22 @@
+=== DIRECTIVE-007 PHASE 8: UNINSTALL ===
+Captured: 2026-06-17 18:41:18
+
+BEFORE: install dir 0.7 GB | %LOCALAPPDATA%\KimCad 1.86 GB (incl. managed engine) | ~/.ollama models 7.34 GB
+
+AFTER uninstall (silent /VERYSILENT /SUPPRESSMSGBOXES):
+  install dir %LOCALAPPDATA%\Programs\KimCad:  GONE (correct)
+  uninstall registry entry:                    GONE (correct)
+  Start Menu shortcut:                         GONE (correct)
+  %LOCALAPPDATA%\KimCad (managed engine+output): GONE (removed - reclaims engine ~1.86 GB)
+  ~/.kimcad (user DESIGNS):                    RETAINED (correct - user work preserved)
+  ~/.ollama models (qwen2.5:7b + qwen2.5vl:3b): RETAINED 7.34 GB --> ORPHANED
+  ollama on PATH / system install / process:   none (clean)
+
+DISK RECLAIMED: ~2.56 GB (install 0.7 + KimCad data/engine 1.86)
+DISK ORPHANED:  7.34 GB (model blobs in ~/.ollama)
+
+FINDING [Minor]: the managed engine stores model blobs in the conventional ~/.ollama (NOT under
+%LOCALAPPDATA%\KimCad), so the uninstaller — which DOES cleanly remove KimCad's own dirs incl. the
+engine binary — leaves 7.34 GB of downloaded models orphaned in ~/.ollama with no prompt to remove
+them. A user uninstalling reclaims ~2.56 GB and is unknowingly left with 7.34 GB of AI models
+(they never chose ~/.ollama). User designs in ~/.kimcad are correctly retained.

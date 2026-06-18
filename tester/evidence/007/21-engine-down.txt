@@ -1,0 +1,6 @@
+{
+  "friendly": true,
+  "generic_500": false,
+  "traceback": false,
+  "body": "Skip to main content\nKimCad\nBambu Lab P2S\n256\u00d7256\u00d7256 mm\nMy Designs\nSettings\n?\nNew design\nCONVERSATION\na small test cube 30mm\nKimCad couldn't reach your local AI. Make sure Ollama is running, then try again. You can check the AI's status in Settings.\nTry again\n\nSet up your local AI first \u2014 see Settings.\n\nSend\nEnter to send \u00b7 Shift+Enter for a new line\nDescribe with a photo\n\u2014 or drop an image here\nStart from a sketch\n\u2014 or drop an image here\nYour 3D preview appears here.\nParameters\nQuality\nExport\nParameters\nmm\nin\n\nNo part was produced, so there\u2019s nothing to adjust. Try describing it a little dif"
+}
