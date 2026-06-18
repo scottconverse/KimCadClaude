@@ -62,8 +62,8 @@ class VisionModelMissing(Exception):
     def __init__(self, model: str):
         self.model = model
         super().__init__(
-            "KimCad's image-reading model isn't downloaded yet. In a terminal, run: "
-            f"ollama pull {model} — then try again."
+            "KimCad's image-reading model isn't downloaded yet. "
+            "Use Settings > AI setup to download it, then try again."
         )
 
 

@@ -211,8 +211,9 @@ def test_cli_model_down_exits_2_with_guidance_no_traceback(monkeypatch, capsys, 
     err = capsys.readouterr().err
     assert code == 2
     assert "Traceback" not in err
-    assert "Ollama" in err  # actionable: names the thing to start
-    assert "ollama pull" in err  # and the exact recovery command
+    assert "isn't running" in err  # tester-007 Minor-1: vocabulary no longer says "Ollama"
+    assert "kimcad serve" in err  # actionable: names the exact recovery command
+    assert "Ollama" not in err  # no brand leak in the user-facing message
 
 
 def test_cli_tool_missing_exits_2_with_fetch_hint(monkeypatch, capsys, tmp_path):

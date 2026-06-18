@@ -1435,7 +1435,8 @@ def test_photo_seed_model_down_is_typed_not_blamed_on_the_photo(tmp_path):
             assert resp.status == 200
             body = json.loads(resp.read())
     assert body["status"] == "model_unavailable"
-    assert "engine" in body["error"]  # new managed-AI vocabulary (tester-007 Minor-1: no "Ollama" leak)
+    assert "isn't running" in body["error"]  # tester-007 Minor-1: managed-AI vocabulary, no "Ollama" leak
+    assert "Ollama" not in body["error"]
     assert "clearer shot" not in body.get("error", "")
 
 
@@ -3634,6 +3635,8 @@ def test_design_with_model_down_returns_recoverable_status_not_500(tmp_path):
     import json
     import urllib.request
 
+    from kimcad.pipeline import MODEL_UNAVAILABLE_MESSAGE
+
     class _OllamaDown:
         openscad_calls = 0
 
@@ -3658,7 +3661,9 @@ def test_design_with_model_down_returns_recoverable_status_not_500(tmp_path):
         d = json.load(resp)
     assert d["status"] == "model_unavailable"
     assert d["has_mesh"] is False
-    assert "engine" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary, not "Ollama"
+    assert d["error"] == MODEL_UNAVAILABLE_MESSAGE  # TE-004: exact constant binding — never diverges
+    assert "isn't running" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary, no "Ollama" leak
+    assert "Ollama" not in d["error"]
 
 
 def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
@@ -3693,6 +3698,8 @@ def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
         assert resp.status == 200
         d = json.load(resp)
     assert d["status"] == "model_unavailable" and d["has_mesh"] is False
+    assert "isn't running" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary (codegen drop)
+    assert "Ollama" not in d["error"]  # no brand leak on this path
 
 
 def test_design_native_ollama_path_down_is_recoverable_not_500(tmp_path):
@@ -3728,7 +3735,8 @@ def test_design_native_ollama_path_down_is_recoverable_not_500(tmp_path):
         d = json.load(resp)
     assert d["status"] == "model_unavailable"
     assert d.get("has_mesh") is False
-    assert "engine" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary, not "Ollama"
+    assert "isn't running" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary, no "Ollama" leak
+    assert "Ollama" not in d["error"]
 
 
 # MS-3 — live design-progress poll (planning/generating/rendering/validating).
@@ -3869,5 +3877,7 @@ def test_photo_and_sketch_seed_map_missing_vision_model_to_typed_pull_hint(tmp_p
                 assert resp.status == 200
                 body = json.loads(resp.read())
             assert body["status"] == "model_unavailable"
-            assert "ollama pull qwen2.5vl:3b" in body["error"]
+            assert "Settings" in body["error"]  # ENG-005: recovery points to Settings UI
+            assert "download" in body["error"].lower()
+            assert "ollama pull" not in body["error"]  # no brand leak
             assert "clearer" not in body["error"]

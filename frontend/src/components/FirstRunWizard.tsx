@@ -357,7 +357,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       {!pull && (
                         <p className="kc-wiz-model-action">
                           {!model.running
-                            ? 'KimCad sets up its AI for you — no separate install. It downloads the AI engine, then the model, right here. (Already have Ollama? KimCad uses it automatically.)'
+                            ? 'KimCad sets up its AI for you — no separate install. It downloads the AI engine, then the model, right here. (Already have a local AI engine? KimCad uses it automatically.)'
                             : !model.model_present
                               ? 'The design model isn’t downloaded yet.'
                               : 'Photos and sketches need one more download — designing in words works without it.'}{' '}

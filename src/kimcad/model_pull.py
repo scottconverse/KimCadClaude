@@ -72,7 +72,10 @@ def _free_gb_on_receiving_drive(probe_dir: Path | None = None) -> float:
     under the user profile by default, or wherever ``OLLAMA_MODELS`` points (ENG-003) — measure
     THAT drive. A bad env var never blocks: fall back to home. Shared by both the per-model
     ``start`` pre-check and the cold ``_run_setup`` pre-check (ENG-GG-002), so the two agree."""
-    models_dir = os.environ.get("OLLAMA_MODELS") or (probe_dir or Path.home())
+    # ENG-002: OLLAMA_MODELS is set in the child's env by _child_env(), not the parent's.
+    # Use writable_root()/"models" directly in installed mode; fall back to probe_dir or home.
+    from kimcad.paths import writable_root, is_installed
+    models_dir = (str(writable_root() / "models") if is_installed() else None) or os.environ.get("OLLAMA_MODELS") or (probe_dir or Path.home())
     try:
         return shutil.disk_usage(models_dir).free / _GB
     except OSError:
@@ -284,8 +287,8 @@ class ModelPullJob:
                 with self.lock:
                     self._models[_ENGINE_ROW]["status"] = "error"
                     self._models[_ENGINE_ROW]["error"] = (
-                        "Couldn't start the local AI engine — try again, or install Ollama "
-                        "from ollama.com."
+                        "Couldn't start the local AI engine — check that no other application "
+                        "is using port 11434, then try again."
                     )
                 return
             waited = 0.0

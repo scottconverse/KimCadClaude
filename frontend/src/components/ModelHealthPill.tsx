@@ -34,9 +34,9 @@ export default function ModelHealthPill() {
           // "go start Ollama yourself" (the old dead-end).
           'Your local AI isn’t ready yet — finish setup (the wizard’s “Set up KimCad’s AI”) to design.'
         : // DOC-1005 (stage-10 gate): the in-app download is the first-named path now.
-          `The model isn’t downloaded yet — the setup wizard’s Download button fetches it (or run “ollama pull ${model.model}”).`
+          `The model isn’t downloaded yet — use the setup wizard’s Download button or Settings to fetch it.`
       : model !== null && model.backend !== 'cloud' && model.vision_present === false
-        ? `Photos and sketches need one more download — the setup wizard’s Download button fetches it (or run “ollama pull ${model.vision_model}”). Designing in words works now.`
+        ? `Photos and sketches need one more download — use the setup wizard’s Download button or Settings to fetch it. Designing in words works now.`
         : null
   if (problem) everWarned.current = true
 

@@ -46,10 +46,11 @@ describe('ModelHealthPill (UX-002 / UX-A-001/002)', () => {
     expect(screen.getByText(/finish setup/)).toBeTruthy()
   })
 
-  it('warns with the exact pull command when the model is absent', async () => {
+  it('warns with the download instruction when the model is absent', async () => {
     await mockStatus({ ...READY, model_present: false })
     render(<ModelHealthPill />)
-    expect(await screen.findByText(/ollama pull gemma4:e4b/)).toBeTruthy()
+    expect(await screen.findByText(/Download button/)).toBeTruthy()
+    expect(screen.queryByText(/ollama pull/)).toBeNull()
   })
 
   it('shows no warning for a cloud backend or when the probe itself fails', async () => {

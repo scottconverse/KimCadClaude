@@ -68,9 +68,12 @@ describe('assistantMessage', () => {
       'kaboom',
     )
     // Slice 9: model_unavailable prefers the backend's actionable message, else a clear default.
+    // The fixture "it isn't running" is intentionally synthetic — it matches a substring of the
+    // real MODEL_UNAVAILABLE_MESSAGE so the frontend mapping is verified without coupling this
+    // pure-unit test to the backend constant directly.
     expect(
-      assistantMessage({ ...base, status: 'model_unavailable', error: "the engine isn't running" }),
-    ).toContain("engine isn't running") // discriminating: a substring unique to the backend error, not the default
+      assistantMessage({ ...base, status: 'model_unavailable', error: "it isn't running" }),
+    ).toContain("isn't running") // discriminating: a substring unique to the backend error, not the default
     expect(assistantMessage({ ...base, status: 'model_unavailable' })).toMatch(/local AI/i)
     expect(assistantMessage({ ...base, status: 'gate_failed' })).toMatch(/printability/i)
     // plan_failed gets a clean, actionable message and does NOT leak the raw parse error.

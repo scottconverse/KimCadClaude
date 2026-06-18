@@ -1,0 +1,8 @@
+About
+KimCad
+v0.9.2 · open-source (Apache-2.0)
+Reset all settings to defaults (incl. printer connections + the saved cloud key)
+Reset…
+
+Source: DOM extraction via scrollIntoView() + parentElement.innerText
+Captured: 2026-06-17, walkthrough run, dev server port 8714

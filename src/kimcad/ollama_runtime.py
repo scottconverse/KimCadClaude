@@ -133,16 +133,12 @@ class _Spawn(Protocol):
     def __call__(self, args: list[str], **kwargs: object) -> object: ...
 
 
-# ENG-GG-006 (gauntletgate): the managed Ollama child is a local geometry/LLM runtime — it has no
-# business inheriting the parent's cloud credentials. Drop anything secret-shaped from its env (a
-# DENY-list, not an allow-list, so we never accidentally starve Ollama of a var it genuinely needs
-# like USERPROFILE/PATH/TEMP, which it uses to find ~/.ollama and write its socket/logs).
-_SECRETISH = ("API_KEY", "APIKEY", "SECRET", "TOKEN", "PASSWORD", "_KEY", "CREDENTIAL")
-
-
 def _child_env(env: dict[str, str] | None, host: str) -> dict[str, str]:
+    # ENG-GG-006: managed Ollama child has no business inheriting cloud credentials; use the
+    # project-canonical scrub (subprocess_env) rather than a bespoke deny-list so the two stay in sync.
+    from kimcad.subprocess_env import is_secret_env
     base = os.environ if env is None else env
-    run_env = {k: v for k, v in base.items() if not any(s in k.upper() for s in _SECRETISH)}
+    run_env = {k: v for k, v in base.items() if not is_secret_env(k)}
     run_env.setdefault("OLLAMA_HOST", host)
     # Store models under KimCad's own data dir (tester-007 Minor-2: default ~/.ollama leaves
     # 7+ GB orphaned after uninstall; the uninstaller already removes writable_root()).

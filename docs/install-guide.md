@@ -59,7 +59,7 @@ These two files are the release's integrity story; there is no signed attestatio
   `%LOCALAPPDATA%\KimCad`. The uninstaller asks before removing it.
 - **KimCad's managed AI engine** (a portable Ollama) and the downloaded models — never
   Program Files. The engine lives under your per-user data folder
-  (`%LOCALAPPDATA%\KimCad\ollama`) and the models go in Ollama's standard model store;
+  (`%LOCALAPPDATA%\KimCad\ollama`) and the models go in `%LOCALAPPDATA%\KimCad\models`;
   both are removable with the app data.
 
 ## First run

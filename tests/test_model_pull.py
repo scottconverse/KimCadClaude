@@ -199,6 +199,35 @@ def test_setup_serve_never_healthy_errors():
     assert "didn't come up" in snap["models"][_ENGINE_ROW]["error"]
 
 
+def test_free_gb_probes_writable_root_in_installed_mode(monkeypatch, tmp_path):
+    """TE-002: in installed mode _free_gb_on_receiving_drive must use writable_root()/"models"
+    (set by KIMCAD_INSTALL_ROOT) instead of reading OLLAMA_MODELS from the parent env."""
+    import shutil
+
+    import kimcad.model_pull as mp_mod
+
+    probed: list[object] = []
+    real_usage = shutil.disk_usage
+
+    def _fake_usage(path):
+        probed.append(path)
+        return real_usage(tmp_path)  # probe tmp_path so it succeeds on any OS
+
+    monkeypatch.setenv("KIMCAD_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setenv("OLLAMA_MODELS", str(tmp_path / "should_not_be_used"))
+    monkeypatch.setattr(shutil, "disk_usage", _fake_usage)
+    # Also patch it inside model_pull's own module namespace
+    monkeypatch.setattr(mp_mod.shutil, "disk_usage", _fake_usage)
+    mp_mod._free_gb_on_receiving_drive()
+    assert probed, "disk_usage was never called"
+    assert str(probed[0]).endswith("models"), (
+        f"Expected probe under writable_root()/models, got {probed[0]}"
+    )
+    assert "should_not_be_used" not in str(probed[0]), (
+        "Installed mode must not read OLLAMA_MODELS from the parent env"
+    )
+
+
 def test_a_disk_full_error_maps_to_the_friendly_fix():
     def opener(req, timeout=None):
         return _FakeStream([{"error": "write /models/blobs: no space left on device"}])

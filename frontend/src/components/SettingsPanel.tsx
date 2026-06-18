@@ -253,6 +253,10 @@ export default function SettingsPanel() {
                     href={`#${it.id}`}
                     className="kc-set-navlink"
                     aria-current={activeSection === it.id ? 'true' : undefined}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      document.getElementById(it.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }}
                   >
                     {it.label}
                     {it.dot && <span className={`nstat ${it.dot}`} aria-hidden />}

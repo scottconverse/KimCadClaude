@@ -360,8 +360,9 @@ def test_missing_vision_model_raises_typed_with_pull_command(monkeypatch):
         provider.describe_photo(b"png-bytes", BAMBU, PLA)
         raise AssertionError("expected VisionModelMissing")
     except VisionModelMissing as e:
-        assert "ollama pull" in str(e)
-        assert BACKEND.vision_model in str(e)
+        assert "Settings" in str(e)  # ENG-005: recovery points to Settings, not "ollama pull"
+        assert "download" in str(e).lower()
+        assert "ollama pull" not in str(e)  # no brand leak
 
 
 def test_non_404_vision_http_error_is_a_read_error_not_missing_model(monkeypatch):

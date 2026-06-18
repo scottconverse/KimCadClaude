@@ -176,7 +176,7 @@ class PipelineStatus(str, Enum):
     render_failed = "render_failed"
     gate_failed = "gate_failed"
     completed = "completed"
-    # Stage 8.5 Slice 9: the local AI server (Ollama) couldn't be reached. The pipeline itself
+    # Stage 8.5 Slice 9: the managed AI server couldn't be reached. The pipeline itself
     # PROPAGATES the connection error (the caller owns it); the WEB LAYER maps that to this status
     # so the SPA shows a recoverable "your local AI isn't running" wall, not a raw 500/traceback.
     model_unavailable = "model_unavailable"
@@ -200,17 +200,17 @@ PLAN_FAILED_MESSAGE = (
 # message, not a raw connection traceback.  Never mentions "Ollama" — the user knows it as
 # "KimCad's AI" and has no Ollama tray icon to consult (ENG-GG-001 / tester-007 Minor-1).
 MODEL_UNAVAILABLE_MESSAGE = (
-    "KimCad couldn't reach your local AI — the engine isn't running. "
+    "KimCad couldn't reach your local AI — it isn't running. "
     "You can restart it from Settings, then try again."
 )
 
 
 def _is_model_unreachable(e: BaseException) -> bool:
-    """True if ``e`` is a model-server connection/timeout (Ollama down).
+    """True if ``e`` is a model-server connection/timeout (managed engine down).
 
     Handles two code paths:
     - OpenAI client path (cloud / non-native): ``APIConnectionError`` / ``APITimeoutError``
-    - Ollama-native path (grammar-format): ``urllib.error.URLError`` / ``TimeoutError`` /
+    - Native Ollama path (grammar-format): ``urllib.error.URLError`` / ``TimeoutError`` /
       ``ConnectionRefusedError`` (an ``OSError`` subclass)
     """
     import urllib.error

@@ -633,8 +633,8 @@ def main(argv: list[str] | None = None) -> int:
         if _is_model_unreachable(e):
             print(f"Error: {MODEL_UNAVAILABLE_MESSAGE}", file=sys.stderr)
             print(
-                f"  Start Ollama, pull the model if you haven't (`ollama pull {_model_name()}`), "
-                "then try again. `kimcad models` shows what's installed.",
+                "  Run `kimcad serve` to start the engine, then try again. "
+                "`kimcad models` shows what's installed.",
                 file=sys.stderr,
             )
             return 2
