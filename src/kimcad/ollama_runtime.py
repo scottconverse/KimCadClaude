@@ -144,6 +144,10 @@ def _child_env(env: dict[str, str] | None, host: str) -> dict[str, str]:
     base = os.environ if env is None else env
     run_env = {k: v for k, v in base.items() if not any(s in k.upper() for s in _SECRETISH)}
     run_env.setdefault("OLLAMA_HOST", host)
+    # Store models under KimCad's own data dir (tester-007 Minor-2: default ~/.ollama leaves
+    # 7+ GB orphaned after uninstall; the uninstaller already removes writable_root()).
+    # This only affects the MANAGED path — reusing a system Ollama never calls _child_env.
+    run_env["OLLAMA_MODELS"] = str(writable_root() / "models")
     return run_env
 
 
@@ -155,12 +159,11 @@ def start_serve(
     env: dict[str, str] | None = None,
 ) -> object:
     """Launch ``ollama serve`` headless as a managed child. ``OLLAMA_HOST`` pins the loopback
-    bind; we deliberately do NOT set ``OLLAMA_MODELS`` — the portable server uses Ollama's
-    standard model store (``~/.ollama/models``), so models are shared with (not duplicated by)
-    any system Ollama the user later installs. The child env is scrubbed of cloud secrets
-    (ENG-GG-006) and, on Windows, the child gets its own process group so teardown can signal it
-    (ENG-GG-008). Returns the process handle; ``spawn`` is injectable for testing
-    (defaults to :class:`subprocess.Popen`)."""
+    bind; ``OLLAMA_MODELS`` is pinned to KimCad's own data dir so models live under the app's
+    uninstall scope (tester-007 Minor-2: default ``~/.ollama`` orphans 7+ GB after uninstall).
+    The child env is scrubbed of cloud secrets (ENG-GG-006) and, on Windows, the child gets its
+    own process group so teardown can signal it (ENG-GG-008). Returns the process handle;
+    ``spawn`` is injectable for testing (defaults to :class:`subprocess.Popen`)."""
     spawn = spawn or subprocess.Popen
     run_env = _child_env(env, host)
     kwargs: dict[str, object] = {"env": run_env}

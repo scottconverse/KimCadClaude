@@ -69,9 +69,9 @@ describe('assistantMessage', () => {
     )
     // Slice 9: model_unavailable prefers the backend's actionable message, else a clear default.
     expect(
-      assistantMessage({ ...base, status: 'model_unavailable', error: 'Make sure Ollama is running.' }),
-    ).toContain('Make sure') // discriminating: a substring unique to the backend error, not the default
-    expect(assistantMessage({ ...base, status: 'model_unavailable' })).toMatch(/Ollama|local AI/i)
+      assistantMessage({ ...base, status: 'model_unavailable', error: "the engine isn't running" }),
+    ).toContain("engine isn't running") // discriminating: a substring unique to the backend error, not the default
+    expect(assistantMessage({ ...base, status: 'model_unavailable' })).toMatch(/local AI/i)
     expect(assistantMessage({ ...base, status: 'gate_failed' })).toMatch(/printability/i)
     // plan_failed gets a clean, actionable message and does NOT leak the raw parse error.
     const planFailed = assistantMessage({

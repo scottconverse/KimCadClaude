@@ -93,8 +93,10 @@ def test_start_serve_invokes_serve_with_loopback_host() -> None:
     assert proc == "PROC"
     assert calls["args"] == [str(exe), "serve"]
     assert calls["env"]["OLLAMA_HOST"] == ort.DEFAULT_HOST
-    # We must NOT pin OLLAMA_MODELS — models live in Ollama's shared default store.
-    assert "OLLAMA_MODELS" not in calls["env"]
+    # OLLAMA_MODELS must be pinned to KimCad's data dir so models are removed by uninstall
+    # (tester-007 Minor-2: default ~/.ollama orphans 7+ GB after uninstall).
+    from kimcad.paths import writable_root
+    assert calls["env"]["OLLAMA_MODELS"] == str(writable_root() / "models")
 
 
 # --- ensure_serving (the orchestration) -------------------------------------------------------

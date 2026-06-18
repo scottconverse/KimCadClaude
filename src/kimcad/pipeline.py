@@ -196,11 +196,12 @@ PLAN_FAILED_MESSAGE = (
     "see what fits your machine) or rephrase the request."
 )
 
-# Shown when the local model server (Ollama) can't be reached — a recoverable, actionable
-# message, not a raw connection traceback.
+# Shown when the local model server can't be reached mid-session — a recoverable, actionable
+# message, not a raw connection traceback.  Never mentions "Ollama" — the user knows it as
+# "KimCad's AI" and has no Ollama tray icon to consult (ENG-GG-001 / tester-007 Minor-1).
 MODEL_UNAVAILABLE_MESSAGE = (
-    "KimCad couldn't reach your local AI. Make sure Ollama is running, then try again. "
-    "You can check the AI's status in Settings."
+    "KimCad couldn't reach your local AI — the engine isn't running. "
+    "You can restart it from Settings, then try again."
 )
 
 

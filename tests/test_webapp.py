@@ -1435,7 +1435,7 @@ def test_photo_seed_model_down_is_typed_not_blamed_on_the_photo(tmp_path):
             assert resp.status == 200
             body = json.loads(resp.read())
     assert body["status"] == "model_unavailable"
-    assert "Ollama" in body["error"]
+    assert "engine" in body["error"]  # new managed-AI vocabulary (tester-007 Minor-1: no "Ollama" leak)
     assert "clearer shot" not in body.get("error", "")
 
 
@@ -3658,7 +3658,7 @@ def test_design_with_model_down_returns_recoverable_status_not_500(tmp_path):
         d = json.load(resp)
     assert d["status"] == "model_unavailable"
     assert d["has_mesh"] is False
-    assert "Ollama" in d["error"]
+    assert "engine" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary, not "Ollama"
 
 
 def test_design_with_model_down_during_codegen_is_recoverable(tmp_path):
@@ -3728,7 +3728,7 @@ def test_design_native_ollama_path_down_is_recoverable_not_500(tmp_path):
         d = json.load(resp)
     assert d["status"] == "model_unavailable"
     assert d.get("has_mesh") is False
-    assert "Ollama" in d["error"]
+    assert "engine" in d["error"]  # tester-007 Minor-1: managed-AI vocabulary, not "Ollama"
 
 
 # MS-3 — live design-progress poll (planning/generating/rendering/validating).

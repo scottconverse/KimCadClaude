@@ -5,6 +5,16 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Engine-down message no longer leaks "Ollama."** When the managed engine isn't running
+  mid-session, the chat now says "the engine isn't running — restart from Settings" instead of
+  the confusing "Make sure Ollama is running" (which the user has no way to act on — they never
+  installed Ollama). (tester-007 Minor-1.)
+- **Managed-engine models land under KimCad's data dir, not `~/.ollama`.** The managed Ollama
+  process's `OLLAMA_MODELS` env var is now pinned to `%LOCALAPPDATA%\KimCad\models`, so the
+  ~7.7 GB of downloaded models are covered by the uninstaller's existing `%LOCALAPPDATA%\KimCad`
+  cleanup prompt — no more invisible 7+ GB orphan after uninstall. (tester-007 Minor-2.)
+
 ## [0.9.1] — 2026-06-17
 
 The **cold-start onboarding** release: KimCad now sets up its own local AI (no manual Ollama
