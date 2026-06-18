@@ -5,38 +5,31 @@ All notable changes to KimCad are documented here. Format follows
 
 ## [0.9.3] — 2026-06-18
 
-The **Zen Design World branding** release: KimCad is named after Kim, and her face is now the
-brand mark on every surface a user sees. The whole app evolves to Kim's "Design in Balance"
-palette — warm white + gold (light), deep black + gold (dark) — replacing the older Workshop
-terracotta. No functional, API, or pipeline changes; this is a visual/identity overhaul.
+Design system update. Refines the palette and tightens identity consistency across the app.
+No functional, API, or pipeline changes — this is visual + a11y work only.
 
 ### Changed
-- **Palette → Zen Design World gold/black** across the whole app. CSS tokens rewritten in
-  `frontend/src/styles.css`: `--kc-accent: #d4af37` (light) / `#e3c24f` (dark); surfaces
-  `#fafaf7` / `#0c0a06`. The Three.js viewport accents follow the same palette.
-- **Avatar source** upgraded from 64×64px to 256×256px (cropped from the 1254px master), so
-  Kim renders crisply at every size used in the app.
-- **A11y** — the brand mark + chat avatars are now real `<img alt="Kim">` elements instead of
-  CSS-background-image `aria-hidden` spans. Screen readers announce "Kim, image" where the
-  brand identifies the assistant.
-- **Inspector quality merge polished** — the `PrintabilityCard` body now renders inside
-  `ReadinessCard` as a labeled detail section (not a collapsed disclosure), so the dims table
-  + verdict are visible without an extra click on the Quality tab.
+- **Palette.** Token rewrite in `frontend/src/styles.css`: `--kc-accent: #d4af37` (light) /
+  `#e3c24f` (dark); surfaces `#fafaf7` / `#0c0a06`; matching ink/muted/hairline values. The
+  Three.js viewport accents track the same tokens.
+- **Assistant avatar.** Source asset upgraded 64×64 → 256×256 (downsampled from a 1254px
+  master), so the assistant's portrait renders cleanly at every size used in the app.
+- **Accessibility.** Brand mark and chat avatars converted from CSS-background `aria-hidden`
+  spans to real `<img alt="Kim">` elements, so screen readers and high-contrast mode see them.
+- **Inspector / Quality tab.** `PrintabilityCard` body now renders inside `ReadinessCard` as a
+  labeled detail section (instead of a collapsed disclosure), so the dims table + verdict are
+  visible without an extra click.
 
 ### Added
-- **Kim Everywhere** — Kim's face is now the brand mark on every visible surface:
-  - First-run wizard: 56px round avatar in the rail + 120px portrait above the Welcome H1.
-  - In-app empty state / Landing: 96px round avatar above the "What do you want to make today?"
-    headline.
-  - Topbar logo (32px round).
-  - Chat conversation avatars (28px round on every assistant turn).
-  - Browser tab / WebView2 window chrome (favicon, served from `/favicon.ico`).
-  - Native pywebview window: title bar / taskbar / Alt-Tab thumbnail icon (`kim.ico` passed to
-    `webview.start()`).
-  - Installer `.exe` + desktop shortcut + Start-menu tile (`SetupIconFile` +
-    `IconFilename` in `installer/kimcad.iss`).
-- **New landing page** at `docs/index.html` — full Zen rebrand with real product screenshots,
-  proper hero, dark mode, mobile responsive, OG card.
+- **Iconography pass.** A single icon (`kim.ico`) carries identity across the OS surfaces:
+  browser tab / WebView2 chrome favicon, pywebview window (title bar / taskbar / Alt-Tab),
+  installer `.exe`, desktop shortcut, Start-menu tile — wired via `SetupIconFile` +
+  `IconFilename` in `installer/kimcad.iss` and `webview.start(icon=...)` in `shell.py`.
+- **First-run + landing presence.** The assistant's portrait now anchors the Welcome step of
+  the first-run wizard (120px) and the landing-page hero (96px), in addition to the topbar
+  (32px) and chat avatars (28px).
+- **New project landing page** at `docs/index.html` — refreshed hero, real product screenshots,
+  dark mode, mobile responsive, OG card.
 
 ## [0.9.2] — 2026-06-17
 
