@@ -1,0 +1,18 @@
+{
+  "launch_attach_seconds": 11.2,
+  "model_status": {
+    "model": "qwen2.5:7b",
+    "backend": "local",
+    "vision_model": "qwen2.5vl:3b",
+    "running": true,
+    "model_present": true,
+    "vision_present": true
+  },
+  "ai_ready_immediately": true,
+  "demands_setup_again": false,
+  "engine_MB_before": 1958,
+  "engine_MB_after": 1958,
+  "models_GB_before": 7.88,
+  "models_GB_after": 7.88,
+  "reused_no_redownload": true
+}

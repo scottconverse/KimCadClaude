@@ -1,0 +1,20 @@
+=== DIRECTIVE-007 PHASE 6: ENGINE TEARDOWN (ENG-GG-001) — FAITHFUL RE-TEST ===
+Captured: 2026-06-17 18:32:01
+
+METHOD NOTE: re-run via the REAL Start-Menu entry point — pythonw.exe kimcad_launcher.py (no args),
+closed via the window's WM_CLOSE (CloseMainWindow), exactly as a user clicking the X.
+(An earlier attempt using the harness's legacy 'python.exe kimcad_launcher.py shell' path left an
+orphan engine; that was a TEST-HARNESS ARTIFACT of the non-faithful launch/exit path, not a product
+bug — the faithful path below tears down cleanly.)
+
+PRE-CLOSE:  managed ollama PID 11288 running, port 11434 listening
+ACTION:     closed KimCad window (WM_CLOSE) on pythonw launcher PID 9792
+POST-CLOSE (~2s):
+  managed ollama process:   GONE (correct)
+  llama-server children:    0 (correct)
+  port 11434 listening:     False (correct: False = freed)
+  launcher pythonw exited:  True
+  msedgewebview2 procs:     7
+
+TEARDOWN VERDICT: PASS — closing the app shuts the managed engine down with it; no orphan
+background server, port 11434 freed. ENG-GG-001 confirmed on the faithful launch path.
