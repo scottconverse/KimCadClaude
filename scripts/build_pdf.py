@@ -29,13 +29,15 @@ def _safe(text: str) -> str:
         text = text.replace(char, repl)
     return text
 
-# ── colour palette ──────────────────────────────────────────────────────────
-BLUE   = (37, 99, 235)    # primary brand blue
-DARK   = (15, 23, 42)     # near-black
-MID    = (71, 85, 105)    # slate-500
-LIGHT  = (241, 245, 249)  # slate-100
+# ── colour palette (Zen Design World — matches the 0.9.3 SPA tokens) ────────
+# Kept variable names so the rest of the file doesn't churn; `BLUE` is now the
+# Zen gold (the primary accent), `ACCENT` is the darker gold for accent text.
+BLUE   = (212, 175, 55)   # Zen gold (--kc-accent light)
+DARK   = (12, 10, 6)      # Zen deep-black ink (--kc-ink light)
+MID    = (90, 85, 76)     # Zen muted (--kc-ink-muted)
+LIGHT  = (250, 250, 247)  # Zen warm-white surface (--kc-bg)
 WHITE  = (255, 255, 255)
-ACCENT = (99, 102, 241)   # indigo-500
+ACCENT = (184, 144, 31)   # Zen gold-strong (--kc-accent-strong)
 
 
 class KimCadPDF(FPDF):
