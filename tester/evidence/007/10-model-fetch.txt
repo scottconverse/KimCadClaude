@@ -1,0 +1,11 @@
+{
+  "model_status": {
+    "model": "qwen2.5:7b",
+    "backend": "local",
+    "vision_model": "qwen2.5vl:3b",
+    "running": true,
+    "model_present": false,
+    "vision_present": false
+  },
+  "status_region": "Set up your AI\n3\nPick your printer\n4\nDirect printing\n5\nReady\n\nMost first prints are ready in under 15 minutes.\n\nSkip setup\nSet up your AI\n\nKimCad runs a small local model to turn your words into a validated design plan. It works fully offline.\n\nKimCad local AI qwen2.5:7b\nNot set up yet\n\nKimCad\u2019s local AI \u2014 runs on your CPU, no internet required. It\u2019s the tested default for designing parts. A secon"
+}

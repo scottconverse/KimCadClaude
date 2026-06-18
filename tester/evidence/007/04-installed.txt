@@ -1,0 +1,27 @@
+=== DIRECTIVE-007 PHASE 2: INSTALL ===
+Date: 2026-06-17 18:04:58
+Method: /VERYSILENT /CURRENTUSER /SUPPRESSMSGBOXES /NORESTART /LOG
+  (NOTE: directive's headline is the double-click GUI path; silent used as the documented
+   automation fallback since the GUI wizard isn't drivable unattended on this harness.
+   No admin/UAC required - per-user install.)
+Duration: ~44s
+Install location: C:\Users\a7207\AppData\Local\Programs\KimCad
+Registry: KimCad 0.9.1 v0.9.1, InstallDate 20260617
+
+Install dir top-level:
+
+Name              
+----              
+config            
+library           
+python            
+site-packages     
+tools             
+kimcad_launcher.py
+LICENSE           
+unins000.dat      
+unins000.exe      
+
+
+
+PHASE 2 VERDICT: PASS - KimCad 0.9.1 installed, registry shows 0.9.1

@@ -1,0 +1,11 @@
+=== DIRECTIVE-007 PHASE 4: managed engine is KimCad's OWN (not a system install) ===
+Captured during download: 2026-06-17 18:17:46
+
+ollama on PATH (Get-Command):           NOT FOUND (correct - no system install)
+System install %LOCALAPPDATA%\Programs\Ollama\ollama.exe:  False  (correct: False)
+KimCad's managed engine %LOCALAPPDATA%\KimCad\ollama\ollama.exe:  True  (correct: True)
+  managed engine dir size so far:       1866.9 MB
+Managed ollama process running:         YES (PID 3092)
+C:\Users\a7207\AppData\Local\KimCad\ollama\ollama.exe serve
+
+=> KimCad downloaded + runs its OWN portable Ollama under its data dir. The user never installed Ollama.

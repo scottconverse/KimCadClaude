@@ -1,0 +1,6 @@
+directive-007 harness mode: shell-webview2
+page url: http://127.0.0.1:8766/
+base_url: http://127.0.0.1:8766
+health: {"version": "0.9.1", "openscad": true, "orcaslicer": true, "cadquery": false}
+
+phase3 done; app left running for phase4
