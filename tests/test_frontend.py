@@ -70,13 +70,14 @@ def _built_css() -> str:
     return "\n".join(p.read_text(encoding="utf-8") for p in css_files)
 
 
-def test_built_css_carries_zen_tokens():
-    """The Zen Design World theme's signature tokens survive the build: the gold accent (light
-    + dark variants), the deep-black viewport colour, and the three named font families."""
+def test_built_css_carries_tinkerquarry_tokens():
+    """The TinkerQuarry theme's signature tokens survive the build: the forge-amber accent (dark)
+    + terracotta accent (light), the deep earthy viewport colour, and the three named font
+    families. (Rebrand/retheme from the original Zen gold to TinkerQuarry's warm-earthy palette.)"""
     css = _built_css()
-    assert "#d4af37" in css, "built CSS missing the Zen accent (gold, light theme)"
-    assert "#e3c24f" in css, "built CSS missing the Zen accent (gold, dark theme)"
-    assert "#0c0a06" in css, "built CSS missing the deep-black viewport / dark surface colour"
+    assert "#e0a667" in css, "built CSS missing the TinkerQuarry forge-amber accent (dark theme)"
+    assert "#cf7a3f" in css, "built CSS missing the TinkerQuarry terracotta accent (light theme)"
+    assert "#0d0b07" in css, "built CSS missing the deep earthy viewport colour (dark theme)"
     for family in ("Bricolage Grotesque", "Hanken Grotesk", "JetBrains Mono"):
         assert family in css, f"built CSS missing the {family} font family"
 

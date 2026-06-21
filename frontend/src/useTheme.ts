@@ -2,7 +2,9 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 // KC-18 / UI-v2 slice 1 (#23) — the light/dark theme preference.
 //
-// Three states: 'light', 'dark', or 'system' (the default — follow the OS). The RESOLVED
+// Three states: 'light', 'dark', or 'system' (follow the OS). TinkerQuarry's dark earthy identity
+// is the product default, so an unset/garbage preference resolves to 'dark' (not 'system'); an
+// explicit 'system' choice still follows the OS. The RESOLVED
 // theme is applied as the `kc-theme-dark` class on <html>, which flips the entire token set
 // in styles.css (no per-component theming). Same external-store shape as useUnits so every
 // call site (the Settings card, the top bar toggle) shares one source of truth, and a

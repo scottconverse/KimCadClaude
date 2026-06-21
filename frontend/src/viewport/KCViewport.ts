@@ -9,8 +9,8 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 // space); Z is up (build-plate orientation). Print-aware affordances: a bounding box + projected
 // X/Y/Z dimension labels (so the centerpiece reads as an instrumented preview, not a decoration).
 
-const VIEWPORT_BG = 0x0c0a06 // Zen deep-black viewport (matches --kc-viewport-bg)
-const ACCENT = 0xd4af37 // Zen Design World gold (matches --kc-accent light)
+const VIEWPORT_BG = 0x0d0b07 // TinkerQuarry deep earthy viewport (matches --kc-viewport-bg dark)
+const ACCENT = 0xe0a667 // TinkerQuarry forge amber (matches --kc-accent dark; the viewport is dark in both themes)
 const PLATE = 0xffffff
 
 export interface DimLabels {

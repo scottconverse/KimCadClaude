@@ -54,8 +54,8 @@
    * dots, focus rings, badges). Text-bearing fills + accent text use the darker `-strong` /
    * `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
   --kc-accent: #cf7a3f;
-  --kc-accent-strong: #b35f29;
-  --kc-accent-deep: #8f4a1f;
+  --kc-accent-strong: #9a4f1c; /* darkened so white-on-fill AND accent-text-on-surface clear WCAG-AA (≥4.5:1) on the warm stone surface */
+  --kc-accent-deep: #82431b;
   --kc-on-accent: #fff7ec;
 
   /* Semantic status (constant across themes). `--kc-pass` is the bright pass green for NON-text
@@ -65,12 +65,12 @@
    * warn/fail tones are already dark enough to use as text as-is. */
   --kc-pass: #1d7a4e;
   --kc-pass-text: #15633d;
-  --kc-warn: #876312;
+  --kc-warn: #74510f; /* darkened for AA on the warm stone surface (warn doubles as text) */
   /* UX-001 (Stage 7): a darker amber for warn TEXT on the warn tint — the readiness warn confidence
-   * badge/verdict measured ~4.2:1 with --kc-warn, just under AA; this clears it with margin. */
-  --kc-warn-text: #6a4e0b;
+   * badge/verdict; clears AA with margin on the warm surface. */
+  --kc-warn-text: #5f460a;
   --kc-warn-accent: #c9962f;
-  --kc-fail: #a8431f;
+  --kc-fail: #8f3819; /* darkened terracotta-red for AA on the warm stone surface */
 
   /* Typography */
   --kc-font-display: 'Bricolage Grotesque Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;

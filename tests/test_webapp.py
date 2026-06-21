@@ -148,7 +148,7 @@ def test_http_layer_serves_index_design_and_mesh(tmp_path):
     try:
         # GET / -> the page
         html = urllib.request.urlopen(base + "/", timeout=10).read().decode("utf-8")
-        assert "<title>KimCad" in html
+        assert "<title>TinkerQuarry" in html
 
         # POST /api/design -> a completed result with a mesh URL
         req = urllib.request.Request(
