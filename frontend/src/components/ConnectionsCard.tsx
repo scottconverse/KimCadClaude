@@ -89,7 +89,7 @@ export default function ConnectionsCard() {
     <section id="set-connections" className="kc-set-card">
       <h2 className="kc-set-h">Printer connections</h2>
       <p className="kc-set-sub">
-        Send finished prints straight from KimCad. Fill in a printer’s address (and for
+        Send finished prints straight from TinkerQuarry. Fill in a printer’s address (and for
         Bambu, its serial); the access code or API key stays in an environment variable —
         named below — so it never sits in a settings file.
       </p>
@@ -153,7 +153,7 @@ export default function ConnectionsCard() {
                   <>
                     . In a terminal:{' '}
                     <code className="kc-mono">setx {c.api_key_env} your-code-here</code>, then
-                    restart KimCad.
+                    restart TinkerQuarry.
                   </>
                 )}
               </p>

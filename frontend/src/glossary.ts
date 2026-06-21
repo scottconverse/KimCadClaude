@@ -1,4 +1,4 @@
-// Plain-language definitions for the terms KimCad's UI uses but a first-time maker may not know.
+// Plain-language definitions for the terms TinkerQuarry's UI uses but a first-time maker may not know.
 // Surfaced as small "(i)" info tips next to the term (see components/InfoTip). Rules for an entry:
 // keep it short, concrete, and free of further jargon — if a definition needs another term, it
 // explains that term inline rather than assuming it. This is the single source of truth, so the
@@ -21,7 +21,7 @@ export const GLOSSARY = {
   printability: {
     term: 'Printability',
     definition:
-      "KimCad's automatic check that the part can actually be made on a 3D printer: its dimensions, how thick its walls are, and whether it fits on the printer's bed. If a part doesn't pass, KimCad won't slice it or send it to a printer until the problem is fixed.",
+      "TinkerQuarry's automatic check that the part can actually be made on a 3D printer: its dimensions, how thick its walls are, and whether it fits on the printer's bed. If a part doesn't pass, TinkerQuarry won't slice it or send it to a printer until the problem is fixed.",
   },
   // UX-109 (stage-BCD gate): the standalone "Gate" tip was removed with the badge jargon —
   // the Printability entry (above) carries the concept; the pass-or-fail consequence lives
@@ -31,7 +31,7 @@ export const GLOSSARY = {
   engine: {
     term: 'Engine',
     definition:
-      'The geometry tool that built this part. KimCad picks whichever fits the part best; parts built by CadQuery also offer an editable STEP (CAD) download.',
+      'The geometry tool that built this part. TinkerQuarry picks whichever fits the part best; parts built by CadQuery also offer an editable STEP (CAD) download.',
   },
   risks: {
     term: 'Risks',
@@ -45,7 +45,7 @@ export const GLOSSARY = {
   confidence: {
     term: 'Confidence',
     definition:
-      'How sure KimCad is about the readiness score. High means a deeper engine inspected the 3D shape; lower means only the basic checks were possible.',
+      'How sure TinkerQuarry is about the readiness score. High means a deeper engine inspected the 3D shape; lower means only the basic checks were possible.',
   },
 } as const satisfies Record<string, GlossaryEntry>
 

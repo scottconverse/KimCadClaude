@@ -224,7 +224,7 @@ describe('ExportPanel print summary (Slice 10)', () => {
     expect(await screen.findByRole('button', { name: /copied/i })).toBeTruthy()
   })
 
-  it('labels the weight as an estimate when KimCad derived it from volume', async () => {
+  it('labels the weight as an estimate when TinkerQuarry derived it from volume', async () => {
     stubFetchWithSlice({ ...SLICED, estimate_detail: { ...SLICED.estimate_detail, filament_g_estimated: true } })
     render(<ExportPanel result={base('pass')} />)
     await runSlice()

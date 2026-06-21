@@ -150,7 +150,7 @@ describe('ChatPanel thread', () => {
   it('offers a one-click Try again on model_unavailable and it calls onRetry (Slice 9 MS-1)', () => {
     const onRetry = vi.fn()
     const { props } = renderPanel({
-      messages: [{ role: 'assistant', content: "Your local AI isn't set up yet — open Settings and run “Set up KimCad’s AI”." }],
+      messages: [{ role: 'assistant', content: "Your local AI isn't set up yet — open Settings and run “Set up TinkerQuarry’s AI”." }],
       result: { status: 'model_unavailable', has_mesh: false },
       onRetry,
     })

@@ -190,7 +190,7 @@ describe('SketchOnramp (Stage 9 — the kind="sketch" mode)', () => {
   })
 
   it('surfaces the model-down message instead of blaming the sketch', async () => {
-    mockUploadSketch.mockRejectedValue(new Error("KimCad couldn't reach your local AI."))
+    mockUploadSketch.mockRejectedValue(new Error("TinkerQuarry couldn't reach your local AI."))
     const { container } = render(<PhotoOnramp onSeed={vi.fn()} kind="sketch" />)
     fireEvent.click(screen.getByRole('button', { name: /Start from a sketch/i }))
     pickFile(container)

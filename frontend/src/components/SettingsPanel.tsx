@@ -387,7 +387,7 @@ export default function SettingsPanel() {
             ) : (
               <p className="kc-set-sub">
                 {/* UX-105 (stage-BCD gate): the friendly name leads; the slug is the detail. */}
-                KimCad’s local AI (<code className="kc-mono">{model?.model ?? 'qwen2.5:7b'}</code>).
+                TinkerQuarry’s local AI (<code className="kc-mono">{model?.model ?? 'qwen2.5:7b'}</code>).
                 Runs on your machine, on your CPU. No internet required; nothing leaves your computer.
               </p>
             )}
@@ -453,13 +453,13 @@ export default function SettingsPanel() {
               if (modelState === 'error') {
                 tone = 'warn'; text = "Couldn’t reach the local AI."; cta = 'Check again'
               } else if (model?.backend === 'local' && !model.running) {
-                // UX-FULL-001/002: KimCad MANAGES its own AI — the fix is the in-app setup
-                // (reuse a system Ollama if present, else KimCad downloads+runs it), never a
+                // UX-FULL-001/002: TinkerQuarry MANAGES its own AI — the fix is the in-app setup
+                // (reuse a system Ollama if present, else TinkerQuarry downloads+runs it), never a
                 // manual "start Ollama / get Ollama". Primary CTA re-enters the setup wizard,
                 // exactly like the !model_present branch below.
                 tone = 'warn'
                 text = 'Your local AI isn’t running yet.'
-                cta = 'Set up KimCad’s AI'
+                cta = 'Set up TinkerQuarry’s AI'
                 onCta = () => {
                   try { localStorage.removeItem('kc-first-run-done') } catch {}
                   window.dispatchEvent(new Event('kimcad-rerun-setup'))
@@ -489,7 +489,7 @@ export default function SettingsPanel() {
             })()}
           </section>
 
-          {/* Cloud acceleration (Surface B) — opt-in, OFF by default. Per spec §7.3, KimCad does NOT
+          {/* Cloud acceleration (Surface B) — opt-in, OFF by default. Per spec §7.3, TinkerQuarry does NOT
               hardwire a cloud vendor: OpenRouter is the router and the USER picks the model. The key
               is saved locally and shown masked (last 5) on return. */}
           <section id="set-cloud" className="kc-set-card">
@@ -520,7 +520,7 @@ export default function SettingsPanel() {
               via OpenRouter — for a hard request.
             </p>
             <div className="kc-set-callout kc-set-callout-privacy">
-              <b>This sends your prompt off your machine.</b> Off by default — KimCad stays on your
+              <b>This sends your prompt off your machine.</b> Off by default — TinkerQuarry stays on your
               computer until you choose this.
             </div>
 
@@ -618,7 +618,7 @@ export default function SettingsPanel() {
                     Browse models on OpenRouter →
                   </a>
                   <p className="kc-set-fallback-note">
-                    If a model isn’t reachable, KimCad falls back to your local model — a design
+                    If a model isn’t reachable, TinkerQuarry falls back to your local model — a design
                     never fails just because a cloud slug is wrong.
                   </p>
                 </div>
@@ -672,7 +672,7 @@ export default function SettingsPanel() {
           {/* Stage 11 Slice 11.2 — printer connections. */}
           <ConnectionsCard />
           {/* KC-2 (#8) — the editable-CAD export engine (Option F: guided manual install).
-              KimCad is already wired for CadQuery; this card explains what it gives, shows
+              TinkerQuarry is already wired for CadQuery; this card explains what it gives, shows
               whether it’s installed, and walks a power user through the one-time setup. */}
           <section id="set-cad" className="kc-set-card">
             <div className="kc-set-cardhead">
@@ -691,10 +691,10 @@ export default function SettingsPanel() {
             </div>
             <p className="kc-set-sub">
               Every part downloads as a print-ready <code className="kc-mono">.STL</code>. With
-              the CAD export engine installed, KimCad&rsquo;s standard parts also offer an
+              the CAD export engine installed, TinkerQuarry&rsquo;s standard parts also offer an
               editable <code className="kc-mono">.STEP</code> — the precision CAD model, which
               opens in Fusion&nbsp;360, FreeCAD, SolidWorks and the like so you can keep
-              modeling. KimCad is already wired for it; the engine is the one optional piece.
+              modeling. TinkerQuarry is already wired for it; the engine is the one optional piece.
             </p>
             {health?.cadquery ? (
               <p className="kc-muted-note">
@@ -734,7 +734,7 @@ export default function SettingsPanel() {
                     >
                       {healthChecking ? 'checking…' : 'check again'}
                     </button>
-                    {' '}— KimCad finds it automatically (a restart works too).
+                    {' '}— TinkerQuarry finds it automatically (a restart works too).
                   </li>
                 </ol>
               </>
@@ -744,7 +744,7 @@ export default function SettingsPanel() {
           {/* Tools health (MS-5) — the bundled engines. */}
           <section id="set-tools" className="kc-set-card">
             <h2 className="kc-set-h">Tools</h2>
-            <p className="kc-set-sub">The bundled engines KimCad uses to build and slice your parts.</p>
+            <p className="kc-set-sub">The bundled engines TinkerQuarry uses to build and slice your parts.</p>
             {(['openscad', 'orcaslicer'] as const).map((tool) => (
               <div className="kc-set-row" key={tool}>
                 <span>{tool === 'openscad' ? 'OpenSCAD' : 'OrcaSlicer'}</span>
@@ -770,7 +770,7 @@ export default function SettingsPanel() {
           <section id="set-about" className="kc-set-card">
             <h2 className="kc-set-h">About</h2>
             <div className="kc-set-row">
-              <span>KimCad</span>
+              <span>TinkerQuarry</span>
               <span className="muted kc-set-about">
                 {health ? `v${health.version} · ` : ''}open-source (Apache-2.0)
               </span>

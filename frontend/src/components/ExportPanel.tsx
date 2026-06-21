@@ -187,7 +187,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
           {error !== null && <p className="kc-muted-note kc-export-error">{error}</p>}
           {slice && !slice.sliced && (
             <p className="kc-muted-note kc-export-error">
-              {slice.note || 'KimCad couldn’t slice this part.'}
+              {slice.note || 'TinkerQuarry couldn’t slice this part.'}
             </p>
           )}
           {slice && slice.sliced && (
@@ -217,7 +217,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
               <strong>.STEP</strong> is the editable, precision CAD model — open it in any CAD
               program to keep modeling; it&rsquo;s the as-designed shape, so print orientation is
               applied only to the printable mesh. The first download takes a few seconds while
-              KimCad prepares it. Once you slice, you&rsquo;ll also get a printer-agnostic{' '}
+              TinkerQuarry prepares it. Once you slice, you&rsquo;ll also get a printer-agnostic{' '}
               <strong>.3mf</strong> that&rsquo;s safe to share.
             </p>
           ) : result.step_offer === 'settings' ? (
@@ -236,7 +236,7 @@ export default function ExportPanel({ result }: { result: DesignResponse | null 
             <p className="kc-muted-note kc-formats-note">
               The <strong>.STL</strong> opens in other slicers and CAD tools, and once you slice
               you&rsquo;ll get a printer-agnostic <strong>.3mf</strong> that&rsquo;s safe to share.
-              KimCad&rsquo;s standard parts can also export an editable <strong>.STEP</strong>{' '}
+              TinkerQuarry&rsquo;s standard parts can also export an editable <strong>.STEP</strong>{' '}
               when the CAD export engine is enabled (see Settings); this part was built by the
               experimental generator, which exports .STL only.
             </p>

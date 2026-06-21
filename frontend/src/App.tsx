@@ -44,7 +44,7 @@ const RERENDER_MIN_DWELL_MS = 350
 // settles, not on every nudge — and it stays robust when a slower real renderer lands.
 const RESAVE_DEBOUNCE_MS = 1500
 
-// KimCad SPA — application shell + the design flow.
+// TinkerQuarry SPA — application shell + the design flow.
 // Stage 8.5 Slice 2: the app now maintains a multi-turn conversation thread. Each user prompt
 // and assistant reply is appended as a Message, so the chat panel renders a real conversation.
 // A "Refine your part" input in the workspace lets the user add follow-up turns ("make it 10mm
@@ -631,11 +631,11 @@ export default function App() {
         Skip to main content
       </a>
       {sessionExpired && (
-        // #31 (KC-26): the per-boot session token rotated (KimCad restarted) — every action now
+        // #31 (KC-26): the per-boot session token rotated (TinkerQuarry restarted) — every action now
         // 403s until the page reloads to pick up the new token. One prominent, non-dismissable
         // recovery surface with the only fix, since the WebView2 shell has no refresh chrome.
         <div className="kc-session-banner" role="alert">
-          <span>KimCad restarted in another window — reload to reconnect.</span>
+          <span>TinkerQuarry restarted in another window — reload to reconnect.</span>
           <button type="button" onClick={() => window.location.reload()}>
             Reload
           </button>

@@ -104,7 +104,7 @@ export default function LibraryModal({
         ) : filtered.length === 0 ? (
           <p className="kc-muted-note">
             Nothing in the library matches &ldquo;{query}&rdquo; — describe it in the design box
-            instead; KimCad designs beyond the library too.
+            instead; TinkerQuarry designs beyond the library too.
           </p>
         ) : (
           <div className="kc-library-grid">

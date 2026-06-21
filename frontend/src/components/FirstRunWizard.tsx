@@ -26,8 +26,8 @@ const STEPS = ['Welcome', 'Set up your AI', 'Pick your printer', 'Direct printin
 
 function modelLabel(m: ModelStatus): string {
   if (m.backend === 'cloud') return 'Cloud'
-  // UX-COLD-001: KimCad manages its own engine — don't tell the user "Ollama isn't running"
-  // right above copy that says KimCad sets it up for them.
+  // UX-COLD-001: TinkerQuarry manages its own engine — don't tell the user "Ollama isn't running"
+  // right above copy that says TinkerQuarry sets it up for them.
   if (!m.running) return 'Not set up yet'
   if (!m.model_present) return 'Model not pulled yet'
   // UX-1005 (stage-10 gate): a bare "Ready" beside a card offering the vision download
@@ -249,7 +249,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
         <aside className="kc-wiz-rail">
           <img src={kimAvatar} alt="Kim" className="kc-wiz-avatar" />
           <div className="kc-wiz-brand">
-            Kim<b>Cad</b>
+            Tinker<b>Quarry</b>
           </div>
           <ol className="kc-wiz-steps">
             {STEPS.map((s, i) => (
@@ -277,7 +277,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
               <>
                 <img src={kimAvatar} alt="Kim" className="kc-wiz-welcome-avatar" />
                 <h1 id={headingId} className="kc-wiz-h1">
-                  Welcome to KimCad
+                  Welcome to TinkerQuarry
                 </h1>
                 {/* UX-905 (stage-9 gate): the welcome names all three on-ramps — words, photo,
                     AND sketch — so the new path is discoverable from the first screen. */}
@@ -301,14 +301,14 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   Set up your AI
                 </h1>
                 <p className="kc-wiz-lede">
-                  KimCad runs a small local model to turn your words into a validated design plan. It
+                  TinkerQuarry runs a small local model to turn your words into a validated design plan. It
                   works fully offline.
                 </p>
                 <div className="kc-wiz-modelcard">
                   <div className="kc-wiz-modelcard-top">
                     {/* UX-011: lead with the friendly name; the raw slug is a secondary detail. */}
                     <span className="kc-wiz-model-name">
-                      KimCad local AI{' '}
+                      TinkerQuarry local AI{' '}
                       <span className="kc-mono kc-wiz-model-slug">{model?.model ?? 'qwen2.5:7b'}</span>
                     </span>
                     {modelState === 'checking' ? (
@@ -331,8 +331,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   {/* UX-908 (stage-9 gate): plain words — what the second download DOES, not
                       its taxonomy ("separate small local vision model" was jargon soup). */}
                   <p className="kc-wiz-model-desc">
-                    KimCad’s local AI — runs on your CPU, no internet required. It’s the tested
-                    default for designing parts. A second small download lets KimCad read photos and
+                    TinkerQuarry’s local AI — runs on your CPU, no internet required. It’s the tested
+                    default for designing parts. A second small download lets TinkerQuarry read photos and
                     sketches (<code className="kc-mono">{model?.vision_model ?? 'qwen2.5vl:3b'}</code>).
                   </p>
                   {/* UX-902 (stage-9 gate) + Slice 10.4: the SECOND model is checked too, and
@@ -347,8 +347,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       running" — the guidance covers both, with the download a real
                       button (the shell opens it in the system browser). */}
                   {/* UX-COLD-001 (2026-06-17 cold-start audit): the old cold dead-end ("Get Ollama
-                      → install it → check again") is GONE. "Set up KimCad's AI" below now ACTUALLY
-                      sets it up — KimCad reuses a system Ollama if present, else downloads its own
+                      → install it → check again") is GONE. "Set up TinkerQuarry's AI" below now ACTUALLY
+                      sets it up — TinkerQuarry reuses a system Ollama if present, else downloads its own
                       portable engine, then downloads the model: one honest progress flow, no
                       separate install, no polling. */}
                   {/* The live region stays MOUNTED (UX-A-001 pattern) and carries only the
@@ -360,13 +360,13 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                       {!pull && (
                         <p className="kc-wiz-model-action">
                           {!model.running
-                            ? 'KimCad sets up its AI for you — no separate install. It downloads the AI engine, then the model, right here. (Already have a local AI engine? KimCad uses it automatically.)'
+                            ? 'TinkerQuarry sets up its AI for you — no separate install. It downloads the AI engine, then the model, right here. (Already have a local AI engine? TinkerQuarry uses it automatically.)'
                             : !model.model_present
                               ? 'The design model isn’t downloaded yet.'
                               : 'Photos and sketches need one more download — designing in words works without it.'}{' '}
                           <button type="button" className="kc-btn kc-btn-accent kc-wiz-pull-btn" onClick={beginPull}>
                             {!model.running
-                              ? 'Set up KimCad’s AI'
+                              ? 'Set up TinkerQuarry’s AI'
                               : !model.model_present
                                 ? 'Download now (~7.7 GB)'
                                 : 'Download now (~3 GB)'}
@@ -448,7 +448,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                     />
                     <p className="kc-wiz-cloud-note">
                       Used only when you opt into a cloud model. Sends your prompt off your machine;
-                      never required to run KimCad.{' '}
+                      never required to run TinkerQuarry.{' '}
                       {settings?.key_storage === 'file'
                         ? 'The key is kept in a settings file on this computer (the secure ' +
                           'credential store isn’t available here) — anyone who can read your ' +
@@ -466,7 +466,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   Pick your printer
                 </h1>
                 <p className="kc-wiz-lede">
-                  This sets the build volume and slicing profile so KimCad’s checks match your
+                  This sets the build volume and slicing profile so TinkerQuarry’s checks match your
                   hardware. You can change it any time in Settings.
                 </p>
                 {printers.length === 0 ? (
@@ -507,8 +507,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                   Direct printing
                 </h1>
                 <p className="kc-wiz-lede">
-                  Optional. KimCad always lets you download a print-ready file. You can also connect a
-                  printer to send jobs straight from the app — KimCad never auto-starts a print.
+                  Optional. TinkerQuarry always lets you download a print-ready file. You can also connect a
+                  printer to send jobs straight from the app — TinkerQuarry never auto-starts a print.
                 </p>
                 <div className="kc-wiz-direct">
                   <button
@@ -554,8 +554,8 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                 </h1>
                 <p className="kc-wiz-lede">
                   {modelOk
-                    ? 'KimCad is ready to design. Here’s your setup — change any of it later from Settings.'
-                    : 'One thing still needs attention before KimCad can design — everything else is saved. You can change any of this later from Settings.'}
+                    ? 'TinkerQuarry is ready to design. Here’s your setup — change any of it later from Settings.'
+                    : 'One thing still needs attention before TinkerQuarry can design — everything else is saved. You can change any of this later from Settings.'}
                 </p>
                 {/* UX-1002 (stage-10 gate): a download the USER started must not vanish from
                     the recap — "all set" while the vision model is still coming down (or its
@@ -591,7 +591,7 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                               download THEY started on the model step. */}
                           {pullActive
                             ? 'setting up now — it continues in the background; when it finishes, '
-                            : 'not set up yet — use “Set up KimCad’s AI” on the model step, then '}
+                            : 'not set up yet — use “Set up TinkerQuarry’s AI” on the model step, then '}
                           <button
                             type="button"
                             className="kc-link-btn"

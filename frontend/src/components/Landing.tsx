@@ -69,7 +69,7 @@ function CapGlyph({ name }: { name: 'ways' | 'check' | 'print' | 'local' }) {
 }
 
 const CAPABILITIES = [
-  { glyph: 'ways' as const, title: 'Three ways in', body: 'Describe it, photograph it, or sketch it — KimCad reads all three into a design.' },
+  { glyph: 'ways' as const, title: 'Three ways in', body: 'Describe it, photograph it, or sketch it — TinkerQuarry reads all three into a design.' },
   { glyph: 'check' as const, title: 'Checked for printing', body: 'Every part is validated against your printer before it can be sliced — no surprises.' },
   { glyph: 'print' as const, title: 'Slice & print', body: 'Download a print-ready file, or send it straight to your printer from the app.' },
   { glyph: 'local' as const, title: 'Yours, on your machine', body: 'No account, no cloud by default. Nothing you make leaves your computer.' },
@@ -194,7 +194,7 @@ export default function Landing({
           <span>3. Check &amp; download</span>
         </p>
 
-        <section className="kc-capabilities" aria-label="What KimCad does">
+        <section className="kc-capabilities" aria-label="What TinkerQuarry does">
           {CAPABILITIES.map((c) => (
             <div key={c.title} className="kc-cap">
               <span className="kc-cap-icon" aria-hidden="true">

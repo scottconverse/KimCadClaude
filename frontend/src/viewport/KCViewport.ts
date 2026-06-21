@@ -1,11 +1,11 @@
 import * as THREE from 'three'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 
-// KCViewport — a vanilla Three.js viewport for KimCad (Stage 4).
+// KCViewport — a vanilla Three.js viewport for TinkerQuarry (Stage 4).
 //
 // Loads the REAL rendered part — the pipeline exports `*.oriented.stl`, the server serves it at
 // GET /api/mesh/<id>, and this loads it with three's STLLoader. Framework-free (no react-three-
-// fiber); driven from a thin React wrapper (Viewport.tsx). Units are millimetres (KimCad's mesh
+// fiber); driven from a thin React wrapper (Viewport.tsx). Units are millimetres (TinkerQuarry's mesh
 // space); Z is up (build-plate orientation). Print-aware affordances: a bounding box + projected
 // X/Y/Z dimension labels (so the centerpiece reads as an instrumented preview, not a decoration).
 

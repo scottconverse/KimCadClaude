@@ -504,16 +504,16 @@ describe('App first-run wizard (MS-4)', () => {
   it('shows the wizard on first run, and clears it (with the flag set) once dismissed', async () => {
     localStorage.removeItem('kc-first-run-done')
     render(<App />)
-    expect(await screen.findByText('Welcome to KimCad')).toBeTruthy()
+    expect(await screen.findByText('Welcome to TinkerQuarry')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /skip setup/i }))
-    await waitFor(() => expect(screen.queryByText('Welcome to KimCad')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Welcome to TinkerQuarry')).toBeNull())
     expect(localStorage.getItem('kc-first-run-done')).toBe('1')
   })
 
   it('does not show the wizard once the first-run flag is set (shows the landing)', () => {
     localStorage.setItem('kc-first-run-done', '1')
     render(<App />)
-    expect(screen.queryByText('Welcome to KimCad')).toBeNull()
+    expect(screen.queryByText('Welcome to TinkerQuarry')).toBeNull()
     expect(screen.getByLabelText(/describe the part/i)).toBeTruthy()
   })
 })

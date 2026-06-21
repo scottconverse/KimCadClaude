@@ -66,10 +66,10 @@ export default function Topbar({
 
   return (
     <header className="kc-topbar">
-      <button type="button" className="kc-brand" onClick={onHome} aria-label="KimCad — home">
+      <button type="button" className="kc-brand" onClick={onHome} aria-label="TinkerQuarry — home">
         <img src={kimAvatar} alt="Kim" className="kc-logo" />
         <span className="kc-wordmark">
-          Kim<span className="kc-wordmark-accent">Cad</span>
+          Tinker<span className="kc-wordmark-accent">Quarry</span>
         </span>
       </button>
       <div className="kc-topbar-actions">

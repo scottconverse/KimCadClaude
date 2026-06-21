@@ -222,7 +222,7 @@ export default function SendPanel({ designId }: { designId: number | null }) {
           message={
             entry.simulated
               ? `Send a test job to “${displayName(entry.name)}”? No real printer will run — this only exercises the send path.`
-              : `Start this print on “${displayName(entry.name)}”? KimCad sends the print file and the printer begins the job.`
+              : `Start this print on “${displayName(entry.name)}”? TinkerQuarry sends the print file and the printer begins the job.`
           }
           confirmLabel={entry.simulated ? 'Send test job' : 'Start the print'}
           onConfirm={doSend}

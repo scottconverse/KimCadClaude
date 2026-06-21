@@ -138,7 +138,7 @@ describe('SettingsPanel', () => {
     const actionLine = screen.getByText(/local AI isn.t running yet/i).closest('.kc-model-action-line')
     expect(actionLine).toBeTruthy()
     // The PRIMARY CTA re-enters the in-app setup, not a manual install/start.
-    expect(screen.getByRole('button', { name: /set up kimcad.s ai/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /set up tinkerquarry.s ai/i })).toBeTruthy()
     // The old manual-path copy + the ollama.com download link are GONE from the down-state.
     expect(within(actionLine as HTMLElement).queryByRole('button', { name: /get ollama/i })).toBeNull()
     expect(actionLine!.textContent).not.toMatch(/start it/i)
@@ -397,7 +397,7 @@ describe('SettingsPanel', () => {
   it('says NOTHING about vision when the fields are absent (unknown ≠ missing)', async () => {
     getModelStatus.mockResolvedValue(RUNNING) // no vision fields (e.g. unknowable in-band)
     render(<SettingsPanel />)
-    await screen.findByText(/KimCad’s local AI/)
+    await screen.findByText(/TinkerQuarry’s local AI/)
     expect(screen.queryByText(/Photo & sketch reader/)).toBeNull()
   })
 
@@ -433,7 +433,7 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel />)
     // The action-line primary CTA is the in-app setup — clicking it clears the first-run flag and
     // fires the reopen event (same re-entry as "Run the setup walkthrough again").
-    const setupBtn = await screen.findByRole('button', { name: /set up kimcad.s ai/i })
+    const setupBtn = await screen.findByRole('button', { name: /set up tinkerquarry.s ai/i })
     localStorage.setItem('kc-first-run-done', '1')
     const fired: Event[] = []
     window.addEventListener('kimcad-rerun-setup', (e) => fired.push(e))

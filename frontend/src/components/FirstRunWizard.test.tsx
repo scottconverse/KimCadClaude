@@ -39,7 +39,7 @@ describe('FirstRunWizard', () => {
   it('opens on the welcome step and Skip setup calls onClose', () => {
     const onClose = vi.fn()
     render(<FirstRunWizard onClose={onClose} />)
-    expect(screen.getByText('Welcome to KimCad')).toBeTruthy()
+    expect(screen.getByText('Welcome to TinkerQuarry')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /skip setup/i }))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
@@ -257,7 +257,7 @@ describe('FirstRunWizard', () => {
     }
   })
 
-  it('cold (no Ollama) offers one-click "Set up KimCad’s AI" and shows the engine setting up — no dead-end (UX-COLD-001)', async () => {
+  it('cold (no Ollama) offers one-click "Set up TinkerQuarry’s AI" and shows the engine setting up — no dead-end (UX-COLD-001)', async () => {
     const api = await import('../api')
     ;(api.getModelStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
       model: 'qwen2.5:7b', backend: 'local', running: false,
@@ -275,7 +275,7 @@ describe('FirstRunWizard', () => {
     go(/continue/i) // → Set up your AI
     // No manual-install dead-end: the cold step offers the one-click setup, not "Get Ollama".
     expect(screen.queryByRole('button', { name: /get ollama/i })).toBeNull()
-    const btn = await screen.findByRole('button', { name: /set up kimcad’s ai/i })
+    const btn = await screen.findByRole('button', { name: /set up tinkerquarry’s ai/i })
     fireEvent.click(btn)
     // The AI-engine fetch rides the same progress rows the model uses.
     expect(await screen.findByText(/setting up…/)).toBeTruthy()
@@ -295,6 +295,6 @@ describe('FirstRunWizard', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true')
     // the labelledby points at the visible step heading
     const labelId = dialog.getAttribute('aria-labelledby')
-    expect(labelId && document.getElementById(labelId)?.textContent).toMatch(/Welcome to KimCad/)
+    expect(labelId && document.getElementById(labelId)?.textContent).toMatch(/Welcome to TinkerQuarry/)
   })
 })

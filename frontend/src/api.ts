@@ -1,4 +1,4 @@
-// Typed client for KimCad's local JSON API (served by src/kimcad/webapp.py).
+// Typed client for TinkerQuarry's local JSON API (served by src/kimcad/webapp.py).
 
 export interface PlanPayload {
   object_type: string
@@ -140,7 +140,7 @@ export interface EstimateDetail {
   filament_mm: number | null
   filament_cm3: number | null
   filament_g: number | null
-  // True when the weight was estimated by KimCad from volume × nominal density (because the
+  // True when the weight was estimated by TinkerQuarry from volume × nominal density (because the
   // slicer profile reported no grams), rather than computed by the slicer itself.
   filament_g_estimated?: boolean
 }
@@ -181,7 +181,7 @@ async function readJson(res: Response): Promise<unknown> {
   try {
     return await res.json()
   } catch {
-    throw new Error(`KimCad returned an unreadable response (HTTP ${res.status}).`)
+    throw new Error(`TinkerQuarry returned an unreadable response (HTTP ${res.status}).`)
   }
 }
 
@@ -215,12 +215,12 @@ function throwIfNotOk(res: Response, data: unknown): void {
   // app-level reload recovery and throw a typed error so callers can skip their domain copy.
   if (res.status === 403 && (data as { reason?: string } | null)?.reason === 'session') {
     onSessionExpired?.()
-    throw new SessionExpiredError(msg || 'Your KimCad session expired — reload to reconnect.')
+    throw new SessionExpiredError(msg || 'Your TinkerQuarry session expired — reload to reconnect.')
   }
   throw new Error(msg || `Request failed (HTTP ${res.status}).`)
 }
 
-// #31 (KC-26): the per-boot session token KimCad's local server injected into the page shell
+// #31 (KC-26): the per-boot session token TinkerQuarry's local server injected into the page shell
 // (index.html). Every state-changing request carries it as the X-KimCad-Session header, so a
 // drive-by cross-origin POST from a malicious page — which can't read this same-origin token —
 // is refused 403 by the server. GETs don't need it. Empty (and the un-substituted dev
@@ -396,7 +396,7 @@ export function getModelStatus(): Promise<ModelStatus> {
   return getJson<ModelStatus>('/api/model-status')
 }
 
-// Stage 10 Slice 10.4 — in-app model downloads. POST starts pulling whatever of KimCad's
+// Stage 10 Slice 10.4 — in-app model downloads. POST starts pulling whatever of TinkerQuarry's
 // two models is missing (the list is fixed SERVER-side — no model is ever named from the
 // client); idempotent while a pull runs. `not_local` / `ollama_down` are typed statuses.
 export interface ModelPullState {
@@ -544,7 +544,7 @@ export function getConnectors(): Promise<ConnectorsResponse> {
 // Stage 10 — direct print from the app. POSTs the chosen connector to the EXISTING send
 // endpoint. The POST itself IS the user's confirmation (the server treats it as confirmed and
 // re-checks the gate verdict server-side), so this function must only ever be called from an
-// explicit confirm action — KimCad never auto-starts a print. A not-sent outcome is SOFT
+// explicit confirm action — TinkerQuarry never auto-starts a print. A not-sent outcome is SOFT
 // (HTTP 200, `sent:false` + typed `reason` + user-facing `note`) — the download always
 // remains the fallback.
 export interface SendResponse {

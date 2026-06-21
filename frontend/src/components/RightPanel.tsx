@@ -342,7 +342,7 @@ function ParametersCard({
 
 const CONFIDENCE_BLURB: Record<string, string> = {
   High: 'Validated by the PrintProof3D engine.',
-  Medium: 'From KimCad’s printability gate.',
+  Medium: 'From TinkerQuarry’s printability gate.',
   Low: 'Baseline checks only; the local track record is still building.',
 }
 

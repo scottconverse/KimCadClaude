@@ -271,7 +271,7 @@ describe('uploadSketch (Stage 9)', () => {
     mockFetch(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ status: 'model_unavailable', error: 'KimCad couldn’t reach your local AI.' }),
+      json: async () => ({ status: 'model_unavailable', error: 'TinkerQuarry couldn’t reach your local AI.' }),
     }))
     await expect(uploadSketch(file())).rejects.toThrow(/reach your local AI/i)
   })
@@ -367,10 +367,10 @@ describe('importDesign / exportDesignUrl (Stage 8.5)', () => {
     mockFetch(async () => ({
       ok: false,
       status: 400,
-      json: async () => ({ error: "That file isn't a valid KimCad design export." }),
+      json: async () => ({ error: "That file isn't a valid TinkerQuarry design export." }),
     }))
     const file = new File([new Uint8Array([1, 2])], 'd.kimcad')
-    await expect(importDesign(file)).rejects.toThrow(/valid KimCad design export/i)
+    await expect(importDesign(file)).rejects.toThrow(/valid TinkerQuarry design export/i)
   })
 
   it('throws a readable error when the import body is not JSON', async () => {

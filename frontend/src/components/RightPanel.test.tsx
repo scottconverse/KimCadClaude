@@ -363,13 +363,13 @@ describe('RightPanel readiness card', () => {
           risks: [],
           recommendations: ['Slice for PLA on the selected printer’s profile.'],
           comparison: null,
-          attribution: 'KimCad printability gate',
+          attribution: 'TinkerQuarry printability gate',
         },
       },
     }
     const { container } = renderPanel({ initialTab: 'quality', result: passReadiness })
     expect(container.querySelector('.kc-readiness.kc-rtone-pass')).toBeTruthy()
-    expect(screen.getByText(/via KimCad printability gate/i)).toBeTruthy()
+    expect(screen.getByText(/via TinkerQuarry printability gate/i)).toBeTruthy()
     expect(screen.getByText('Medium confidence')).toBeTruthy()
     // The gauge reflects the score.
     expect(screen.getByRole('img', { name: /readiness score 92 out of 100/i })).toBeTruthy()
@@ -401,7 +401,7 @@ describe('RightPanel readiness card', () => {
           ...readinessResult.report!.readiness!,
           confidence: 'Low',
           comparison: null,
-          attribution: 'KimCad printability gate',
+          attribution: 'TinkerQuarry printability gate',
         },
       },
     }
@@ -462,7 +462,7 @@ describe('RightPanel help tips (Slice 9 MS-2)', () => {
           risks: [],
           recommendations: ['Slice for PLA on the selected printer’s profile.'],
           comparison: null,
-          attribution: 'KimCad printability gate',
+          attribution: 'TinkerQuarry printability gate',
         },
       },
     }
@@ -585,7 +585,7 @@ describe('RightPanel live sliders', () => {
     stubFetch()
     renderPanel({
       result: templateResult([param({ name: 'width', label: 'Width', value: 80, max: 200 })]),
-      rerenderError: 'KimCad couldn’t re-render this part.',
+      rerenderError: 'TinkerQuarry couldn’t re-render this part.',
     })
     const alert = screen.getByRole('alert')
     expect(alert.textContent).toMatch(/didn.t render/i)

@@ -47,7 +47,7 @@ describe('Topbar', () => {
 
   it('the brand is a home link (FOUND-001): clicking it calls onHome', () => {
     const { props } = renderBar({ activeRoute: 'settings' })
-    fireEvent.click(screen.getByRole('button', { name: /KimCad.*home/i }))
+    fireEvent.click(screen.getByRole('button', { name: /TinkerQuarry.*home/i }))
     expect(props.onHome).toHaveBeenCalledTimes(1)
   })
 

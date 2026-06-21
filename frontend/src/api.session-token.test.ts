@@ -86,7 +86,7 @@ describe('session token header (#31 / KC-26)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: false,
       status: 403,
-      json: async () => ({ error: 'Missing or invalid session token. Reload KimCad.', reason: 'session' }),
+      json: async () => ({ error: 'Missing or invalid session token. Reload TinkerQuarry.', reason: 'session' }),
     })))
     await expect(api.postDesign('a box')).rejects.toBeInstanceOf(api.SessionExpiredError)
     expect(recovered).toBe(true)

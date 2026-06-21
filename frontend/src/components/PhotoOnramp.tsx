@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'r
 import { isAbortError, uploadPhoto, uploadSketch } from '../api'
 
 // Stage 8.5 Slice 7 (Surface D) — the "describe with a photo" on-ramp.
-// A secondary affordance beside the text box: pick (or drop) a photo, KimCad's LOCAL vision reads
+// A secondary affordance beside the text box: pick (or drop) a photo, TinkerQuarry's LOCAL vision reads
 // it into a ROUGH, editable text seed, and "Use this as a starting point" feeds the normal
 // text->DesignPlan flow. Honest framing throughout — a photo carries no scale, so sizes are
 // estimates; the photo is read locally and never auto-sends off the machine; the delivered geometry
-// is always KimCad's own deterministic output, never the raw image.
+// is always TinkerQuarry's own deterministic output, never the raw image.
 
 type Phase = 'idle' | 'reading' | 'confirm' | 'error'
 
@@ -220,7 +220,7 @@ export default function PhotoOnramp({
                     <span className="kc-spin" aria-hidden="true" /> {copy.reading}
                   </span>
                   <p className="kc-photo-privacy">
-                    Your {copy.noun} stays on your computer — KimCad’s local vision reads it into a
+                    Your {copy.noun} stays on your computer — TinkerQuarry’s local vision reads it into a
                     rough starting point. It never leaves your machine. This can take a moment on
                     your computer’s AI.
                   </p>

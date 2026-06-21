@@ -268,7 +268,7 @@ describe('SendPanel', () => {
 
   it('a transport failure surfaces a readable error, not a blank panel', async () => {
     mockConnectors.mockResolvedValue(MOCK_ONLY)
-    mockSend.mockRejectedValue(new Error('KimCad returned an unreadable response (HTTP 500).'))
+    mockSend.mockRejectedValue(new Error('TinkerQuarry returned an unreadable response (HTTP 500).'))
     render(<SendPanel designId={2} />)
     fireEvent.click(await screen.findByRole('button', { name: /send test job/i }))
     fireEvent.click(screen.getByRole('alertdialog').querySelector('.kc-btn-accent') as HTMLElement)
