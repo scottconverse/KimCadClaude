@@ -16,14 +16,15 @@ const DARK_CLASS = 'kc-theme-dark'
 function getSnapshot(): ThemePref {
   try {
     const raw = localStorage.getItem(THEME_PREF)
-    return raw === 'light' || raw === 'dark' ? raw : 'system'
+    if (raw === 'light' || raw === 'dark' || raw === 'system') return raw
+    return 'dark' // TinkerQuarry defaults to its dark earthy identity (unset/garbage → dark)
   } catch {
-    return 'system'
+    return 'dark'
   }
 }
 
 function getServerSnapshot(): ThemePref {
-  return 'system'
+  return 'dark'
 }
 
 function systemPrefersDark(): boolean {

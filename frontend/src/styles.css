@@ -40,23 +40,23 @@
 }
 
 :root {
-  /* Surfaces & ink — Zen Design World "Design in Balance" */
-  --kc-bg: #fafaf7;
-  --kc-surface: #ffffff;
-  --kc-surface-2: #f4f1ea;
-  --kc-ink: #0c0a06;
-  --kc-muted: #5a554c;
-  --kc-hair: #e8e4d8;
-  --kc-hair-strong: #d6d0bf;
-  --kc-viewport-bg: #0c0a06;
+  /* Surfaces & ink — TinkerQuarry warm-stone light (the dark earthy identity, inverted). */
+  --kc-bg: #f1ead9;
+  --kc-surface: #f8f3e8;
+  --kc-surface-2: #e8dfcb;
+  --kc-ink: #2c2417;
+  --kc-muted: #6f6453;
+  --kc-hair: #ddd2bd;
+  --kc-hair-strong: #cdbfa3;
+  --kc-viewport-bg: #1a160f;
 
   /* Accent (Zen Design World gold). `--kc-accent` is the brand fill for NON-text accents (logo,
    * dots, focus rings, badges). Text-bearing fills + accent text use the darker `-strong` /
    * `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
-  --kc-accent: #d4af37;
-  --kc-accent-strong: #b8901f;
-  --kc-accent-deep: #8f6e15;
-  --kc-on-accent: #1a1408;
+  --kc-accent: #cf7a3f;
+  --kc-accent-strong: #b35f29;
+  --kc-accent-deep: #8f4a1f;
+  --kc-on-accent: #fff7ec;
 
   /* Semantic status (constant across themes). `--kc-pass` is the bright pass green for NON-text
    * fills (gauge, dots, tint backgrounds, large gauge number); `--kc-pass-text` is a darker green
@@ -106,26 +106,29 @@
  * just deeper here. Applied as a class on <html> by frontend/src/useTheme.ts. */
 :root.kc-theme-dark {
   color-scheme: dark;
-  --kc-bg: #0c0a06;
-  --kc-surface: #161310;
-  --kc-surface-2: #1f1c17;
-  --kc-ink: #f5efe5;
-  --kc-muted: #b8b1a3;
-  --kc-hair: #2a2620;
-  --kc-hair-strong: #3a3530;
-  --kc-viewport-bg: #050402;
+  /* TinkerQuarry identity: warm earthy dark — quarry stone + forge amber + sage. Palette
+   * harvested from the TinkerQuarry design (Main Workspace.dc.html): browns #16130e→#241e16,
+   * amber/terracotta #e0a667/#d98a4a/#cf6b54, sage #9cc47e. */
+  --kc-bg: #16130e;
+  --kc-surface: #1d1810;
+  --kc-surface-2: #241e16;
+  --kc-ink: #e7e0d4;
+  --kc-muted: #9a8f7d;
+  --kc-hair: #2c2417;
+  --kc-hair-strong: #43381f;
+  --kc-viewport-bg: #0d0b07;
 
-  --kc-accent: #e3c24f;
-  --kc-accent-strong: #efd06b;
-  --kc-accent-deep: #c9a634;
-  --kc-on-accent: #1a1408; /* dark ink on the light dark-theme gold fill (≈10:1) */
+  --kc-accent: #e0a667; /* forge amber — fills (logo, dots, focus, gauge) */
+  --kc-accent-strong: #f0bd84; /* lighter amber — accent TEXT on dark surfaces */
+  --kc-accent-deep: #d98a4a; /* terracotta — deeper accent */
+  --kc-on-accent: #1d1810; /* dark warm ink on the amber fill (≈9:1) */
 
-  --kc-pass: #75d89c;
-  --kc-pass-text: #8fe5b0;
-  --kc-warn: #c9962f;
+  --kc-pass: #9cc47e; /* sage green — quarry/nature */
+  --kc-pass-text: #b3d493;
+  --kc-warn: #e0a667;
   --kc-warn-text: #ecc27a;
-  --kc-warn-accent: #e6b35c;
-  --kc-fail: #ff8a66;
+  --kc-warn-accent: #d98a4a;
+  --kc-fail: #e07a5f; /* terracotta-red, distinct from the amber accent */
 
   --kc-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
   --kc-shadow-hero: 0 18px 50px -22px rgba(0, 0, 0, 0.8);

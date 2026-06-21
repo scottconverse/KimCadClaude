@@ -57,10 +57,10 @@ describe('useTheme store', () => {
     expect(document.documentElement.classList.contains('kc-theme-dark')).toBe(true)
   })
 
-  it('a garbage stored value falls back to system', () => {
-    mockSystemDark(true)
+  it('a garbage stored value falls back to dark (TinkerQuarry default)', () => {
+    mockSystemDark(false) // even with a light OS, the unset/garbage default is dark
     localStorage.setItem('kc-theme', 'banana')
     initTheme()
-    expect(document.documentElement.classList.contains('kc-theme-dark')).toBe(true) // system=dark
+    expect(document.documentElement.classList.contains('kc-theme-dark')).toBe(true)
   })
 })
