@@ -636,13 +636,18 @@ def test_session_token_guard_blocks_state_changing_posts_without_the_token(tmp_p
     host, port = "127.0.0.1", httpd.server_address[1]
 
     def _post_status(path, headers):
-        conn = http.client.HTTPConnection(host, port, timeout=10)
-        try:
-            conn.request("POST", path, body=b"{}",
-                         headers={"Content-Type": "application/json", **headers})
-            return conn.getresponse().status
-        finally:
-            conn.close()
+        last: Exception | None = None
+        for _ in range(4):  # de-flake the Windows socket-teardown race (see _req)
+            conn = http.client.HTTPConnection(host, port, timeout=10)
+            try:
+                conn.request("POST", path, body=b"{}",
+                             headers={"Content-Type": "application/json", **headers})
+                return conn.getresponse().status
+            except (http.client.RemoteDisconnected, ConnectionError) as e:
+                last = e
+            finally:
+                conn.close()
+        raise last  # type: ignore[misc]
 
     try:
         # The guard sits ABOVE route dispatch, so a tokenless POST must 403 on EVERY state-changing
@@ -772,12 +777,17 @@ def test_cross_origin_get_cannot_trigger_side_effecting_builds_or_reprobes(tmp_p
     host, port = "127.0.0.1", httpd.server_address[1]
 
     def _get(path, headers=None):
-        conn = http.client.HTTPConnection(host, port, timeout=10)
-        try:
-            conn.request("GET", path, headers=headers or {})
-            return conn.getresponse().status
-        finally:
-            conn.close()
+        last: Exception | None = None
+        for _ in range(4):  # de-flake the Windows socket-teardown race (see _req)
+            conn = http.client.HTTPConnection(host, port, timeout=10)
+            try:
+                conn.request("GET", path, headers=headers or {})
+                return conn.getresponse().status
+            except (http.client.RemoteDisconnected, ConnectionError) as e:
+                last = e
+            finally:
+                conn.close()
+        raise last  # type: ignore[misc]
 
     try:
         # A cross-site STEP GET is refused (it would otherwise trigger a CadQuery build).
@@ -1879,11 +1889,18 @@ def _req_json(host, port, method, path, obj=None):
     req = _urlreq.Request(
         f"http://{host}:{port}{path}", data=body, method=method,
         headers={"Content-Type": "application/json"} if body is not None else {})
-    try:
-        with _urlreq.urlopen(req, timeout=20) as r:
-            return r.status, _json.load(r)
-    except urllib.error.HTTPError as e:
-        return e.code, _json.load(e)
+    # TEST robustness (GauntletGate R2): a real HTTP 4xx/5xx is a response (return it); only the
+    # transient Windows socket-teardown race (a non-HTTP URLError/ConnectionError) is retried.
+    last: Exception | None = None
+    for _ in range(4):
+        try:
+            with _urlreq.urlopen(req, timeout=20) as r:
+                return r.status, _json.load(r)
+        except urllib.error.HTTPError as e:
+            return e.code, _json.load(e)
+        except (urllib.error.URLError, ConnectionError) as e:
+            last = e
+    raise last  # type: ignore[misc]
 
 
 def _fake_step_renderer(monkeypatch):
@@ -2399,15 +2416,24 @@ def _serve_with_designs(pipe, root, designs_dir):
 
 
 def _req(host, port, method, path, body=None):
-    conn = _hc.HTTPConnection(host, port, timeout=20)
-    try:
-        data = _json2.dumps(body).encode() if body is not None else None
-        headers = {"Content-Type": "application/json"} if data is not None else {}
-        conn.request(method, path, body=data, headers=headers)
-        resp = conn.getresponse()
-        return resp.status, resp.read()
-    finally:
-        conn.close()
+    # TEST robustness (GauntletGate R2): retry on the transient Windows socket-teardown race
+    # (ConnectionAbortedError [WinError 10053] / RemoteDisconnected) that ThreadingHTTPServer +
+    # http.client hit under concurrent suite load. Idempotent for the GET/JSON paths these tests
+    # drive; the server logic is correct — this only de-flakes the client. Shared by _jreq.
+    last: Exception | None = None
+    for _ in range(4):
+        conn = _hc.HTTPConnection(host, port, timeout=20)
+        try:
+            data = _json2.dumps(body).encode() if body is not None else None
+            headers = {"Content-Type": "application/json"} if data is not None else {}
+            conn.request(method, path, body=data, headers=headers)
+            resp = conn.getresponse()
+            return resp.status, resp.read()
+        except (_hc.RemoteDisconnected, ConnectionError) as e:
+            last = e
+        finally:
+            conn.close()
+    raise last  # type: ignore[misc]
 
 
 def _jreq(host, port, method, path, body=None):
