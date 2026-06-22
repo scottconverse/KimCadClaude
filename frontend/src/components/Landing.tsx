@@ -114,7 +114,7 @@ export default function Landing({
         <img src={kimAvatar} alt="Kim" className="kc-landing-avatar" />
         <span className="kc-badge">
           <span className="kc-badge-dot" aria-hidden="true" />
-          Ready to print in ~15 minutes · no CAD skills
+          Most first prints in ~15 minutes · no CAD skills
         </span>
         <h1 className="kc-hero-title">What do you want to make today?</h1>
         <p className="kc-hero-sub">

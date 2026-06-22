@@ -127,8 +127,18 @@ prints without storing prompt text or geometry.
 Request: `{"outcome": "clean" | "issues" | "failed" | "skip"}`
 
 Response: `{"recorded": true, "outcome": "issues"}` (or `recorded:false` for skip).
-If the part was not just sent to real hardware, the endpoint returns `409` with
-`{"error": "Record an outcome after a real printer send."}`.
+
+Two distinct refusals guard this endpoint, by status code:
+
+- **`404`** — the `<rid>` is **unknown** in the current server run (no such design, or ids reset on
+  restart): `{"error": "That design is no longer available."}`. An arbitrary/probed id lands here.
+- **`409`** — the design **is known** but was **not** sent to real hardware in this process (never
+  sent, or only sent via a simulated/mock connector):
+  `{"error": "Record an outcome after a real printer send."}`.
+
+So the unknown-id case is a 404 (checked first) and the no-real-send gate is a 409; both refuse and
+record nothing. Outcomes are accepted only after a non-simulated `/api/send/<rid>` in the current
+server process.
 
 ### GET `/api/connectors` · GET `/api/connector-status/<name>` · GET/POST `/api/connections`
 
@@ -244,10 +254,16 @@ matching token (constant-time compared) is refused `403`. This blocks a drive-by
 POST from a malicious web page, in that order of weight: it cannot *read* this same-origin token
 (so it can't supply a valid header at all); a request that simply omits the header is refused
 outright (empty ≠ token); and trying to *fake* the header forces a CORS preflight the server
-doesn't satisfy. A few **side-effecting GETs** that can't carry the token because they're
-navigations/reads — the lazy STEP build (`/api/step/<id>`) and the health re-probe
-(`/api/health?recheck=1`) — instead refuse a cross-origin request via the browser's
-`Sec-Fetch-Site` header. Ordinary GETs are never gated.
+doesn't satisfy. A few **side-effecting GETs** that can't carry the token because they're navigations/reads use the
+browser's `Sec-Fetch-Site` header instead — but the two cases differ:
+
+- `/api/step/<id>` (a real CadQuery build) is **hard-refused** `403` cross-origin — a drive-by page
+  can't trigger the side-effecting build.
+- `/api/health?recheck=1` **skips only the side-effecting CPU re-probe** for a cross-origin caller and
+  still answers `200` with **cached** health (a harmless read). The protected invariant is "no
+  cross-origin-triggered re-probe," not refusing the response outright.
+
+Ordinary GETs are never gated.
 
 This is deliberate defense-in-depth, **not** full CSRF protection, and **not authentication**:
 KimCad is a single-user loopback app with no cookie-based session to forge, so a constant per-boot

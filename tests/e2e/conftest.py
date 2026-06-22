@@ -1,6 +1,6 @@
 """KC-20 (#25): the Playwright e2e browser suite — shared harness.
 
-These tests drive the REAL KimCad SPA in a real Chromium against a real `kimcad web --demo`
+These tests drive the REAL TinkerQuarry SPA in a real Chromium against a real `kimcad web --demo`
 server (deterministic without Ollama or the slicer binaries, so the design path renders from the
 template engine) — no DOM mocks, no stubbed APIs. The architecture is harvested from the
 kimcadcodex e2e suite (live-server fixture + console-error watcher + the browser_serial marker),

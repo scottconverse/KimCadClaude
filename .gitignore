@@ -45,3 +45,7 @@ config/local.yaml
 
 # Session/preview tooling (Claude Code) — never commit machine-specific launch configs
 .claude/
+
+# stray test/runtime artifacts (GauntletGate cleanup)
+models/
+*.log

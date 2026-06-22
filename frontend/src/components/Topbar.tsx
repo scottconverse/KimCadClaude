@@ -67,7 +67,7 @@ export default function Topbar({
   return (
     <header className="kc-topbar">
       <button type="button" className="kc-brand" onClick={onHome} aria-label="TinkerQuarry — home">
-        <img src={kimAvatar} alt="Kim" className="kc-logo" />
+        <img src={kimAvatar} alt="" className="kc-logo" />
         <span className="kc-wordmark">
           Tinker<span className="kc-wordmark-accent">Quarry</span>
         </span>

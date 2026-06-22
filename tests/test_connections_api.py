@@ -111,6 +111,13 @@ def test_post_type_and_length_validation(tmp_path):
 
 def test_saved_overlay_flips_configured_and_feeds_build_connector(tmp_path, monkeypatch):
     monkeypatch.setenv("KIMCAD_TEST_P2S_CODE", "12345678")
+    # The optional `bambulabs-api` package gates a Bambu connector's "configured" state. It is
+    # NOT installed in CI / on every dev box, so isolate this overlay-logic test from that
+    # environmental dependency: pretend the package is present so build_connector exercises the
+    # address/serial/overlay path (the BambuConnector constructor never touches the package; only
+    # an actual send does). Without this, `configured` can never flip True on a box lacking the
+    # package, masking the overlay behavior this test is actually about.
+    monkeypatch.setattr("kimcad.connectors.bambulabs_api_available", lambda: True)
     cfg = _cfg(tmp_path)
     assert connector_is_configured(cfg, "bambu_p2s") is False
     with _serve(tmp_path, cfg) as (host, port):
@@ -139,6 +146,10 @@ def test_send_picker_list_reflects_the_overlay(tmp_path, monkeypatch):
     """N-5 (slice-11.2 audit): /api/connectors — the SEND PICKER's list — must see the
     saved overlay too, or the card would say Ready while the picker says not-set-up."""
     monkeypatch.setenv("KIMCAD_TEST_P2S_CODE", "12345678")
+    # See the companion test above: gate the Bambu "configured" check past the optional
+    # `bambulabs-api` package so the send-picker overlay assertion doesn't depend on it being
+    # installed on this machine.
+    monkeypatch.setattr("kimcad.connectors.bambulabs_api_available", lambda: True)
     cfg = _cfg(tmp_path)
     with _serve(tmp_path, cfg) as (host, port):
         _jreq(host, port, "POST", "/api/connections",

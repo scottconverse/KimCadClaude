@@ -88,8 +88,29 @@ def test_llm_backend_timeout_is_overridable():
     assert cfg.llm_backend().timeout_s == 300.0
 
 
-def test_binary_path_resolves_to_project_root():
-    cfg = Config.load()
+def test_binary_path_resolves_to_project_root(tmp_path, monkeypatch):
+    # The SHIPPED default (config/default.yaml) resolves OpenSCAD under the bundled tools/ tree,
+    # relative to the project root. This must be asserted against the SHIPPED config, isolated
+    # from a developer's per-machine config/local.yaml — which may point binaries at an absolute
+    # path outside tools/ (e.g. a system install under ..\_tools\...); tests must not depend on a
+    # particular dev box's local override (the reason this previously went red on a box whose
+    # local.yaml uses absolute tool paths). We load default-only (local=None).
+    from kimcad import config as config_mod
+
+    cfg = Config.load(local=None)
+    # The shipped default is a tools/-relative path: confirm that contract directly, so this can't
+    # silently regress to an absolute path that happens to contain "tools".
+    raw = cfg.raw["binaries"]["openscad"]
+    assert not Path(raw).is_absolute()
+    assert Path(raw).parts[0] == "tools"
+    # And prove the resolution flows through the project root and lands, absolute, under tools/.
+    # binary_path() also enforces the binary EXISTS on disk (ENG-002), and the bundled tools/ tree
+    # isn't fetched on every box — so materialize the resolved location in an isolated tmp PROJECT_ROOT
+    # rather than writing into the real repo (which would race parallel runs / dirty the tree).
+    monkeypatch.setattr(config_mod, "PROJECT_ROOT", tmp_path)
+    target = tmp_path / raw
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"")
     p = cfg.binary_path("openscad")
     assert p.is_absolute()
     assert "tools" in p.parts

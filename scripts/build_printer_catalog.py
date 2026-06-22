@@ -22,7 +22,30 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent / "tools" / "orcaslicer" / "resources" / "profiles"
+def _resolve_profiles_root() -> Path:
+    """The OrcaSlicer profile tree to index. Prefer the bundled location (tools/orcaslicer/...),
+    but fall back to wherever config actually points the slicer (config/local.yaml may install
+    OrcaSlicer system-wide, e.g. under ..\\_tools\\...). Without this fallback the candidate
+    builder finds nothing on a box that uses a non-bundled slicer, so --verify would write a
+    vacuous 0/0 proof-of-record."""
+    bundled = Path(__file__).resolve().parent.parent / "tools" / "orcaslicer" / "resources" / "profiles"
+    if bundled.exists():
+        return bundled
+    try:
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+        from kimcad.config import Config
+
+        configured = Config.load().orca_profiles_root()
+        if configured.exists():
+            return configured
+    except Exception:  # noqa: BLE001 — fall back to the bundled path's (non-existent) default
+        pass
+    return bundled
+
+
+ROOT = _resolve_profiles_root()
 
 # name -> (path, data) for every profile in the tree (machine, process, filament). Built once.
 _BY_NAME: dict[str, tuple[Path, dict]] = {}
@@ -210,9 +233,11 @@ CURATED: dict[str, tuple[str, str]] = {
     "anycubic_kobra2_max": ("Anycubic Kobra 2 Max", r"^Anycubic Kobra 2 Max"),
     "anycubic_kobra3": ("Anycubic Kobra 3", r"^Anycubic Kobra 3 0\.4 nozzle$"),
     "anycubic_kobra_s1": ("Anycubic Kobra S1", r"^Anycubic Kobra S1"),
-    "elegoo_neptune4": ("Elegoo Neptune 4", r"^Elegoo Neptune 4 \(0\.4 nozzle\)$"),
-    "elegoo_neptune4_pro": ("Elegoo Neptune 4 Pro", r"^Elegoo Neptune 4 Pro \(0\.4 nozzle\)$"),
-    "elegoo_neptune4_plus": ("Elegoo Neptune 4 Plus", r"^Elegoo Neptune 4 Plus \(0\.4 nozzle\)$"),
+    # OrcaSlicer 2.4.0 renamed the Neptune 4 machine profiles to drop the parenthesized "(0.4
+    # nozzle)" in favor of " 0.4 nozzle" (matches the shipped tree + config/default.yaml).
+    "elegoo_neptune4": ("Elegoo Neptune 4", r"^Elegoo Neptune 4 0\.4 nozzle$"),
+    "elegoo_neptune4_pro": ("Elegoo Neptune 4 Pro", r"^Elegoo Neptune 4 Pro 0\.4 nozzle$"),
+    "elegoo_neptune4_plus": ("Elegoo Neptune 4 Plus", r"^Elegoo Neptune 4 Plus 0\.4 nozzle$"),
     "qidi_q1_pro": ("Qidi Q1 Pro", r"^Qidi Q1 Pro 0\.4 nozzle$"),
     "qidi_xmax3": ("Qidi X-Max 3", r"^Qidi X-Max 3 0\.4 nozzle$"),
     "qidi_xplus3": ("Qidi X-Plus 3", r"^Qidi X-Plus 3 0\.4 nozzle$"),

@@ -45,7 +45,7 @@ def test_skip_setup_dismisses_the_wizard_straight_to_the_landing(
 ) -> None:
     page.goto(live_server)
 
-    expect(page.get_by_role("heading", name="Welcome to KimCad")).to_be_visible()
+    expect(page.get_by_role("heading", name="Welcome to TinkerQuarry")).to_be_visible()
     page.get_by_role("button", name="Skip setup").click()
 
     expect(page.get_by_role("dialog")).to_have_count(0)

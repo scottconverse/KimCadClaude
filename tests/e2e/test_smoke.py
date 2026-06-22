@@ -26,7 +26,7 @@ def test_landing_renders_its_primary_affordances_without_console_errors(
     expect(page.get_by_role("button", name="Design it")).to_be_visible()
 
     # The capability strip below the fold (the whole product arc) rendered.
-    expect(page.get_by_role("region", name="What KimCad does")).to_be_visible()
+    expect(page.get_by_role("region", name="What TinkerQuarry does")).to_be_visible()
 
     # The harness contract: the SPA booted against the real demo server with nothing thrown.
     assert console_errors == [], f"unexpected browser console errors: {console_errors}"

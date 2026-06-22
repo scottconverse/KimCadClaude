@@ -14,7 +14,7 @@ readme = "README.md"
 # every pinned wheel, old enough that CadQuery's OCCT backend runs on the SAME interpreter
 # line (3.14 is too new for it). The floor is what we test and ship on.
 requires-python = ">=3.13"
-license = { text = "Apache-2.0" }
+license = { text = "GPL-2.0-only" }
 authors = [{ name = "Scott Converse" }]
 dependencies = [
     "openai>=1.40",

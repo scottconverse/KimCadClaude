@@ -1,11 +1,12 @@
-/* TinkerQuarry SPA — Zen Design World design system.
+/* TinkerQuarry SPA — warm-earthy design system.
  *
- * Token values are the "Zen" theme — Kim's Zen Design World aesthetic (warm white / deep black /
- * gold accent, "Design in Balance"). Fonts are the self-hosted @fontsource-variable families,
- * declared latin-only below (Vite bundles the referenced woff2 into the committed build — no CDN,
- * fully offline; latin only because the UI is English). This file defines the @font-face rules,
- * the design tokens, the base reset, and the chrome built so far (topbar + landing); the
- * three-column workspace, panels, and viewport styling are added in the following slices. */
+ * TinkerQuarry's identity is warm-earthy: quarry stone + forge amber + sage. The dark theme is the
+ * product default (the deliberate "warm earthy dark" identity, documented on `:root.kc-theme-dark`
+ * below); the light theme is its warm-stone inversion. Fonts are the self-hosted @fontsource-variable
+ * families, declared latin-only below (Vite bundles the referenced woff2 into the committed build —
+ * no CDN, fully offline; latin only because the UI is English). This file defines the @font-face
+ * rules, the design tokens, the base reset, and the full app chrome (topbar, landing, the
+ * three-column workspace, panels, and the dark viewport card). */
 
 /* ------------------------------------------------------ Self-hosted fonts (latin only) */
 @font-face {
@@ -50,9 +51,9 @@
   --kc-hair-strong: #cdbfa3;
   --kc-viewport-bg: #1a160f;
 
-  /* Accent (Zen Design World gold). `--kc-accent` is the brand fill for NON-text accents (logo,
-   * dots, focus rings, badges). Text-bearing fills + accent text use the darker `-strong` /
-   * `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
+  /* Accent (TinkerQuarry forge amber / terracotta). `--kc-accent` is the brand fill for NON-text
+   * accents (logo, dots, focus rings, badges). Text-bearing fills + accent text use the darker
+   * `-strong` / `-deep` so white-on-accent and accent-on-surface clear WCAG-AA contrast (≥4.5:1). */
   --kc-accent: #cf7a3f;
   --kc-accent-strong: #9a4f1c; /* darkened so white-on-fill AND accent-text-on-surface clear WCAG-AA (≥4.5:1) on the warm stone surface */
   --kc-accent-deep: #82431b;
@@ -487,7 +488,10 @@ input {
  * indicator (accessibility): a clear accent ring whenever the textarea is focused. */
 .kc-input-card:focus-within {
   border-color: var(--kc-accent);
-  box-shadow: var(--kc-shadow-hero), 0 0 0 3px rgba(200, 98, 58, 0.18);
+  /* UIUX-07: tokenized off --kc-accent (was a pre-retheme rgba literal that tracked neither theme)
+   * and bumped 0.18→0.30 so the focus glow is actually visible on the dark surface; the border-color
+   * flip to --kc-accent still carries the primary focus signal. */
+  box-shadow: var(--kc-shadow-hero), 0 0 0 3px color-mix(in srgb, var(--kc-accent) 30%, transparent);
 }
 
 .kc-input {
@@ -814,12 +818,15 @@ input {
   max-width: 36ch;
   font-size: 12.5px;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.6);
+  /* UIUX-05: raised 0.6→0.72 so the reassurance sub-copy clears AA (~10:1 on the #0d0b07 viewport)
+     even when a framed model bleeds 6% through the busy overlay. */
+  color: rgba(255, 255, 255, 0.72);
 }
 .kc-busy-elapsed {
   font-family: var(--kc-font-mono);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.46);
+  /* UIUX-05: raised 0.46→0.62 so the live elapsed timer clears AA (~7:1) on the dark viewport. */
+  color: rgba(255, 255, 255, 0.62);
   font-variant-numeric: tabular-nums;
 }
 .kc-busy-cancel {
@@ -1304,6 +1311,10 @@ input {
   /* UX-001: `-strong` for AA contrast on the white "mm"/"in" label (raw accent is 3.99:1). */
   background: var(--kc-accent-strong);
   color: var(--kc-on-accent);
+  /* UIUX-09: a non-color active affordance so the selected segment doesn't rely on hue alone —
+   * an inset accent-deep border ring reads as "pressed" even at low color contrast / for color-vision
+   * deficiency. Pairs with the aria-pressed SR cue already set in SettingsPanel. */
+  box-shadow: inset 0 0 0 1.5px var(--kc-accent-deep);
 }
 .kc-unit-btn:focus-visible {
   outline: 2px solid var(--kc-accent);

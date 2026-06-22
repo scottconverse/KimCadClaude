@@ -5,7 +5,7 @@
 ![beta](https://img.shields.io/badge/beta-0.9.3-2563eb)
 ![platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![python](https://img.shields.io/badge/python-3.13-3776AB)
-![license](https://img.shields.io/badge/license-Apache--2.0-1d7a4e)
+![license](https://img.shields.io/badge/license-GPL--2.0-1d7a4e)
 ![local-first](https://img.shields.io/badge/local--first-no%20account%20%C2%B7%20no%20cloud-1d7a4e)
 ![templates](https://img.shields.io/badge/templates-86%20families-c8623a)
 
@@ -499,10 +499,12 @@ beta. If you run KimCad against a printer it lists as *API-validated* (not yet
 
 ## License
 
-Core: **Apache-2.0** (see [LICENSE](LICENSE)). Bundled third-party engines are invoked as
-separate subprocesses, never linked: OpenSCAD (GPL-2.0), OrcaSlicer (AGPL-3.0), and the
-PrintProof3D validation engine (its own license). Each runs at arm's length, so their
-licenses do not attach to KimCad's own code.
+**GPL-2.0** (see [LICENSE](LICENSE)). KimCad's own code is GPL-2.0 — relicensed from
+Apache-2.0 as part of TinkerQuarry (Option B: the combined work absorbs the GPL-2.0-only
+OpenSCAD-Studio front-end, which makes the whole work GPL-2.0). External engines are invoked as
+separate subprocesses / user-installed tools — OpenSCAD (GPL-2.0-or-later), OrcaSlicer
+(AGPL-3.0) — and bundled SCAD libraries keep their own permissive licenses (BSD/MIT/CC0/LGPL-2.1,
+all GPLv2-compatible). Full attribution: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ## Project layout
 

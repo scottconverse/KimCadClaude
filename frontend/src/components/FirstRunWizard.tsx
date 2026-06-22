@@ -282,10 +282,10 @@ export default function FirstRunWizard({ onClose }: { onClose: () => void }) {
                 {/* UX-905 (stage-9 gate): the welcome names all three on-ramps — words, photo,
                     AND sketch — so the new path is discoverable from the first screen. */}
                 <p className="kc-wiz-lede">
-                  Describe a part in plain words — or start from a photo or a sketch — and get a
-                  print-ready file in minutes. It runs on your computer; nothing leaves your machine
-                  unless you choose to. A few quick steps and you’re in — and you can reopen this
-                  setup any time from Settings.
+                  I’m Kim, your on-device design assistant. Describe a part in plain words — or start
+                  from a photo or a sketch — and I’ll turn it into a print-ready file in minutes. It
+                  all runs on your computer; nothing leaves your machine unless you choose to. A few
+                  quick steps and you’re in — and you can reopen this setup any time from Settings.
                 </p>
                 <ul className="kc-wiz-bullets">
                   <li>Pick the AI model that turns your words into a design.</li>
