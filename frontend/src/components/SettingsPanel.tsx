@@ -772,7 +772,7 @@ export default function SettingsPanel() {
             <div className="kc-set-row">
               <span>TinkerQuarry</span>
               <span className="muted kc-set-about">
-                {health ? `v${health.version} · ` : ''}open-source (Apache-2.0)
+                {health ? `v${health.version} · ` : ''}open-source (GPL-2.0)
               </span>
             </div>
             <div className="kc-set-row">

@@ -128,7 +128,12 @@ def design_result_dict(res: Any) -> dict[str, Any]:
         "render_attempts": getattr(res, "render_attempts", None),
         "gate": None if gate is None else {
             "status": str(getattr(gate, "status", "")),
-            "messages": list(getattr(gate, "messages", []) or []),
+            # GateResult exposes `findings` (objects), not `messages`; read findings first so MCP
+            # clients get the real gate reasons, falling back to `messages`, and stringify each.
+            "messages": [
+                str(getattr(m, "message", m))
+                for m in (getattr(gate, "findings", None) or getattr(gate, "messages", None) or [])
+            ],
         },
         "readiness": None if report is None else {
             "score": _val(report, "readiness", "score"),

@@ -682,14 +682,23 @@ def test_token_on_post_to_get_only_route_is_405_with_json_body(tmp_path):
     host, port = "127.0.0.1", httpd.server_address[1]
 
     def _post(path, headers=None):
-        conn = http.client.HTTPConnection(host, port, timeout=10)
-        try:
-            conn.request("POST", path, body=b"{}",
-                         headers={"Content-Type": "application/json", **(headers or {})})
-            resp = conn.getresponse()
-            return resp.status, resp.getheader("Allow"), resp.read()
-        finally:
-            conn.close()
+        # TEST-only robustness (GauntletGate R2): retry the idempotent request on a transient
+        # Windows socket-teardown race (ConnectionAbortedError [WinError 10053] / RemoteDisconnected
+        # inside getresponse() under concurrent ThreadingHTTPServer load). Not a product behavior —
+        # the 405 routing itself is correct; this just de-flakes the per-path connection loop.
+        last: Exception | None = None
+        for _ in range(4):
+            conn = http.client.HTTPConnection(host, port, timeout=10)
+            try:
+                conn.request("POST", path, body=b"{}",
+                             headers={"Content-Type": "application/json", **(headers or {})})
+                resp = conn.getresponse()
+                return resp.status, resp.getheader("Allow"), resp.read()
+            except (http.client.RemoteDisconnected, ConnectionError) as e:
+                last = e
+            finally:
+                conn.close()
+        raise last  # type: ignore[misc]
 
     try:
         # A POST (even tokenless) to a GET-only route is 405 + truthful Allow + JSON body,
@@ -2882,6 +2891,9 @@ def test_model_status_running_but_model_absent(tmp_path, monkeypatch):
         st, s = _jreq(host, port, "GET", "/api/model-status")
         assert st == 200
         assert s["running"] is True and s["model_present"] is False
+        # GauntletGate R2: the derived loading flag disambiguates "server up, model pulling"
+        # from "server down" so a status pill never reads as a contradiction.
+        assert s["model_loading"] is True
 
 
 def test_model_status_local_on_nondefault_port_is_local(tmp_path, monkeypatch):
@@ -3145,6 +3157,9 @@ def test_health_reports_tools_and_version(tmp_path):
         # The bundled binaries are configured + present in the repo (tools/…).
         assert isinstance(h["openscad"], bool) and isinstance(h["orcaslicer"], bool)
         assert h["openscad"] is True  # tools/openscad/openscad.exe is committed
+        # GauntletGate R2: health surfaces any binary resolved OUTSIDE the install root (an
+        # operator local.yaml repoint) — a list, present and empty when all are in-tree.
+        assert isinstance(h["external_binaries"], list)
 
 
 def test_health_missing_binary_is_a_status_not_a_500(tmp_path, monkeypatch):

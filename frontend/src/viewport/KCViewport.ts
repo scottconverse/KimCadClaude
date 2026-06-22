@@ -647,7 +647,7 @@ export class KCViewport {
     const markerR = Math.max(1.2, (this.dims ? Math.max(this.dims.x, this.dims.y, this.dims.z) : 80) / 70)
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(markerR, 16, 12),
-      new THREE.MeshBasicMaterial({ color: 0xe3c24f, depthTest: false }),
+      new THREE.MeshBasicMaterial({ color: 0xe0a667, depthTest: false }),
     )
     marker.renderOrder = 3
     marker.position.copy(hit.point)
@@ -656,7 +656,7 @@ export class KCViewport {
       const [a, b] = this.measurePoints
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([a, b]),
-        new THREE.LineBasicMaterial({ color: 0xe3c24f, depthTest: false }),
+        new THREE.LineBasicMaterial({ color: 0xe0a667, depthTest: false }),
       )
       line.renderOrder = 3
       this.measureGroup.add(line)

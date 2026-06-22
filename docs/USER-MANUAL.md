@@ -565,7 +565,7 @@ tagged; the audit trail lives under [`docs/audits/`](audits/). The design ration
 
 ---
 
-*KimCad is open source under Apache-2.0. Questions and ideas:
+*KimCad is open source under GPL-2.0. Questions and ideas:
 [Discussions](../../discussions). The road ahead: [ROADMAP.md](../ROADMAP.md).*
 </content>
 </invoke>

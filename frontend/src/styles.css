@@ -1555,7 +1555,9 @@ input {
 
 .kc-tone-pass {
   background: color-mix(in srgb, var(--kc-pass) 15%, var(--kc-surface));
-  color: var(--kc-pass);
+  /* pass TEXT uses the darker -text token (the fill-vs-text split) so the "Passed" badge clears
+   * WCAG-AA on its own tint — raw --kc-pass was 3.95:1 (GauntletGate R2 UIUX-R2-01). */
+  color: var(--kc-pass-text);
 }
 .kc-tone-warn {
   background: color-mix(in srgb, var(--kc-warn-accent) 18%, var(--kc-surface));
