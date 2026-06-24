@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from kimcad.design_registry import DesignRegistry
 from kimcad.printability import dim_tolerance
@@ -747,7 +747,10 @@ def make_handler(
     # so the cache is naturally bounded. Intentionally LOCK-FREE under ThreadingHTTPServer (#31
     # audit): a given key always maps to the same value for a given mtime/size, so the worst a race
     # does is recompute one identical SHA-256 — last-writer-wins on an equal value, never corruption.
+    # GauntletGate ENG-MIN-3: an explicit cap backstops the "naturally bounded" reasoning — if the
+    # key space ever grows unexpectedly, the cache resets rather than growing without limit.
     static_cache: dict[str, tuple[float, int, str, bytes]] = {}
+    _STATIC_CACHE_MAX = 256
     # UI-v2 epic close: print-outcome feedback is intentionally accepted only after a real
     # hardware send in this server process. The SPA already asks at the right time; this closes
     # the API trust boundary for non-browser callers.
@@ -984,17 +987,19 @@ def make_handler(
                 ]
                 self._json(200, {"families": fams})
                 return
-            if self.path == "/api/health":
-                self._handle_health()
-                return
-            if self.path == "/api/health?recheck=1":
-                # KC-2 (#8): the Settings card's explicit "check again" — drop the cached
-                # CadQuery probe and discover fresh (the user may have just installed it).
-                # Only this deliberate query pays the re-probe; plain /api/health stays cached.
+            if self.path.split("?", 1)[0] == "/api/health":
+                # ENG-NIT-1 (GauntletGate): parse the query rather than exact-matching the full
+                # path, so `?recheck=1` triggers the re-probe regardless of extra/ordered params.
+                # (urlsplit/parse_qs are module-level imports — a function-local import here would
+                # shadow urlsplit for all of do_GET and break its earlier use.)
+                wants_recheck = bool(parse_qs(urlsplit(self.path).query).get("recheck"))
+                # KC-2 (#8): the Settings card's explicit "check again" — drop the cached CadQuery
+                # probe and discover fresh. Only this deliberate query pays the re-probe; plain
+                # /api/health stays cached.
                 # #31 (KC-26): the re-probe is a side effect on a GET, so skip it for a cross-origin
                 # drive-by (it would otherwise let a malicious page force repeated CPU-bound probes);
                 # the read itself still answers with the cached health.
-                if not self._is_cross_site():
+                if wants_recheck and not self._is_cross_site():
                     try:
                         get_config().recheck_cadquery_interpreter()
                     except Exception:  # noqa: BLE001 - a broken probe reads "not present"
@@ -1213,6 +1218,8 @@ def make_handler(
             else:
                 body = path.read_bytes()
                 etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+                if len(static_cache) >= _STATIC_CACHE_MAX:
+                    static_cache.clear()
                 static_cache[key] = (stat.st_mtime, stat.st_size, etag, body)
             if self.headers.get("If-None-Match") == etag:
                 self.send_response(304)
@@ -1249,6 +1256,8 @@ def make_handler(
                 html = path.read_text(encoding="utf-8")
                 body = html.replace("__KIMCAD_SESSION_TOKEN__", session_token).encode("utf-8")
                 etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+                if len(static_cache) >= _STATIC_CACHE_MAX:
+                    static_cache.clear()
                 static_cache[key] = (stat.st_mtime, stat.st_size, etag, body)
             # ENG-006: the shell embeds the per-boot session token (the one bearer secret in the
             # trust model), so it is served `no-store` — never written to a browser/proxy disk
@@ -1484,11 +1493,23 @@ def make_handler(
 
             cfg = get_config()
 
-            def _present(name: str) -> bool:
+            from kimcad.config import Config as _Config
+
+            def _tool(name: str) -> tuple[bool, bool]:
+                """(present, outside_install_root) — resolved once so the path isn't warned twice."""
                 try:
-                    return cfg.binary_path(name).exists()
+                    p = cfg.binary_path(name)
+                    return p.exists(), not _Config._within_install_root(p)
                 except Exception:  # noqa: BLE001 - a missing config key is "not present", not a 500
-                    return False
+                    return False, False
+
+            os_present, os_ext = _tool("openscad")
+            orca_present, orca_ext = _tool("orcaslicer")
+            # ENG-MIN-2 (GauntletGate): surface binaries that resolve OUTSIDE the install root —
+            # an operator-set absolute path in local.yaml (legitimate for a system install, but also
+            # the vector for a silent slicer/renderer repoint to an arbitrary exe). Visible here, not
+            # just a stderr warning a headless run never sees.
+            external = [n for n, ext in (("openscad", os_ext), ("orcaslicer", orca_ext)) if ext]
 
             # KC-2 (#8): whether a CadQuery engine is discoverable — the Settings card's
             # status line. The probe result is cached on the Config (and warmed at server
@@ -1499,9 +1520,10 @@ def make_handler(
                 cadquery_present = False
             self._json(200, {
                 "version": __version__,
-                "openscad": _present("openscad"),
-                "orcaslicer": _present("orcaslicer"),
+                "openscad": os_present,
+                "orcaslicer": orca_present,
                 "cadquery": cadquery_present,
+                "external_binaries": external,
             })
 
         # Stage 11 Slice 11.2 — the in-app Connections card. GET lists every configured
@@ -1708,6 +1730,10 @@ def make_handler(
                 present = any(n == model_name or n.startswith(model_name + "-") for n in names)
                 payload["running"] = running
                 payload["model_present"] = present
+                # Disambiguate the honest-but-contradictory-looking {running:true, present:false}
+                # transient (server up, model still pulling/loading) from {running:false} (no server),
+                # so a status pill never reads as a contradiction. (GauntletGate W-1 / ENG-NIT-3.)
+                payload["model_loading"] = bool(running and not present)
                 payload["vision_present"] = any(
                     n == vision_model or n.startswith(vision_model + "-") for n in names
                 )
@@ -1746,6 +1772,16 @@ def make_handler(
             printer_keys = set(cfg.raw.get("printers", {}))
             material_keys = set(cfg.raw.get("materials", {}))
             updates: dict[str, Any] = {}
+            # GauntletGate QA-1: reject unknown/typo'd fields instead of silently returning
+            # saved:true (a false positive that loses config intent). Mirrors /api/connections.
+            known_fields = {
+                "default_printer", "default_material", "cloud_enabled",
+                "cloud_model", "openrouter_api_key", "experimental_enabled",
+            }
+            unknown = [k for k in data if k not in known_fields]
+            if unknown:
+                self._json(400, {"error": "Unknown settings field(s): " + ", ".join(sorted(unknown)) + "."})
+                return
             if "default_printer" in data:
                 dp = data.get("default_printer")
                 if dp is not None and dp not in printer_keys:
